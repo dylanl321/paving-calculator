@@ -4,8 +4,12 @@ import { requireAuth } from '$lib/server/auth';
 
 export async function GET(event: RequestEvent) {
 	try {
+		if (!event.platform?.env?.DB) {
+			return json({ error: 'Database not available' }, { status: 503 });
+		}
+
 		const user = await requireAuth(event);
-		const db = new DbHelper(event.platform!.env.DB);
+		const db = new DbHelper(event.platform.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {

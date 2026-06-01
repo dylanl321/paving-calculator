@@ -97,7 +97,9 @@ export async function getAuthUser(event: RequestEvent): Promise<AuthUser | null>
 	const token = event.cookies.get(SESSION_COOKIE);
 	if (!token) return null;
 
-	const db = new DbHelper(event.platform!.env.DB);
+	if (!event.platform?.env?.DB) return null;
+
+	const db = new DbHelper(event.platform.env.DB);
 
 	const session = await db.getSession(token);
 	if (!session) return null;
@@ -153,7 +155,13 @@ export async function requireOrgRole(
 	allowedRoles: Array<'owner' | 'admin' | 'member'>
 ): Promise<{ user: AuthUser; role: string }> {
 	const user = await requireAuth(event);
-	const db = new DbHelper(event.platform!.env.DB);
+	if (!event.platform?.env?.DB) {
+		throw new Response(JSON.stringify({ error: 'Database not available' }), {
+			status: 503,
+			headers: { 'Content-Type': 'application/json' }
+		});
+	}
+	const db = new DbHelper(event.platform.env.DB);
 	const role = await db.getUserRole(user.id, orgId);
 
 	if (!role || !allowedRoles.includes(role as 'owner' | 'admin' | 'member')) {

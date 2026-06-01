@@ -9,13 +9,17 @@ interface LoginRequest {
 
 export async function POST(event: RequestEvent) {
 	try {
+		if (!event.platform?.env?.DB) {
+			return json({ error: 'Database not available' }, { status: 503 });
+		}
+
 		const body: LoginRequest = await event.request.json();
 
 		if (!body.email || !body.password) {
 			return json({ error: 'Missing email or password' }, { status: 400 });
 		}
 
-		const db = new DbHelper(event.platform!.env.DB);
+		const db = new DbHelper(event.platform.env.DB);
 
 		const user = await db.getUserByEmail(body.email);
 		if (!user) {
