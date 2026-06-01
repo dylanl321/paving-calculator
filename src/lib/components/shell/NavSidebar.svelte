@@ -224,7 +224,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
-		flex: 1;
 		overflow-y: auto;
 	}
 
@@ -264,6 +263,7 @@
 	}
 
 	.sidebar-footer {
+		margin-top: auto;
 		border-top: 1px solid var(--border);
 		padding: 12px;
 	}

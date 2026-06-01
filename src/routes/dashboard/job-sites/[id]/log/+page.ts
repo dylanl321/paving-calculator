@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
+import type { DbDailyLog, LogSummary } from '$lib/server/db-logs';
 
 export const load: PageLoad = async ({ params, fetch, parent }) => {
 	await parent();
@@ -18,10 +19,10 @@ export const load: PageLoad = async ({ params, fetch, parent }) => {
 		throw error(summaryRes.status, 'Failed to load summary');
 	}
 
-	const { logs } = await logsRes.json();
-	const { summary } = await summaryRes.json();
+	const { logs }: { logs: DbDailyLog[] } = await logsRes.json();
+	const { summary }: { summary: LogSummary } = await summaryRes.json();
 
-	const todayLog = logs.find((l: any) => l.log_date === today);
+	const todayLog = logs.find((l) => l.log_date === today);
 
 	return {
 		logs,

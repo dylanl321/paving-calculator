@@ -690,7 +690,7 @@ export class DbHelper {
 				.run();
 		} else {
 			const fields: string[] = [];
-			const values: any[] = [];
+			const values: (string | number | null)[] = [];
 
 			if (config.road_type !== undefined) {
 				fields.push('road_type = ?');

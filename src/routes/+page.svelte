@@ -54,6 +54,22 @@
 		font-size: 0.9rem;
 	}
 
+	/* Desktop: make title smaller since context is clear from sidebar */
+	@media (min-width: 1100px) {
+		.page-head {
+			margin-bottom: 14px;
+		}
+
+		.page-title {
+			font-size: 1.25rem;
+			font-weight: 700;
+		}
+
+		.page-sub {
+			font-size: 0.8rem;
+		}
+	}
+
 	.home-foot {
 		margin-top: 22px;
 		display: flex;

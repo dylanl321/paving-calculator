@@ -663,12 +663,23 @@
 
 	/* Panel variant: tighter for sidebar */
 	.settings-form.panel .section-desc {
-		font-size: 0.75rem;
+		font-size: 0.73rem;
+		line-height: 1.35;
+	}
+
+	.settings-form.panel .field-hint {
+		font-size: 0.72rem;
 	}
 
 	.settings-form.panel .with-unit input {
 		font-size: 1rem;
 		min-height: 40px;
+	}
+
+	.settings-form.panel .chip {
+		font-size: 0.78rem;
+		padding: 0 10px;
+		min-height: 36px;
 	}
 
 	@media (max-width: 360px) {

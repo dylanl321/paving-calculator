@@ -68,7 +68,7 @@
 			<line x1="290" y1={baseY} x2="290" y2={compactedY} stroke="var(--accent)" stroke-width="2" />
 			<line x1="285" y1={baseY} x2="295" y2={baseY} stroke="var(--accent)" stroke-width="2" />
 			<line x1="285" y1={compactedY} x2="295" y2={compactedY} stroke="var(--accent)" stroke-width="2" />
-			<text x="305" y={(baseY + compactedY) / 2 + 4} class="dim-label">{compactedIn}"</text>
+			<text x="305" y={(baseY + compactedY) / 2 + 4} class="dim-label">{compactedIn.toFixed(2)}"</text>
 
 			<!-- Loose dimension (if different) -->
 			{#if Math.abs(looseIn - compactedIn) > 0.01}
@@ -88,7 +88,7 @@
 			<line x1="285" y1={baseY} x2="295" y2={baseY} stroke="var(--accent)" stroke-width="2" />
 			<line x1="285" y1={compactedY} x2="295" y2={compactedY} stroke="var(--accent)" stroke-width="2" />
 			<text x="305" y={(baseY + compactedY) / 2 - 4} class="dim-label-large">
-				{compactedIn}" Compacted
+				{compactedIn.toFixed(2)}" Compacted
 			</text>
 
 			<!-- Loose dimension -->
@@ -97,7 +97,7 @@
 				<line x1="5" y1={baseY} x2="15" y2={baseY} stroke="var(--text-muted)" stroke-width="1.5" />
 				<line x1="5" y1={looseY} x2="15" y2={looseY} stroke="var(--text-muted)" stroke-width="1.5" />
 				<text x="10" y={(baseY + looseY) / 2 + 4} class="dim-label-large" text-anchor="middle">
-					{looseIn}" Loose
+					{looseIn.toFixed(2)}" Loose
 				</text>
 			{/if}
 

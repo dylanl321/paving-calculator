@@ -156,7 +156,7 @@ export async function requireOrgRole(
 	const db = new DbHelper(event.platform!.env.DB);
 	const role = await db.getUserRole(user.id, orgId);
 
-	if (!role || !allowedRoles.includes(role as any)) {
+	if (!role || !allowedRoles.includes(role as 'owner' | 'admin' | 'member')) {
 		throw new Response(JSON.stringify({ error: 'Forbidden: Insufficient permissions' }), {
 			status: 403,
 			headers: { 'Content-Type': 'application/json' }

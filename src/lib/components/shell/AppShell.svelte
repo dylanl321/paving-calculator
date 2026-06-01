@@ -65,7 +65,8 @@
 		.shell.with-context .shell-context {
 			display: block;
 			border-left: 1px solid var(--border);
-			background: var(--bg);
+			background: var(--surface);
+			min-height: 100vh;
 		}
 
 		.shell-context > :global(*) {

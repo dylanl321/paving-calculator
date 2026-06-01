@@ -1,5 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
+import type { DbJobSite } from '$lib/server/db';
 
 export const load: PageLoad = async ({ fetch }) => {
 	try {
@@ -15,11 +16,11 @@ export const load: PageLoad = async ({ fetch }) => {
 			throw new Error('Failed to fetch job sites');
 		}
 
-		const jobSitesData = await jobSitesRes.json();
+		const jobSitesData: { job_sites: DbJobSite[] } = await jobSitesRes.json();
 
 		// Get calculation counts for each job site
 		const jobSitesWithCounts = await Promise.all(
-			jobSitesData.job_sites.map(async (site: any) => {
+			jobSitesData.job_sites.map(async (site) => {
 				const calcRes = await fetch(`/api/calculations?job_site_id=${site.id}`, {
 					credentials: 'include'
 				});
