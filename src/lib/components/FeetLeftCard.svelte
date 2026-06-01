@@ -3,6 +3,8 @@
 	import NumberField from './NumberField.svelte';
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
+	import RoadProgressBar from './RoadProgressBar.svelte';
+	import MaterialRemaining from './MaterialRemaining.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import {
 		feetFromLoads,
@@ -16,6 +18,7 @@
 	let loads = $state<number | null>(null);
 	let ordered = $state<number | null>(null);
 	let placed = $state<number | null>(null);
+	let totalJobFeet = $state<number | null>(null);
 
 	const rate = $derived(job.thicknessIn > 0 ? spreadRateFromThickness(job.thicknessIn) : 0);
 
@@ -38,6 +41,12 @@
 			rateLbsSy: rate
 		});
 	});
+
+	// Calculate completed distance for progress bar
+	const completedFeet = $derived.by(() => {
+		if (totalJobFeet == null || feet == null) return 0;
+		return Math.max(0, totalJobFeet - feet);
+	});
 </script>
 
 <CalcCard
@@ -58,16 +67,30 @@
 			bind:value={loads}
 			hint={`Each load = ${job.truckLoadTons} tons (set in Job Setup).`}
 		/>
+		{#if loads != null && loads > 0}
+			<MaterialRemaining loadsRemaining={loads} tonsPerLoad={job.truckLoadTons} />
+		{/if}
 	{:else}
 		<NumberField label="Tons ordered today" unit="tons" bind:value={ordered} />
 		<NumberField label="Tons placed so far" unit="tons" bind:value={placed} />
 	{/if}
+
+	<NumberField
+		label="Total job length (optional)"
+		unit="ft"
+		bind:value={totalJobFeet}
+		hint="For progress tracking"
+	/>
 
 	<ResultStat
 		value={feet != null ? Math.round(feet).toLocaleString() : null}
 		unit="feet left today"
 		secondary={`At ${job.widthFt} ft wide, ${Math.round(rate)} lbs/SY`}
 	/>
+
+	{#if totalJobFeet != null && feet != null && totalJobFeet > 0}
+		<RoadProgressBar currentFeet={completedFeet} totalFeet={totalJobFeet} />
+	{/if}
 
 	<ShowWork>
 		<p>Both modes use the same tons → feet conversion:</p>

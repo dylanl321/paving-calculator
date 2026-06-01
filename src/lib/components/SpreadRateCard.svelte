@@ -4,6 +4,7 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
+	import SpreadRateGauge from './SpreadRateGauge.svelte';
 	import { machines, constantMeta } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { spreadRateFromThickness, spreadRatePlaced } from '$lib/config/formulas';
@@ -63,6 +64,10 @@
 			/>
 		</div>
 	</div>
+
+	{#if placedRate != null && targetRate != null}
+		<SpreadRateGauge actual={placedRate} target={targetRate} />
+	{/if}
 
 	{#if job.machineId !== 'none'}
 		<label class="firstpass">

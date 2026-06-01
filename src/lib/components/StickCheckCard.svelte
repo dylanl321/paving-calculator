@@ -4,6 +4,7 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
+	import CrossSectionDiagram from './CrossSectionDiagram.svelte';
 	import { constantMeta } from '$lib/config';
 	import { stickCheck } from '$lib/config/formulas';
 
@@ -24,6 +25,10 @@
 		value={loose != null ? Number(loose.toFixed(2)) : null}
 		unit="in loose behind screed"
 	/>
+
+	{#if target != null && loose != null && target > 0}
+		<CrossSectionDiagram compactedIn={target} looseIn={loose} />
+	{/if}
 
 	<ShowWork>
 		<code>loose = compacted × {factorMeta.value}</code>
