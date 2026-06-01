@@ -3,13 +3,17 @@
 /// <reference types="@vite-pwa/sveltekit" />
 /// <reference types="vite-plugin-pwa/client" />
 
+import type { D1Database } from './cloudflare';
+
 declare global {
 	namespace App {
 		interface Platform {
-			env: Env;
+			env: {
+				DB: D1Database;
+			};
 			ctx: ExecutionContext;
 			caches: CacheStorage;
-			cf?: IncomingRequestCfProperties
+			cf?: IncomingRequestCfProperties;
 		}
 
 		// interface Error {}
