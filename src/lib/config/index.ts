@@ -52,6 +52,32 @@ export interface DensityEntry {
 	status: Status;
 }
 
+export interface MaterialEntry {
+	id: string;
+	label: string;
+	densityTonsPerYd3: number;
+	tier?: number | null;
+	status: Status;
+}
+
+export interface ConcretePsiEntry {
+	psi: number;
+	label: string;
+	slumpIn: string;
+	wcRatio: string;
+	tier?: number | null;
+	status: Status;
+}
+
+export interface SlopeReferenceEntry {
+	label: string;
+	gradePct: number;
+	minPct?: number;
+	maxPct?: number;
+	tier?: number | null;
+	status: Status;
+}
+
 export interface MachineEntry {
 	id: string;
 	label: string;
@@ -106,6 +132,9 @@ interface PaverateConfig {
 	temperature: TempEntry[];
 	mixThickness: MixThicknessEntry[];
 	densities: DensityEntry[];
+	materials?: MaterialEntry[];
+	concretePsi?: ConcretePsiEntry[];
+	slopeReference?: SlopeReferenceEntry[];
 	calculators: CalculatorEntry[];
 }
 
@@ -132,6 +161,9 @@ export const defaults = config.defaults;
 export const machines = config.machines;
 export const calculators = config.calculators;
 export const densities = config.densities;
+export const materials = config.materials;
+export const concretePsi = config.concretePsi;
+export const slopeReference = config.slopeReference;
 export const tack = config.tack;
 export const temperature = config.temperature;
 export const mixThickness = config.mixThickness;

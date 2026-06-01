@@ -1,0 +1,74 @@
+import { json, type RequestEvent } from '@sveltejs/kit';
+import { requireAuth } from '$lib/server/auth';
+import { DbHelper } from '$lib/server/db';
+
+export async function PATCH(event: RequestEvent) {
+	try {
+		const user = await requireAuth(event);
+		const { userId } = event.params;
+		const body = await event.request.json();
+		const { role } = body;
+
+		if (!role || !['owner', 'admin', 'member'].includes(role)) {
+			return json({ error: 'Valid role is required' }, { status: 400 });
+		}
+
+		const db = new DbHelper(event.platform!.env.DB);
+
+		// Get user's org
+		const org = await db.getOrgByUserId(user.id);
+		if (!org) {
+			return json({ error: 'User not associated with an organization' }, { status: 400 });
+		}
+
+		// Check user has admin/owner role
+		const userRole = await db.getUserRole(user.id, org.id);
+		if (userRole !== 'owner' && userRole !== 'admin') {
+			return json({ error: 'Insufficient permissions' }, { status: 403 });
+		}
+
+		// Update member role
+		await db.updateOrgMemberRole(userId, org.id, role);
+
+		return json({ success: true });
+	} catch (error) {
+		if (error instanceof Response) throw error;
+		console.error('Error updating member role:', error);
+		return json({ error: 'Failed to update member role' }, { status: 500 });
+	}
+}
+
+export async function DELETE(event: RequestEvent) {
+	try {
+		const user = await requireAuth(event);
+		const { userId } = event.params;
+
+		const db = new DbHelper(event.platform!.env.DB);
+
+		// Get user's org
+		const org = await db.getOrgByUserId(user.id);
+		if (!org) {
+			return json({ error: 'User not associated with an organization' }, { status: 400 });
+		}
+
+		// Check user has admin/owner role
+		const userRole = await db.getUserRole(user.id, org.id);
+		if (userRole !== 'owner' && userRole !== 'admin') {
+			return json({ error: 'Insufficient permissions' }, { status: 403 });
+		}
+
+		// Don't allow removing self
+		if (userId === user.id) {
+			return json({ error: 'Cannot remove yourself from the organization' }, { status: 400 });
+		}
+
+		// Remove member
+		await db.removeOrgMember(userId, org.id);
+
+		return json({ success: true });
+	} catch (error) {
+		if (error instanceof Response) throw error;
+		console.error('Error removing member:', error);
+		return json({ error: 'Failed to remove member' }, { status: 500 });
+	}
+}

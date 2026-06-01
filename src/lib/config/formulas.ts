@@ -123,3 +123,66 @@ export function waterToAddGallons(opts: {
 	if (delta <= 0) return 0;
 	return (dryLbs * delta) / constant('CONST.WATER_LB_GAL');
 }
+
+/** CALC.CONCRETE_VOLUME -- concrete volume in ft³ and yd³. */
+export function concreteVolume(lengthFt: number, widthFt: number, depthIn: number): {
+	volumeFt3: number;
+	volumeYd3: number;
+	bags80lb: number;
+	truckLoads: number;
+} {
+	const volumeFt3 = lengthFt * widthFt * (depthIn / 12);
+	const volumeYd3 = volumeFt3 / constant('CONST.CF_PER_CY');
+	const bags80lb = volumeFt3 * 0.45; // ~0.45 bags per ft³ for 80lb bags
+	const truckLoads = volumeYd3 / 9; // 9 yd³ standard truck
+	return { volumeFt3, volumeYd3, bags80lb, truckLoads };
+}
+
+/** CALC.SUBGRADE -- subgrade/base stone tonnage. */
+export function subgradeTonnage(opts: {
+	lengthFt: number;
+	widthFt: number;
+	depthIn: number;
+	densityTonsPerYd3: number;
+}): { cubicYards: number; tons: number; truckLoads: number } {
+	const volumeFt3 = opts.lengthFt * opts.widthFt * (opts.depthIn / 12);
+	const cubicYards = volumeFt3 / constant('CONST.CF_PER_CY');
+	const tons = cubicYards * opts.densityTonsPerYd3;
+	const truckLoads = tons / 18; // 18 tons per truck
+	return { cubicYards, tons, truckLoads };
+}
+
+/** CALC.SLOPE_GRADE -- slope grade percentage and angle. */
+export function slopeGrade(riseFt: number, runFt: number): {
+	gradePct: number;
+	ratio: number;
+	angleDeg: number;
+} {
+	const gradePct = runFt > 0 ? (riseFt / runFt) * 100 : 0;
+	const ratio = riseFt > 0 ? runFt / riseFt : 0;
+	const angleDeg = Math.atan(riseFt / runFt) * (180 / Math.PI);
+	return { gradePct, ratio, angleDeg };
+}
+
+/** CALC.SOIL_COMPACTION -- soil compaction calculation. */
+export function soilCompaction(opts: {
+	wetWeightLbs: number;
+	dryWeightLbs: number;
+	volumeFt3: number;
+	moisturePct: number;
+	proctorMaxDryPcf: number;
+}): {
+	wetDensity: number;
+	dryDensity: number;
+	compactionPct: number;
+	status: 'pass' | 'marginal' | 'fail';
+} {
+	const wetDensity = opts.wetWeightLbs / opts.volumeFt3;
+	const dryDensity = opts.dryWeightLbs / opts.volumeFt3;
+	const compactionPct =
+		opts.proctorMaxDryPcf > 0 ? (dryDensity / opts.proctorMaxDryPcf) * 100 : 0;
+	let status: 'pass' | 'marginal' | 'fail' = 'fail';
+	if (compactionPct >= 95) status = 'pass';
+	else if (compactionPct >= 92) status = 'marginal';
+	return { wetDensity, dryDensity, compactionPct, status };
+}

@@ -342,6 +342,102 @@ densities:
     status: FIELD_ESTIMATE
 
 # ---------------------------------------------------------------------------
+# Subgrade/base material densities (tons/yd³) -- field rules-of-thumb
+# ---------------------------------------------------------------------------
+materials:
+  - id: MAT.GAB
+    label: GAB (Graded Aggregate Base)
+    densityTonsPerYd3: 1.4
+    tier: 5
+    status: FIELD_ESTIMATE
+  - id: MAT.CRUSHER_RUN
+    label: Crusher Run
+    densityTonsPerYd3: 1.5
+    tier: 5
+    status: FIELD_ESTIMATE
+  - id: MAT.STONE_57
+    label: "#57 Stone"
+    densityTonsPerYd3: 1.4
+    tier: 5
+    status: FIELD_ESTIMATE
+  - id: MAT.STONE_89
+    label: "#89 Stone"
+    densityTonsPerYd3: 1.35
+    tier: 5
+    status: FIELD_ESTIMATE
+  - id: MAT.RIP_RAP
+    label: Rip Rap
+    densityTonsPerYd3: 1.65
+    tier: 5
+    status: FIELD_ESTIMATE
+  - id: MAT.TOPSOIL
+    label: Topsoil
+    densityTonsPerYd3: 1.1
+    tier: 5
+    status: FIELD_ESTIMATE
+  - id: MAT.SAND
+    label: Sand
+    densityTonsPerYd3: 1.35
+    tier: 5
+    status: FIELD_ESTIMATE
+
+# ---------------------------------------------------------------------------
+# Concrete PSI ratings and uses -- field reference
+# ---------------------------------------------------------------------------
+concretePsi:
+  - psi: 2500
+    label: Residential driveways, sidewalks
+    slumpIn: "3-4"
+    wcRatio: "0.58-0.62"
+    tier: 5
+    status: FIELD_ESTIMATE
+  - psi: 3000
+    label: Residential foundations, slabs
+    slumpIn: "3-4"
+    wcRatio: "0.55-0.58"
+    tier: 5
+    status: FIELD_ESTIMATE
+  - psi: 3500
+    label: Commercial floors, light industrial
+    slumpIn: "3-5"
+    wcRatio: "0.50-0.55"
+    tier: 5
+    status: FIELD_ESTIMATE
+  - psi: 4000
+    label: Commercial structures, parking garages
+    slumpIn: "4-5"
+    wcRatio: "0.48-0.52"
+    tier: 5
+    status: FIELD_ESTIMATE
+  - psi: 4500
+    label: Heavy industrial, bridge decks
+    slumpIn: "3-4"
+    wcRatio: "0.45-0.48"
+    tier: 5
+    status: FIELD_ESTIMATE
+  - psi: 5000
+    label: High-performance, post-tensioned
+    slumpIn: "3-4"
+    wcRatio: "0.40-0.45"
+    tier: 5
+    status: FIELD_ESTIMATE
+
+# ---------------------------------------------------------------------------
+# Slope/grade reference values -- field rules-of-thumb
+# ---------------------------------------------------------------------------
+slopeReference:
+  - label: Cross-slope for drainage
+    gradePct: 2.0
+    tier: 5
+    status: FIELD_ESTIMATE
+  - label: Highway longitudinal (typical range)
+    gradePct: 1.0
+    minPct: 1.0
+    maxPct: 3.0
+    tier: 5
+    status: FIELD_ESTIMATE
+
+# ---------------------------------------------------------------------------
 # Calculator metadata for the home grid + labels
 # ---------------------------------------------------------------------------
 calculators:

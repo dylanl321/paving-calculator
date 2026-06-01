@@ -7,6 +7,144 @@
 
 	let { data }: { data: PageData } = $props();
 
+	let activeTab = $state('overview');
+	let configForm = $state({
+		road_type: data.config?.road_type || null,
+		num_lanes: data.config?.num_lanes || null,
+		lane_width_ft: data.config?.lane_width_ft || 12,
+		total_length_ft: data.config?.total_length_ft || null,
+		scope_of_work: data.config?.scope_of_work || null,
+		mix_type: data.config?.mix_type || null,
+		target_thickness_in: data.config?.target_thickness_in || null,
+		target_spread_rate: data.config?.target_spread_rate || null,
+		tack_type: data.config?.tack_type || null,
+		target_tack_rate: data.config?.target_tack_rate || null,
+		notes: data.config?.notes || null
+	});
+
+	let equipmentList = $state([...data.equipment]);
+	let newEquipment = $state({
+		equipment_type: 'paver' as const,
+		name: '',
+		capacity: '',
+		notes: ''
+	});
+
+	let saving = $state(false);
+
+	const roadTypeLabels = {
+		highway: 'Highway',
+		state_route: 'State Route',
+		county_road: 'County Road',
+		city_street: 'City Street',
+		subdivision: 'Subdivision',
+		parking_lot: 'Parking Lot',
+		other: 'Other'
+	};
+
+	const scopeOfWorkLabels = {
+		full_depth: 'Full Depth',
+		mill_and_fill: 'Mill & Fill',
+		overlay: 'Overlay',
+		leveling: 'Leveling',
+		patching: 'Patching',
+		widening: 'Widening'
+	};
+
+	const tackTypeLabels = {
+		anionic: 'Anionic',
+		cationic: 'Cationic',
+		polymer_modified: 'Polymer Modified',
+		trackless: 'Trackless'
+	};
+
+	const equipmentTypeLabels = {
+		paver: 'Paver',
+		shuttle_buggy: 'Shuttle Buggy',
+		roller_breakdown: 'Breakdown Roller',
+		roller_intermediate: 'Intermediate Roller',
+		roller_finish: 'Finish Roller',
+		distributor: 'Distributor',
+		milling_machine: 'Milling Machine',
+		other: 'Other'
+	};
+
+	$effect(() => {
+		if (
+			configForm.target_thickness_in !== null &&
+			configForm.target_thickness_in > 0 &&
+			!configForm.target_spread_rate
+		) {
+			configForm.target_spread_rate = configForm.target_thickness_in * 110;
+		}
+	});
+
+	async function saveConfig() {
+		saving = true;
+		try {
+			const res = await fetch(`/api/job-sites/${data.jobSite.id}/config`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify(configForm)
+			});
+
+			if (!res.ok) throw new Error('Failed to save');
+		} catch (err) {
+			console.error(err);
+		} finally {
+			saving = false;
+		}
+	}
+
+	async function addEquipment() {
+		if (!newEquipment.name) return;
+
+		saving = true;
+		try {
+			const res = await fetch(`/api/job-sites/${data.jobSite.id}/equipment`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify(newEquipment)
+			});
+
+			if (!res.ok) throw new Error('Failed to add equipment');
+
+			const { equipment } = await res.json();
+			equipmentList = [...equipmentList, equipment];
+
+			newEquipment = {
+				equipment_type: 'paver',
+				name: '',
+				capacity: '',
+				notes: ''
+			};
+		} catch (err) {
+			console.error(err);
+		} finally {
+			saving = false;
+		}
+	}
+
+	async function removeEquipment(equipId: string) {
+		saving = true;
+		try {
+			const res = await fetch(`/api/job-sites/${data.jobSite.id}/equipment/${equipId}`, {
+				method: 'DELETE',
+				credentials: 'include'
+			});
+
+			if (!res.ok) throw new Error('Failed to remove equipment');
+
+			equipmentList = equipmentList.filter((e) => e.id !== equipId);
+		} catch (err) {
+			console.error(err);
+		} finally {
+			saving = false;
+		}
+	}
+
 	function formatDate(timestamp: number): string {
 		return new Date(timestamp * 1000).toLocaleDateString('en-US', {
 			month: 'short',
@@ -70,7 +208,16 @@
 
 	<div class="breadcrumb">
 		<a href="/dashboard">Dashboard</a>
-		<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<svg
+			width="16"
+			height="16"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2"
+			stroke-linecap="round"
+			stroke-linejoin="round"
+		>
 			<polyline points="9 18 15 12 9 6"></polyline>
 		</svg>
 		<span>Job Site</span>
@@ -83,58 +230,456 @@
 				<p class="page-subtitle">{data.jobSite.location_description}</p>
 			{/if}
 		</div>
-		<span class="status-badge status-{data.jobSite.status.toLowerCase()}">{data.jobSite.status}</span>
+		<span class="status-badge status-{data.jobSite.status.toLowerCase()}"
+			>{data.jobSite.status}</span
+		>
 	</div>
 
-	<section class="section">
-		<div class="section-header">
-			<h3>Saved Calculations</h3>
-			<button class="btn-primary" onclick={handleNewCalculation}>
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<line x1="12" y1="5" x2="12" y2="19"></line>
-					<line x1="5" y1="12" x2="19" y2="12"></line>
-				</svg>
-				New Calculation
-			</button>
-		</div>
+	<nav class="tabs">
+		<button class="tab" class:active={activeTab === 'overview'} onclick={() => (activeTab = 'overview')}>
+			Overview
+		</button>
+		<button
+			class="tab"
+			class:active={activeTab === 'configuration'}
+			onclick={() => (activeTab = 'configuration')}
+		>
+			Configuration
+		</button>
+		<button
+			class="tab"
+			class:active={activeTab === 'equipment'}
+			onclick={() => (activeTab = 'equipment')}
+		>
+			Equipment
+		</button>
+		<button
+			class="tab"
+			class:active={activeTab === 'calculations'}
+			onclick={() => (activeTab = 'calculations')}
+		>
+			Calculations
+		</button>
+		<button
+			class="tab"
+			class:active={activeTab === 'daily_log'}
+			onclick={() => (activeTab = 'daily_log')}
+		>
+			Daily Log
+		</button>
+	</nav>
 
-		{#if data.calculations.length === 0}
-			<div class="empty-state">
-				<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
-				</svg>
-				<h4>No calculations yet</h4>
-				<p>Use the calculator to create and save calculations for this job site</p>
-				<button class="btn-primary" style="margin-top: 16px;" onclick={handleNewCalculation}>
-					Go to Calculator
-				</button>
+	{#if activeTab === 'overview'}
+		<section class="section">
+			<h3>Key Information</h3>
+			<div class="stats-grid">
+				<div class="stat-card">
+					<div class="stat-label">Total Length</div>
+					<div class="stat-value">
+						{configForm.total_length_ft ? `${configForm.total_length_ft.toLocaleString()} ft` : '—'}
+					</div>
+				</div>
+				<div class="stat-card">
+					<div class="stat-label">Lanes</div>
+					<div class="stat-value">{configForm.num_lanes || '—'}</div>
+				</div>
+				<div class="stat-card">
+					<div class="stat-label">Mix Type</div>
+					<div class="stat-value">{configForm.mix_type || '—'}</div>
+				</div>
+				<div class="stat-card">
+					<div class="stat-label">Target Spread Rate</div>
+					<div class="stat-value">
+						{configForm.target_spread_rate ? `${configForm.target_spread_rate} lbs/yd²` : '—'}
+					</div>
+				</div>
 			</div>
-		{:else}
-			<div class="calc-list">
-				{#each data.calculations as calc}
-					<div class="calc-card">
-						<div class="calc-header">
-							<div class="calc-type-icon">
-								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		</section>
+
+		<section class="section">
+			<h3>Assigned Crew</h3>
+			{#if data.assignments.length === 0}
+				<div class="empty-state-mini">
+					<p>No crew members assigned yet</p>
+				</div>
+			{:else}
+				<div class="crew-list">
+					{#each data.assignments as assignment}
+						<div class="crew-card">
+							<div class="crew-avatar">{assignment.user_name.charAt(0).toUpperCase()}</div>
+							<div class="crew-info">
+								<div class="crew-name">{assignment.user_name}</div>
+								<div class="crew-role">{assignment.role}</div>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</section>
+	{:else if activeTab === 'configuration'}
+		<section class="section">
+			<h3>Road Details</h3>
+			<form class="config-form" onchange={saveConfig}>
+				<div class="form-group">
+					<label for="road_type">Road Type</label>
+					<div class="selector-grid">
+						{#each Object.entries(roadTypeLabels) as [value, label]}
+							<button
+								type="button"
+								class="selector-card"
+								class:active={configForm.road_type === value}
+								onclick={() => {
+									configForm.road_type = value as any;
+									saveConfig();
+								}}
+							>
+								{label}
+							</button>
+						{/each}
+					</div>
+				</div>
+
+				<div class="form-row">
+					<div class="form-group">
+						<label for="num_lanes">Number of Lanes</label>
+						<input
+							type="number"
+							id="num_lanes"
+							bind:value={configForm.num_lanes}
+							min="1"
+							placeholder="e.g., 2"
+						/>
+					</div>
+
+					<div class="form-group">
+						<label for="lane_width_ft">Lane Width (ft)</label>
+						<input
+							type="number"
+							id="lane_width_ft"
+							bind:value={configForm.lane_width_ft}
+							min="1"
+							step="0.5"
+							placeholder="e.g., 12"
+						/>
+					</div>
+				</div>
+
+				<div class="form-group">
+					<label for="total_length_ft">Total Length (ft)</label>
+					<input
+						type="number"
+						id="total_length_ft"
+						bind:value={configForm.total_length_ft}
+						min="1"
+						placeholder="e.g., 5280"
+					/>
+				</div>
+
+				<div class="form-group">
+					<label for="scope_of_work">Scope of Work</label>
+					<div class="selector-grid">
+						{#each Object.entries(scopeOfWorkLabels) as [value, label]}
+							<button
+								type="button"
+								class="selector-card"
+								class:active={configForm.scope_of_work === value}
+								onclick={() => {
+									configForm.scope_of_work = value as any;
+									saveConfig();
+								}}
+							>
+								{label}
+							</button>
+						{/each}
+					</div>
+				</div>
+
+				<div class="form-group">
+					<label for="mix_type">Mix Type</label>
+					<select id="mix_type" bind:value={configForm.mix_type}>
+						<option value={null}>Select mix type</option>
+						<option value="12.5mm Superpave">12.5mm Superpave</option>
+						<option value="9.5mm Superpave Type 1">9.5mm Superpave Type 1</option>
+						<option value="9.5mm Superpave Type 2">9.5mm Superpave Type 2</option>
+						<option value="4.75mm Superpave">4.75mm Superpave</option>
+						<option value="Polymer Modified">Polymer Modified</option>
+						<option value="SMA (Stone Matrix Asphalt)">SMA (Stone Matrix Asphalt)</option>
+						<option value="Other">Other</option>
+					</select>
+				</div>
+
+				<div class="form-row">
+					<div class="form-group">
+						<label for="target_thickness_in">Target Thickness (in)</label>
+						<input
+							type="number"
+							id="target_thickness_in"
+							bind:value={configForm.target_thickness_in}
+							min="0"
+							step="0.25"
+							placeholder="e.g., 2"
+						/>
+					</div>
+
+					<div class="form-group">
+						<label for="target_spread_rate">Target Spread Rate (lbs/yd²)</label>
+						<input
+							type="number"
+							id="target_spread_rate"
+							bind:value={configForm.target_spread_rate}
+							min="0"
+							placeholder="Auto-calculated"
+						/>
+					</div>
+				</div>
+
+				<div class="form-group">
+					<label for="tack_type">Tack Coat Type</label>
+					<div class="selector-grid">
+						{#each Object.entries(tackTypeLabels) as [value, label]}
+							<button
+								type="button"
+								class="selector-card"
+								class:active={configForm.tack_type === value}
+								onclick={() => {
+									configForm.tack_type = value as any;
+									saveConfig();
+								}}
+							>
+								{label}
+							</button>
+						{/each}
+					</div>
+				</div>
+
+				<div class="form-group">
+					<label for="target_tack_rate">Target Tack Rate (gal/yd²)</label>
+					<input
+						type="number"
+						id="target_tack_rate"
+						bind:value={configForm.target_tack_rate}
+						min="0"
+						step="0.01"
+						placeholder="e.g., 0.06"
+					/>
+				</div>
+
+				<div class="form-group">
+					<label for="notes">Notes</label>
+					<textarea
+						id="notes"
+						bind:value={configForm.notes}
+						rows="4"
+						placeholder="Additional notes about this job site..."
+					></textarea>
+				</div>
+			</form>
+		</section>
+	{:else if activeTab === 'equipment'}
+		<section class="section">
+			<h3>Equipment List</h3>
+
+			{#if equipmentList.length === 0}
+				<div class="empty-state-mini">
+					<p>No equipment assigned yet</p>
+				</div>
+			{:else}
+				<div class="equipment-list">
+					{#each equipmentList as equip}
+						<div class="equipment-card">
+							<div class="equipment-icon">
+								<svg
+									width="20"
+									height="20"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								>
 									<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
 								</svg>
 							</div>
-							<div class="calc-info">
-								<h4 class="calc-type">{formatCalcType(calc.calc_type)}</h4>
-								<p class="calc-date">{formatDate(calc.created_at)}</p>
+							<div class="equipment-info">
+								<div class="equipment-type">{equipmentTypeLabels[equip.equipment_type]}</div>
+								<div class="equipment-name">{equip.name}</div>
+								{#if equip.capacity}
+									<div class="equipment-capacity">{equip.capacity}</div>
+								{/if}
 							</div>
-							<div class="calc-result">
-								{getResultSummary(calc)}
-							</div>
+							<button
+								class="btn-remove"
+								onclick={() => removeEquipment(equip.id)}
+								disabled={saving}
+								aria-label="Remove equipment"
+							>
+								<svg
+									width="18"
+									height="18"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+								>
+									<line x1="18" y1="6" x2="6" y2="18"></line>
+									<line x1="6" y1="6" x2="18" y2="18"></line>
+								</svg>
+							</button>
 						</div>
-						{#if calc.notes}
-							<div class="calc-notes">{calc.notes}</div>
-						{/if}
+					{/each}
+				</div>
+			{/if}
+
+			<div class="add-equipment-form">
+				<h4>Add Equipment</h4>
+				<div class="form-row">
+					<div class="form-group">
+						<label for="equip_type">Type</label>
+						<select id="equip_type" bind:value={newEquipment.equipment_type}>
+							{#each Object.entries(equipmentTypeLabels) as [value, label]}
+								<option value={value}>{label}</option>
+							{/each}
+						</select>
 					</div>
-				{/each}
+
+					<div class="form-group">
+						<label for="equip_name">Name</label>
+						<input
+							type="text"
+							id="equip_name"
+							bind:value={newEquipment.name}
+							placeholder="e.g., CAT AP1055F"
+						/>
+					</div>
+				</div>
+
+				<div class="form-group">
+					<label for="equip_capacity">Capacity (optional)</label>
+					<input
+						type="text"
+						id="equip_capacity"
+						bind:value={newEquipment.capacity}
+						placeholder="e.g., 18.5 tons"
+					/>
+				</div>
+
+				<button
+					class="btn-primary"
+					onclick={addEquipment}
+					disabled={!newEquipment.name || saving}
+				>
+					Add Equipment
+				</button>
 			</div>
-		{/if}
-	</section>
+		</section>
+	{:else if activeTab === 'calculations'}
+		<section class="section">
+			<div class="section-header">
+				<h3>Saved Calculations</h3>
+				<button class="btn-primary" onclick={handleNewCalculation}>
+					<svg
+						width="18"
+						height="18"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<line x1="12" y1="5" x2="12" y2="19"></line>
+						<line x1="5" y1="12" x2="19" y2="12"></line>
+					</svg>
+					New Calculation
+				</button>
+			</div>
+
+			{#if data.calculations.length === 0}
+				<div class="empty-state">
+					<svg
+						width="48"
+						height="48"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<path
+							d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+						></path>
+					</svg>
+					<h4>No calculations yet</h4>
+					<p>Use the calculator to create and save calculations for this job site</p>
+					<button class="btn-primary" style="margin-top: 16px;" onclick={handleNewCalculation}>
+						Go to Calculator
+					</button>
+				</div>
+			{:else}
+				<div class="calc-list">
+					{#each data.calculations as calc}
+						<div class="calc-card">
+							<div class="calc-header">
+								<div class="calc-type-icon">
+									<svg
+										width="20"
+										height="20"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									>
+										<path
+											d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+										></path>
+									</svg>
+								</div>
+								<div class="calc-info">
+									<h4 class="calc-type">{formatCalcType(calc.calc_type)}</h4>
+									<p class="calc-date">{formatDate(calc.created_at)}</p>
+								</div>
+								<div class="calc-result">
+									{getResultSummary(calc)}
+								</div>
+							</div>
+							{#if calc.notes}
+								<div class="calc-notes">{calc.notes}</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</section>
+	{:else if activeTab === 'daily_log'}
+		<section class="section">
+			<div class="empty-state">
+				<svg
+					width="48"
+					height="48"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+					<polyline points="14 2 14 8 20 8"></polyline>
+					<line x1="16" y1="13" x2="8" y2="13"></line>
+					<line x1="16" y1="17" x2="8" y2="17"></line>
+					<polyline points="10 9 9 9 8 9"></polyline>
+				</svg>
+				<h4>Coming Soon</h4>
+				<p>Daily production logs will be available here</p>
+			</div>
+		</section>
+	{/if}
 </div>
 
 <style>
@@ -204,7 +749,7 @@
 		justify-content: space-between;
 		align-items: flex-start;
 		gap: 16px;
-		margin-bottom: 24px;
+		margin-bottom: 20px;
 	}
 
 	.page-title {
@@ -233,13 +778,284 @@
 		color: var(--accent-text);
 	}
 
-	.status-inactive {
+	.status-completed {
 		background: var(--text-muted);
 		color: var(--bg);
 	}
 
+	.tabs {
+		display: flex;
+		gap: 4px;
+		border-bottom: 2px solid var(--border);
+		margin-bottom: 24px;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	.tab {
+		padding: 12px 20px;
+		background: transparent;
+		border: none;
+		border-bottom: 2px solid transparent;
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: var(--text-muted);
+		cursor: pointer;
+		white-space: nowrap;
+		transition: color 0.2s, border-color 0.2s;
+		margin-bottom: -2px;
+		min-height: 48px;
+	}
+
+	.tab:hover {
+		color: var(--accent);
+	}
+
+	.tab.active {
+		color: var(--accent);
+		border-bottom-color: var(--accent);
+	}
+
 	.section {
 		margin-bottom: 32px;
+	}
+
+	.section h3 {
+		margin: 0 0 16px;
+		font-size: 1.2rem;
+	}
+
+	.stats-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+		gap: 12px;
+		margin-bottom: 24px;
+	}
+
+	.stat-card {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 16px;
+	}
+
+	.stat-label {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		margin-bottom: 6px;
+	}
+
+	.stat-value {
+		font-size: 1.3rem;
+		font-weight: 700;
+		color: var(--accent);
+	}
+
+	.crew-list {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.crew-card {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 12px;
+	}
+
+	.crew-avatar {
+		width: 40px;
+		height: 40px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--accent);
+		color: var(--accent-text);
+		border-radius: 50%;
+		font-weight: 700;
+		font-size: 1.1rem;
+	}
+
+	.crew-info {
+		flex: 1;
+	}
+
+	.crew-name {
+		font-weight: 600;
+		margin-bottom: 2px;
+	}
+
+	.crew-role {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		text-transform: capitalize;
+	}
+
+	.config-form {
+		display: flex;
+		flex-direction: column;
+		gap: 20px;
+	}
+
+	.form-group {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.form-row {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 16px;
+	}
+
+	label {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--text-muted);
+	}
+
+	input,
+	select,
+	textarea {
+		padding: 12px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		font-size: 0.95rem;
+		color: var(--text);
+		min-height: 48px;
+	}
+
+	input:focus,
+	select:focus,
+	textarea:focus {
+		outline: 2px solid var(--accent);
+		outline-offset: 0;
+	}
+
+	textarea {
+		resize: vertical;
+		min-height: 100px;
+	}
+
+	.selector-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+		gap: 8px;
+	}
+
+	.selector-card {
+		padding: 12px;
+		background: var(--surface);
+		border: 2px solid var(--border);
+		border-radius: var(--radius);
+		font-size: 0.85rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.2s;
+		min-height: 48px;
+	}
+
+	.selector-card:hover {
+		border-color: var(--accent);
+	}
+
+	.selector-card.active {
+		background: var(--accent);
+		color: var(--accent-text);
+		border-color: var(--accent);
+	}
+
+	.equipment-list {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin-bottom: 24px;
+	}
+
+	.equipment-card {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 12px;
+	}
+
+	.equipment-icon {
+		width: 40px;
+		height: 40px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--surface-alt);
+		border-radius: 10px;
+		color: var(--accent);
+	}
+
+	.equipment-info {
+		flex: 1;
+	}
+
+	.equipment-type {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		margin-bottom: 2px;
+	}
+
+	.equipment-name {
+		font-weight: 600;
+		margin-bottom: 2px;
+	}
+
+	.equipment-capacity {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.btn-remove {
+		width: 40px;
+		height: 40px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.btn-remove:hover:not(:disabled) {
+		background: var(--warn);
+		border-color: var(--warn);
+		color: white;
+	}
+
+	.btn-remove:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.add-equipment-form {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 20px;
+	}
+
+	.add-equipment-form h4 {
+		margin: 0 0 16px;
+		font-size: 1rem;
 	}
 
 	.section-header {
@@ -258,7 +1074,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		min-height: 44px;
+		min-height: 48px;
 		padding: 0 16px;
 		background: var(--accent);
 		color: var(--accent-text);
@@ -270,8 +1086,13 @@
 		transition: opacity 0.2s;
 	}
 
-	.btn-primary:hover {
+	.btn-primary:hover:not(:disabled) {
 		opacity: 0.9;
+	}
+
+	.btn-primary:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	.empty-state {
@@ -292,6 +1113,20 @@
 	}
 
 	.empty-state p {
+		margin: 0;
+		font-size: 0.9rem;
+	}
+
+	.empty-state-mini {
+		padding: 24px;
+		text-align: center;
+		color: var(--text-muted);
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+	}
+
+	.empty-state-mini p {
 		margin: 0;
 		font-size: 0.9rem;
 	}
@@ -356,5 +1191,15 @@
 		font-size: 0.85rem;
 		color: var(--text-muted);
 		line-height: 1.4;
+	}
+
+	@media (max-width: 640px) {
+		.form-row {
+			grid-template-columns: 1fr;
+		}
+
+		.stats-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
 	}
 </style>

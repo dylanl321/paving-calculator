@@ -5,6 +5,9 @@ export interface DbUser {
 	email: string;
 	password_hash: string;
 	name: string;
+	is_global_admin: boolean;
+	disabled: boolean;
+	phone: string | null;
 	created_at: number;
 	updated_at: number;
 }
@@ -59,6 +62,68 @@ export interface DbSession {
 	created_at: number;
 }
 
+export interface DbInvitation {
+	id: string;
+	org_id: string;
+	email: string;
+	role: 'owner' | 'admin' | 'member';
+	token: string;
+	invited_by: string;
+	created_at: number;
+	accepted_at: number | null;
+	expires_at: number;
+}
+
+export interface DbJobSiteConfig {
+	job_site_id: string;
+	road_type:
+		| 'highway'
+		| 'state_route'
+		| 'county_road'
+		| 'city_street'
+		| 'subdivision'
+		| 'parking_lot'
+		| 'other'
+		| null;
+	num_lanes: number | null;
+	lane_width_ft: number | null;
+	total_length_ft: number | null;
+	scope_of_work:
+		| 'full_depth'
+		| 'mill_and_fill'
+		| 'overlay'
+		| 'leveling'
+		| 'patching'
+		| 'widening'
+		| null;
+	mix_type: string | null;
+	target_thickness_in: number | null;
+	target_spread_rate: number | null;
+	tack_type: 'anionic' | 'cationic' | 'polymer_modified' | 'trackless' | null;
+	target_tack_rate: number | null;
+	notes: string | null;
+	created_at: number;
+	updated_at: number;
+}
+
+export interface DbJobSiteEquipment {
+	id: string;
+	job_site_id: string;
+	equipment_type:
+		| 'paver'
+		| 'shuttle_buggy'
+		| 'roller_breakdown'
+		| 'roller_intermediate'
+		| 'roller_finish'
+		| 'distributor'
+		| 'milling_machine'
+		| 'other';
+	name: string;
+	capacity: string | null;
+	notes: string | null;
+	created_at: number;
+}
+
 export class DbHelper {
 	constructor(private db: D1Database) {}
 
@@ -89,6 +154,9 @@ export class DbHelper {
 			email,
 			password_hash: passwordHash,
 			name,
+			is_global_admin: false,
+			disabled: false,
+			phone: null,
 			created_at: now,
 			updated_at: now
 		};
@@ -376,5 +444,352 @@ export class DbHelper {
 	async cleanExpiredSessions(): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		await this.db.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now).run();
+	}
+
+	// Admin methods
+	async getAllOrganizations(): Promise<
+		Array<DbOrganization & { member_count: number }>
+	> {
+		return await this.db
+			.prepare(
+				`SELECT o.*, COUNT(om.user_id) as member_count
+				FROM organizations o
+				LEFT JOIN org_members om ON om.org_id = o.id
+				GROUP BY o.id
+				ORDER BY o.created_at DESC`
+			)
+			.all<DbOrganization & { member_count: number }>()
+			.then((r) => r.results);
+	}
+
+	async getOrganizationById(id: string): Promise<DbOrganization | null> {
+		return await this.db
+			.prepare('SELECT * FROM organizations WHERE id = ?')
+			.bind(id)
+			.first<DbOrganization>();
+	}
+
+	async updateOrganization(id: string, updates: { name?: string; slug?: string }): Promise<void> {
+		const fields: string[] = [];
+		const values: string[] = [];
+
+		if (updates.name !== undefined) {
+			fields.push('name = ?');
+			values.push(updates.name);
+		}
+		if (updates.slug !== undefined) {
+			fields.push('slug = ?');
+			values.push(updates.slug);
+		}
+
+		if (fields.length === 0) return;
+		values.push(id);
+
+		await this.db
+			.prepare(`UPDATE organizations SET ${fields.join(', ')} WHERE id = ?`)
+			.bind(...values)
+			.run();
+	}
+
+	async getAllUsers(): Promise<
+		Array<DbUser & { org_name: string | null; org_id: string | null; role: string | null }>
+	> {
+		return await this.db
+			.prepare(
+				`SELECT u.*, o.name as org_name, om.org_id, om.role
+				FROM users u
+				LEFT JOIN org_members om ON om.user_id = u.id
+				LEFT JOIN organizations o ON o.id = om.org_id
+				ORDER BY u.created_at DESC`
+			)
+			.all<DbUser & { org_name: string | null; org_id: string | null; role: string | null }>()
+			.then((r) => r.results);
+	}
+
+	async updateUser(
+		id: string,
+		updates: {
+			name?: string;
+			email?: string;
+			phone?: string | null;
+			is_global_admin?: boolean;
+			disabled?: boolean;
+		}
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		const fields: string[] = [];
+		const values: (string | number | boolean)[] = [];
+
+		if (updates.name !== undefined) {
+			fields.push('name = ?');
+			values.push(updates.name);
+		}
+		if (updates.email !== undefined) {
+			fields.push('email = ?');
+			values.push(updates.email);
+		}
+		if (updates.phone !== undefined) {
+			fields.push('phone = ?');
+			values.push(updates.phone || '');
+		}
+		if (updates.is_global_admin !== undefined) {
+			fields.push('is_global_admin = ?');
+			values.push(updates.is_global_admin ? 1 : 0);
+		}
+		if (updates.disabled !== undefined) {
+			fields.push('disabled = ?');
+			values.push(updates.disabled ? 1 : 0);
+		}
+
+		if (fields.length === 0) return;
+
+		fields.push('updated_at = ?');
+		values.push(now);
+		values.push(id);
+
+		await this.db
+			.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`)
+			.bind(...values)
+			.run();
+	}
+
+	async removeOrgMember(userId: string, orgId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM org_members WHERE user_id = ? AND org_id = ?')
+			.bind(userId, orgId)
+			.run();
+	}
+
+	async updateOrgMemberRole(
+		userId: string,
+		orgId: string,
+		role: 'owner' | 'admin' | 'member'
+	): Promise<void> {
+		await this.db
+			.prepare('UPDATE org_members SET role = ? WHERE user_id = ? AND org_id = ?')
+			.bind(role, userId, orgId)
+			.run();
+	}
+
+	// Invitation methods
+	async createInvitation(
+		orgId: string,
+		email: string,
+		role: 'owner' | 'admin' | 'member',
+		invitedBy: string
+	): Promise<DbInvitation> {
+		const id = crypto.randomUUID();
+		const tokenBytes = new Uint8Array(32);
+		crypto.getRandomValues(tokenBytes);
+		const token = Array.from(tokenBytes, (b) => b.toString(16).padStart(2, '0')).join('');
+		const now = Math.floor(Date.now() / 1000);
+		const expiresAt = now + 7 * 24 * 60 * 60; // 7 days
+
+		await this.db
+			.prepare(
+				'INSERT INTO invitations (id, org_id, email, role, token, invited_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+			)
+			.bind(id, orgId, email, role, token, invitedBy, now, expiresAt)
+			.run();
+
+		return {
+			id,
+			org_id: orgId,
+			email,
+			role,
+			token,
+			invited_by: invitedBy,
+			created_at: now,
+			accepted_at: null,
+			expires_at: expiresAt
+		};
+	}
+
+	async getInvitationsByOrgId(orgId: string): Promise<
+		Array<DbInvitation & { invited_by_name: string }>
+	> {
+		return await this.db
+			.prepare(
+				`SELECT i.*, u.name as invited_by_name
+				FROM invitations i
+				JOIN users u ON u.id = i.invited_by
+				WHERE i.org_id = ? AND i.accepted_at IS NULL
+				ORDER BY i.created_at DESC`
+			)
+			.bind(orgId)
+			.all<DbInvitation & { invited_by_name: string }>()
+			.then((r) => r.results);
+	}
+
+	async getInvitationByToken(token: string): Promise<DbInvitation | null> {
+		return await this.db
+			.prepare('SELECT * FROM invitations WHERE token = ?')
+			.bind(token)
+			.first<DbInvitation>();
+	}
+
+	async acceptInvitation(token: string): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare('UPDATE invitations SET accepted_at = ? WHERE token = ?')
+			.bind(now, token)
+			.run();
+	}
+
+	async deleteInvitation(id: string): Promise<void> {
+		await this.db.prepare('DELETE FROM invitations WHERE id = ?').bind(id).run();
+	}
+
+	async cleanExpiredInvitations(): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare('DELETE FROM invitations WHERE expires_at < ? AND accepted_at IS NULL')
+			.bind(now)
+			.run();
+	}
+
+	async getJobSiteConfig(jobSiteId: string): Promise<DbJobSiteConfig | null> {
+		return await this.db
+			.prepare('SELECT * FROM job_site_config WHERE job_site_id = ?')
+			.bind(jobSiteId)
+			.first<DbJobSiteConfig>();
+	}
+
+	async upsertJobSiteConfig(
+		jobSiteId: string,
+		config: Partial<Omit<DbJobSiteConfig, 'job_site_id' | 'created_at' | 'updated_at'>>
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		const existing = await this.getJobSiteConfig(jobSiteId);
+
+		if (!existing) {
+			await this.db
+				.prepare(
+					`INSERT INTO job_site_config (
+						job_site_id, road_type, num_lanes, lane_width_ft, total_length_ft,
+						scope_of_work, mix_type, target_thickness_in, target_spread_rate,
+						tack_type, target_tack_rate, notes, created_at, updated_at
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				)
+				.bind(
+					jobSiteId,
+					config.road_type || null,
+					config.num_lanes || null,
+					config.lane_width_ft || null,
+					config.total_length_ft || null,
+					config.scope_of_work || null,
+					config.mix_type || null,
+					config.target_thickness_in || null,
+					config.target_spread_rate || null,
+					config.tack_type || null,
+					config.target_tack_rate || null,
+					config.notes || null,
+					now,
+					now
+				)
+				.run();
+		} else {
+			const fields: string[] = [];
+			const values: any[] = [];
+
+			if (config.road_type !== undefined) {
+				fields.push('road_type = ?');
+				values.push(config.road_type);
+			}
+			if (config.num_lanes !== undefined) {
+				fields.push('num_lanes = ?');
+				values.push(config.num_lanes);
+			}
+			if (config.lane_width_ft !== undefined) {
+				fields.push('lane_width_ft = ?');
+				values.push(config.lane_width_ft);
+			}
+			if (config.total_length_ft !== undefined) {
+				fields.push('total_length_ft = ?');
+				values.push(config.total_length_ft);
+			}
+			if (config.scope_of_work !== undefined) {
+				fields.push('scope_of_work = ?');
+				values.push(config.scope_of_work);
+			}
+			if (config.mix_type !== undefined) {
+				fields.push('mix_type = ?');
+				values.push(config.mix_type);
+			}
+			if (config.target_thickness_in !== undefined) {
+				fields.push('target_thickness_in = ?');
+				values.push(config.target_thickness_in);
+			}
+			if (config.target_spread_rate !== undefined) {
+				fields.push('target_spread_rate = ?');
+				values.push(config.target_spread_rate);
+			}
+			if (config.tack_type !== undefined) {
+				fields.push('tack_type = ?');
+				values.push(config.tack_type);
+			}
+			if (config.target_tack_rate !== undefined) {
+				fields.push('target_tack_rate = ?');
+				values.push(config.target_tack_rate);
+			}
+			if (config.notes !== undefined) {
+				fields.push('notes = ?');
+				values.push(config.notes);
+			}
+
+			if (fields.length > 0) {
+				fields.push('updated_at = ?');
+				values.push(now);
+				values.push(jobSiteId);
+
+				await this.db
+					.prepare(`UPDATE job_site_config SET ${fields.join(', ')} WHERE job_site_id = ?`)
+					.bind(...values)
+					.run();
+			}
+		}
+	}
+
+	async getJobSiteEquipment(jobSiteId: string): Promise<DbJobSiteEquipment[]> {
+		return await this.db
+			.prepare('SELECT * FROM job_site_equipment WHERE job_site_id = ? ORDER BY created_at ASC')
+			.bind(jobSiteId)
+			.all<DbJobSiteEquipment>()
+			.then((r) => r.results);
+	}
+
+	async createJobSiteEquipment(
+		jobSiteId: string,
+		equipmentType: DbJobSiteEquipment['equipment_type'],
+		name: string,
+		capacity: string | null,
+		notes: string | null
+	): Promise<DbJobSiteEquipment> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+
+		await this.db
+			.prepare(
+				'INSERT INTO job_site_equipment (id, job_site_id, equipment_type, name, capacity, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+			)
+			.bind(id, jobSiteId, equipmentType, name, capacity, notes, now)
+			.run();
+
+		return {
+			id,
+			job_site_id: jobSiteId,
+			equipment_type: equipmentType,
+			name,
+			capacity,
+			notes,
+			created_at: now
+		};
+	}
+
+	async deleteJobSiteEquipment(equipmentId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM job_site_equipment WHERE id = ?')
+			.bind(equipmentId)
+			.run();
 	}
 }

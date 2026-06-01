@@ -86,6 +86,27 @@
 		</div>
 	</div>
 
+	<nav class="quick-links">
+		<a href="/dashboard/team" class="quick-link">
+			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+				<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+				<circle cx="9" cy="7" r="4"></circle>
+				<path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+				<path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+			</svg>
+			Team
+		</a>
+		{#if data.user.isGlobalAdmin}
+			<a href="/admin" class="quick-link admin">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<circle cx="12" cy="12" r="3"></circle>
+					<path d="M12 1v6m0 6v6m5.2-13.2-4.2 4.2m0 6 4.2 4.2M1 12h6m6 0h6M2.8 7.8l4.2 4.2m6 0 4.2 4.2"></path>
+				</svg>
+				Admin
+			</a>
+		{/if}
+	</nav>
+
 	<section class="section">
 		<div class="section-header">
 			<h3>Active Job Sites</h3>
@@ -235,6 +256,40 @@
 		margin: 0;
 		font-size: 0.9rem;
 		color: var(--text-muted);
+	}
+
+	.quick-links {
+		display: flex;
+		gap: 12px;
+		margin-bottom: 24px;
+		flex-wrap: wrap;
+	}
+
+	.quick-link {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 12px 20px;
+		background: var(--surface);
+		color: var(--text);
+		text-decoration: none;
+		border-radius: var(--radius);
+		font-weight: 500;
+		min-height: 48px;
+		transition: background 0.2s;
+	}
+
+	.quick-link:hover {
+		background: var(--surface-hover);
+	}
+
+	.quick-link.admin {
+		background: var(--accent);
+		color: var(--accent-text);
+	}
+
+	.quick-link.admin:hover {
+		opacity: 0.9;
 	}
 
 	.section {

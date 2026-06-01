@@ -20,20 +20,30 @@ export const load: PageLoad = async ({ params, fetch }) => {
 
 		const siteData = await siteRes.json();
 
-		const calcRes = await fetch(`/api/calculations?job_site_id=${params.id}`, {
-			credentials: 'include'
-		});
+		const [calcRes, configRes, equipmentRes, assignmentsRes] = await Promise.all([
+			fetch(`/api/calculations?job_site_id=${params.id}`, { credentials: 'include' }),
+			fetch(`/api/job-sites/${params.id}/config`, { credentials: 'include' }),
+			fetch(`/api/job-sites/${params.id}/equipment`, { credentials: 'include' }),
+			fetch(`/api/job-sites/${params.id}/assignments`, { credentials: 'include' })
+		]);
+
 		if (!calcRes.ok) {
 			throw error(calcRes.status, 'Failed to load calculations');
 		}
 
 		const calcData = await calcRes.json();
+		const configData = configRes.ok ? await configRes.json() : { config: null };
+		const equipmentData = equipmentRes.ok ? await equipmentRes.json() : { equipment: [] };
+		const assignmentsData = assignmentsRes.ok ? await assignmentsRes.json() : { assignments: [] };
 
 		return {
 			user: authData.user,
 			org: authData.org,
 			jobSite: siteData,
-			calculations: calcData.calculations || []
+			calculations: calcData.calculations || [],
+			config: configData.config,
+			equipment: equipmentData.equipment || [],
+			assignments: assignmentsData.assignments || []
 		};
 	} catch (err) {
 		if (err instanceof Response) throw err;

@@ -36,11 +36,8 @@
 <StickCheckCard />
 
 <footer class="home-foot">
+	<a class="ref-link" href="/calculators">Soil, Concrete & More →</a>
 	<a class="ref-link" href="/reference">GDOT Reference Tables →</a>
-	<p class="ref-note">
-		Soil / Cement &amp; aggregate tools are on the build list. Values, formulas and spec sources all
-		live in one config file.
-	</p>
 </footer>
 
 <ProofButton />

@@ -13,13 +13,15 @@ export async function GET(event: RequestEvent) {
 		}
 
 		const role = await db.getUserRole(user.id, org.id);
+		const members = await db.getOrgMembersByOrgId(org.id);
 
 		return json({
 			id: org.id,
 			name: org.name,
 			slug: org.slug,
 			created_at: org.created_at,
-			role
+			role,
+			members
 		});
 	} catch (error) {
 		if (error instanceof Response) throw error;

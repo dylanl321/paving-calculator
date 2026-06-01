@@ -8,6 +8,8 @@ export interface AuthUser {
 	id: string;
 	email: string;
 	name: string;
+	isGlobalAdmin?: boolean;
+	disabled?: boolean;
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -109,10 +111,17 @@ export async function getAuthUser(event: RequestEvent): Promise<AuthUser | null>
 	const user = await db.getUserById(session.user_id);
 	if (!user) return null;
 
+	if (user.disabled) {
+		await db.deleteSession(token);
+		return null;
+	}
+
 	return {
 		id: user.id,
 		email: user.email,
-		name: user.name
+		name: user.name,
+		isGlobalAdmin: user.is_global_admin,
+		disabled: user.disabled
 	};
 }
 
@@ -125,4 +134,34 @@ export async function requireAuth(event: RequestEvent): Promise<AuthUser> {
 		});
 	}
 	return user;
+}
+
+export async function requireGlobalAdmin(event: RequestEvent): Promise<AuthUser> {
+	const user = await requireAuth(event);
+	if (!user.isGlobalAdmin) {
+		throw new Response(JSON.stringify({ error: 'Forbidden: Global admin access required' }), {
+			status: 403,
+			headers: { 'Content-Type': 'application/json' }
+		});
+	}
+	return user;
+}
+
+export async function requireOrgRole(
+	event: RequestEvent,
+	orgId: string,
+	allowedRoles: Array<'owner' | 'admin' | 'member'>
+): Promise<{ user: AuthUser; role: string }> {
+	const user = await requireAuth(event);
+	const db = new DbHelper(event.platform!.env.DB);
+	const role = await db.getUserRole(user.id, orgId);
+
+	if (!role || !allowedRoles.includes(role as any)) {
+		throw new Response(JSON.stringify({ error: 'Forbidden: Insufficient permissions' }), {
+			status: 403,
+			headers: { 'Content-Type': 'application/json' }
+		});
+	}
+
+	return { user, role };
 }
