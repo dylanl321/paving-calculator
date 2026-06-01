@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { config } from '$lib/config';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import UserMenu from '$lib/components/UserMenu.svelte';
-	import JobSetupBar from '$lib/components/JobSetupBar.svelte';
+	import JobSiteSettings from '$lib/components/JobSiteSettings.svelte';
 	import SpreadRateCard from '$lib/components/SpreadRateCard.svelte';
 	import FeetLeftCard from '$lib/components/FeetLeftCard.svelte';
 	import TonnageCard from '$lib/components/TonnageCard.svelte';
@@ -25,21 +23,12 @@
 	<title>All Calculators - {config.app.name}</title>
 </svelte:head>
 
-<header class="topbar">
-	<a href="/" class="topbar-link">
-		<img src="/icons/icon-192.png" alt="Paverate" />
-		<div class="topbar-content">
-			<h1>{config.app.name}</h1>
-			<p class="tagline">All Calculators</p>
-		</div>
-	</a>
-	<div class="topbar-actions">
-		<ThemeToggle />
-		<UserMenu />
-	</div>
-</header>
+<div class="page-head">
+	<h1 class="page-title">All Calculators</h1>
+	<p class="page-sub">Asphalt, soil, concrete and grading tools</p>
+</div>
 
-<JobSetupBar />
+<JobSiteSettings />
 
 <div class="section">
 	<button class="section-toggle" onclick={() => (asphaltOpen = !asphaltOpen)}>
@@ -47,7 +36,7 @@
 		<h2>Asphalt</h2>
 	</button>
 	{#if asphaltOpen}
-		<div class="section-content">
+		<div class="card-grid section-content">
 			<SpreadRateCard />
 			<FeetLeftCard />
 			<TonnageCard />
@@ -63,7 +52,7 @@
 		<h2>Soil & Subgrade</h2>
 	</button>
 	{#if soilOpen}
-		<div class="section-content">
+		<div class="card-grid section-content">
 			<SoilCompactionCard />
 			<SubgradeCalcCard />
 		</div>
@@ -76,7 +65,7 @@
 		<h2>Concrete</h2>
 	</button>
 	{#if concreteOpen}
-		<div class="section-content">
+		<div class="card-grid section-content">
 			<ConcreteVolumeCard />
 			<ConcretePSICard />
 		</div>
@@ -89,7 +78,7 @@
 		<h2>Grading</h2>
 	</button>
 	{#if gradingOpen}
-		<div class="section-content">
+		<div class="card-grid section-content">
 			<SlopeGradeCard />
 		</div>
 	{/if}
@@ -100,17 +89,26 @@
 	<a class="ref-link" href="/reference">GDOT Reference Tables →</a>
 </footer>
 
-<ProofButton />
+<div class="mobile-proof">
+	<ProofButton />
+</div>
 
 <style>
-	.topbar-link {
-		display: flex;
-		align-items: center;
-		text-decoration: none;
-		color: inherit;
+	.page-head {
+		margin-bottom: 18px;
+	}
+	.page-title {
+		margin: 0;
+		font-size: 1.6rem;
+		letter-spacing: 0.3px;
+	}
+	.page-sub {
+		margin: 4px 0 0;
+		color: var(--text-muted);
+		font-size: 0.9rem;
 	}
 	.section {
-		margin-bottom: 20px;
+		margin-bottom: 24px;
 	}
 	.section-toggle {
 		width: 100%;
@@ -138,7 +136,7 @@
 		color: var(--text);
 	}
 	.section-content {
-		margin-top: 10px;
+		margin-top: 14px;
 	}
 	.home-foot {
 		display: flex;
@@ -151,5 +149,10 @@
 		font-size: 0.95rem;
 		color: var(--accent);
 		text-decoration: none;
+	}
+	@media (min-width: 768px) {
+		.mobile-proof {
+			display: none;
+		}
 	}
 </style>

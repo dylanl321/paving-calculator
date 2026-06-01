@@ -5,8 +5,9 @@
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
 	import SpreadRateGauge from './SpreadRateGauge.svelte';
-	import { machines, constantMeta } from '$lib/config';
+	import { machines, constantMeta, placementCheck, rainCheck } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
+	import { weather } from '$lib/stores/weather.svelte';
 	import { spreadRateFromThickness, spreadRatePlaced } from '$lib/config/formulas';
 
 	// Reality-check inputs (local to this calc; width/thickness/machine are shared).
@@ -40,6 +41,27 @@
 
 	const machineLabel = $derived(machines.find((m) => m.id === job.machineId)?.label ?? 'None');
 	const multMeta = constantMeta('CONST.THICK_MULT');
+	const placement = $derived(placementCheck(weather.effectiveTempF, job.thicknessIn));
+	const rain = $derived(rainCheck(weather.rainNext24hIn));
+
+	const targetBadge = $derived.by(() => {
+		if (rain?.status === 'fail') {
+			return { kind: 'bad' as const, text: 'Rain — hold paving' };
+		}
+		if (placement?.status === 'fail') {
+			return { kind: 'bad' as const, text: placement.message };
+		}
+		if (placement?.status === 'warn') {
+			return { kind: 'warn' as const, text: placement.message };
+		}
+		if (rain?.status === 'warn') {
+			return { kind: 'warn' as const, text: 'Rain forecast — check surface' };
+		}
+		if (placement?.status === 'pass') {
+			return { kind: 'good' as const, text: `Table 4 OK at ${weather.effectiveTempF}°F` };
+		}
+		return null;
+	});
 </script>
 
 <CalcCard
@@ -49,8 +71,12 @@
 	<div class="two-up">
 		<div class="col">
 			<div class="col-head">Target (from job thickness)</div>
-			<ResultStat value={targetRate != null ? Math.round(targetRate) : null} unit="lbs / SY" />
-			<p class="col-note">Set thickness in Job Setup above.</p>
+			<ResultStat
+				value={targetRate != null ? Math.round(targetRate) : null}
+				unit="lbs / SY"
+				badge={targetBadge}
+			/>
+			<p class="col-note">Set thickness in Job Setup. Weather bar sets air temp for Table 4.</p>
 		</div>
 
 		<div class="col">

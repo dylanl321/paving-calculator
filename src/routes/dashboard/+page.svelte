@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import UserMenu from '$lib/components/UserMenu.svelte';
+	import { onMount } from 'svelte';
+	import { PieChart } from 'layerchart';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -12,6 +12,26 @@
 	let newSiteLocation = $state('');
 	let createError = $state('');
 	let creating = $state(false);
+
+	let chartReady = $state(false);
+	onMount(() => {
+		chartReady = true;
+	});
+
+	const totalSites = $derived(data.jobSites.length);
+	const activeSites = $derived(
+		data.jobSites.filter((s: any) => s.status?.toLowerCase() === 'active').length
+	);
+	const totalCalcs = $derived(
+		data.jobSites.reduce((sum: number, s: any) => sum + (s.calculation_count || 0), 0)
+	);
+
+	const statusData = $derived(
+		[
+			{ status: 'Active', count: activeSites },
+			{ status: 'Inactive', count: totalSites - activeSites }
+		].filter((d) => d.count > 0)
+	);
 
 	async function handleCreateJobSite(e: Event) {
 		e.preventDefault();
@@ -66,19 +86,6 @@
 </svelte:head>
 
 <div class="dashboard">
-	<header class="topbar">
-		<a href="/" class="logo-link">
-			<img src="/icons/icon-192.png" alt="Paverate" />
-			<div class="topbar-content">
-				<h1>{config.app.name}</h1>
-			</div>
-		</a>
-		<div class="topbar-actions">
-			<ThemeToggle />
-			<UserMenu />
-		</div>
-	</header>
-
 	<div class="page-header">
 		<div>
 			<h2 class="page-title">Dashboard</h2>
@@ -106,6 +113,31 @@
 			</a>
 		{/if}
 	</nav>
+
+	<section class="stats-row">
+		<div class="stat-card">
+			<span class="stat-num">{totalSites}</span>
+			<span class="stat-cap">Job sites</span>
+		</div>
+		<div class="stat-card">
+			<span class="stat-num">{activeSites}</span>
+			<span class="stat-cap">Active</span>
+		</div>
+		<div class="stat-card">
+			<span class="stat-num">{totalCalcs}</span>
+			<span class="stat-cap">Saved calculations</span>
+		</div>
+		{#if statusData.length > 0}
+			<div class="stat-card chart-card">
+				<span class="stat-cap">Site status</span>
+				<div class="mini-chart">
+					{#if chartReady}
+						<PieChart data={statusData} key="status" value="count" innerRadius={-20} />
+					{/if}
+				</div>
+			</div>
+		{/if}
+	</section>
 
 	<section class="section">
 		<div class="section-header">
@@ -203,41 +235,54 @@
 
 <style>
 	.dashboard {
-		max-width: var(--maxw);
-		margin: 0 auto;
-		padding: 12px 16px 32px;
+		width: 100%;
 	}
 
-	.topbar {
+	.stats-row {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+		gap: 14px;
+		margin-bottom: 28px;
+	}
+
+	.stat-card {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 18px;
 		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-		padding: 6px 4px 14px;
+		flex-direction: column;
+		gap: 4px;
 	}
 
-	.logo-link {
-		display: flex;
-		align-items: center;
-		gap: 12px;
+	.stat-num {
+		font-size: 2rem;
+		font-weight: 800;
+		color: var(--accent);
+		line-height: 1;
 	}
 
-	.topbar img {
-		width: 40px;
-		height: 40px;
-		border-radius: 10px;
-	}
-
-	.topbar-content h1 {
-		font-size: 1.35rem;
+	.stat-cap {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		text-transform: uppercase;
 		letter-spacing: 0.5px;
-		margin: 0;
 	}
 
-	.topbar-actions {
-		display: flex;
-		align-items: center;
-		gap: 8px;
+	.chart-card {
+		grid-column: span 1;
+	}
+
+	.mini-chart {
+		height: 120px;
+		width: 100%;
+		margin-top: 8px;
+		--color-primary: var(--accent);
+	}
+
+	.mini-chart :global(text) {
+		fill: var(--text-muted);
+		font-size: 0.7rem;
 	}
 
 	.page-header {

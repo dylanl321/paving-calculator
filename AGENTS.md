@@ -1,0 +1,19 @@
+# AGENTS.md
+
+## Learned User Preferences
+
+- Never add `Co-authored-by: Cursor` (or any Cursor) trailers to commit messages; the user wants commit messages fully clean.
+- Do not provide a list of changes in responses.
+- Never create fake/sample data or data generators; treat all data as real or captured by real systems.
+- Never ask the user to restart development servers.
+- For UI work, keep coloring clean, simple, and non-invasive; lean on the brand slate + single yellow accent rather than heavy/decorative color.
+
+## Learned Workspace Facts
+
+- The shell is PowerShell on Windows: bash idioms like `head`, `ls -la`, `du`, and inline `$VAR=...` env-prefixes fail. Use `Select-Object`, `Get-ChildItem`, and run multi-statement logic from a script file (passing complex `$`-laden commands inline often gets the `$` stripped).
+- Build script must stay `wrangler types && vite build` (no `--check`); `--check` breaks the Cloudflare Pages build because `worker-configuration.d.ts` does not exist pre-build.
+- All values, spec rates, constants, theme tokens, and labels live in the single config `src/lib/config/paverate.yaml`; formulas live in `src/lib/config/formulas.ts`. No magic numbers in code — every value is read by its Validation Matrix ID (e.g. `CONST.LB_PER_TON`, `TACK.NEW_AC`).
+- Calculations must be traceable to GDOT specs via `docs/validation-matrix.md` and `docs/VALIDATION.md`; verified spec excerpts are saved under `docs/spec-excerpts/`.
+- GDOT spec PDFs live in `docs/` (2021 Standard Specs, 2024 Supplemental, `cm001` Construction Manual); `tools/spec_search.py` (uses `pypdf`, in `requirements.txt`) searches/dumps them. The PDF page index is offset from the printed footer page number (e.g. printed p.449 = PDF p.459).
+- Brand identity: dark slate `#2e3b46` + single yellow accent `#f2c037`; dark-mode default, high contrast for outdoor use, mobile-first with 48px+ touch targets.
+- Stack: SvelteKit 5 (runes) + `@sveltejs/adapter-cloudflare`, PWA via `@vite-pwa/sveltekit`, YAML imported at build time via `@rollup/plugin-yaml`; deploys to Cloudflare Pages from `main`. Accounts/orgs/jobsites are a planned optional cloud layer (Workers + D1 + R2), never gating offline calculator use.

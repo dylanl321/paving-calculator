@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
 	import { config } from '$lib/config';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import UserMenu from '$lib/components/UserMenu.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -192,19 +190,6 @@
 </svelte:head>
 
 <div class="dashboard">
-	<header class="topbar">
-		<a href="/dashboard" class="logo-link">
-			<img src="/icons/icon-192.png" alt="Paverate" />
-			<div class="topbar-content">
-				<h1>{config.app.name}</h1>
-			</div>
-		</a>
-		<div class="topbar-actions">
-			<ThemeToggle />
-			<UserMenu />
-		</div>
-	</header>
-
 	<div class="breadcrumb">
 		<a href="/dashboard">Dashboard</a>
 		<svg
@@ -502,41 +487,8 @@
 
 <style>
 	.dashboard {
-		max-width: var(--maxw);
-		margin: 0 auto;
-		padding: 12px 16px calc(80px + env(safe-area-inset-bottom));
-	}
-
-	.topbar {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-		padding: 6px 4px 14px;
-	}
-
-	.logo-link {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
-
-	.topbar img {
-		width: 40px;
-		height: 40px;
-		border-radius: 10px;
-	}
-
-	.topbar-content h1 {
-		font-size: 1.35rem;
-		letter-spacing: 0.5px;
-		margin: 0;
-	}
-
-	.topbar-actions {
-		display: flex;
-		align-items: center;
-		gap: 8px;
+		width: 100%;
+		padding-bottom: calc(80px + env(safe-area-inset-bottom));
 	}
 
 	.breadcrumb {

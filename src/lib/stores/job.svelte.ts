@@ -7,6 +7,8 @@ import { defaults } from '$lib/config';
 const STORAGE_KEY = 'paverate.job.v1';
 
 export interface JobState {
+	siteName: string;
+	siteDescription: string;
 	widthFt: number;
 	thicknessIn: number;
 	machineId: string;
@@ -18,6 +20,8 @@ export interface JobState {
 
 function initial(): JobState {
 	return {
+		siteName: '',
+		siteDescription: '',
 		widthFt: defaults.roadWidthFt,
 		thicknessIn: 1.5,
 		machineId: defaults.machine,
@@ -54,6 +58,22 @@ class Job {
 	}
 	set widthFt(v: number) {
 		this.#state.widthFt = v;
+		this.#save();
+	}
+
+	get siteName() {
+		return this.#state.siteName;
+	}
+	set siteName(v: string) {
+		this.#state.siteName = v;
+		this.#save();
+	}
+
+	get siteDescription() {
+		return this.#state.siteDescription;
+	}
+	set siteDescription(v: string) {
+		this.#state.siteDescription = v;
 		this.#save();
 	}
 

@@ -1,43 +1,70 @@
 <script lang="ts">
 	import { config } from '$lib/config';
-	import JobSetupBar from '$lib/components/JobSetupBar.svelte';
+	import JobSiteSettings from '$lib/components/JobSiteSettings.svelte';
 	import SpreadRateCard from '$lib/components/SpreadRateCard.svelte';
 	import FeetLeftCard from '$lib/components/FeetLeftCard.svelte';
 	import TonnageCard from '$lib/components/TonnageCard.svelte';
 	import TackCard from '$lib/components/TackCard.svelte';
 	import StickCheckCard from '$lib/components/StickCheckCard.svelte';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import ProofButton from '$lib/components/ProofButton.svelte';
-	import UserMenu from '$lib/components/UserMenu.svelte';
 </script>
 
 <svelte:head>
 	<title>{config.app.name}</title>
 </svelte:head>
 
-<header class="topbar">
-	<img src="/icons/icon-192.png" alt="Paverate" />
-	<div class="topbar-content">
-		<h1>{config.app.name}</h1>
-		<p class="tagline">{config.app.tagline}</p>
-	</div>
-	<div class="topbar-actions">
-		<ThemeToggle />
-		<UserMenu />
-	</div>
-</header>
+<div class="page-head">
+	<h1 class="page-title">Asphalt Calculators</h1>
+	<p class="page-sub">{config.app.tagline}</p>
+</div>
 
-<JobSetupBar />
+<JobSiteSettings />
 
-<SpreadRateCard />
-<FeetLeftCard />
-<TonnageCard />
-<TackCard />
-<StickCheckCard />
+<div class="card-grid">
+	<SpreadRateCard />
+	<FeetLeftCard />
+	<TonnageCard />
+	<TackCard />
+	<StickCheckCard />
+</div>
 
 <footer class="home-foot">
 	<a class="ref-link" href="/calculators">Soil, Concrete & More →</a>
 	<a class="ref-link" href="/reference">GDOT Reference Tables →</a>
 </footer>
 
-<ProofButton />
+<div class="mobile-proof">
+	<ProofButton />
+</div>
+
+<style>
+	.page-head {
+		margin-bottom: 18px;
+	}
+
+	.page-title {
+		margin: 0;
+		font-size: 1.6rem;
+		letter-spacing: 0.3px;
+	}
+
+	.page-sub {
+		margin: 4px 0 0;
+		color: var(--text-muted);
+		font-size: 0.9rem;
+	}
+
+	.home-foot {
+		margin-top: 22px;
+		display: flex;
+		gap: 12px;
+		flex-wrap: wrap;
+	}
+
+	/* On wide screens the context panel hosts the proof action, so hide the FAB. */
+	@media (min-width: 768px) {
+		.mobile-proof {
+			display: none;
+		}
+	}
+</style>

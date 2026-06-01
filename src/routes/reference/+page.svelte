@@ -1,13 +1,7 @@
 <script lang="ts">
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 </script>
 
 <svelte:head><title>Reference Tables · Paverate</title></svelte:head>
-
-<header class="ref-header">
-	<a href="/" class="back">← Back</a>
-	<ThemeToggle />
-</header>
 
 <div class="ref-screen">
 	<h1>GDOT Reference Tables</h1>
@@ -234,27 +228,6 @@
 </div>
 
 <style>
-	.ref-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: 20px;
-	}
-
-	.back {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		color: var(--text-muted);
-		font-size: 0.95rem;
-		padding: 6px 0;
-		text-decoration: none;
-	}
-
-	.back:hover {
-		color: var(--text);
-	}
-
 	.ref-screen {
 		max-width: 900px;
 	}

@@ -92,10 +92,43 @@ export interface CalculatorEntry {
 	wide?: boolean;
 }
 
+export interface WeatherConfig {
+	geocodeUrl: string;
+	forecastUrl: string;
+	refreshMinutes: number;
+	rainWarnIn: number;
+	rainBlockIn: number;
+	tempWarnMarginF: number;
+	ogfcMinAirTempF: number;
+	wetSurfaceBlocked: boolean;
+}
+
+export interface JobSiteField {
+	key: string;
+	label?: string;
+	hint?: string;
+	unit?: string;
+	type: string;
+	step?: number;
+}
+
+export interface JobSiteSection {
+	id: string;
+	title: string;
+	description: string;
+	fields: JobSiteField[];
+}
+
+export interface JobSiteConfig {
+	wasteOptions: number[];
+	sections: JobSiteSection[];
+}
+
 export interface ThemeTokens {
 	bg: string;
 	surface: string;
 	surfaceAlt: string;
+	surfaceHover: string;
 	border: string;
 	text: string;
 	textMuted: string;
@@ -104,6 +137,7 @@ export interface ThemeTokens {
 	good: string;
 	warn: string;
 	bad: string;
+	badRgb: string;
 }
 
 export interface ThemeSet {
@@ -129,6 +163,8 @@ interface PaverateConfig {
 		spec: RangeEntry[];
 		notes: { id: string; text: string; tier?: number | null; status: Status }[];
 	};
+	weather: WeatherConfig;
+	jobSite: JobSiteConfig;
 	temperature: TempEntry[];
 	mixThickness: MixThicknessEntry[];
 	densities: DensityEntry[];
@@ -193,4 +229,77 @@ export function tackMid(entry: RangeEntry): number {
 /** Find a tack application (field range) by its id. */
 export function tackFieldById(id: string): RangeEntry | undefined {
 	return config.tack.field.find((t) => t.id === id);
+}
+
+export const weatherConfig: WeatherConfig = config.weather;
+export const jobSite = config.jobSite;
+
+/** GDOT Table 4 minimum air temp for a given lift thickness. */
+export function minAirTempForThickness(thicknessIn: number): TempEntry {
+	const sorted = [...config.temperature].sort((a, b) => a.maxThicknessIn - b.maxThicknessIn);
+	return sorted.find((t) => thicknessIn <= t.maxThicknessIn) ?? sorted[sorted.length - 1];
+}
+
+export type PlacementStatus = 'pass' | 'warn' | 'fail';
+
+export interface PlacementCheck {
+	status: PlacementStatus;
+	minTempF: number;
+	message: string;
+}
+
+/** Compare live air temp against GDOT Table 4 minimum for the job lift thickness. */
+export function placementCheck(airTempF: number | null, thicknessIn: number): PlacementCheck | null {
+	if (airTempF == null || thicknessIn <= 0) return null;
+	const entry = minAirTempForThickness(thicknessIn);
+	const margin = weatherConfig.tempWarnMarginF;
+	if (airTempF >= entry.minAirTempF) {
+		return {
+			status: 'pass',
+			minTempF: entry.minAirTempF,
+			message: `Air temp OK for ${thicknessIn}" lift (min ${entry.minAirTempF}°F per Table 4)`
+		};
+	}
+	if (airTempF >= entry.minAirTempF - margin) {
+		return {
+			status: 'warn',
+			minTempF: entry.minAirTempF,
+			message: `Borderline — ${airTempF}°F is within ${margin}°F of ${entry.minAirTempF}°F minimum for ${thicknessIn}" lift`
+		};
+	}
+	return {
+		status: 'fail',
+		minTempF: entry.minAirTempF,
+		message: `Too cold — ${airTempF}°F is below ${entry.minAirTempF}°F minimum for ${thicknessIn}" lift`
+	};
+}
+
+export interface RainCheck {
+	status: PlacementStatus;
+	totalIn: number;
+	message: string;
+}
+
+/** Rain forecast check for paving / tack decisions. */
+export function rainCheck(totalRainIn: number | null): RainCheck | null {
+	if (totalRainIn == null) return null;
+	if (totalRainIn >= weatherConfig.rainBlockIn) {
+		return {
+			status: 'fail',
+			totalIn: totalRainIn,
+			message: `${totalRainIn.toFixed(2)} in rain forecast — do not pave or tack on wet surfaces`
+		};
+	}
+	if (totalRainIn >= weatherConfig.rainWarnIn) {
+		return {
+			status: 'warn',
+			totalIn: totalRainIn,
+			message: `${totalRainIn.toFixed(2)} in rain forecast — watch tack timing and surface moisture`
+		};
+	}
+	return {
+		status: 'pass',
+		totalIn: totalRainIn,
+		message: `No significant rain in next 24 h (${totalRainIn.toFixed(2)} in)`
+	};
 }

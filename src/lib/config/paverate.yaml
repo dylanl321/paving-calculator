@@ -20,6 +20,7 @@ theme:
     bg: '#1b2228'          # app background (dark)
     surface: '#232c34'     # cards / inputs
     surfaceAlt: '#2e3b46'  # slate (logo), headers
+    surfaceHover: '#2b353e' # hover state for surfaces
     border: '#37444f'
     text: '#f4f6f7'        # primary text
     textMuted: '#9fb0bd'
@@ -28,10 +29,12 @@ theme:
     good: '#3fb27f'        # in spec
     warn: '#e0922f'        # out of range / caution
     bad: '#d8584f'         # blocked / fail
+    badRgb: '216, 88, 79'  # bad as rgb triplet for alpha overlays
   light:
     bg: '#f5f1e8'          # warm off-white/cream (not washed out)
     surface: '#ffffff'     # cards / inputs
     surfaceAlt: '#eae4d5'  # warmer alt surface
+    surfaceHover: '#f1ecdf' # hover state for surfaces
     border: '#c9bfa8'      # strong border for contrast
     text: '#1a1614'        # strong dark text
     textMuted: '#5a5248'   # muted but still readable
@@ -40,6 +43,7 @@ theme:
     good: '#2d8f63'        # darker green
     warn: '#c07820'        # darker orange
     bad: '#b8423a'         # darker red
+    badRgb: '184, 66, 58'  # bad as rgb triplet for alpha overlays
 
 # ---------------------------------------------------------------------------
 # Constants (CONST.*)
@@ -119,8 +123,78 @@ defaults:
   truckLoadTons: 18.5
   machine: paver          # paver | shuttle | none
   firstPass: false        # apply machine retention only on first pass
-  tackApplication: leveling
+  tackApplication: TACK.FIELD_LEVELING
   wastePct: 0             # 0 | 5 | 10
+
+# ---------------------------------------------------------------------------
+# Job site settings UI — labels, hints, and section layout for the settings
+# panel. Field keys map to job store properties (location → weather store).
+# ---------------------------------------------------------------------------
+jobSite:
+  wasteOptions: [0, 5, 10]
+  sections:
+    - id: site
+      title: Site Info
+      description: Name this job and set where the crew is working. Location drives live weather and GDOT placement checks.
+      fields:
+        - key: siteName
+          label: Job site name
+          hint: e.g. "I-85 SB — Exit 42 resurfacing" or "County Rd 12 mill & overlay"
+          type: text
+        - key: siteDescription
+          label: Description / notes
+          hint: Project number, mix design, foreman, lane closures, or anything the crew needs to remember.
+          type: textarea
+        - key: location
+          label: Job-site location
+          hint: Search for a city or tap GPS. Weather refreshes every 30 min when online; use manual temp override if offline.
+          type: location
+    - id: weather
+      title: Weather & Placement
+      description: Live conditions and GDOT Table 4 minimum air temperature for the current lift thickness. Rain forecast covers the next 24 hours.
+      fields:
+        - key: weatherPanel
+          type: weather
+    - id: paving
+      title: Paving Setup
+      description: Shared values for every asphalt calculator on this job. Change once — all cards update.
+      fields:
+        - key: widthFt
+          label: Mat width
+          hint: Width of the mat being placed, in feet. Used by spread rate, feet-left, tack, and tonnage.
+          unit: ft
+          type: number
+        - key: thicknessIn
+          label: Target lift thickness
+          hint: Compacted lift thickness in inches. Sets target spread rate (thickness × 110 lbs/SY) and the Table 4 minimum air temperature.
+          unit: in
+          type: number
+          step: 0.25
+        - key: machineId
+          label: Machine
+          hint: Paver or shuttle buggy — retained tonnage is subtracted from spread-rate reality checks on the first pass.
+          type: machine
+        - key: firstPass
+          label: First pass
+          hint: When checked, spread-rate actual subtracts hopper/buggy retained material (see machine retention in config).
+          type: boolean
+        - key: truckLoadTons
+          label: Truck load size
+          hint: Typical load weight for feet-left and tonnage calculators. Default from fleet rule-of-thumb (CONST.TRUCK_LOAD).
+          unit: tons
+          type: number
+    - id: material
+      title: Material & Rates
+      description: Default tack application and ordering waste factor for tonnage estimates.
+      fields:
+        - key: tackApplication
+          label: Tack application
+          hint: Default tack coat type for the Tack Rate calculator. Ranges from GDOT Table 2 / field card.
+          type: tack
+        - key: wastePct
+          label: Ordering waste
+          hint: Extra material added to tonnage orders to cover spillage, header waste, and QC samples.
+          type: waste
 
 machines:
   - id: paver
@@ -132,6 +206,20 @@ machines:
   - id: none
     label: None
     retainTons: 0
+
+# ---------------------------------------------------------------------------
+# Weather / placement limits (WEATHER.*)
+# Open-Meteo APIs are free, no key required. Used client-side when online.
+# ---------------------------------------------------------------------------
+weather:
+  geocodeUrl: https://geocoding-api.open-meteo.com/v1/search
+  forecastUrl: https://api.open-meteo.com/v1/forecast
+  refreshMinutes: 30       # re-fetch interval when location is set
+  rainWarnIn: 0.01         # trace rain — caution for tack / placement
+  rainBlockIn: 0.10        # ~2.5 mm — do not pave or tack
+  tempWarnMarginF: 5       # warn when within this many °F of Table 4 minimum
+  ogfcMinAirTempF: 60      # Section 400.3.05.E — OGFC / PEM floor
+  wetSurfaceBlocked: true  # no placement on wet or frozen surfaces
 
 # ---------------------------------------------------------------------------
 # Tack coat rates (TACK.*) -- GDOT Table 2 + field-card ranges
