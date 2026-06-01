@@ -12,6 +12,9 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"gen": "wrangler types"
 	},
+	"dependencies": {
+		"jspdf": "^2.5.2"
+	},
 	"devDependencies": {
 		"@rollup/plugin-yaml": "^5.0.0",
 		"@sveltejs/adapter-cloudflare": "^7.2.8",

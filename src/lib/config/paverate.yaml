@@ -16,17 +16,30 @@ app:
 # status colors only). Consumed by app.css via formulas/config loader.
 # ---------------------------------------------------------------------------
 theme:
-  bg: '#1b2228'          # app background (dark)
-  surface: '#232c34'     # cards / inputs
-  surfaceAlt: '#2e3b46'  # slate (logo), headers
-  border: '#37444f'
-  text: '#f4f6f7'        # primary text
-  textMuted: '#9fb0bd'
-  accent: '#f2c037'      # single yellow accent (logo)
-  accentText: '#1b2228'  # text on accent
-  good: '#3fb27f'        # in spec
-  warn: '#e0922f'        # out of range / caution
-  bad: '#d8584f'         # blocked / fail
+  dark:
+    bg: '#1b2228'          # app background (dark)
+    surface: '#232c34'     # cards / inputs
+    surfaceAlt: '#2e3b46'  # slate (logo), headers
+    border: '#37444f'
+    text: '#f4f6f7'        # primary text
+    textMuted: '#9fb0bd'
+    accent: '#f2c037'      # single yellow accent (logo)
+    accentText: '#1b2228'  # text on accent
+    good: '#3fb27f'        # in spec
+    warn: '#e0922f'        # out of range / caution
+    bad: '#d8584f'         # blocked / fail
+  light:
+    bg: '#f5f1e8'          # warm off-white/cream (not washed out)
+    surface: '#ffffff'     # cards / inputs
+    surfaceAlt: '#eae4d5'  # warmer alt surface
+    border: '#c9bfa8'      # strong border for contrast
+    text: '#1a1614'        # strong dark text
+    textMuted: '#5a5248'   # muted but still readable
+    accent: '#d4a42c'      # darker yellow for light mode
+    accentText: '#1a1614'  # dark text on accent
+    good: '#2d8f63'        # darker green
+    warn: '#c07820'        # darker orange
+    bad: '#b8423a'         # darker red
 
 # ---------------------------------------------------------------------------
 # Constants (CONST.*)

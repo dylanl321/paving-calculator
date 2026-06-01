@@ -6,6 +6,8 @@
 	import TonnageCard from '$lib/components/TonnageCard.svelte';
 	import TackCard from '$lib/components/TackCard.svelte';
 	import StickCheckCard from '$lib/components/StickCheckCard.svelte';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import ProofButton from '$lib/components/ProofButton.svelte';
 </script>
 
 <svelte:head>
@@ -14,10 +16,11 @@
 
 <header class="topbar">
 	<img src="/icons/icon-192.png" alt="Paverate" />
-	<div>
+	<div class="topbar-content">
 		<h1>{config.app.name}</h1>
 		<p class="tagline">{config.app.tagline}</p>
 	</div>
+	<ThemeToggle />
 </header>
 
 <JobSetupBar />
@@ -35,3 +38,5 @@
 		live in one config file.
 	</p>
 </footer>
+
+<ProofButton />

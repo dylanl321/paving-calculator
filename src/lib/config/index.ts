@@ -80,9 +80,14 @@ export interface ThemeTokens {
 	bad: string;
 }
 
+export interface ThemeSet {
+	dark: ThemeTokens;
+	light: ThemeTokens;
+}
+
 interface PaverateConfig {
 	app: { name: string; tagline: string };
-	theme: ThemeTokens;
+	theme: ThemeSet;
 	constants: Record<string, ConstantEntry>;
 	defaults: {
 		roadWidthFt: number;

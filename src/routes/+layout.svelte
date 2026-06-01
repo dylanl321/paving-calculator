@@ -1,27 +1,33 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { theme } from '$lib/config';
+	import { config } from '$lib/config';
+	import { themeStore } from '$lib/stores/theme.svelte';
 	import '../app.css';
 
 	let { children } = $props();
 
-	const themeStyle = [
-		`--bg:${theme.bg}`,
-		`--surface:${theme.surface}`,
-		`--surface-alt:${theme.surfaceAlt}`,
-		`--border:${theme.border}`,
-		`--text:${theme.text}`,
-		`--text-muted:${theme.textMuted}`,
-		`--accent:${theme.accent}`,
-		`--accent-text:${theme.accentText}`,
-		`--good:${theme.good}`,
-		`--warn:${theme.warn}`,
-		`--bad:${theme.bad}`
-	].join(';');
+	const themeTokens = $derived(config.theme[themeStore.mode]);
 
-	onMount(() => {
+	const themeStyle = $derived(
+		[
+			`--bg:${themeTokens.bg}`,
+			`--surface:${themeTokens.surface}`,
+			`--surface-alt:${themeTokens.surfaceAlt}`,
+			`--border:${themeTokens.border}`,
+			`--text:${themeTokens.text}`,
+			`--text-muted:${themeTokens.textMuted}`,
+			`--accent:${themeTokens.accent}`,
+			`--accent-text:${themeTokens.accentText}`,
+			`--good:${themeTokens.good}`,
+			`--warn:${themeTokens.warn}`,
+			`--bad:${themeTokens.bad}`
+		].join(';')
+	);
+
+	$effect(() => {
 		// Apply theme tokens globally so background + scrollbars match.
 		document.documentElement.setAttribute('style', themeStyle);
+		document.documentElement.setAttribute('data-theme', themeStore.mode);
 	});
 
 	onMount(async () => {
