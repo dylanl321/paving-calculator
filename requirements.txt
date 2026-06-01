@@ -1,0 +1,2 @@
+# Validation / spec-extraction tooling (see tools/spec_search.py)
+pypdf>=6.0

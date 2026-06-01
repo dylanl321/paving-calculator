@@ -2,6 +2,11 @@
 
 Tables from Georgia Department of Transportation specifications for asphalt paving operations.
 
+> **Status:** These tables were transcribed from reference photos and are
+> tracked as `UNVERIFIED` in the [Validation Matrix](validation-matrix.md) until
+> line-checked against `2021StandardSpecifications.pdf` /
+> `2021Supplemental Specifications 2024 Edition.pdf`. See [VALIDATION.md](VALIDATION.md).
+
 ---
 
 ## Table 2 — Application Rates for Emulsified Asphalt (Tack Coat)
@@ -39,8 +44,8 @@ Tables from Georgia Department of Transportation specifications for asphalt pavi
 |----------|:---:|:---:|:---:|
 | 25 mm Superpave | 2½ in. (64 mm) | 5 in. (125 mm)* | — |
 | 19 mm Superpave | 1¾ in. (44 mm) | 3 in. (75 mm)* | — |
-| 12.5 mm Superpave | 1⅜ in. (35 mm) | 2½ in. (64 mm)*/** | 8 in. (200 mm) |
-| 9.5 mm Superpave Type 2 | 1⅛ in. (29 mm) | 1½ in. (38 mm)** | 4 in. (100 mm) |
+| 12.5 mm Superpave | 1⅜ in. (35 mm) | 2½ in. (64 mm)**/*** | 8 in. (200 mm) |
+| 9.5 mm Superpave Type 2 | 1⅛ in. (29 mm) | 1½ in. (38 mm)*** | 4 in. (100 mm) |
 | 9.5 mm Superpave Type 1 | ⅞ in. (22 mm) | 1¼ in. (32 mm) | 4 in. (100 mm) |
 | 4.75 mm Mix | ¾ in. (19 mm) | 1⅛ in. (29 mm) | 2 in. (50 mm) |
 | 9.5 mm OGFC | 75 lbs/yd² (41 kg/m²) | 95 lbs/yd² (51 kg/m²) | — |
@@ -53,4 +58,11 @@ Tables from Georgia Department of Transportation specifications for asphalt pavi
 **Footnotes:**
 - \* Allow up to 6 in. (150 mm) per lift on trench widening
 - \*\* Allow up to 4 in. (100 mm) per lift on trench widening of ≤2 ft when no overlay is required
-- Place 9.5 mm Superpave and 12.5 mm Superpave up to 4 in. (100 mm) thick for driveway and side road transition
+- \*\*\* Place 9.5 mm Superpave and 12.5 mm Superpave up to 4 in. (100 mm) thick for driveway and side road transition
+
+## Table 4 — Additional Weather Limitation (Section 400.3.05.E)
+
+Beyond Table 4 above, OGFC mix and PEM have a stricter placement floor:
+- Do **not** place OGFC mix or PEM below **60°F (16°C)** air temperature.
+- With an MTV (Material Transfer Vehicle), OGFC/PEM may be placed at **55°F (13°C)** *when approved by the Engineer*.
+- Do not mix and place any asphaltic concrete on a wet or frozen surface.

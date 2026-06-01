@@ -1,0 +1,358 @@
+# Paverate single source of configuration.
+# Every value, spec rate, constant, theme token and label lives here.
+# Each spec/constant carries its Validation Matrix ID and verification status
+# (see docs/validation-matrix.md). Formulas in formulas.ts read from this file
+# by ID -- no magic numbers in code.
+#
+# status: VERIFIED | FIELD_ESTIMATE | UNVERIFIED | CONFLICT | NA
+# tier:   1 Std Spec | 2 Supplemental | 3 Constr. Manual | 4 ROADS | 5 Field card
+
+app:
+  name: Paverate
+  tagline: In-field asphalt paving calculators
+
+# ---------------------------------------------------------------------------
+# Theme tokens (clean, non-invasive: one slate, one yellow accent, semantic
+# status colors only). Consumed by app.css via formulas/config loader.
+# ---------------------------------------------------------------------------
+theme:
+  bg: '#1b2228'          # app background (dark)
+  surface: '#232c34'     # cards / inputs
+  surfaceAlt: '#2e3b46'  # slate (logo), headers
+  border: '#37444f'
+  text: '#f4f6f7'        # primary text
+  textMuted: '#9fb0bd'
+  accent: '#f2c037'      # single yellow accent (logo)
+  accentText: '#1b2228'  # text on accent
+  good: '#3fb27f'        # in spec
+  warn: '#e0922f'        # out of range / caution
+  bad: '#d8584f'         # blocked / fail
+
+# ---------------------------------------------------------------------------
+# Constants (CONST.*)
+# ---------------------------------------------------------------------------
+constants:
+  SF_PER_SY:
+    value: 9
+    unit: sq ft / sq yd
+    tier: ~
+    status: NA
+    note: Universal geometry
+  LB_PER_TON:
+    value: 2000
+    unit: lb / ton
+    tier: ~
+    status: NA
+    note: US short ton
+  CF_PER_CY:
+    value: 27
+    unit: cu ft / cu yd
+    tier: ~
+    status: NA
+  WATER_LB_GAL:
+    value: 8.34
+    unit: lb / gal
+    tier: ~
+    status: NA
+    note: Water at ~60F
+  CEMENT_BAG:
+    value: 94
+    unit: lb / bag
+    tier: 1
+    status: UNVERIFIED
+    note: Std Spec 830 (portland cement) -- confirm bag standard
+  TRUCK_LOAD:
+    value: 18.5
+    unit: tons
+    tier: 5
+    status: FIELD_ESTIMATE
+    note: Fleet rule-of-thumb; user-editable
+  SHUTTLE_RETAIN:
+    value: 24
+    unit: tons
+    tier: 5
+    status: FIELD_ESTIMATE
+    note: Shuttle Buggy retained material
+  PAVER_RETAIN:
+    value: 14
+    unit: tons
+    tier: 5
+    status: FIELD_ESTIMATE
+    note: Paver hopper retained material
+  THICK_MULT:
+    value: 110
+    unit: lbs/SY per in
+    tier: 5
+    status: FIELD_ESTIMATE
+    note: HMA unit-weight rule-of-thumb
+  STICK_FACTOR:
+    value: 1.2
+    unit: x
+    tier: 5
+    status: FIELD_ESTIMATE
+    note: Loose-vs-compacted estimate
+  COMPACTION_TARGET_MIN:
+    value: 95
+    unit: '% max dry density'
+    tier: 1
+    status: UNVERIFIED
+    note: Project-specific; 95-100% typical
+
+# ---------------------------------------------------------------------------
+# Remembered defaults (Job Setup). Pre-filled every job; user-editable.
+# ---------------------------------------------------------------------------
+defaults:
+  roadWidthFt: 12
+  truckLoadTons: 18.5
+  machine: paver          # paver | shuttle | none
+  firstPass: false        # apply machine retention only on first pass
+  tackApplication: leveling
+  wastePct: 0             # 0 | 5 | 10
+
+machines:
+  - id: paver
+    label: Paver
+    retainTons: 14         # CONST.PAVER_RETAIN
+  - id: shuttle
+    label: Shuttle Buggy
+    retainTons: 24         # CONST.SHUTTLE_RETAIN
+  - id: none
+    label: None
+    retainTons: 0
+
+# ---------------------------------------------------------------------------
+# Tack coat rates (TACK.*) -- GDOT Table 2 + field-card ranges
+# ---------------------------------------------------------------------------
+tack:
+  field:
+    - id: TACK.FIELD_LEVELING
+      label: Leveling
+      min: 0.040
+      max: 0.060
+      unit: gal/SY
+      tier: 5
+      status: FIELD_ESTIMATE
+    - id: TACK.FIELD_TOPPING
+      label: Topping
+      min: 0.040
+      max: 0.060
+      unit: gal/SY
+      tier: 5
+      status: FIELD_ESTIMATE
+    - id: TACK.FIELD_OGI
+      label: OGI (Open-Graded Interlayer)
+      min: 0.060
+      max: 0.080
+      unit: gal/SY
+      tier: 5
+      status: FIELD_ESTIMATE
+    - id: TACK.FIELD_ROCKCHIP
+      label: Rock Chip
+      min: 0.085
+      max: 0.085
+      unit: gal/SY
+      tier: 5
+      status: FIELD_ESTIMATE
+  spec:
+    - id: TACK.NEW_AC
+      label: New AC to New AC / thin-lift leveling
+      min: 0.05
+      max: 0.08
+      unit: gal/yd2
+      tier: 1
+      status: UNVERIFIED
+    - id: TACK.AGED_LE25RAP
+      label: New AC (<=25% RAP) to aged/milled
+      min: 0.06
+      max: 0.10
+      unit: gal/yd2
+      tier: 1
+      status: UNVERIFIED
+    - id: TACK.AGED_GT25RAP
+      label: New AC (>25% RAP) to aged/milled
+      min: 0.08
+      max: 0.12
+      unit: gal/yd2
+      tier: 1
+      status: UNVERIFIED
+  notes:
+    - id: TACK.OGFC_PEM_RESTRICTION
+      text: No anionic/cationic emulsion under OGFC or PEM on interstates / limited-access state routes
+      tier: 1
+      status: UNVERIFIED
+
+# ---------------------------------------------------------------------------
+# Lift thickness vs minimum air temperature (TEMP.*) -- GDOT Table 4
+# ---------------------------------------------------------------------------
+temperature:
+  - id: TEMP.LE_1IN
+    maxThicknessIn: 1.0
+    minAirTempF: 55
+    tier: 1
+    status: UNVERIFIED
+  - id: TEMP.1_2IN
+    maxThicknessIn: 2.0
+    minAirTempF: 45
+    tier: 1
+    status: UNVERIFIED
+  - id: TEMP.2_3IN
+    maxThicknessIn: 3.0
+    minAirTempF: 40
+    tier: 1
+    status: UNVERIFIED
+  - id: TEMP.3_4IN
+    maxThicknessIn: 4.0
+    minAirTempF: 35
+    tier: 1
+    status: UNVERIFIED
+  - id: TEMP.4_8IN
+    maxThicknessIn: 8.0
+    minAirTempF: 32
+    tier: 1
+    status: UNVERIFIED
+    note: 32F and rising; base must not be frozen
+
+# ---------------------------------------------------------------------------
+# Mix type layer / total thickness (THICK.*) -- GDOT Table 5
+# in = inches; rate values are lbs/yd2 (OGFC/PEM)
+# ---------------------------------------------------------------------------
+mixThickness:
+  - id: THICK.SP_25MM
+    label: 25 mm Superpave
+    minLayerIn: 2.5
+    maxLayerIn: 5.0
+    maxTotalIn: ~
+    tier: 1
+    status: UNVERIFIED
+  - id: THICK.SP_19MM
+    label: 19 mm Superpave
+    minLayerIn: 1.75
+    maxLayerIn: 3.0
+    maxTotalIn: ~
+    tier: 1
+    status: UNVERIFIED
+  - id: THICK.SP_125MM
+    label: 12.5 mm Superpave
+    minLayerIn: 1.375
+    maxLayerIn: 2.5
+    maxTotalIn: 8.0
+    tier: 1
+    status: UNVERIFIED
+  - id: THICK.SP_95_T2
+    label: 9.5 mm Superpave Type 2
+    minLayerIn: 1.125
+    maxLayerIn: 1.5
+    maxTotalIn: 4.0
+    tier: 1
+    status: UNVERIFIED
+  - id: THICK.SP_95_T1
+    label: 9.5 mm Superpave Type 1
+    minLayerIn: 0.875
+    maxLayerIn: 1.25
+    maxTotalIn: 4.0
+    tier: 1
+    status: UNVERIFIED
+  - id: THICK.MIX_475
+    label: 4.75 mm Mix
+    minLayerIn: 0.75
+    maxLayerIn: 1.125
+    maxTotalIn: 2.0
+    tier: 1
+    status: UNVERIFIED
+  - id: THICK.SMA_95
+    label: 9.5 mm SMA
+    minLayerIn: 1.125
+    maxLayerIn: 1.5
+    maxTotalIn: 4.0
+    tier: 1
+    status: UNVERIFIED
+  - id: THICK.SMA_125
+    label: 12.5 mm SMA
+    minLayerIn: 1.375
+    maxLayerIn: 3.0
+    maxTotalIn: 6.0
+    tier: 1
+    status: UNVERIFIED
+  - id: THICK.SMA_19
+    label: 19 mm SMA
+    minLayerIn: 1.75
+    maxLayerIn: 3.0
+    maxTotalIn: ~
+    tier: 1
+    status: UNVERIFIED
+
+# ---------------------------------------------------------------------------
+# Soil / aggregate reference densities (DENSITY.*) -- field rules-of-thumb
+# ---------------------------------------------------------------------------
+densities:
+  - id: DENSITY.SOIL_CEMENT
+    label: Compacted soil-cement base
+    minPcf: 120
+    maxPcf: 135
+    defaultPcf: 128
+    tier: 5
+    status: FIELD_ESTIMATE
+  - id: DENSITY.GAB
+    label: Graded Aggregate Base (GAB)
+    minPcf: 135
+    maxPcf: 145
+    defaultPcf: 140
+    tier: 5
+    status: FIELD_ESTIMATE
+  - id: DENSITY.CRUSHED_STONE
+    label: Crushed stone
+    minPcf: 100
+    maxPcf: 120
+    defaultPcf: 110
+    tier: 5
+    status: FIELD_ESTIMATE
+  - id: DENSITY.SAND
+    label: Sand
+    minPcf: 100
+    maxPcf: 110
+    defaultPcf: 105
+    tier: 5
+    status: FIELD_ESTIMATE
+  - id: DENSITY.CLAY
+    label: Compacted clay
+    minPcf: 100
+    maxPcf: 115
+    defaultPcf: 108
+    tier: 5
+    status: FIELD_ESTIMATE
+  - id: DENSITY.TOPSOIL
+    label: Topsoil (loose)
+    minPcf: 75
+    maxPcf: 90
+    defaultPcf: 82
+    tier: 5
+    status: FIELD_ESTIMATE
+
+# ---------------------------------------------------------------------------
+# Calculator metadata for the home grid + labels
+# ---------------------------------------------------------------------------
+calculators:
+  - id: spread-rate
+    title: Spread Rate
+    subtitle: Am I putting down the right amount?
+    primary: true
+  - id: feet-left
+    title: Feet Left Today
+    subtitle: How many more feet can we do?
+    primary: true
+  - id: tack-rate
+    title: Tack Rate
+    subtitle: How many gallons do I need?
+  - id: tonnage
+    title: Tonnage to Order
+    subtitle: How much should I order?
+  - id: stick-check
+    title: Stick Check
+    subtitle: What should I see behind the screed?
+  - id: soil-cement
+    title: Soil / Cement
+    subtitle: Material, cement and water for base work
+  - id: reference
+    title: Reference Tables
+    subtitle: GDOT spec tables
+    wide: true
