@@ -103,11 +103,11 @@ constants:
     status: FIELD_ESTIMATE
     note: HMA unit-weight rule-of-thumb
   STICK_FACTOR:
-    value: 1.2
+    value: 1.25
     unit: x
     tier: 5
     status: FIELD_ESTIMATE
-    note: Loose-vs-compacted estimate
+    note: Loose-vs-compacted estimate (updated field standard)
   COMPACTION_TARGET_MIN:
     value: 95
     unit: '% max dry density'
@@ -203,6 +203,9 @@ machines:
   - id: shuttle
     label: Shuttle Buggy
     retainTons: 24         # CONST.SHUTTLE_RETAIN
+  - id: mtv
+    label: MTV
+    retainTons: 24         # MTV (Material Transfer Vehicle)
   - id: none
     label: None
     retainTons: 0

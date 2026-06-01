@@ -64,6 +64,9 @@
 				</button>
 			{/each}
 		</div>
+		<div class="rate-display">
+			{selected.label}: <strong>{selected.min}–{selected.max} gal/SY</strong>
+		</div>
 	</div>
 
 	<ResultStat
@@ -98,6 +101,18 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 6px;
+	}
+	.rate-display {
+		margin-top: 10px;
+		padding: 10px 12px;
+		background: var(--surface-alt);
+		border-radius: 8px;
+		font-size: 0.9rem;
+		color: var(--text-muted);
+	}
+	.rate-display strong {
+		color: var(--accent);
+		font-weight: 700;
 	}
 	.weather-warn {
 		font-size: 0.85rem;

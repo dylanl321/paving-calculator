@@ -3,6 +3,7 @@
 	import JobSiteSettings from '$lib/components/JobSiteSettings.svelte';
 	import SpreadRateCard from '$lib/components/SpreadRateCard.svelte';
 	import FeetLeftCard from '$lib/components/FeetLeftCard.svelte';
+	import DistancePlannerCard from '$lib/components/DistancePlannerCard.svelte';
 	import TonnageCard from '$lib/components/TonnageCard.svelte';
 	import TackCard from '$lib/components/TackCard.svelte';
 	import StickCheckCard from '$lib/components/StickCheckCard.svelte';
@@ -23,6 +24,7 @@
 <div class="card-grid">
 	<SpreadRateCard />
 	<FeetLeftCard />
+	<DistancePlannerCard />
 	<TonnageCard />
 	<TackCard />
 	<StickCheckCard />

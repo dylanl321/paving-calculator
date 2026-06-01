@@ -6,13 +6,11 @@
 
 	let { actual, target }: Props = $props();
 
-	// Calculate position and status
-	const status = $derived.by(() => {
+	// Calculate position and status (in-spec = within 5%)
+	const inSpec = $derived.by(() => {
 		if (actual == null || target == null) return null;
-		const diff = (actual - target) / target;
-		if (Math.abs(diff) <= 0.05) return 'good';
-		if (Math.abs(diff) <= 0.15) return 'warn';
-		return 'bad';
+		const diff = Math.abs((actual - target) / target);
+		return diff <= 0.05;
 	});
 
 	const percentage = $derived.by(() => {
@@ -24,9 +22,7 @@
 		return Math.max(0, Math.min(100, scaledRatio * 100));
 	});
 
-	const statusColor = $derived(
-		status === 'good' ? 'var(--good)' : status === 'warn' ? 'var(--warn)' : 'var(--bad)'
-	);
+	const statusColor = $derived(inSpec ? 'var(--good)' : 'var(--bad)');
 </script>
 
 <div class="gauge-wrapper">
@@ -123,17 +119,17 @@
 
 	.zone-low {
 		background: var(--bad);
-		opacity: 0.3;
+		opacity: 0.5;
 	}
 
 	.zone-good {
 		background: var(--good);
-		opacity: 0.3;
+		opacity: 0.6;
 	}
 
 	.zone-high {
 		background: var(--bad);
-		opacity: 0.3;
+		opacity: 0.5;
 	}
 
 	.needle-marker {

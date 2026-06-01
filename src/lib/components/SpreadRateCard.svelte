@@ -13,9 +13,14 @@
 	// Reality-check inputs (local to this calc; width/thickness/machine are shared).
 	let tons = $state<number | null>(null);
 	let distanceFt = $state<number | null>(null);
+	let customTargetRate = $state<number | null>(null);
 
 	const targetRate = $derived(
-		job.thicknessIn > 0 ? spreadRateFromThickness(job.thicknessIn) : null
+		customTargetRate != null && customTargetRate > 0
+			? customTargetRate
+			: job.thicknessIn > 0
+				? spreadRateFromThickness(job.thicknessIn)
+				: null
 	);
 
 	const placedRate = $derived(
@@ -71,12 +76,23 @@
 	<div class="two-up">
 		<div class="col">
 			<div class="col-head">Target (from job thickness)</div>
+			<NumberField
+				label="Custom target (optional)"
+				unit="lbs/SY"
+				bind:value={customTargetRate}
+			/>
 			<ResultStat
 				value={targetRate != null ? Math.round(targetRate) : null}
 				unit="lbs / SY"
 				badge={targetBadge}
 			/>
-			<p class="col-note">Set thickness in Job Setup. Weather bar sets air temp for Table 4.</p>
+			<p class="col-note">
+				{#if customTargetRate != null && customTargetRate > 0}
+					Using custom target. Clear to use thickness-based rate.
+				{:else}
+					Set thickness in Job Setup. Weather bar sets air temp for Table 4.
+				{/if}
+			</p>
 		</div>
 
 		<div class="col">
@@ -96,9 +112,17 @@
 	{/if}
 
 	{#if job.machineId !== 'none'}
+		{@const checkboxLabel =
+			job.machineId === 'paver'
+				? 'Is the paver hopper full?'
+				: job.machineId === 'shuttle'
+					? 'Is the shuttle buggy full?'
+					: job.machineId === 'mtv'
+						? 'Is the MTV full?'
+						: `First pass — subtract ${machineLabel} retained material`}
 		<label class="firstpass">
 			<input type="checkbox" bind:checked={job.firstPass} />
-			First pass — subtract {machineLabel} retained material
+			{checkboxLabel}
 		</label>
 	{/if}
 
