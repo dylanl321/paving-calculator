@@ -2,6 +2,43 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper, type DbJobSite } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
 
+export async function GET(event: RequestEvent) {
+	try {
+		const user = await requireAuth(event);
+		const db = new DbHelper(event.platform!.env.DB);
+
+		const org = await db.getOrgByUserId(user.id);
+		if (!org) {
+			return json({ error: 'Organization not found' }, { status: 404 });
+		}
+
+		const jobSiteId = event.params.id!;
+		const jobSite = await db.getJobSiteById(jobSiteId);
+
+		if (!jobSite) {
+			return json({ error: 'Job site not found' }, { status: 404 });
+		}
+
+		if (jobSite.org_id !== org.id) {
+			return json({ error: 'Unauthorized' }, { status: 403 });
+		}
+
+		return json({
+			id: jobSite.id,
+			org_id: jobSite.org_id,
+			name: jobSite.name,
+			location_description: jobSite.location_description,
+			status: jobSite.status,
+			created_at: jobSite.created_at,
+			updated_at: jobSite.updated_at
+		});
+	} catch (error) {
+		if (error instanceof Response) throw error;
+		console.error('Get job site error:', error);
+		return json({ error: 'Internal server error' }, { status: 500 });
+	}
+}
+
 interface UpdateJobSiteRequest {
 	name?: string;
 	location_description?: string;

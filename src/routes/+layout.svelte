@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { config } from '$lib/config';
 	import { themeStore } from '$lib/stores/theme.svelte';
+	import { authStore } from '$lib/stores/auth.svelte';
 	import '../app.css';
 
 	let { children } = $props();
@@ -33,6 +34,9 @@
 	onMount(async () => {
 		const { registerSW } = await import('virtual:pwa-register');
 		registerSW({ immediate: true });
+
+		// Initialize auth state
+		await authStore.fetch();
 	});
 </script>
 

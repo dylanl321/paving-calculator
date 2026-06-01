@@ -8,6 +8,7 @@
 	import StickCheckCard from '$lib/components/StickCheckCard.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import ProofButton from '$lib/components/ProofButton.svelte';
+	import UserMenu from '$lib/components/UserMenu.svelte';
 </script>
 
 <svelte:head>
@@ -20,7 +21,10 @@
 		<h1>{config.app.name}</h1>
 		<p class="tagline">{config.app.tagline}</p>
 	</div>
-	<ThemeToggle />
+	<div class="topbar-actions">
+		<ThemeToggle />
+		<UserMenu />
+	</div>
 </header>
 
 <JobSetupBar />
