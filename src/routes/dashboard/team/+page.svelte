@@ -26,9 +26,19 @@
 		created_at: number;
 	} | null;
 
+	type Crew = {
+		id: string;
+		name: string;
+		color: string;
+		member_count: number;
+		members: Array<{ user_id: string; user_name: string }>;
+	};
+
 	let members = $state<Member[]>([]);
 	let invitations = $state<Invitation[]>([]);
 	let memberActivity = $state<Record<string, MemberActivity>>({});
+	let crews = $state<Crew[]>([]);
+	let memberCrews = $state<Record<string, string | null>>({});
 	let loading = $state(true);
 	let error = $state('');
 	let showInviteModal = $state(false);
@@ -40,8 +50,12 @@
 	let currentUserRole = $state<string | null>(null);
 	let searchQuery = $state('');
 	let roleFilter = $state<string>('all');
+	let crewFilter = $state<string>('all');
 	let sortOrder = $state<string>('name-asc');
 	let roleChangeConfirm = $state<{ member: Member; newRole: string } | null>(null);
+	let showNewCrewForm = $state(false);
+	let newCrewForm = $state({ name: '', color: 'slate' });
+	let creatingCrew = $state(false);
 
 	const filteredMembers = $derived.by(() => {
 		const q = searchQuery.toLowerCase();
@@ -51,7 +65,10 @@
 				m.user_name.toLowerCase().includes(q) ||
 				m.user_email.toLowerCase().includes(q);
 			const matchesRole = roleFilter === 'all' || m.role === roleFilter;
-			return matchesSearch && matchesRole;
+			const matchesCrew =
+				crewFilter === 'all' ||
+				(crewFilter === 'none' ? !memberCrews[m.user_id] : memberCrews[m.user_id] === crewFilter);
+			return matchesSearch && matchesRole && matchesCrew;
 		});
 
 		switch (sortOrder) {
@@ -72,11 +89,12 @@
 		return result;
 	});
 
-	const hasActiveFilters = $derived(searchQuery !== '' || roleFilter !== 'all');
+	const hasActiveFilters = $derived(searchQuery !== '' || roleFilter !== 'all' || crewFilter !== 'all');
 
 	function clearFilters() {
 		searchQuery = '';
 		roleFilter = 'all';
+		crewFilter = 'all';
 	}
 
 	const roleCounts = $derived(
@@ -108,10 +126,11 @@
 
 	async function loadTeam() {
 		try {
-			const [membersRes, invitesRes, activityRes] = await Promise.all([
+			const [membersRes, invitesRes, activityRes, crewsRes] = await Promise.all([
 				fetch('/api/org'),
 				fetch('/api/org/invite'),
-				fetch('/api/org/activity')
+				fetch('/api/org/activity'),
+				fetch('/api/org/crews')
 			]);
 
 			if (!membersRes.ok) {
@@ -135,6 +154,20 @@
 			if (activityRes.ok) {
 				const activityData = await activityRes.json();
 				memberActivity = activityData.activity || {};
+			}
+
+			if (crewsRes.ok) {
+				const crewsData = await crewsRes.json();
+				crews = crewsData.crews || [];
+
+				// Build memberCrews map
+				const crewMap: Record<string, string | null> = {};
+				for (const crew of crews) {
+					for (const member of crew.members) {
+						crewMap[member.user_id] = crew.id;
+					}
+				}
+				memberCrews = crewMap;
 			}
 		} catch (e) {
 			error = 'Failed to load team';
@@ -389,6 +422,98 @@
 
 		return `${action} ${resource_type}`;
 	}
+
+	const isAdmin = $derived(currentUserRole === 'owner' || currentUserRole === 'admin');
+
+	const CREW_COLORS: Record<string, string> = {
+		slate: '#64748b',
+		red: '#ef4444',
+		orange: '#f97316',
+		amber: '#f59e0b',
+		green: '#22c55e',
+		teal: '#14b8a6',
+		blue: '#3b82f6',
+		violet: '#8b5cf6',
+		pink: '#ec4899'
+	};
+
+	async function createCrew() {
+		if (!newCrewForm.name.trim()) return;
+
+		creatingCrew = true;
+		try {
+			const res = await fetch('/api/org/crews', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					name: newCrewForm.name.trim(),
+					color: newCrewForm.color
+				})
+			});
+
+			if (!res.ok) {
+				const data = await res.json();
+				toastStore.error(data.error || 'Failed to create crew');
+				return;
+			}
+
+			await loadTeam();
+			showNewCrewForm = false;
+			newCrewForm = { name: '', color: 'slate' };
+			toastStore.success('Crew created successfully');
+		} catch (e) {
+			toastStore.error('Failed to create crew');
+		} finally {
+			creatingCrew = false;
+		}
+	}
+
+	async function deleteCrew(crewId: string, crewName: string) {
+		if (!confirm(`Delete "${crewName}" crew? Members will be unassigned.`)) return;
+
+		try {
+			const res = await fetch(`/api/org/crews/${crewId}`, {
+				method: 'DELETE'
+			});
+
+			if (!res.ok) {
+				const data = await res.json();
+				toastStore.error(data.error || 'Failed to delete crew');
+				return;
+			}
+
+			await loadTeam();
+			toastStore.success('Crew deleted successfully');
+		} catch (e) {
+			toastStore.error('Failed to delete crew');
+		}
+	}
+
+	async function updateMemberCrew(userId: string, crewId: string | null) {
+		try {
+			const res = await fetch(`/api/org/members/${userId}/crew`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ crew_id: crewId })
+			});
+
+			if (!res.ok) {
+				const data = await res.json();
+				toastStore.error(data.error || 'Failed to update crew assignment');
+				return;
+			}
+
+			await loadTeam();
+			toastStore.success('Crew assignment updated');
+		} catch (e) {
+			toastStore.error('Failed to update crew assignment');
+		}
+	}
+
+	function getCrewById(crewId: string | null): Crew | null {
+		if (!crewId) return null;
+		return crews.find((c) => c.id === crewId) || null;
+	}
 </script>
 
 <div class="team-page">
@@ -405,6 +530,96 @@
 	{:else if error}
 		<div class="error">{error}</div>
 	{:else}
+		{#if isAdmin}
+			<section class="crews-section">
+				<div class="section-header">
+					<h2>Crews ({crews.length})</h2>
+					{#if !showNewCrewForm}
+						<button class="btn-new-crew" onclick={() => (showNewCrewForm = true)}>+ New Crew</button>
+					{/if}
+				</div>
+
+				{#if showNewCrewForm}
+					<div class="new-crew-form">
+						<input
+							type="text"
+							class="crew-name-input"
+							placeholder="Crew name (e.g., Alpha Crew)"
+							bind:value={newCrewForm.name}
+							maxlength="50"
+							autofocus
+						/>
+						<div class="color-picker">
+							{#each Object.keys(CREW_COLORS) as colorName}
+								<button
+									type="button"
+									class="color-option {newCrewForm.color === colorName ? 'color-option-active' : ''}"
+									style="background-color: {CREW_COLORS[colorName]};"
+									onclick={() => (newCrewForm.color = colorName)}
+									aria-label={colorName}
+								></button>
+							{/each}
+						</div>
+						<div class="form-actions">
+							<button
+								type="button"
+								class="btn-secondary"
+								onclick={() => {
+									showNewCrewForm = false;
+									newCrewForm = { name: '', color: 'slate' };
+								}}
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								class="btn-primary"
+								onclick={createCrew}
+								disabled={creatingCrew || !newCrewForm.name.trim()}
+							>
+								{creatingCrew ? 'Creating...' : 'Create Crew'}
+							</button>
+						</div>
+					</div>
+				{/if}
+
+				{#if crews.length === 0}
+					<p class="empty">No crews yet. Create one to organize your team.</p>
+				{:else}
+					<div class="crews-list">
+						{#each crews as crew}
+							<div class="crew-card">
+								<div class="crew-header">
+									<span
+										class="crew-badge"
+										style="background-color: {CREW_COLORS[crew.color]}; color: white;"
+									>
+										{crew.name}
+									</span>
+									<span class="crew-count">{crew.member_count} member{crew.member_count !== 1 ? 's' : ''}</span>
+								</div>
+								<div class="crew-members">
+									{#if crew.members.length > 0}
+										{#each crew.members.slice(0, 3) as member}
+											<div class="crew-member-avatar">{getInitials(member.user_name)}</div>
+										{/each}
+										{#if crew.members.length > 3}
+											<div class="crew-member-more">+{crew.members.length - 3}</div>
+										{/if}
+									{:else}
+										<span class="crew-empty">No members</span>
+									{/if}
+								</div>
+								<button class="btn-delete-crew" onclick={() => deleteCrew(crew.id, crew.name)}>
+									Delete
+								</button>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</section>
+		{/if}
+
 		<section class="members-section">
 			<div class="section-header">
 				<h2>Team Members ({members.length})</h2>
@@ -428,6 +643,37 @@
 							</button>
 						{/each}
 					</div>
+					{#if crews.length > 0}
+						<div class="crew-filter-pills">
+							<button
+								type="button"
+								class="pill {crewFilter === 'all' ? 'pill-active' : ''}"
+								onclick={() => (crewFilter = 'all')}
+								aria-pressed={crewFilter === 'all'}
+							>
+								All Crews
+							</button>
+							<button
+								type="button"
+								class="pill {crewFilter === 'none' ? 'pill-active' : ''}"
+								onclick={() => (crewFilter = 'none')}
+								aria-pressed={crewFilter === 'none'}
+							>
+								No Crew
+							</button>
+							{#each crews as crew}
+								<button
+									type="button"
+									class="pill pill-crew {crewFilter === crew.id ? 'pill-active' : ''}"
+									style="--crew-color: {CREW_COLORS[crew.color]};"
+									onclick={() => (crewFilter = crew.id)}
+									aria-pressed={crewFilter === crew.id}
+								>
+									{crew.name}
+								</button>
+							{/each}
+						</div>
+					{/if}
 					<select class="sort-select" bind:value={sortOrder} aria-label="Sort members">
 						<option value="name-asc">Name A-Z</option>
 						<option value="name-desc">Name Z-A</option>
@@ -480,6 +726,35 @@
 										<span class="role-badge {member.role}">{member.role}</span>
 									{/if}
 								</div>
+								{#if crews.length > 0}
+									<div class="card-row">
+										<span class="label">Crew</span>
+										{#if isAdmin}
+											<select
+												class="crew-select"
+												value={memberCrews[member.user_id] || ''}
+												onchange={(e) => updateMemberCrew(member.user_id, e.currentTarget.value || null)}
+											>
+												<option value="">No crew</option>
+												{#each crews as crew}
+													<option value={crew.id}>{crew.name}</option>
+												{/each}
+											</select>
+										{:else}
+											{@const memberCrew = getCrewById(memberCrews[member.user_id])}
+											{#if memberCrew}
+												<span
+													class="crew-badge-inline"
+													style="background-color: {CREW_COLORS[memberCrew.color]}; color: white;"
+												>
+													{memberCrew.name}
+												</span>
+											{:else}
+												<span class="text-muted">No crew</span>
+											{/if}
+										{/if}
+									</div>
+								{/if}
 								<div class="card-row">
 									<span class="label">Last Active</span>
 									{#if memberActivity[member.user_id]}
@@ -648,6 +923,259 @@
 		padding: var(--sp-4);
 		max-width: 1400px;
 		margin: 0 auto;
+	}
+
+	/* Crew section styles */
+	.crews-section {
+		background: var(--surface);
+		padding: var(--sp-6);
+		border-radius: var(--radius-md);
+		margin-bottom: var(--sp-6);
+	}
+
+	.btn-new-crew {
+		padding: 0 var(--sp-5);
+		min-height: var(--touch);
+		background: var(--accent);
+		color: var(--accent-text);
+		border: none;
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-md);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.btn-new-crew:hover {
+		opacity: 0.9;
+	}
+
+	.new-crew-form {
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		padding: var(--sp-5);
+		margin-bottom: var(--sp-4);
+	}
+
+	.crew-name-input {
+		width: 100%;
+		padding: var(--sp-3);
+		font-size: var(--fs-md);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface);
+		color: var(--text);
+		min-height: var(--touch);
+		margin-bottom: var(--sp-4);
+	}
+
+	.color-picker {
+		display: flex;
+		gap: var(--sp-2);
+		flex-wrap: wrap;
+		margin-bottom: var(--sp-4);
+	}
+
+	.color-option {
+		width: 48px;
+		height: 48px;
+		border-radius: var(--radius-sm);
+		border: 3px solid transparent;
+		cursor: pointer;
+		transition: border-color 0.2s;
+	}
+
+	.color-option:hover {
+		border-color: rgba(255, 255, 255, 0.3);
+	}
+
+	.color-option-active {
+		border-color: white !important;
+		box-shadow: 0 0 0 2px var(--bg);
+	}
+
+	.form-actions {
+		display: flex;
+		gap: var(--sp-3);
+		justify-content: flex-end;
+	}
+
+	.btn-secondary {
+		padding: 0 var(--sp-5);
+		min-height: var(--touch);
+		background: var(--surface);
+		color: var(--text);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-md);
+		cursor: pointer;
+	}
+
+	.btn-primary {
+		padding: 0 var(--sp-5);
+		min-height: var(--touch);
+		background: var(--accent);
+		color: var(--accent-text);
+		border: none;
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-md);
+		cursor: pointer;
+	}
+
+	.btn-primary:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.crews-list {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--sp-4);
+	}
+
+	@media (min-width: 600px) {
+		.crews-list {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+
+	@media (min-width: 900px) {
+		.crews-list {
+			grid-template-columns: repeat(3, 1fr);
+		}
+	}
+
+	@media (min-width: 1200px) {
+		.crews-list {
+			grid-template-columns: repeat(4, 1fr);
+		}
+	}
+
+	.crew-card {
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		padding: var(--sp-4);
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-3);
+	}
+
+	.crew-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-2);
+	}
+
+	.crew-badge {
+		padding: var(--sp-2) var(--sp-3);
+		border-radius: var(--radius-sm);
+		font-weight: var(--fw-semibold);
+		font-size: var(--fs-sm);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.crew-count {
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+		white-space: nowrap;
+	}
+
+	.crew-members {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		min-height: 40px;
+	}
+
+	.crew-member-avatar {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		background: var(--accent);
+		color: var(--accent-text);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-weight: var(--fw-bold);
+		font-size: var(--fs-sm);
+		flex-shrink: 0;
+	}
+
+	.crew-member-more {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		background: var(--surface-alt);
+		color: var(--text-muted);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: var(--fs-sm);
+		flex-shrink: 0;
+	}
+
+	.crew-empty {
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+		font-style: italic;
+	}
+
+	.btn-delete-crew {
+		padding: var(--sp-2) var(--sp-3);
+		min-height: 40px;
+		background: var(--bad);
+		color: white;
+		border: none;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
+	}
+
+	.btn-delete-crew:hover {
+		opacity: 0.9;
+	}
+
+	.crew-filter-pills {
+		display: flex;
+		gap: var(--sp-2);
+		flex-wrap: wrap;
+	}
+
+	.pill-crew.pill-active {
+		background: var(--crew-color);
+		border-color: var(--crew-color);
+	}
+
+	.crew-select {
+		padding: var(--sp-2) var(--sp-3);
+		min-height: 40px;
+		font-size: var(--fs-sm);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--bg);
+		color: var(--text);
+		cursor: pointer;
+		flex: 1;
+		max-width: 150px;
+	}
+
+	.crew-badge-inline {
+		padding: var(--sp-1) var(--sp-3);
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-medium);
+		white-space: nowrap;
+	}
+
+	.text-muted {
+		color: var(--text-muted);
+		font-size: var(--fs-sm);
+		font-style: italic;
 	}
 
 	header {

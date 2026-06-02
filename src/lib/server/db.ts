@@ -144,6 +144,22 @@ export interface DbJobSiteRoute {
 	updated_at: number;
 }
 
+export interface DbCrew {
+	id: string;
+	org_id: string;
+	name: string;
+	color: string;
+	created_by: string;
+	created_at: number;
+}
+
+export interface DbCrewMember {
+	crew_id: string;
+	user_id: string;
+	org_id: string;
+	assigned_at: number;
+}
+
 export class DbHelper {
 	constructor(private db: D1Database) {}
 
@@ -1008,5 +1024,92 @@ export class DbHelper {
 			created_at: existing?.created_at ?? now,
 			updated_at: now
 		};
+	}
+
+	// Crew methods
+	async createCrew(
+		orgId: string,
+		name: string,
+		color: string,
+		createdBy: string
+	): Promise<DbCrew> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+
+		await this.db
+			.prepare(
+				'INSERT INTO crews (id, org_id, name, color, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+			)
+			.bind(id, orgId, name, color, createdBy, now)
+			.run();
+
+		return {
+			id,
+			org_id: orgId,
+			name,
+			color,
+			created_by: createdBy,
+			created_at: now
+		};
+	}
+
+	async listCrews(orgId: string): Promise<DbCrew[]> {
+		return await this.db
+			.prepare('SELECT * FROM crews WHERE org_id = ? ORDER BY created_at ASC')
+			.bind(orgId)
+			.all<DbCrew>()
+			.then((r) => r.results);
+	}
+
+	async deleteCrew(crewId: string, orgId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM crews WHERE id = ? AND org_id = ?')
+			.bind(crewId, orgId)
+			.run();
+	}
+
+	async assignMemberToCrew(crewId: string, userId: string, orgId: string): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				'INSERT OR REPLACE INTO crew_members (crew_id, user_id, org_id, assigned_at) VALUES (?, ?, ?, ?)'
+			)
+			.bind(crewId, userId, orgId, now)
+			.run();
+	}
+
+	async removeMemberFromCrew(userId: string, orgId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM crew_members WHERE user_id = ? AND org_id = ?')
+			.bind(userId, orgId)
+			.run();
+	}
+
+	async getCrewMembers(
+		crewId: string
+	): Promise<Array<{ user_id: string; user_name: string }>> {
+		return await this.db
+			.prepare(
+				`SELECT cm.user_id, u.name as user_name
+				FROM crew_members cm
+				JOIN users u ON u.id = cm.user_id
+				WHERE cm.crew_id = ?
+				ORDER BY u.name ASC`
+			)
+			.bind(crewId)
+			.all<{ user_id: string; user_name: string }>()
+			.then((r) => r.results);
+	}
+
+	async getMemberCrew(userId: string, orgId: string): Promise<DbCrew | null> {
+		return await this.db
+			.prepare(
+				`SELECT c.*
+				FROM crews c
+				JOIN crew_members cm ON cm.crew_id = c.id
+				WHERE cm.user_id = ? AND cm.org_id = ?`
+			)
+			.bind(userId, orgId)
+			.first<DbCrew>();
 	}
 }
