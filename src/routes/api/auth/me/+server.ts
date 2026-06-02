@@ -1,6 +1,6 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
-import { requireAuth } from '$lib/server/auth';
+import { getAuthUser } from '$lib/server/auth';
 
 export async function GET(event: RequestEvent) {
 	try {
@@ -8,7 +8,10 @@ export async function GET(event: RequestEvent) {
 			return json({ error: 'Database not available' }, { status: 503 });
 		}
 
-		const user = await requireAuth(event);
+		const user = await getAuthUser(event);
+		if (!user) {
+			return json({ user: null, org: null });
+		}
 		const db = new DbHelper(event.platform.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
