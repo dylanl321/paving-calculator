@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { spreadRateFromThickness, stickCheck } from '$lib/config/formulas';
 	import { findTool } from '$lib/workspace/tools';
 	import JobBar from '$lib/components/workspace/JobBar.svelte';
@@ -17,6 +18,7 @@
 	const ActiveComponent = $derived(activeTool.component);
 
 	function selectTool(id: string) {
+		logDraft.set(null);
 		const url = new URL($page.url);
 		url.searchParams.set('tool', id);
 		url.searchParams.delete('view');
@@ -77,8 +79,10 @@
 				</header>
 
 				<div class="stage-body">
-					<ActiveComponent />
-					<LogToToday tool={activeTool} ongoToToday={selectToday} />
+					{#key activeTool.id}
+						<ActiveComponent />
+						<LogToToday tool={activeTool} ongoToToday={selectToday} />
+					{/key}
 				</div>
 			</section>
 
