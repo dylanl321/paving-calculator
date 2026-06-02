@@ -33,6 +33,8 @@ export interface DbJobSite {
 	org_id: string;
 	name: string;
 	location_description: string | null;
+	latitude: number | null;
+	longitude: number | null;
 	status: 'active' | 'completed' | 'archived';
 	created_at: number;
 	updated_at: number;
@@ -249,16 +251,18 @@ export class DbHelper {
 	async createJobSite(
 		orgId: string,
 		name: string,
-		locationDescription: string | null
+		locationDescription: string | null,
+		latitude: number | null = null,
+		longitude: number | null = null
 	): Promise<DbJobSite> {
 		const id = crypto.randomUUID();
 		const now = Math.floor(Date.now() / 1000);
 
 		await this.db
 			.prepare(
-				'INSERT INTO job_sites (id, org_id, name, location_description, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+				'INSERT INTO job_sites (id, org_id, name, location_description, latitude, longitude, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
 			)
-			.bind(id, orgId, name, locationDescription, 'active', now, now)
+			.bind(id, orgId, name, locationDescription, latitude, longitude, 'active', now, now)
 			.run();
 
 		return {
@@ -266,6 +270,8 @@ export class DbHelper {
 			org_id: orgId,
 			name,
 			location_description: locationDescription,
+			latitude,
+			longitude,
 			status: 'active',
 			created_at: now,
 			updated_at: now
@@ -286,11 +292,11 @@ export class DbHelper {
 
 	async updateJobSite(
 		id: string,
-		updates: Partial<Pick<DbJobSite, 'name' | 'location_description' | 'status'>>
+		updates: Partial<Pick<DbJobSite, 'name' | 'location_description' | 'latitude' | 'longitude' | 'status'>>
 	): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		const fields: string[] = [];
-		const values: (string | number)[] = [];
+		const values: (string | number | null)[] = [];
 
 		if (updates.name !== undefined) {
 			fields.push('name = ?');
@@ -299,6 +305,14 @@ export class DbHelper {
 		if (updates.location_description !== undefined) {
 			fields.push('location_description = ?');
 			values.push(updates.location_description || '');
+		}
+		if (updates.latitude !== undefined) {
+			fields.push('latitude = ?');
+			values.push(updates.latitude);
+		}
+		if (updates.longitude !== undefined) {
+			fields.push('longitude = ?');
+			values.push(updates.longitude);
 		}
 		if (updates.status !== undefined) {
 			fields.push('status = ?');

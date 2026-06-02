@@ -21,6 +21,8 @@ export async function GET(event: RequestEvent) {
 				org_id: site.org_id,
 				name: site.name,
 				location_description: site.location_description,
+				latitude: site.latitude,
+				longitude: site.longitude,
 				status: site.status,
 				created_at: site.created_at,
 				updated_at: site.updated_at
@@ -36,6 +38,8 @@ export async function GET(event: RequestEvent) {
 interface CreateJobSiteRequest {
 	name: string;
 	location_description?: string;
+	latitude?: number;
+	longitude?: number;
 }
 
 export async function POST(event: RequestEvent) {
@@ -57,7 +61,9 @@ export async function POST(event: RequestEvent) {
 		const jobSite = await db.createJobSite(
 			org.id,
 			body.name,
-			body.location_description || null
+			body.location_description || null,
+			body.latitude ?? null,
+			body.longitude ?? null
 		);
 
 		await recordAudit(event.platform!.env.DB, {
@@ -84,6 +90,8 @@ export async function POST(event: RequestEvent) {
 			org_id: jobSite.org_id,
 			name: jobSite.name,
 			location_description: jobSite.location_description,
+			latitude: jobSite.latitude,
+			longitude: jobSite.longitude,
 			status: jobSite.status,
 			created_at: jobSite.created_at,
 			updated_at: jobSite.updated_at

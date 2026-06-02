@@ -33,6 +33,10 @@
 		].filter((d) => d.count > 0)
 	);
 
+	const mapSites = $derived(
+		data.jobSites.filter((s: any) => s.latitude != null && s.longitude != null)
+	);
+
 	async function handleCreateJobSite(e: Event) {
 		e.preventDefault();
 		createError = '';
@@ -156,6 +160,19 @@
 			</div>
 		{/if}
 	</section>
+
+	{#if mapSites.length > 0}
+		<section class="section">
+			<div class="section-header">
+				<h3>Job Site Locations</h3>
+			</div>
+			{#await import('$lib/components/JobSiteMap.svelte')}
+				<div class="map-loading">Loading map&hellip;</div>
+			{:then { default: JobSiteMap }}
+				<JobSiteMap sites={mapSites} />
+			{/await}
+		</section>
+	{/if}
 
 	<section class="section">
 		<div class="section-header">
@@ -584,5 +601,15 @@
 	.site-date {
 		font-size: 0.75rem;
 		color: var(--text-muted);
+	}
+
+	.map-loading {
+		padding: 40px 20px;
+		text-align: center;
+		color: var(--text-muted);
+		font-size: 0.875rem;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md, 12px);
 	}
 </style>
