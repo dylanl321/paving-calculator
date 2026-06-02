@@ -903,7 +903,7 @@
 			{/if}
 		</section>
 
-		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} numLanes={data.config?.num_lanes} />
+		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} numLanes={data.config?.num_lanes} targetTonnage={configForm.total_tonnage || estTonnage || null} />
 
 		<TruckQueue jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
 
