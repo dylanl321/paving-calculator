@@ -7,6 +7,9 @@
 	import { MapPin } from 'lucide-svelte';
 	import LoadTracker from '$lib/components/LoadTracker.svelte';
 	import TruckQueue from '$lib/components/TruckQueue.svelte';
+	import SpreadRateHistogram from '$lib/components/SpreadRateHistogram.svelte';
+	import { spreadToleranceFor } from '$lib/config';
+	import { job } from '$lib/stores/job.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -903,6 +906,12 @@
 		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} numLanes={data.config?.num_lanes} />
 
 		<TruckQueue jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
+
+		<SpreadRateHistogram
+			jobSiteId={data.jobSite.id}
+			targetRate={configForm.target_spread_rate}
+			toleranceLbsSy={spreadToleranceFor(job.courseType).toleranceLbsSy}
+		/>
 
 		<section class="panel">
 			<div class="panel-head">
