@@ -9,6 +9,7 @@
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import ComplianceGauge from '$lib/components/ComplianceGauge.svelte';
 	import NuclearGaugeLog from '$lib/components/NuclearGaugeLog.svelte';
+	import StationProgressLogger from '$lib/components/StationProgressLogger.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -685,6 +686,15 @@
 				jobSiteId={data.jobSite.id}
 				targetDensityPcf={(data.siteConfig as any)?.config?.target_density_pcf ?? null}
 				targetThicknessIn={(data.siteConfig as any)?.config?.target_thickness_in ?? null}
+			/>
+		{/if}
+
+		{#if currentLog && !isHistoricalView}
+			<StationProgressLogger
+				jobSiteId={data.jobSite.id}
+				logId={currentLog.id}
+				waypoints={routeWaypoints}
+				onLogged={loadLogDetails}
 			/>
 		{/if}
 
