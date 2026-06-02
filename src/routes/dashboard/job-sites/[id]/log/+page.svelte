@@ -12,6 +12,7 @@
 	import StationProgressLogger from '$lib/components/StationProgressLogger.svelte';
 	import CloseOutModal from '$lib/components/CloseOutModal.svelte';
 	import DailySummaryReport from '$lib/components/DailySummaryReport.svelte';
+	import ComparativeDayView from '$lib/components/ComparativeDayView.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -25,6 +26,7 @@
 	let showCloseOut = $state(false);
 	let unlocking = $state(false);
 	let showSummary = $state(false);
+	let showComparison = $state(false);
 
 	let isAdmin = $derived(
 		data.userRole === 'owner' || data.userRole === 'admin' || data.isGlobalAdmin
@@ -632,6 +634,24 @@
 				</svg>
 				Day Summary
 			</button>
+			<button class="btn-secondary" onclick={() => (showComparison = !showComparison)}>
+				<svg
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<rect x="3" y="3" width="7" height="7"></rect>
+					<rect x="14" y="3" width="7" height="7"></rect>
+					<rect x="14" y="14" width="7" height="7"></rect>
+					<rect x="3" y="14" width="7" height="7"></rect>
+				</svg>
+				{showComparison ? 'Hide' : 'Compare'} Days
+			</button>
 			{/if}
 			<a href="/dashboard/job-sites/{data.jobSite.id}/log/history" class="btn-secondary">
 			<svg
@@ -653,6 +673,10 @@
 		</a>
 		</div>
 	</div>
+
+	{#if showComparison && currentLog}
+		<ComparativeDayView jobSiteId={data.jobSite.id} currentLogDate={viewedLog?.log_date ?? data.today} />
+	{/if}
 
 	{#if data.summary.total_distance_ft > 0}
 		<div class="project-summary">
@@ -1042,7 +1066,7 @@
 		jobSiteId={data.jobSite.id}
 		log={currentLog}
 		onClose={() => (showSummary = false)}
-		onGeneratePDF={exportDailyPDF}
+		onGeneratePDF={exportLogPDF}
 	/>
 {/if}
 
