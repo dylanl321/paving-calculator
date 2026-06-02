@@ -23,7 +23,7 @@ export interface DbOrganization {
 export interface DbOrgMember {
 	user_id: string;
 	org_id: string;
-	role: 'owner' | 'admin' | 'member';
+	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office';
 	invited_at: number;
 	accepted_at: number | null;
 }
@@ -79,7 +79,7 @@ export interface DbInvitation {
 	id: string;
 	org_id: string;
 	email: string;
-	role: 'owner' | 'admin' | 'member';
+	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office';
 	token: string;
 	invited_by: string;
 	created_at: number;
@@ -198,7 +198,7 @@ export class DbHelper {
 	async addOrgMember(
 		userId: string,
 		orgId: string,
-		role: 'owner' | 'admin' | 'member'
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office'
 	): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		await this.db
@@ -600,7 +600,7 @@ export class DbHelper {
 	async updateOrgMemberRole(
 		userId: string,
 		orgId: string,
-		role: 'owner' | 'admin' | 'member'
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office'
 	): Promise<void> {
 		await this.db
 			.prepare('UPDATE org_members SET role = ? WHERE user_id = ? AND org_id = ?')
@@ -693,7 +693,7 @@ export class DbHelper {
 	async createInvitation(
 		orgId: string,
 		email: string,
-		role: 'owner' | 'admin' | 'member',
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office',
 		invitedBy: string
 	): Promise<DbInvitation> {
 		const id = crypto.randomUUID();

@@ -330,12 +330,16 @@
 											value={member.role}
 											onchange={(e) => requestRoleChange(member, e.currentTarget.value)}
 										>
-											<option value="member">Member</option>
-											<option value="admin">Admin</option>
 											<option value="owner">Owner</option>
+											<option value="admin">Admin</option>
+											<option value="member">Member</option>
+											<option value="foreman">Foreman</option>
+											<option value="operator">Operator</option>
+											<option value="inspector">Inspector</option>
+											<option value="office">Office</option>
 										</select>
 									{:else}
-										<span class="role-badge owner">{member.role}</span>
+										<span class="role-badge {member.role}">{member.role}</span>
 									{/if}
 								</div>
 								<div class="card-row">
@@ -365,7 +369,7 @@
 						<div class="invitation-card">
 							<div class="card-header">
 								<div class="invitation-email">{invite.email}</div>
-								<span class="role-badge">{invite.role}</span>
+								<span class="role-badge {invite.role}">{invite.role}</span>
 							</div>
 							<div class="card-body">
 								<div class="card-row">
@@ -412,9 +416,13 @@
 			<label>
 				Role
 				<select bind:value={inviteForm.role}>
-					<option value="member">Member</option>
-					<option value="admin">Admin</option>
 					<option value="owner">Owner</option>
+					<option value="admin">Admin</option>
+					<option value="member">Member</option>
+					<option value="foreman">Foreman</option>
+					<option value="operator">Operator</option>
+					<option value="inspector">Inspector</option>
+					<option value="office">Office</option>
 				</select>
 			</label>
 			<div class="modal-actions">
@@ -433,8 +441,8 @@
 		<h2>Confirm Role Change</h2>
 		<p class="confirm-message">
 			Change <strong>{roleChangeConfirm.member.user_name}</strong>'s role from
-			<strong>{roleChangeConfirm.member.role}</strong> to
-			<strong>{roleChangeConfirm.newRole}</strong>?
+			<strong>{roleChangeConfirm.member.role.charAt(0).toUpperCase() + roleChangeConfirm.member.role.slice(1)}</strong> to
+			<strong>{roleChangeConfirm.newRole.charAt(0).toUpperCase() + roleChangeConfirm.newRole.slice(1)}</strong>?
 		</p>
 		<div class="modal-actions">
 			<button type="button" onclick={() => (roleChangeConfirm = null)}>Cancel</button>
@@ -667,6 +675,31 @@
 	.role-badge.owner {
 		background: rgba(249, 115, 22, 0.2);
 		color: rgb(249, 115, 22);
+	}
+
+	.role-badge.admin {
+		background: rgba(59, 130, 246, 0.2);
+		color: rgb(59, 130, 246);
+	}
+
+	.role-badge.foreman {
+		background: rgba(245, 158, 11, 0.2);
+		color: rgb(245, 158, 11);
+	}
+
+	.role-badge.operator {
+		background: rgba(34, 197, 94, 0.2);
+		color: rgb(34, 197, 94);
+	}
+
+	.role-badge.inspector {
+		background: rgba(168, 85, 247, 0.2);
+		color: rgb(168, 85, 247);
+	}
+
+	.role-badge.office {
+		background: rgba(20, 184, 166, 0.2);
+		color: rgb(20, 184, 166);
 	}
 
 	.role-select {
