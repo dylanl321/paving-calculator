@@ -6,7 +6,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import UserMenu from '$lib/components/UserMenu.svelte';
 	import { fade } from 'svelte/transition';
-	import { Menu, Calculator, BookOpen, LayoutDashboard } from 'lucide-svelte';
+	import { Menu, Calculator, BookOpen, LayoutDashboard, Clock } from 'lucide-svelte';
 
 	let drawerOpen = $state(false);
 
@@ -22,16 +22,25 @@
 		label: string;
 		icon: string;
 		authed?: boolean;
+		adminOnly?: boolean;
 	}
 
 	const navItems: NavItem[] = [
 		{ href: '/app', label: 'Calculators', icon: 'calc' },
 		{ href: '/reference', label: 'Reference', icon: 'book' },
-		{ href: '/dashboard', label: 'Dashboard', icon: 'layout', authed: true }
+		{ href: '/dashboard', label: 'Dashboard', icon: 'layout', authed: true },
+		{ href: '/dashboard/activity', label: 'Activity', icon: 'clock', authed: true, adminOnly: true }
 	];
 
 	const visibleItems = $derived(
-		navItems.filter((item) => !item.authed || authStore.isAuthenticated)
+		navItems.filter((item) => {
+			if (item.authed && !authStore.isAuthenticated) return false;
+			if (item.adminOnly) {
+				const role = authStore.user?.role;
+				return role === 'admin' || role === 'owner';
+			}
+			return true;
+		})
 	);
 
 	const currentPath = $derived($page.url.pathname);
@@ -94,6 +103,8 @@
 							<BookOpen size={22} />
 						{:else if item.icon === 'layout'}
 							<LayoutDashboard size={22} />
+						{:else if item.icon === 'clock'}
+							<Clock size={22} />
 						{/if}
 					</span>
 					<span class="nav-label">{item.label}</span>
