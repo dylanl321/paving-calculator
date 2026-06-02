@@ -11,6 +11,13 @@
 	let runFt = $state<number | null>(null);
 	let riseUnit = $state<'ft' | 'in'>('ft');
 
+	function clearInputs() {
+		riseFt = null;
+		runFt = null;
+		riseUnit = 'ft';
+		logDraft.clearFor('slope-grade');
+	}
+
 	const riseInFeet = $derived(
 		riseFt != null ? (riseUnit === 'in' ? riseFt / 12 : riseFt) : null
 	);
@@ -88,9 +95,29 @@
 			<li>1-3% longitudinal for highways</li>
 		</ul>
 	</ShowWork>
+
+	<button class="btn-clear" onclick={clearInputs}>Clear</button>
 </CalcCard>
 
 <style>
+	.btn-clear {
+		width: 100%;
+		min-height: 3rem;
+		padding: 0.75rem;
+		background: transparent;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text-muted);
+		font-size: 0.9rem;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+	.btn-clear:hover {
+		background: var(--surface-alt);
+		color: var(--text);
+	}
+
+
 	.rise-input-group {
 		display: flex;
 		align-items: flex-end;

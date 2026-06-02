@@ -17,6 +17,13 @@
 	let distanceFt = $state<number | null>(null);
 	let customTargetRate = $state<number | null>(null);
 
+	function clearInputs() {
+		tons = null;
+		distanceFt = null;
+		customTargetRate = null;
+		logDraft.clearFor('spread-rate');
+	}
+
 	const targetRate = $derived(
 		customTargetRate != null && customTargetRate > 0
 			? customTargetRate
@@ -145,9 +152,29 @@
 		<div class="src-row">Thickness × 110 multiplier: <SourceBadge status={multMeta.status} tier={multMeta.tier} /></div>
 		<div class="src-row">Table 12 tolerance (±{tolerance.toleranceLbsSy} lbs/SY): <SourceBadge status={tolerance.status} tier={tolerance.tier} /></div>
 	</ShowWork>
+
+	<button class="btn-clear" onclick={clearInputs}>Clear</button>
 </CalcCard>
 
 <style>
+	.btn-clear {
+		width: 100%;
+		min-height: 3rem;
+		padding: 0.75rem;
+		background: transparent;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text-muted);
+		font-size: 0.9rem;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+	.btn-clear:hover {
+		background: var(--surface-alt);
+		color: var(--text);
+	}
+
+
 	.two-up {
 		display: grid;
 		grid-template-columns: 1fr 1fr;

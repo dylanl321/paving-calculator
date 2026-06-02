@@ -12,6 +12,14 @@
 	let depthIn = $state<number | null>(null);
 	let wasteFactor = $state<number>(0);
 
+	function clearInputs() {
+		lengthFt = null;
+		widthFt = null;
+		depthIn = null;
+		wasteFactor = 0;
+		logDraft.clearFor('concrete-volume');
+	}
+
 	const result = $derived.by(() => {
 		if (lengthFt == null || widthFt == null || depthIn == null || lengthFt <= 0 || widthFt <= 0)
 			return null;
@@ -96,9 +104,29 @@
 			<p>Waste factor of {wasteFactor}% applied to all results.</p>
 		{/if}
 	</ShowWork>
+
+	<button class="btn-clear" onclick={clearInputs}>Clear</button>
 </CalcCard>
 
 <style>
+	.btn-clear {
+		width: 100%;
+		min-height: 3rem;
+		padding: 0.75rem;
+		background: transparent;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text-muted);
+		font-size: 0.9rem;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+	.btn-clear:hover {
+		background: var(--surface-alt);
+		color: var(--text);
+	}
+
+
 	.waste-buttons {
 		display: flex;
 		gap: 8px;
