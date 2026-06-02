@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbLogHelper } from '$lib/server/db-logs';
+import { recordAudit } from '$lib/server/audit';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ params, locals, platform, request }) => {
@@ -29,6 +30,16 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 	const body = await request.json();
 
 	const entry = await logDb.createLogEntry(params.logId, body);
+
+	await recordAudit(platform!.env.DB, {
+		actorUserId: locals.user.id,
+		actorName: locals.user.name,
+		orgId: org.id,
+		resourceType: 'log_entry',
+		resourceId: entry.id,
+		action: 'created',
+		newValue: body
+	});
 
 	return json({ entry }, { status: 201 });
 };

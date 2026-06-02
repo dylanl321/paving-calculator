@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
+import { recordAudit } from '$lib/server/audit';
 
 export async function GET(event: RequestEvent) {
 	try {
@@ -58,6 +59,25 @@ export async function POST(event: RequestEvent) {
 			body.name,
 			body.location_description || null
 		);
+
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'job_site',
+			resourceId: jobSite.id,
+			action: 'created',
+			newValue: {
+				name: jobSite.name,
+				location_description: jobSite.location_description,
+				status: jobSite.status
+			},
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		return json({
 			id: jobSite.id,
