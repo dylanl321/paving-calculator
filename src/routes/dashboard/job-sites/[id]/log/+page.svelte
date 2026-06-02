@@ -340,11 +340,13 @@
 		<section class="section">
 			<div class="section-header">
 				<h3>Timeline</h3>
+				<button class="btn-primary" onclick={openEntryForm}>+ Add Entry</button>
 			</div>
 
 			{#if entries.length === 0}
 				<div class="empty-state-small">
 					<p>No entries yet. Tap the + button to add your first entry.</p>
+					<button class="btn-primary" style="margin-top: 16px;" onclick={openEntryForm}>+ Add Entry</button>
 				</div>
 			{:else}
 				<div class="timeline">
