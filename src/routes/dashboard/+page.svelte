@@ -163,6 +163,16 @@
 			</section>
 		{/if}
 
+		{#if data.org.role === 'owner' || data.org.role === 'admin'}
+			<section class="section crew-status-section">
+				{#await import('$lib/components/LiveCrewDashboard.svelte')}
+					<div class="map-loading">Loading crew status&hellip;</div>
+				{:then { default: LiveCrewDashboard }}
+					<LiveCrewDashboard />
+				{/await}
+			</section>
+		{/if}
+
 		<section class="main-section">
 		<div class="section-header mobile-header">
 			<h3>Active Job Sites</h3>
@@ -600,6 +610,10 @@
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md, 12px);
+	}
+
+	.crew-status-section {
+		margin-bottom: 0;
 	}
 
 	@media (min-width: 1100px) {

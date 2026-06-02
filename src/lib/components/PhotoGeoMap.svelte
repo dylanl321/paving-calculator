@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { browser } from '$app/environment';
 	import { Camera } from 'lucide-svelte';
+	import L from 'leaflet';
+	import 'leaflet/dist/leaflet.css';
 
 	interface Props {
 		jobSiteId: string;
@@ -23,11 +26,11 @@
 	}
 
 	let mapEl: HTMLDivElement;
-	let mapInstance: any = null;
+	let mapInstance: L.Map | null = null;
 	let photos = $state<Photo[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
-	let markers: any[] = [];
+	let markers: L.Marker[] = [];
 
 	const photosWithGPS = $derived(photos.filter((p) => p.lat != null && p.lng != null));
 
@@ -54,30 +57,10 @@
 	onMount(async () => {
 		await loadPhotos();
 
-		if (photosWithGPS.length === 0) {
+		if (!browser || photosWithGPS.length === 0) {
 			// No GPS photos, don't initialize map
 			return;
 		}
-
-		// Load Leaflet from CDN (same pattern as StationProgressMap)
-		if (!document.querySelector('link[href*="leaflet"]')) {
-			const link = document.createElement('link');
-			link.rel = 'stylesheet';
-			link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-			document.head.appendChild(link);
-		}
-
-		if (!(window as any).L) {
-			await new Promise<void>((resolve, reject) => {
-				const script = document.createElement('script');
-				script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-				script.onload = () => resolve();
-				script.onerror = () => reject(new Error('Failed to load Leaflet'));
-				document.head.appendChild(script);
-			});
-		}
-
-		const L = (window as any).L;
 
 		mapInstance = L.map(mapEl, { zoomControl: true, attributionControl: true }).setView([lat, lng], zoom);
 

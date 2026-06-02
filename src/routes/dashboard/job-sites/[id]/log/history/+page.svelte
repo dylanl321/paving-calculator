@@ -2,8 +2,26 @@
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
 	import type { PageData } from './$types';
+	import DailySummaryReport from '$lib/components/DailySummaryReport.svelte';
+	import ProductionLineChart from '$lib/components/charts/ProductionLineChart.svelte';
 
 	let { data }: { data: PageData } = $props();
+	let summaryLog = $state<any>(null);
+
+	// Build chart data from logs, sorted by date ascending
+	const chartData = $derived(
+		[...data.logs]
+			.sort((a, b) => a.log_date.localeCompare(b.log_date))
+			.map((log) => ({
+				date: log.log_date,
+				tons: log.summary?.total_tons ?? 0
+			}))
+	);
+
+	// Calculate total tons across all days
+	const totalTons = $derived(
+		data.logs.reduce((sum, log) => sum + (log.summary?.total_tons ?? 0), 0)
+	);
 
 	function formatDate(dateString: string): string {
 		const date = new Date(dateString);
@@ -35,6 +53,10 @@
 
 	function viewLog(logId: string) {
 		goto(`/dashboard/job-sites/${data.jobSite.id}/log?date=${logId}`);
+	}
+
+	function openSummary(log: any) {
+		summaryLog = log;
 	}
 </script>
 
@@ -132,6 +154,16 @@
 			</a>
 		</div>
 	{:else}
+		<div class="chart-section">
+			<div class="section-header">
+				<h3>Production Over Time</h3>
+				<p class="section-subtitle">
+					{totalTons.toFixed(1)} tons across {data.logs.length} day{data.logs.length === 1 ? '' : 's'}
+				</p>
+			</div>
+			<ProductionLineChart data={chartData} />
+		</div>
+
 		<div class="log-list">
 			{#each data.logs as log}
 				<div class="log-card">
@@ -190,12 +222,23 @@
 						<div class="log-notes">{log.notes}</div>
 					{/if}
 
-					<button class="view-log-btn" onclick={() => viewLog(log.id)}>View Details →</button>
+					<div class="log-actions">
+						<button class="btn-primary" onclick={() => openSummary(log)}>View Summary</button>
+						<button class="btn-secondary" onclick={() => viewLog(log.id)}>Open Log</button>
+					</div>
 				</div>
 			{/each}
 		</div>
 	{/if}
 </div>
+
+{#if summaryLog}
+	<DailySummaryReport
+		jobSiteId={data.jobSite.id}
+		log={summaryLog}
+		onClose={() => (summaryLog = null)}
+	/>
+{/if}
 
 <style>
 	.dashboard {
@@ -306,6 +349,29 @@
 		font-size: 0.9rem;
 	}
 
+	.chart-section {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 20px;
+		margin-bottom: 24px;
+	}
+
+	.section-header {
+		margin-bottom: 16px;
+	}
+
+	.section-header h3 {
+		margin: 0 0 4px;
+		font-size: 1.2rem;
+	}
+
+	.section-subtitle {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
 	.log-list {
 		display: flex;
 		flex-direction: column;
@@ -382,19 +448,43 @@
 		border-radius: calc(var(--radius) - 4px);
 	}
 
-	.view-log-btn {
-		width: 100%;
+	.log-actions {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 12px;
+	}
+
+	.btn-primary {
 		min-height: 48px;
-		background: var(--bg);
+		padding: 0 16px;
+		background: var(--accent);
+		color: var(--accent-text);
+		border: none;
+		border-radius: var(--radius);
+		font-size: 0.9rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: opacity 0.2s;
+	}
+
+	.btn-primary:hover {
+		opacity: 0.9;
+	}
+
+	.btn-secondary {
+		min-height: 48px;
+		padding: 0 16px;
+		background: var(--surface-alt);
+		color: var(--text);
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
-		color: var(--accent);
+		font-size: 0.9rem;
 		font-weight: 600;
 		cursor: pointer;
 		transition: background 0.2s;
 	}
 
-	.view-log-btn:hover {
-		background: var(--surface-alt);
+	.btn-secondary:hover {
+		background: var(--bg);
 	}
 </style>
