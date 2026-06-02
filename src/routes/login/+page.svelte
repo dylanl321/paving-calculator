@@ -488,7 +488,7 @@
 			border-color 0.18s;
 	}
 	.back-link:hover {
-		color: #ffffff;
+		color: rgba(255, 255, 255, 1);
 		background: rgba(24, 31, 37, 0.9);
 		border-color: rgba(159, 176, 189, 0.35);
 	}
