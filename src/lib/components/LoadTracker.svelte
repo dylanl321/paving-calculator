@@ -5,6 +5,7 @@
 	import { unitsStore } from '$lib/stores/units.svelte';
 	import { UNIT_LABELS, toMetricTonnes, fromMetricTonnes } from '$lib/utils/unitConvert';
 	import SpreadRateHistogram from './charts/SpreadRateHistogram.svelte';
+	import YieldEfficiencyGauge from './YieldEfficiencyGauge.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { spreadToleranceFor } from '$lib/config';
 
@@ -256,6 +257,21 @@
 	const targetRate = $derived(
 		job.thicknessIn > 0 ? job.thicknessIn * 110 : null
 	);
+
+	const acceptedLoadsWithSpreadRate = $derived(
+		loads.filter(l => !l.rejected && l.spread_rate != null && l.spread_rate > 0)
+	);
+
+	const avgSpreadRate = $derived.by(() => {
+		if (acceptedLoadsWithSpreadRate.length === 0) return null;
+		const sum = acceptedLoadsWithSpreadRate.reduce((acc, l) => acc + (l.spread_rate ?? 0), 0);
+		return sum / acceptedLoadsWithSpreadRate.length;
+	});
+
+	const yieldEfficiency = $derived.by(() => {
+		if (targetRate == null || avgSpreadRate == null) return null;
+		return (avgSpreadRate / targetRate) * 100;
+	});
 </script>
 
 <div class="load-tracker">
@@ -403,7 +419,21 @@
 						<div class="tally-unit">loads</div>
 					</div>
 				{/if}
+
+				{#if avgSpreadRate != null}
+					<div class="tally-item">
+						<div class="tally-label">Avg Rate</div>
+						<div class="tally-value">{Math.round(avgSpreadRate)}</div>
+						<div class="tally-unit">lbs/SY</div>
+					</div>
+				{/if}
 			</div>
+
+			{#if targetRate != null}
+				<div class="yield-efficiency-section">
+					<YieldEfficiencyGauge yieldEfficiency={yieldEfficiency} targetRate={targetRate} />
+				</div>
+			{/if}
 		</div>
 
 		<div class="histogram-section">
@@ -758,6 +788,12 @@
 		font-size: var(--fs-xs);
 		color: var(--text-muted);
 		margin-top: var(--sp-1);
+	}
+
+	.yield-efficiency-section {
+		margin-top: var(--sp-4);
+		padding-top: var(--sp-4);
+		border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
 	}
 
 	.histogram-section {
