@@ -23,7 +23,7 @@
 	}
 
 	const navItems: NavItem[] = [
-		{ href: '/', label: 'Calculators', icon: 'calc' },
+		{ href: '/app', label: 'Calculators', icon: 'calc' },
 		{ href: '/reference', label: 'Reference', icon: 'book' },
 		{ href: '/dashboard', label: 'Dashboard', icon: 'layout', authed: true }
 	];
@@ -35,7 +35,7 @@
 	const currentPath = $derived($page.url.pathname);
 
 	function isActive(href: string): boolean {
-		if (href === '/') return currentPath === '/';
+		if (href === '/app') return currentPath === '/app' || currentPath === '/';
 		return currentPath === href || currentPath.startsWith(href + '/');
 	}
 </script>
@@ -49,7 +49,7 @@
 			<line x1="3" y1="18" x2="21" y2="18"></line>
 		</svg>
 	</button>
-	<a href="/" class="mobile-brand">
+	<a href="/app" class="mobile-brand">
 		<img src={brandLogo} alt="" />
 		<span>{brandName}</span>
 	</a>
@@ -106,7 +106,7 @@
 			<UserMenu direction="up" align="left" />
 		</div>
 		{#if orgSettingsStore.orgName}
-			<a href="/" class="powered-by">
+			<a href="/app" class="powered-by">
 				<img src="/icons/icon-192.png" alt="" />
 				<span>Powered by {config.app.name}</span>
 			</a>

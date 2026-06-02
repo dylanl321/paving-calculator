@@ -12,7 +12,8 @@
 
 	// Auth pages (login/register/forgot-password/reset-password) render full-bleed without the app shell chrome.
 	const isStandalone = $derived(
-		$page.url.pathname === '/login' ||
+		$page.url.pathname === '/' ||
+			$page.url.pathname === '/login' ||
 			$page.url.pathname === '/register' ||
 			$page.url.pathname === '/forgot-password' ||
 			$page.url.pathname === '/reset-password'
