@@ -1156,6 +1156,7 @@
 						placeholder="Additional notes about this job site..."
 					></textarea>
 				</div>
+
 			</form>
 		</section>
 	{:else if activeTab === 'equipment'}
@@ -1857,6 +1858,78 @@
 		font-size: 1.25rem;
 		font-weight: 700;
 		color: var(--accent);
+	}
+
+	.derived-highlight .derived-value {
+		color: var(--success, #22c55e);
+	}
+
+	.form-section-divider {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin: 24px 0 12px;
+		color: var(--text-muted);
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.form-section-divider::before,
+	.form-section-divider::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: var(--border);
+	}
+
+	.form-hint {
+		margin: 4px 0 0;
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+
+	.project-totals {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 12px 16px;
+		margin-top: 12px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.project-total-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		font-size: 0.9rem;
+	}
+
+	.project-total-label {
+		color: var(--text-muted);
+	}
+
+	.project-total-value {
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.project-total-grand {
+		border-top: 1px solid var(--border);
+		padding-top: 8px;
+		margin-top: 4px;
+	}
+
+	.project-total-grand .project-total-label {
+		color: var(--text);
+		font-weight: 600;
+	}
+
+	.project-total-grand .project-total-value {
+		color: var(--success, #22c55e);
+		font-size: 1.1rem;
 	}
 
 	.link-tiles {
