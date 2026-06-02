@@ -241,56 +241,7 @@
 			{#if filteredMembers.length === 0}
 				<p class="empty">{searchQuery ? 'No members found' : 'No team members yet'}</p>
 			{:else}
-				<!-- Desktop table view -->
-				<div class="members-table-wrapper desktop-only">
-					<table class="members-table">
-						<thead>
-							<tr>
-								<th>Name</th>
-								<th>Email</th>
-								<th>Role</th>
-								<th>Joined</th>
-								<th>Actions</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each filteredMembers as member}
-								<tr>
-									<td>{member.user_name}</td>
-									<td>{member.user_email}</td>
-									<td>
-										{#if canModifyMember(member)}
-											<select
-												class="role-select"
-												value={member.role}
-												onchange={(e) => requestRoleChange(member, e.currentTarget.value)}
-											>
-												<option value="member">Member</option>
-												<option value="admin">Admin</option>
-												<option value="owner">Owner</option>
-											</select>
-										{:else}
-											<span class="role-badge owner">{member.role}</span>
-										{/if}
-									</td>
-									<td>{formatDate(member.invited_at)}</td>
-									<td>
-										{#if canModifyMember(member)}
-											<button class="btn-danger btn-sm" onclick={() => removeMember(member)}>
-												Remove
-											</button>
-										{:else}
-											<span class="no-actions">—</span>
-										{/if}
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
-
-				<!-- Mobile card view -->
-				<div class="members-cards mobile-only">
+				<div class="members-cards">
 					{#each filteredMembers as member}
 						<div class="member-card">
 							<div class="card-header">
@@ -339,42 +290,7 @@
 			<section class="invitations-section">
 				<h2>Pending Invitations ({invitations.length})</h2>
 
-				<!-- Desktop table view -->
-				<div class="invitations-table-wrapper desktop-only">
-					<table class="invitations-table">
-						<thead>
-							<tr>
-								<th>Email</th>
-								<th>Role</th>
-								<th>Invited By</th>
-								<th>Sent</th>
-								<th>Expires</th>
-								<th>Actions</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each invitations as invite}
-								<tr>
-									<td>{invite.email}</td>
-									<td>
-										<span class="role-badge">{invite.role}</span>
-									</td>
-									<td>{invite.invited_by_name}</td>
-									<td>{formatDate(invite.created_at)}</td>
-									<td>{formatDate(invite.expires_at)}</td>
-									<td>
-										<button class="btn-danger btn-sm" onclick={() => revokeInvitation(invite)}>
-											Revoke
-										</button>
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
-
-				<!-- Mobile card view -->
-				<div class="invitations-cards mobile-only">
+				<div class="invitations-cards">
 					{#each invitations as invite}
 						<div class="invitation-card">
 							<div class="card-header">
@@ -565,47 +481,6 @@
 		color: var(--text-muted);
 	}
 
-	/* Desktop table view */
-	.desktop-only {
-		display: block;
-	}
-
-	.mobile-only {
-		display: none;
-	}
-
-	.members-table-wrapper,
-	.invitations-table-wrapper {
-		overflow-x: auto;
-	}
-
-	.members-table,
-	.invitations-table {
-		width: 100%;
-		border-collapse: collapse;
-	}
-
-	.members-table th,
-	.invitations-table th {
-		text-align: left;
-		padding: var(--sp-4);
-		font-weight: var(--fw-semibold);
-		color: var(--text);
-		border-bottom: 2px solid var(--border);
-	}
-
-	.members-table td,
-	.invitations-table td {
-		padding: var(--sp-4);
-		border-top: 1px solid var(--border);
-		vertical-align: middle;
-	}
-
-	.members-table tbody tr:hover,
-	.invitations-table tbody tr:hover {
-		background: var(--surface-hover);
-	}
-
 	.role-badge {
 		display: inline-block;
 		padding: var(--sp-1) var(--sp-3);
@@ -658,20 +533,41 @@
 		font-size: 1.25rem;
 	}
 
-	/* Mobile card view */
+	/* Card grid — responsive, primary layout for all screen sizes */
 	.members-cards,
 	.invitations-cards {
-		display: flex;
-		flex-direction: column;
+		display: grid;
+		grid-template-columns: 1fr;
 		gap: var(--sp-4);
+	}
+
+	@media (min-width: 600px) {
+		.members-cards,
+		.invitations-cards {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+
+	@media (min-width: 900px) {
+		.members-cards,
+		.invitations-cards {
+			grid-template-columns: repeat(3, 1fr);
+		}
 	}
 
 	.member-card,
 	.invitation-card {
-		background: var(--bg);
+		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
-		padding: var(--sp-4);
+		padding: var(--sp-5);
+		box-shadow: var(--shadow-sm);
+		transition: box-shadow 0.15s var(--ease);
+	}
+
+	.member-card:hover,
+	.invitation-card:hover {
+		box-shadow: var(--shadow-md);
 	}
 
 	.card-header {
@@ -856,14 +752,6 @@
 
 	/* Responsive breakpoint */
 	@media (max-width: 767px) {
-		.desktop-only {
-			display: none;
-		}
-
-		.mobile-only {
-			display: block;
-		}
-
 		.section-header {
 			gap: var(--sp-3);
 		}
