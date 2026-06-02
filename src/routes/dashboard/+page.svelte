@@ -3,6 +3,7 @@
 	import { config } from '$lib/config';
 	import { onMount } from 'svelte';
 	import { PieChart } from 'layerchart';
+	import GeofenceMonitor from '$lib/components/GeofenceMonitor.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -88,6 +89,8 @@
 <svelte:head>
 	<title>Dashboard — {config.app.name}</title>
 </svelte:head>
+
+<GeofenceMonitor sites={data.jobSites} />
 
 <div class="dashboard">
 	<div class="page-header">
