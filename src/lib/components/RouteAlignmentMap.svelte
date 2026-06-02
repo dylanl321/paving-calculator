@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { browser } from '$app/environment';
+	import L from 'leaflet';
+	import 'leaflet/dist/leaflet.css';
 
 	interface Waypoint {
 		lat: number;
@@ -34,13 +37,13 @@
 	}: Props = $props();
 
 	let mapEl: HTMLDivElement;
-	let mapInstance: any = null;
+	let mapInstance: L.Map | null = null;
 	let waypoints = $state<Waypoint[]>([...initialWaypoints]);
 	let drawMode = $state(false);
 	let saving = $state(false);
-	let routePolyline: any = null;
-	let bufferPolygon: any = null;
-	let waypointMarkers: any[] = [];
+	let routePolyline: L.Polyline | null = null;
+	let bufferPolygon: L.Polygon | null = null;
+	let waypointMarkers: L.CircleMarker[] = [];
 
 	const isMobile = $derived(
 		typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
@@ -126,7 +129,8 @@
 		return [...leftSide, ...rightSide.reverse()];
 	}
 
-	function updateRouteOverlay(L: any) {
+	function updateRouteOverlay() {
+		if (!mapInstance) return;
 		if (routePolyline) {
 			mapInstance.removeLayer(routePolyline);
 			routePolyline = null;
@@ -181,27 +185,8 @@
 		}
 	}
 
-	async function initMap() {
-		if (!mapEl || !pinned) return;
-
-		if (!document.querySelector('link[href*="leaflet"]')) {
-			const link = document.createElement('link');
-			link.rel = 'stylesheet';
-			link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-			document.head.appendChild(link);
-		}
-
-		if (!(window as any).L) {
-			await new Promise<void>((resolve, reject) => {
-				const script = document.createElement('script');
-				script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-				script.onload = () => resolve();
-				script.onerror = () => reject(new Error('Failed to load Leaflet'));
-				document.head.appendChild(script);
-			});
-		}
-
-		const L = (window as any).L;
+	function initMap() {
+		if (!browser || !mapEl || !pinned) return;
 
 		if (mapInstance) {
 			mapInstance.remove();
@@ -252,7 +237,7 @@
 		mapInstance.on('click', (e: any) => {
 			if (drawMode && !isMobile) {
 				waypoints = [...waypoints, { lat: e.latlng.lat, lng: e.latlng.lng }];
-				updateRouteOverlay(L);
+				updateRouteOverlay();
 			}
 		});
 	}
@@ -260,8 +245,7 @@
 	function toggleDrawMode() {
 		drawMode = !drawMode;
 		if (mapInstance) {
-			const L = (window as any).L;
-			if (drawMode) {
+				if (drawMode) {
 				mapInstance.getContainer().style.cursor = 'crosshair';
 			} else {
 				mapInstance.getContainer().style.cursor = '';
@@ -272,7 +256,6 @@
 
 	function addPointAtCenter() {
 		if (!mapInstance || !drawMode) return;
-		const L = (window as any).L;
 		const center = mapInstance.getCenter();
 		waypoints = [...waypoints, { lat: center.lat, lng: center.lng }];
 		updateRouteOverlay(L);
@@ -281,8 +264,7 @@
 	function clearRoute() {
 		waypoints = [];
 		if (mapInstance) {
-			const L = (window as any).L;
-			updateRouteOverlay(L);
+				updateRouteOverlay(L);
 		}
 	}
 
@@ -299,7 +281,7 @@
 	}
 
 	onMount(() => {
-		if (pinned) {
+		if (browser && pinned) {
 			initMap();
 		}
 	});
