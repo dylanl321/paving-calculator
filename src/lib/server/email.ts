@@ -167,3 +167,32 @@ export async function sendInvitationEmail(
 		html
 	});
 }
+
+export async function sendWelcomeEmail(
+	apiKey: string | undefined,
+	to: string,
+	name: string,
+	orgName: string,
+	baseUrl: string
+): Promise<boolean> {
+	if (!apiKey) {
+		console.warn('RESEND_API_KEY not set, skipping welcome email');
+		return false;
+	}
+
+	const html = buildEmailTemplate({
+		title: 'Welcome to PaveRate!',
+		greeting: `Hi ${name},`,
+		message: `You have successfully joined <strong>${orgName}</strong> on PaveRate. You can now collaborate with your team, track paving jobs, and stay on top of daily progress.`,
+		ctaText: 'Go to Dashboard',
+		ctaUrl: `${baseUrl}/dashboard`,
+		footer: `You received this email because you accepted an invitation to join ${orgName} on PaveRate.`
+	});
+
+	return await sendEmail(apiKey, {
+		from: 'noreply@paverate.com',
+		to,
+		subject: 'Welcome to PaveRate!',
+		html
+	});
+}
