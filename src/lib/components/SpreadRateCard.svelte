@@ -12,24 +12,49 @@
 	import { spreadRateFromThickness, spreadRatePlaced } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
+	import { unitsStore } from '$lib/stores/units.svelte';
+	import {
+		UNIT_LABELS,
+		fromKgPerM2,
+		fromMeters,
+		fromMetricTonnes,
+		toKgPerM2,
+		toMetricTonnes
+	} from '$lib/utils/unitConvert';
 
 	// Reality-check inputs (local to this calc; width/thickness/machine are shared).
-	let tons = $state<number | null>(null);
-	let distanceFt = $state<number | null>(null);
-	let customTargetRate = $state<number | null>(null);
+	let tonsInput = $state<number | null>(null);
+	let distanceInput = $state<number | null>(null);
+	let customTargetRateInput = $state<number | null>(null);
 	let overrideExpanded = $state(false);
 
 	// Guard: if override section is collapsed, clear custom rate immediately
 	$effect(() => {
 		if (!overrideExpanded) {
-			customTargetRate = null;
+			customTargetRateInput = null;
 		}
 	});
 
+	const tons = $derived(
+		tonsInput != null && unitsStore.system === 'metric'
+			? fromMetricTonnes(tonsInput)
+			: tonsInput
+	);
+	const distanceFt = $derived(
+		distanceInput != null && unitsStore.system === 'metric'
+			? fromMeters(distanceInput)
+			: distanceInput
+	);
+	const customTargetRate = $derived(
+		customTargetRateInput != null && unitsStore.system === 'metric'
+			? fromKgPerM2(customTargetRateInput)
+			: customTargetRateInput
+	);
+
 	function clearInputs() {
-		tons = null;
-		distanceFt = null;
-		customTargetRate = null;
+		tonsInput = null;
+		distanceInput = null;
+		customTargetRateInput = null;
 		logDraft.clearFor('spread-rate');
 	}
 
@@ -51,6 +76,13 @@
 					firstPass: job.firstPass
 				})
 			: null
+	);
+
+	const displayTargetRate = $derived(
+		targetRate != null && unitsStore.system === 'metric' ? toKgPerM2(targetRate) : targetRate
+	);
+	const displayPlacedRate = $derived(
+		placedRate != null && unitsStore.system === 'metric' ? toKgPerM2(placedRate) : placedRate
 	);
 
 	const tolerance = $derived(spreadToleranceFor(job.courseType));
@@ -104,8 +136,9 @@
 	function snapToTarget() {
 		if (targetRate != null && distanceFt && job.widthFt) {
 			const areaYards = (distanceFt * job.widthFt) / 9;
-			const adjustedTons = (targetRate * areaYards) / 2000;
-			tons = Math.round(adjustedTons * 100) / 100;
+			const adjustedTons = Math.round(((targetRate * areaYards) / 2000) * 100) / 100;
+			tonsInput =
+				unitsStore.system === 'metric' ? toMetricTonnes(adjustedTons) : adjustedTons;
 		}
 	}
 </script>
@@ -143,15 +176,15 @@
 				<div class="override-section">
 					<NumberField
 						label="Custom target"
-						unit="lbs/SY"
-						bind:value={customTargetRate}
+						unit={UNIT_LABELS.lbsSy[unitsStore.system]}
+						bind:value={customTargetRateInput}
 					/>
 				</div>
 			{/if}
 
 			<ResultStat
-				value={targetRate != null ? Math.round(targetRate) : null}
-				unit="lbs / SY"
+				value={displayTargetRate != null ? Math.round(displayTargetRate) : null}
+				unit={UNIT_LABELS.lbsSy[unitsStore.system]}
 				badge={targetBadge}
 			/>
 
@@ -169,7 +202,7 @@
 						type="button"
 						class="clear-button"
 						onclick={() => {
-							customTargetRate = null;
+							customTargetRateInput = null;
 							overrideExpanded = false;
 						}}
 						aria-label="Clear custom target"
@@ -189,11 +222,19 @@
 
 		<div class="col">
 			<div class="col-head">Actual (from a real load)</div>
-			<NumberField label="Tons placed" unit="tons" bind:value={tons} />
-			<NumberField label="Distance covered" unit="ft" bind:value={distanceFt} />
+			<NumberField
+				label="Tons placed"
+				unit={UNIT_LABELS.tons[unitsStore.system]}
+				bind:value={tonsInput}
+			/>
+			<NumberField
+				label="Distance covered"
+				unit={UNIT_LABELS.ft[unitsStore.system]}
+				bind:value={distanceInput}
+			/>
 			<ResultStat
-				value={placedRate != null ? Math.round(placedRate) : null}
-				unit="lbs / SY"
+				value={displayPlacedRate != null ? Math.round(displayPlacedRate) : null}
+				unit={UNIT_LABELS.lbsSy[unitsStore.system]}
 				badge={badge}
 			/>
 		</div>

@@ -7,11 +7,26 @@
 	import { spreadRateFromThickness, tonnageToOrder } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
+	import { unitsStore } from '$lib/stores/units.svelte';
+	import {
+		UNIT_LABELS,
+		toMeters,
+		fromMeters,
+		toMetricTonnes,
+		fromMetricTonnes
+	} from '$lib/utils/unitConvert';
 
-	let lengthFt = $state<number | null>(null);
+	let lengthInput = $state<number | null>(null);
+
+	// Convert input to imperial for formula
+	const lengthFt = $derived(
+		lengthInput != null && unitsStore.system === 'metric'
+			? fromMeters(lengthInput)
+			: lengthInput
+	);
 
 	function clearInputs() {
-		lengthFt = null;
+		lengthInput = null;
 		logDraft.clearFor('tonnage');
 	}
 
@@ -45,6 +60,10 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('tonnage'));
+
+	const displayTons = $derived(
+		tons != null && unitsStore.system === 'metric' ? toMetricTonnes(tons) : tons
+	);
 </script>
 
 <CalcCard
@@ -52,11 +71,15 @@
 	hideTitle
 	purpose="How much asphalt to order for a job at the job width and target thickness."
 >
-	<NumberField label="Length of the job" unit="ft" bind:value={lengthFt} />
+	<NumberField
+		label="Length of the job"
+		unit={UNIT_LABELS.ft[unitsStore.system]}
+		bind:value={lengthInput}
+	/>
 
 	<ResultStat
-		value={tons != null ? Math.round(tons).toLocaleString() : null}
-		unit="tons to order"
+		value={displayTons != null ? Math.round(displayTons).toLocaleString() : null}
+		unit={`${UNIT_LABELS.tons[unitsStore.system]} to order`}
 		secondary={`At ${job.widthFt} ft wide, ${job.thicknessIn}" (${Math.round(rate)} lbs/SY) · ${job.wastePct}% waste`}
 	/>
 

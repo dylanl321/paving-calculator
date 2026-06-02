@@ -8,15 +8,40 @@
 	import { constant } from '$lib/config';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
+	import { unitsStore } from '$lib/stores/units.svelte';
+	import {
+		UNIT_LABELS,
+		toMeters,
+		fromMeters,
+		toMetricTonnes,
+		fromMetricTonnes
+	} from '$lib/utils/unitConvert';
 
-	let tonsInSilo = $state<number | null>(null);
-	let tonsInTrucks = $state<number | null>(null);
-	let desiredDistanceFt = $state<number | null>(null);
+	let tonsInSiloInput = $state<number | null>(null);
+	let tonsInTrucksInput = $state<number | null>(null);
+	let desiredDistanceInput = $state<number | null>(null);
+
+	// Convert inputs to imperial for formula
+	const tonsInSilo = $derived(
+		tonsInSiloInput != null && unitsStore.system === 'metric'
+			? fromMetricTonnes(tonsInSiloInput)
+			: tonsInSiloInput
+	);
+	const tonsInTrucks = $derived(
+		tonsInTrucksInput != null && unitsStore.system === 'metric'
+			? fromMetricTonnes(tonsInTrucksInput)
+			: tonsInTrucksInput
+	);
+	const desiredDistanceFt = $derived(
+		desiredDistanceInput != null && unitsStore.system === 'metric'
+			? fromMeters(desiredDistanceInput)
+			: desiredDistanceInput
+	);
 
 	function clearInputs() {
-		tonsInSilo = null;
-		tonsInTrucks = null;
-		desiredDistanceFt = null;
+		tonsInSiloInput = null;
+		tonsInTrucksInput = null;
+		desiredDistanceInput = null;
 		logDraft.clearFor('distance-planner');
 	}
 
@@ -55,6 +80,27 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('distance-planner'));
+
+	const displayAvailableDistance = $derived(
+		availableDistance != null && unitsStore.system === 'metric'
+			? toMeters(availableDistance)
+			: availableDistance
+	);
+	const displayAvailableTons = $derived(
+		availableTons != null && unitsStore.system === 'metric'
+			? toMetricTonnes(availableTons)
+			: availableTons
+	);
+	const displayTonnageNeeded = $derived(
+		tonnageNeeded != null && unitsStore.system === 'metric'
+			? toMetricTonnes(tonnageNeeded)
+			: tonnageNeeded
+	);
+	const displayDesiredDistance = $derived(
+		desiredDistanceFt != null && unitsStore.system === 'metric'
+			? toMeters(desiredDistanceFt)
+			: desiredDistanceFt
+	);
 </script>
 
 <CalcCard
@@ -62,26 +108,47 @@
 	hideTitle
 	purpose="Figure out how much asphalt to order to reach a specific stopping point. Shows how far available material will cover and how much is needed for a desired distance."
 >
-	<NumberField label="Tons in plant silo" unit="tons" bind:value={tonsInSilo} hint="Asphalt held at the plant, not yet loaded onto trucks" />
-	<NumberField label="Tons in trucks headed to job" unit="tons" bind:value={tonsInTrucks} />
+	<NumberField
+		label="Tons in plant silo"
+		unit={UNIT_LABELS.tons[unitsStore.system]}
+		bind:value={tonsInSiloInput}
+		hint="Asphalt held at the plant, not yet loaded onto trucks"
+	/>
+	<NumberField
+		label="Tons in trucks headed to job"
+		unit={UNIT_LABELS.tons[unitsStore.system]}
+		bind:value={tonsInTrucksInput}
+	/>
 
 	<ResultStat
-		value={availableDistance != null ? Math.round(availableDistance).toLocaleString() : null}
-		unit="feet available"
-		secondary={availableTons != null
-			? `From ${availableTons.toLocaleString()} tons total`
+		value={
+			displayAvailableDistance != null
+				? Math.round(displayAvailableDistance).toLocaleString()
+				: null
+		}
+		unit={`${UNIT_LABELS.ft[unitsStore.system]} available`}
+		secondary={displayAvailableTons != null
+			? `From ${displayAvailableTons.toLocaleString()} ${UNIT_LABELS.tons[unitsStore.system]} total`
 			: null}
 	/>
 
 	<div class="divider"></div>
 
-	<NumberField label="Desired distance to cover" unit="ft" bind:value={desiredDistanceFt} />
+	<NumberField
+		label="Desired distance to cover"
+		unit={UNIT_LABELS.ft[unitsStore.system]}
+		bind:value={desiredDistanceInput}
+	/>
 
 	<ResultStat
-		value={tonnageNeeded != null ? Math.round(tonnageNeeded).toLocaleString() : null}
-		unit="tons needed"
-		secondary={desiredDistanceFt != null
-			? `To cover ${Math.round(desiredDistanceFt).toLocaleString()} ft`
+		value={
+			displayTonnageNeeded != null
+				? Math.round(displayTonnageNeeded).toLocaleString()
+				: null
+		}
+		unit={`${UNIT_LABELS.tons[unitsStore.system]} needed`}
+		secondary={displayDesiredDistance != null
+			? `To cover ${Math.round(displayDesiredDistance).toLocaleString()} ${UNIT_LABELS.ft[unitsStore.system]}`
 			: null}
 	/>
 

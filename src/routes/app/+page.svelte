@@ -11,12 +11,15 @@
 	import TodayView from '$lib/components/workspace/TodayView.svelte';
 	import TodaySummary from '$lib/components/workspace/TodaySummary.svelte';
 	import LogToToday from '$lib/components/workspace/LogToToday.svelte';
+	import UnitToggle from '$lib/components/UnitToggle.svelte';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
 
 	const isToday = $derived($page.url.searchParams.get('view') === 'today');
 	const activeTool = $derived(findTool($page.url.searchParams.get('tool')));
 	const ActiveComponent = $derived(activeTool.component);
 
 	function selectTool(id: string) {
+		logDraft.set(null);
 		const url = new URL($page.url);
 		url.searchParams.set('tool', id);
 		url.searchParams.delete('view');
@@ -72,13 +75,20 @@
 		{:else}
 			<section class="stage">
 				<header class="stage-head">
-					<div class="eyebrow">Calculator</div>
-					<h1 class="stage-title">{activeTool.label}</h1>
+					<div class="stage-head-row">
+						<div>
+							<div class="eyebrow">Calculator</div>
+							<h1 class="stage-title">{activeTool.label}</h1>
+						</div>
+						<UnitToggle />
+					</div>
 				</header>
 
 				<div class="stage-body">
-					<ActiveComponent />
-					<LogToToday tool={activeTool} ongoToToday={selectToday} />
+					{#key activeTool.id}
+						<ActiveComponent />
+						<LogToToday tool={activeTool} ongoToToday={selectToday} />
+					{/key}
 				</div>
 			</section>
 
@@ -141,6 +151,13 @@
 
 	.stage-head {
 		margin-bottom: var(--sp-4);
+	}
+	.stage-head-row {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: var(--sp-3);
+		flex-wrap: wrap;
 	}
 	.stage-title {
 		margin: 2px 0 0;

@@ -8,15 +8,40 @@
 	import { feetFromOrderedMinusPlaced, spreadRateFromThickness } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
+	import { unitsStore } from '$lib/stores/units.svelte';
+	import {
+		UNIT_LABELS,
+		toMeters,
+		fromMeters,
+		toMetricTonnes,
+		fromMetricTonnes
+	} from '$lib/utils/unitConvert';
 
-	let ordered = $state<number | null>(null);
-	let placed = $state<number | null>(null);
-	let totalJobFeet = $state<number | null>(null);
+	let orderedInput = $state<number | null>(null);
+	let placedInput = $state<number | null>(null);
+	let totalJobInput = $state<number | null>(null);
+
+	// Convert inputs to imperial for formula
+	const ordered = $derived(
+		orderedInput != null && unitsStore.system === 'metric'
+			? fromMetricTonnes(orderedInput)
+			: orderedInput
+	);
+	const placed = $derived(
+		placedInput != null && unitsStore.system === 'metric'
+			? fromMetricTonnes(placedInput)
+			: placedInput
+	);
+	const totalJobFeet = $derived(
+		totalJobInput != null && unitsStore.system === 'metric'
+			? fromMeters(totalJobInput)
+			: totalJobInput
+	);
 
 	function clearInputs() {
-		ordered = null;
-		placed = null;
-		totalJobFeet = null;
+		orderedInput = null;
+		placedInput = null;
+		totalJobInput = null;
 		logDraft.clearFor('feet-left');
 	}
 
@@ -51,6 +76,10 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('feet-left'));
+
+	const displayFeet = $derived(
+		feet != null && unitsStore.system === 'metric' ? toMeters(feet) : feet
+	);
 </script>
 
 <CalcCard
@@ -60,22 +89,26 @@
 >
 	<NumberField
 		label="Tons ordered today"
-		unit="tons"
-		bind:value={ordered}
+		unit={UNIT_LABELS.tons[unitsStore.system]}
+		bind:value={orderedInput}
 		hint="Include asphalt still in the plant silo (not the paver hopper)"
 	/>
-	<NumberField label="Tons placed so far" unit="tons" bind:value={placed} />
+	<NumberField
+		label="Tons placed so far"
+		unit={UNIT_LABELS.tons[unitsStore.system]}
+		bind:value={placedInput}
+	/>
 
 	<NumberField
 		label="Total job length (optional)"
-		unit="ft"
-		bind:value={totalJobFeet}
+		unit={UNIT_LABELS.ft[unitsStore.system]}
+		bind:value={totalJobInput}
 		hint="For progress tracking"
 	/>
 
 	<ResultStat
-		value={feet != null ? Math.round(feet).toLocaleString() : null}
-		unit="feet left today"
+		value={displayFeet != null ? Math.round(displayFeet).toLocaleString() : null}
+		unit={`${UNIT_LABELS.ft[unitsStore.system]} left today`}
 		secondary={`At ${job.widthFt} ft wide, ${Math.round(rate)} lbs/SY`}
 	/>
 
