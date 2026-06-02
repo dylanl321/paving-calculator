@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import NavSidebar from './NavSidebar.svelte';
 	import { APP_VERSION } from '$lib/version';
+	import { offlineStore } from '$lib/stores/offline.svelte';
 
 	let {
 		children,
@@ -14,6 +15,16 @@
 	} = $props();
 
 	const showContext = $derived(hasContext && !!context);
+
+	const lastSyncText = $derived.by(() => {
+		if (!offlineStore.lastSyncedAt) return null;
+		const hours = offlineStore.lastSyncedAt.getHours();
+		const minutes = offlineStore.lastSyncedAt.getMinutes();
+		const ampm = hours >= 12 ? 'PM' : 'AM';
+		const displayHours = hours % 12 || 12;
+		const displayMinutes = minutes.toString().padStart(2, '0');
+		return `${displayHours}:${displayMinutes} ${ampm}`;
+	});
 </script>
 
 <div class="shell" class:with-context={showContext}>
@@ -24,6 +35,18 @@
 	</main>
 
 	<footer class="shell-footer">
+		<div class="offline-badge">
+			<span class="status-dot" class:status-dot--online={offlineStore.isOnline} class:status-dot--offline={!offlineStore.isOnline}></span>
+			{#if !offlineStore.isOnline}
+				<span class="offline-text">Offline</span>
+			{:else if offlineStore.isSyncing}
+				<span class="offline-text">Syncing...</span>
+			{:else if offlineStore.pendingCount > 0}
+				<span class="offline-text">{offlineStore.pendingCount} pending</span>
+			{:else if lastSyncText}
+				<span class="offline-text offline-text--muted">Last synced: {lastSyncText}</span>
+			{/if}
+		</div>
 		<span class="version-label">v{APP_VERSION}</span>
 	</footer>
 
@@ -52,8 +75,47 @@
 	}
 
 	.shell-footer {
-		text-align: center;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
 		padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+		border-top: 1px solid var(--border);
+		background: var(--surface);
+	}
+
+	.offline-badge {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 0.75rem;
+	}
+
+	.status-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.status-dot--online {
+		background: var(--good, #22c55e);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--good, #22c55e) 20%, transparent);
+	}
+
+	.status-dot--offline {
+		background: var(--bad, #ef4444);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--bad, #ef4444) 20%, transparent);
+	}
+
+	.offline-text {
+		color: var(--text);
+		font-weight: 500;
+	}
+
+	.offline-text--muted {
+		color: var(--text-muted);
+		font-weight: 400;
 	}
 
 	.version-label {

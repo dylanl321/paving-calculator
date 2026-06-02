@@ -10,6 +10,7 @@
 	import { spreadToleranceFor } from '$lib/config';
 	import TicketCapture from './TicketCapture.svelte';
 	import MaterialOrderForecast from './MaterialOrderForecast.svelte';
+	import { offlineStore } from '$lib/stores/offline.svelte';
 
 	interface Props {
 		jobSiteId: string;
@@ -112,32 +113,74 @@
 		};
 
 		if (isAuthenticated) {
-			try {
-				const res = await fetch(`/api/job-sites/${jobSiteId}/loads`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(newLoad),
-					credentials: 'include'
+			// Check if offline
+			if (!offlineStore.isOnline) {
+				// Queue the load for later sync
+				offlineStore.queueLoad(jobSiteId, {
+					ticket_number: newLoad.ticket_number || null,
+					tons: newLoad.tons!,
+					timestamp: newLoad.timestamp!,
+					notes: newLoad.notes || null,
+					lane_number: newLoad.lane_number || null,
+					pass_number: newLoad.pass_number || null
 				});
-				if (res.ok) {
-					const data = await res.json();
-					loads = [data.load, ...loads];
-				}
-			} catch {
-				// Fall back to localStorage
+
+				// Add optimistically to local state
 				const load: DbLoad = {
 					id: crypto.randomUUID(),
 					job_site_id: jobSiteId,
 					user_id: 'local',
 					...newLoad as Required<typeof newLoad>,
+					spread_rate: null,
 					lane_number: newLoad.lane_number || null,
 					pass_number: newLoad.pass_number || null,
+					created_at: timestamp,
 					rejected: 0,
 					rejection_reason: null,
 					rejection_notes: null
 				};
 				loads = [load, ...loads];
 				saveToLocalStorage();
+			} else {
+				try {
+					const res = await fetch(`/api/job-sites/${jobSiteId}/loads`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(newLoad),
+						credentials: 'include'
+					});
+					if (res.ok) {
+						const data = await res.json();
+						loads = [data.load, ...loads];
+						offlineStore.updateLastSyncedAt();
+					}
+				} catch {
+					// Fall back to offline queue
+					offlineStore.queueLoad(jobSiteId, {
+						ticket_number: newLoad.ticket_number || null,
+						tons: newLoad.tons!,
+						timestamp: newLoad.timestamp!,
+						notes: newLoad.notes || null,
+						lane_number: newLoad.lane_number || null,
+						pass_number: newLoad.pass_number || null
+					});
+
+					const load: DbLoad = {
+						id: crypto.randomUUID(),
+						job_site_id: jobSiteId,
+						user_id: 'local',
+						...newLoad as Required<typeof newLoad>,
+						spread_rate: null,
+						lane_number: newLoad.lane_number || null,
+						pass_number: newLoad.pass_number || null,
+						created_at: timestamp,
+						rejected: 0,
+						rejection_reason: null,
+						rejection_notes: null
+					};
+					loads = [load, ...loads];
+					saveToLocalStorage();
+				}
 			}
 		} else {
 			const load: DbLoad = {
