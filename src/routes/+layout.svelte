@@ -6,6 +6,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import AppShell from '$lib/components/shell/AppShell.svelte';
+	import PwaInstallPrompt from '$lib/components/PwaInstallPrompt.svelte';
 	import '../app.css';
 
 	let { children } = $props();
@@ -80,4 +81,5 @@
 	{:else}
 		<AppShell {children} />
 	{/if}
+	<PwaInstallPrompt />
 </div>
