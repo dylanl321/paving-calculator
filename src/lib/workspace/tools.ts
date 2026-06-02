@@ -5,6 +5,7 @@ import DistancePlannerCard from '$lib/components/DistancePlannerCard.svelte';
 import TonnageCard from '$lib/components/TonnageCard.svelte';
 import TackCard from '$lib/components/TackCard.svelte';
 import StickCheckCard from '$lib/components/StickCheckCard.svelte';
+import PavingWindowCard from '$lib/components/PavingWindowCard.svelte';
 import SoilCompactionCard from '$lib/components/SoilCompactionCard.svelte';
 import SubgradeCalcCard from '$lib/components/SubgradeCalcCard.svelte';
 import ConcreteVolumeCard from '$lib/components/ConcreteVolumeCard.svelte';
@@ -74,6 +75,13 @@ export const toolGroups: ToolGroup[] = [
 				label: 'Stick Check',
 				blurb: 'Loose height behind the screed',
 				component: StickCheckCard,
+				logsAs: 'note'
+			},
+			{
+				id: 'paving-window',
+				label: 'Paving Window',
+				blurb: 'Table 4 min temp for your lift thickness',
+				component: PavingWindowCard,
 				logsAs: 'note'
 			}
 		]
