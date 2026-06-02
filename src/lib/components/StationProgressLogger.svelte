@@ -17,6 +17,7 @@
 	let stationEnd = $state<number | null>(null);
 	let tonsPlaced = $state<number | null>(null);
 	let lane = $state('');
+	let passNumber = $state<number | null>(null);
 	let notes = $state('');
 	let isSubmitting = $state(false);
 
@@ -81,6 +82,9 @@
 			}
 			if (lane.trim()) {
 				payload.lane = lane.trim();
+			}
+			if (passNumber != null) {
+				payload.pass_number = passNumber;
 			}
 			if (notes.trim()) {
 				payload.notes = notes.trim();
@@ -202,6 +206,21 @@
 				class="input-standard"
 			/>
 		</div>
+
+		<div class="field-compact">
+			<label>Pass # (optional)</label>
+			<div class="picker-row">
+				{#each [1, 2, 3, 4, 5, 6, 7, 8] as num}
+					<button
+						type="button"
+						class="picker-btn {passNumber === num ? 'picker-btn--selected' : ''}"
+						onclick={() => { passNumber = passNumber === num ? null : num; }}
+					>
+						{num}
+					</button>
+				{/each}
+			</div>
+		</div>
 	</div>
 
 	<div class="field-compact">
@@ -223,6 +242,12 @@
 							Sta {entry.station_start != null ? formatStation(entry.station_start) : '?'} →
 							{entry.station_end != null ? formatStation(entry.station_end) : '?'}
 						</div>
+						{#if entry.lane || entry.pass_number != null}
+							<div class="history-lane-pass">
+								{#if entry.lane}L:{entry.lane}{/if}
+								{#if entry.pass_number != null}P{entry.pass_number}{/if}
+							</div>
+						{/if}
 						{#if entry.tons_placed}
 							<div class="history-tons">{entry.tons_placed.toFixed(1)}T</div>
 						{/if}
@@ -423,6 +448,44 @@
 	.history-tons {
 		font-size: 0.75rem;
 		color: var(--text-muted);
+	}
+
+	.history-lane-pass {
+		font-size: 0.75rem;
+		color: var(--accent);
+		font-weight: 600;
+		white-space: nowrap;
+	}
+
+	.picker-row {
+		display: flex;
+		gap: var(--sp-2, 6px);
+		flex-wrap: wrap;
+	}
+
+	.picker-btn {
+		min-width: 48px;
+		min-height: 48px;
+		padding: var(--sp-2, 6px);
+		background: var(--surface-alt, var(--surface));
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm, 4px);
+		color: var(--text-muted);
+		font-size: var(--fs-md, 1rem);
+		font-weight: var(--fw-semibold, 600);
+		cursor: pointer;
+		transition: all 0.1s ease;
+	}
+
+	.picker-btn--selected {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--text);
+	}
+
+	.picker-btn:hover:not(.picker-btn--selected) {
+		border-color: var(--accent);
+		color: var(--text);
 	}
 
 	@media (min-width: 768px) {
