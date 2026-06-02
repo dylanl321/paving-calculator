@@ -2,6 +2,8 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { config } from '$lib/config';
 	import type { PageData } from './$types';
+	import GpsStationButton from '$lib/components/GpsStationButton.svelte';
+	import type { RouteWaypoint } from '$lib/services/gpsStation';
 
 	let { data }: { data: PageData } = $props();
 
@@ -10,6 +12,26 @@
 	let entrySummary = $state<any>({ total_distance_ft: 0, total_tons: 0, total_loads: 0 });
 	let showEntryForm = $state(false);
 	let editingEntry = $state<any>(null);
+
+	// Route waypoints for GPS station detection
+	let routeWaypoints = $state<RouteWaypoint[]>([]);
+
+	async function loadRoute() {
+		try {
+			const res = await fetch(`/api/job-sites/${data.jobSite.id}/route`);
+			if (res.ok) {
+				const { waypoints } = await res.json();
+				routeWaypoints = Array.isArray(waypoints) ? waypoints : [];
+			}
+		} catch {
+			// Route loading is best-effort; failure is non-fatal
+		}
+	}
+
+	// Load route once on mount
+	$effect(() => {
+		loadRoute();
+	});
 
 	let entryForm = $state({
 		entry_type: 'paving' as 'paving' | 'milling' | 'tack' | 'break' | 'delay' | 'note',
@@ -442,11 +464,31 @@
 				<div class="field-row">
 					<div class="field-compact">
 						<label for="sta-start">Station Start</label>
-						<input type="number" id="sta-start" bind:value={entryForm.station_start} step="0.01" />
+						<div class="input-with-gps">
+							<input type="number" id="sta-start" bind:value={entryForm.station_start} step="0.01" />
+							<GpsStationButton
+								waypoints={routeWaypoints}
+								label="GPS"
+								compact
+								onDetected={(sta) => {
+									entryForm.station_start = sta;
+								}}
+							/>
+						</div>
 					</div>
 					<div class="field-compact">
 						<label for="sta-end">Station End</label>
-						<input type="number" id="sta-end" bind:value={entryForm.station_end} step="0.01" />
+						<div class="input-with-gps">
+							<input type="number" id="sta-end" bind:value={entryForm.station_end} step="0.01" />
+							<GpsStationButton
+								waypoints={routeWaypoints}
+								label="GPS"
+								compact
+								onDetected={(sta) => {
+									entryForm.station_end = sta;
+								}}
+							/>
+						</div>
 					</div>
 				</div>
 
@@ -704,6 +746,17 @@
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
 		gap: 12px;
+	}
+
+	.input-with-gps {
+		display: flex;
+		gap: 6px;
+		align-items: stretch;
+	}
+
+	.input-with-gps input {
+		flex: 1;
+		min-width: 0;
 	}
 
 	.today-summary {
