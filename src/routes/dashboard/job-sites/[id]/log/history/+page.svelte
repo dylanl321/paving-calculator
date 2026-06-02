@@ -3,9 +3,25 @@
 	import { config } from '$lib/config';
 	import type { PageData } from './$types';
 	import DailySummaryReport from '$lib/components/DailySummaryReport.svelte';
+	import ProductionLineChart from '$lib/components/charts/ProductionLineChart.svelte';
 
 	let { data }: { data: PageData } = $props();
 	let summaryLog = $state<any>(null);
+
+	// Build chart data from logs, sorted by date ascending
+	const chartData = $derived(
+		[...data.logs]
+			.sort((a, b) => a.log_date.localeCompare(b.log_date))
+			.map((log) => ({
+				date: log.log_date,
+				tons: log.summary?.total_tons ?? 0
+			}))
+	);
+
+	// Calculate total tons across all days
+	const totalTons = $derived(
+		data.logs.reduce((sum, log) => sum + (log.summary?.total_tons ?? 0), 0)
+	);
 
 	function formatDate(dateString: string): string {
 		const date = new Date(dateString);
@@ -138,6 +154,16 @@
 			</a>
 		</div>
 	{:else}
+		<div class="chart-section">
+			<div class="section-header">
+				<h3>Production Over Time</h3>
+				<p class="section-subtitle">
+					{totalTons.toFixed(1)} tons across {data.logs.length} day{data.logs.length === 1 ? '' : 's'}
+				</p>
+			</div>
+			<ProductionLineChart data={chartData} />
+		</div>
+
 		<div class="log-list">
 			{#each data.logs as log}
 				<div class="log-card">
@@ -321,6 +347,29 @@
 	.empty-state p {
 		margin: 0;
 		font-size: 0.9rem;
+	}
+
+	.chart-section {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 20px;
+		margin-bottom: 24px;
+	}
+
+	.section-header {
+		margin-bottom: 16px;
+	}
+
+	.section-header h3 {
+		margin: 0 0 4px;
+		font-size: 1.2rem;
+	}
+
+	.section-subtitle {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--text-muted);
 	}
 
 	.log-list {
