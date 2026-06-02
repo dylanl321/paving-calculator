@@ -1,7 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { hashPassword, createSession, setSessionCookie } from '$lib/server/auth';
-import { sendWelcomeEmail } from '$lib/server/email';
+import { sendWelcomeEmail, type OrgBranding } from '$lib/server/email';
 
 export async function POST(event: RequestEvent) {
 	try {
