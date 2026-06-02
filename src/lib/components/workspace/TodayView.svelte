@@ -301,9 +301,15 @@
 				<span>Wind mph</span>
 				<input type="number" inputmode="numeric" bind:value={today.windSpeedMph} />
 			</label>
-			<label class="f">
+			<label class="f crew-field">
 				<span>Crew</span>
 				<input type="number" inputmode="numeric" bind:value={today.crewCount} />
+				<div class="crew-quick">
+					<button class="crew-btn" onclick={() => (today.crewCount = 3)}>3</button>
+					<button class="crew-btn" onclick={() => (today.crewCount = 4)}>4</button>
+					<button class="crew-btn" onclick={() => (today.crewCount = 5)}>5</button>
+					<button class="crew-btn" onclick={() => (today.crewCount = 6)}>6</button>
+				</div>
 			</label>
 			<label class="f">
 				<span>Start</span>
@@ -520,7 +526,7 @@
 	.f select,
 	.f textarea {
 		width: 100%;
-		min-height: 44px;
+		min-height: 48px;
 		padding: 0 var(--sp-2);
 		background: var(--surface);
 		border: 1px solid var(--border);
@@ -531,6 +537,39 @@
 	.f textarea {
 		padding: var(--sp-2);
 		min-height: auto;
+	}
+	.f input[type="time"] {
+		min-height: 48px;
+	}
+
+	.crew-field {
+		position: relative;
+	}
+	.crew-quick {
+		display: flex;
+		gap: 4px;
+		margin-top: 4px;
+	}
+	.crew-btn {
+		flex: 1;
+		min-height: 44px;
+		padding: 0 var(--sp-2);
+		background: var(--surface-alt);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-pill);
+		color: var(--text);
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-medium);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+	.crew-btn:hover {
+		background: var(--accent);
+		color: var(--accent-text);
+		border-color: var(--accent);
+	}
+	.crew-btn:active {
+		transform: scale(0.96);
 	}
 
 	.empty {
