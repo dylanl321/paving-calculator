@@ -5,7 +5,7 @@
 	import GpsStationButton from '$lib/components/GpsStationButton.svelte';
 	import type { RouteWaypoint } from '$lib/services/gpsStation';
 	import TimeInput from '$lib/components/TimeInput.svelte';
-	import { Droplets, FileText, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-svelte';
+	import { Droplets, FileText, Clock, ChevronLeft, ChevronRight, Calendar, FileDown } from 'lucide-svelte';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import ComplianceGauge from '$lib/components/ComplianceGauge.svelte';
 	import NuclearGaugeLog from '$lib/components/NuclearGaugeLog.svelte';
@@ -341,94 +341,104 @@
 		targetFt && targetFt > 0 ? Math.min(100, (todayPavingFt / targetFt) * 100) : null
 	);
 
-	async function exportDailyPDF() {
+	// PDF export state
+	let pdfExporting = $state(false);
+
+	async function exportLogPDF() {
 		if (!currentLog) return;
-		const { generateDailyReportPDF } = await import('$lib/utils/pdf-export');
-
-		let loads: any[] = [];
+		pdfExporting = true;
 		try {
-			const currentDate = currentLog.log_date;
-			const res = await fetch(`/api/job-sites/${data.jobSite.id}/loads?start_date=${currentDate}`);
-			if (res.ok) {
-				const loadData = await res.json();
-				loads = loadData.loads || [];
+			const { generateDailyReportPDF } = await import('$lib/utils/pdf-export');
+
+			let loads: any[] = [];
+			try {
+				const currentDate = currentLog.log_date;
+				const res = await fetch(`/api/job-sites/${data.jobSite.id}/loads?start_date=${currentDate}`);
+				if (res.ok) {
+					const loadData = await res.json();
+					loads = loadData.loads || [];
+				}
+			} catch {
+				// Non-fatal - continue without loads
 			}
-		} catch {
-			// Non-fatal - continue without loads
+
+			const hoursWorked = currentLog.start_time && currentLog.end_time
+				? (() => {
+					const [startH, startM] = currentLog.start_time.split(':').map(Number);
+					const [endH, endM] = currentLog.end_time.split(':').map(Number);
+					return Math.max(0, (endH * 60 + endM - (startH * 60 + startM)) / 60);
+				})()
+				: 0;
+
+			const actualRate = entrySummary.total_distance_ft > 0 && entrySummary.total_tons > 0
+				? (entrySummary.total_tons * 2000 * 9) / entrySummary.total_distance_ft
+				: null;
+			const targetRate = (data.siteConfig as any)?.config?.target_spread_rate || null;
+			const diffPct = actualRate && targetRate ? ((actualRate - targetRate) / targetRate) * 100 : null;
+
+			await generateDailyReportPDF(
+				{
+					widthFt: (data.siteConfig as any)?.config?.lane_width_ft || 12,
+					thicknessIn: (data.siteConfig as any)?.config?.target_thickness_in || 2,
+					machineId: 'none',
+					firstPass: false,
+					truckLoadTons: 22,
+					tackApplication: 'new-to-new',
+					wastePct: 5,
+					siteName: data.jobSite.name,
+					siteDescription: data.jobSite.location_description || ''
+				},
+				{
+					date: currentLog.log_date,
+					siteName: data.jobSite.name,
+					weatherTempF: currentLog.weather_temp_f,
+					weatherConditions: currentLog.weather_conditions,
+					windSpeedMph: currentLog.wind_speed_mph,
+					crewCount: currentLog.crew_count,
+					startTime: currentLog.start_time,
+					endTime: currentLog.end_time,
+					notes: currentLog.notes,
+					entries: entries.map((e) => ({
+						entry_type: e.entry_type,
+						timestamp: e.timestamp,
+						station_start: e.station_start,
+						station_end: e.station_end,
+						distance_ft: e.distance_ft,
+						tons_placed: e.tons_placed,
+						loads_count: e.loads_count,
+						truck_tickets: null,
+						spread_rate_actual: e.spread_rate_actual,
+						tack_gallons: e.tack_gallons,
+						lane: e.lane,
+						notes: e.notes
+					})),
+					totals: {
+						totalTons: entrySummary.total_tons,
+						totalDistanceFt: entrySummary.total_distance_ft,
+						totalLoads: entrySummary.total_loads,
+						totalTackGallons: 0,
+						hoursWorked
+					},
+					yield: {
+						actualRate,
+						targetRate,
+						diffPct
+					},
+					loads: loads.map((l: any) => ({
+						id: l.id,
+						ticket_number: l.ticket_number,
+						tons: l.tons,
+						timestamp: l.timestamp,
+						spread_rate: l.spread_rate,
+						notes: l.notes
+					}))
+				}
+			);
+		} catch (err) {
+			console.error('PDF export failed:', err);
+		} finally {
+			pdfExporting = false;
 		}
-
-		const hoursWorked = currentLog.start_time && currentLog.end_time
-			? (() => {
-				const [startH, startM] = currentLog.start_time.split(':').map(Number);
-				const [endH, endM] = currentLog.end_time.split(':').map(Number);
-				return Math.max(0, (endH * 60 + endM - (startH * 60 + startM)) / 60);
-			})()
-			: 0;
-
-		const actualRate = entrySummary.total_distance_ft > 0 && entrySummary.total_tons > 0
-			? (entrySummary.total_tons * 2000 * 9) / entrySummary.total_distance_ft
-			: null;
-		const targetRate = (data.siteConfig as any)?.config?.target_spread_rate || null;
-		const diffPct = actualRate && targetRate ? ((actualRate - targetRate) / targetRate) * 100 : null;
-
-		await generateDailyReportPDF(
-			{
-				widthFt: (data.siteConfig as any)?.config?.lane_width_ft || 12,
-				thicknessIn: (data.siteConfig as any)?.config?.target_thickness_in || 2,
-				machineId: 'none',
-				firstPass: false,
-				truckLoadTons: 22,
-				tackApplication: 'new-to-new',
-				wastePct: 5,
-				siteName: data.jobSite.name,
-				siteDescription: data.jobSite.location_description || ''
-			},
-			{
-				date: currentLog.log_date,
-				siteName: data.jobSite.name,
-				weatherTempF: currentLog.weather_temp_f,
-				weatherConditions: currentLog.weather_conditions,
-				windSpeedMph: currentLog.wind_speed_mph,
-				crewCount: currentLog.crew_count,
-				startTime: currentLog.start_time,
-				endTime: currentLog.end_time,
-				notes: currentLog.notes,
-				entries: entries.map((e) => ({
-					entry_type: e.entry_type,
-					timestamp: e.timestamp,
-					station_start: e.station_start,
-					station_end: e.station_end,
-					distance_ft: e.distance_ft,
-					tons_placed: e.tons_placed,
-					loads_count: e.loads_count,
-					truck_tickets: null,
-					spread_rate_actual: e.spread_rate_actual,
-					tack_gallons: e.tack_gallons,
-					lane: e.lane,
-					notes: e.notes
-				})),
-				totals: {
-					totalTons: entrySummary.total_tons,
-					totalDistanceFt: entrySummary.total_distance_ft,
-					totalLoads: entrySummary.total_loads,
-					totalTackGallons: 0,
-					hoursWorked
-				},
-				yield: {
-					actualRate,
-					targetRate,
-					diffPct
-				},
-				loads: loads.map(l => ({
-					id: l.id,
-					ticket_number: l.ticket_number,
-					tons: l.tons,
-					timestamp: l.timestamp,
-					spread_rate: l.spread_rate,
-					notes: l.notes
-				}))
-			}
-		);
 	}
 
 	async function unlockLog() {
@@ -576,7 +586,7 @@
 				{isHistoricalView && viewedLog ? formatLogDate(viewedLog.log_date) : new Date(data.today).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 			</p>
 		</div>
-		<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+		<div class="page-header-actions">
 			{#if currentLog}
 				{#if !currentLog.closed_at && !isHistoricalView}
 					<button class="btn-primary" onclick={() => (showCloseOut = true)}>
@@ -596,21 +606,14 @@
 						Close Out Day
 					</button>
 				{/if}
-				<button class="btn-secondary" onclick={exportDailyPDF}>
-					<svg
-						width="18"
-						height="18"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-					>
-						<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-						<polyline points="14 2 14 8 20 8"></polyline>
-					</svg>
-					PDF
+				<button
+					class="btn-secondary btn-pdf"
+					onclick={exportLogPDF}
+					disabled={pdfExporting}
+					title="Download daily production PDF"
+				>
+					<FileDown size={18} />
+					{pdfExporting ? 'Generating...' : 'PDF'}
 				</button>
 			<button class="btn-secondary" onclick={() => (showSummary = true)}>
 				<svg
@@ -631,23 +634,23 @@
 			</button>
 			{/if}
 			<a href="/dashboard/job-sites/{data.jobSite.id}/log/history" class="btn-secondary">
-				<svg
-					width="18"
-					height="18"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-				>
-					<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-					<line x1="16" y1="2" x2="16" y2="6"></line>
-					<line x1="8" y1="2" x2="8" y2="6"></line>
-					<line x1="3" y1="10" x2="21" y2="10"></line>
-				</svg>
-				History
-			</a>
+			<svg
+				width="18"
+				height="18"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+			>
+				<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+				<line x1="16" y1="2" x2="16" y2="6"></line>
+				<line x1="8" y1="2" x2="8" y2="6"></line>
+				<line x1="3" y1="10" x2="21" y2="10"></line>
+			</svg>
+			History
+		</a>
 		</div>
 	</div>
 
@@ -1170,6 +1173,21 @@
 		align-items: flex-start;
 		gap: 16px;
 		margin-bottom: 24px;
+	}
+
+	.page-header-actions {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+		flex-shrink: 0;
+	}
+
+	.btn-pdf {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 48px;
+		padding: 0 14px;
 	}
 
 	.page-title {
