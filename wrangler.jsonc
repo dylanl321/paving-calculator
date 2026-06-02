@@ -7,7 +7,7 @@
 	"vars": {
 		"SUPER_ADMIN_EMAILS": "dylan@paverate.com"
 	},
-	"secrets": ["RESEND_API_KEY"],
+
 	"d1_databases": [
 		{
 			"binding": "DB",
