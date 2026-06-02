@@ -34,6 +34,9 @@
 	let showInviteModal = $state(false);
 	let inviteForm = $state({ email: '', role: 'member' });
 	let inviting = $state(false);
+	let resending = $state(false);
+	let revokingId = $state<string | null>(null);
+	let resendingId = $state<string | null>(null);
 	let currentUserId = $state<string | null>(null);
 	let currentUserRole = $state<string | null>(null);
 	let searchQuery = $state('');
@@ -225,8 +228,7 @@
 	}
 
 	async function revokeInvitation(invite: Invitation) {
-		if (!confirm(`Revoke invitation for ${invite.email}?`)) return;
-
+		revokingId = invite.id;
 		try {
 			const res = await fetch(`/api/org/invite/${invite.id}`, {
 				method: 'DELETE'
@@ -234,13 +236,42 @@
 
 			if (!res.ok) {
 				const data = await res.json();
-				alert(data.error || 'Failed to revoke invitation');
+				toastStore.error(data.error || 'Failed to revoke invitation');
 				return;
 			}
 
 			await loadTeam();
+			toastStore.success(`Invitation for ${invite.email} revoked`);
 		} catch (e) {
-			alert('Failed to revoke invitation');
+			toastStore.error('Failed to revoke invitation');
+		} finally {
+			revokingId = null;
+		}
+	}
+
+	async function resendInvitation(invite: Invitation) {
+		if (resending) return;
+
+		resendingId = invite.id;
+		resending = true;
+		try {
+			const res = await fetch(`/api/org/invite/${invite.id}`, {
+				method: 'POST'
+			});
+
+			if (!res.ok) {
+				const data = await res.json();
+				toastStore.error(data.error || 'Failed to resend invitation');
+				return;
+			}
+
+			await loadTeam();
+			toastStore.success(`Invitation resent to ${invite.email}`);
+		} catch (e) {
+			toastStore.error('Failed to resend invitation');
+		} finally {
+			resendingId = null;
+			resending = false;
 		}
 	}
 
@@ -457,10 +488,21 @@
 								</div>
 							</div>
 							<div class="card-actions">
-								<button class="btn-danger" onclick={() => revokeInvitation(invite)}>
-									Revoke Invitation
-								</button>
-							</div>
+											<button
+												class="btn-secondary"
+												onclick={() => resendInvitation(invite)}
+												disabled={resendingId === invite.id || revokingId === invite.id}
+											>
+												{resendingId === invite.id ? 'Resending...' : 'Resend'}
+											</button>
+											<button
+												class="btn-danger"
+												onclick={() => revokeInvitation(invite)}
+												disabled={resendingId === invite.id || revokingId === invite.id}
+											>
+												{revokingId === invite.id ? 'Revoking...' : 'Revoke'}
+											</button>
+										</div>
 						</div>
 					{/each}
 				</div>
