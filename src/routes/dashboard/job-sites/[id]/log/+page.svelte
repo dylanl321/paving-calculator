@@ -7,6 +7,7 @@
 	import TimeInput from '$lib/components/TimeInput.svelte';
 	import { Droplets, FileText, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-svelte';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import ComplianceGauge from '$lib/components/ComplianceGauge.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -560,6 +561,12 @@
 				</div>
 			</div>
 		{/if}
+
+		<ComplianceGauge
+			entries={entries}
+			targetSpreadRate={(data.siteConfig as any)?.config?.target_spread_rate ?? null}
+			courseType={(data.siteConfig as any)?.config?.course_type ?? null}
+		/>
 
 		<section class="section">
 			<div class="section-header">
