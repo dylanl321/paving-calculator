@@ -26,6 +26,10 @@
 	let logoFile = $state<File | null>(null);
 	let logoPreview = $state<string | null>(null);
 
+	// --- Email branding ---
+	let emailFromName = $state(data.settings?.emailFromName ?? '');
+	let emailReplyTo = $state(data.settings?.emailReplyTo ?? '');
+
 	// --- Default job setup (seeded from YAML, overridden where present) ---
 	let roadWidthFt = $state(ov.defaults?.roadWidthFt ?? config.defaults.roadWidthFt);
 	let truckLoadTons = $state(ov.defaults?.truckLoadTons ?? config.defaults.truckLoadTons);
@@ -111,6 +115,8 @@
 				body: JSON.stringify({
 					name: orgName.trim(),
 					accentColor: useCustomAccent ? accentColor : null,
+					emailFromName: emailFromName.trim() || null,
+					emailReplyTo: emailReplyTo.trim() || null,
 					overrides
 				})
 			});
@@ -254,6 +260,37 @@
 					<span class="swatch" style="background:{accentColor}"></span>
 				</div>
 			{/if}
+		</div>
+	</section>
+
+	<!-- Email branding -->
+	<section class="card">
+		<h3>Email Branding</h3>
+		<p class="card-desc">Customize how emails from your organization appear to recipients.</p>
+
+		<div class="field">
+			<label for="emailFromName">From name</label>
+			<input
+				id="emailFromName"
+				type="text"
+				placeholder="PaveRate"
+				bind:value={emailFromName}
+				disabled={!canEdit}
+				maxlength="100"
+			/>
+			<span class="hint">The name shown in the "From" field of emails (max 100 characters)</span>
+		</div>
+
+		<div class="field">
+			<label for="emailReplyTo">Reply-To address</label>
+			<input
+				id="emailReplyTo"
+				type="email"
+				placeholder="support@yourcompany.com"
+				bind:value={emailReplyTo}
+				disabled={!canEdit}
+			/>
+			<span class="hint">Optional email address for replies</span>
 		</div>
 	</section>
 

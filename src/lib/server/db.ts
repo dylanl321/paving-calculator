@@ -70,6 +70,8 @@ export interface DbOrgSettings {
 	accent_color: string | null;
 	logo_key: string | null;
 	logo_content_type: string | null;
+	email_from_name: string | null;
+	email_reply_to: string | null;
 	overrides: string | null; // JSON
 	updated_by: string | null;
 	updated_at: number;
@@ -638,6 +640,8 @@ export class DbHelper {
 			accentColor?: string | null;
 			logoKey?: string | null;
 			logoContentType?: string | null;
+			emailFromName?: string | null;
+			emailReplyTo?: string | null;
 			overrides?: string | null;
 			updatedBy?: string | null;
 		}
@@ -648,14 +652,16 @@ export class DbHelper {
 		if (!existing) {
 			await this.db
 				.prepare(
-					`INSERT INTO org_settings (org_id, accent_color, logo_key, logo_content_type, overrides, updated_by, updated_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?)`
+					`INSERT INTO org_settings (org_id, accent_color, logo_key, logo_content_type, email_from_name, email_reply_to, overrides, updated_by, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 				)
 				.bind(
 					orgId,
 					updates.accentColor ?? null,
 					updates.logoKey ?? null,
 					updates.logoContentType ?? null,
+					updates.emailFromName ?? null,
+					updates.emailReplyTo ?? null,
 					updates.overrides ?? null,
 					updates.updatedBy ?? null,
 					now
@@ -678,6 +684,14 @@ export class DbHelper {
 		if (updates.logoContentType !== undefined) {
 			fields.push('logo_content_type = ?');
 			values.push(updates.logoContentType);
+		}
+		if (updates.emailFromName !== undefined) {
+			fields.push('email_from_name = ?');
+			values.push(updates.emailFromName);
+		}
+		if (updates.emailReplyTo !== undefined) {
+			fields.push('email_reply_to = ?');
+			values.push(updates.emailReplyTo);
 		}
 		if (updates.overrides !== undefined) {
 			fields.push('overrides = ?');
