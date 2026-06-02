@@ -566,6 +566,136 @@ slopeReference:
     status: FIELD_ESTIMATE
 
 # ---------------------------------------------------------------------------
+# Reference tables (GDOT spec tables) for inline display in calculators
+# ---------------------------------------------------------------------------
+reference_tables:
+  table_2:
+    - id: TACK.NEW_AC
+      label: New AC to New AC / Thin Lift Leveling
+      min_gal_yd2: 0.05
+      max_gal_yd2: 0.08
+      min_metric: 0.23 L/m²
+      max_metric: 0.36 L/m²
+    - id: TACK.AGED_LE25RAP
+      label: New AC (≤25% RAP) to Aged/Milled
+      min_gal_yd2: 0.06
+      max_gal_yd2: 0.10
+      min_metric: 0.27 L/m²
+      max_metric: 0.45 L/m²
+    - id: TACK.AGED_GT25RAP
+      label: New AC (>25% RAP) to Aged/Milled
+      min_gal_yd2: 0.08
+      max_gal_yd2: 0.12
+      min_metric: 0.36 L/m²
+      max_metric: 0.54 L/m²
+  table_4:
+    - id: TEMP.LE_1IN
+      label: 1 in. (25 mm) or less
+      min_temp_f: 55
+      min_temp_c: 13
+    - id: TEMP.1_2IN
+      label: 1.1 to 2 in. (26–50 mm)
+      min_temp_f: 45
+      min_temp_c: 8
+    - id: TEMP.2_3IN
+      label: 2.1 to 3 in. (51–75 mm)
+      min_temp_f: 40
+      min_temp_c: 4
+    - id: TEMP.3_4IN
+      label: 3.1 to 4 in. (76–100 mm)
+      min_temp_f: 35
+      min_temp_c: 2
+    - id: TEMP.4_8IN
+      label: 4.1 to 8 in. (101–200 mm)
+      min_temp_f: 32
+      min_temp_c: 0
+      note: and rising; base must not be frozen
+  table_5:
+    - id: THICK.SP_25MM
+      label: 25 mm Superpave
+      min_layer: 2½ in. (64 mm)
+      max_layer: 5 in. (125 mm)*
+      max_total: "—"
+    - id: THICK.SP_19MM
+      label: 19 mm Superpave
+      min_layer: 1¾ in. (44 mm)
+      max_layer: 3 in. (75 mm)*
+      max_total: "—"
+    - id: THICK.SP_125MM
+      label: 12.5 mm Superpave
+      min_layer: 1⅜ in. (35 mm)
+      max_layer: 2½ in. (64 mm)*/**
+      max_total: 8 in. (200 mm)
+    - id: THICK.SP_95_T2
+      label: 9.5 mm Superpave Type 2
+      min_layer: 1⅛ in. (29 mm)
+      max_layer: 1½ in. (38 mm)***
+      max_total: 4 in. (100 mm)
+    - id: THICK.SP_95_T1
+      label: 9.5 mm Superpave Type 1
+      min_layer: ⅞ in. (22 mm)
+      max_layer: 1¼ in. (32 mm)
+      max_total: 4 in. (100 mm)
+    - id: THICK.MIX_475
+      label: 4.75 mm Mix
+      min_layer: ¾ in. (19 mm)
+      max_layer: 1⅛ in. (29 mm)
+      max_total: 2 in. (50 mm)
+    - id: THICK.OGFC_95
+      label: 9.5 mm OGFC
+      min_layer: 75 lbs/yd² (41 kg/m²)
+      max_layer: 95 lbs/yd² (51 kg/m²)
+      max_total: "—"
+    - id: THICK.OGFC_125
+      label: 12.5 mm OGFC
+      min_layer: 85 lbs/yd² (46 kg/m²)
+      max_layer: 110 lbs/yd² (60 kg/m²)
+      max_total: "—"
+    - id: THICK.PEM_125
+      label: 12.5 mm PEM
+      min_layer: 110 lbs/yd² (60 kg/m²)
+      max_layer: 165 lbs/yd² (90 kg/m²)
+      max_total: "—"
+    - id: THICK.SMA_95
+      label: 9.5 mm SMA
+      min_layer: 1⅛ in. (29 mm)
+      max_layer: 1½ in. (38 mm)
+      max_total: 4 in. (100 mm)
+    - id: THICK.SMA_125
+      label: 12.5 mm SMA
+      min_layer: 1⅜ in. (35 mm)
+      max_layer: 3 in. (75 mm)
+      max_total: 6 in. (150 mm)
+    - id: THICK.SMA_19
+      label: 19 mm SMA
+      min_layer: 1¾ in. (44 mm)
+      max_layer: 3 in. (75 mm)
+      max_total: "—"
+  table_12:
+    - id: TOLERANCE.BASE
+      label: Asphaltic concrete base course
+      thickness_tolerance: ±0.5 in. (±13 mm)
+      spread_tolerance: ±55 lbs/yd² (30 kg/m²)
+    - id: TOLERANCE.INTERMEDIATE_WEARING
+      label: Intermediate and/or wearing course
+      thickness_tolerance: ±0.25 in. (±6 mm)
+      spread_tolerance: ±27.5 lbs/yd² (15 kg/m²)
+    - id: TOLERANCE.BASE_PLUS_SURFACE
+      label: Overall of any combination of 1 and 2
+      thickness_tolerance: ±0.5 in. (±13 mm)
+      spread_tolerance: ±55 lbs/yd² (30 kg/m²)
+    - id: TOLERANCE.OGFC
+      label: 9.5 mm OGFC and 12.5 mm OGFC
+      thickness_tolerance: "—"
+      spread_tolerance: ±7 lbs/yd² (4 kg/m²)
+      note: Control spread rate per lot
+    - id: TOLERANCE.PEM
+      label: 12.5 mm PEM
+      thickness_tolerance: "—"
+      spread_tolerance: ±10 lbs/yd² (6 kg/m²)
+      note: Control spread rate per lot
+
+# ---------------------------------------------------------------------------
 # Calculator metadata for the home grid + labels
 # ---------------------------------------------------------------------------
 calculators:
