@@ -92,7 +92,7 @@ export async function sendVerificationEmail(
 		ctaText: 'Verify Email',
 		ctaUrl: verifyUrl,
 		footer:
-			'If you didn't create a PaveRate account, you can safely ignore this email. This link will expire in 24 hours.'
+			"If you didn't create a PaveRate account, you can safely ignore this email. This link will expire in 24 hours."
 	});
 
 	return await sendEmail(apiKey, {
@@ -121,11 +121,11 @@ export async function sendPasswordResetEmail(
 		title: 'Reset your password',
 		greeting: `Hi ${name},`,
 		message:
-			'We received a request to reset your password. Click the button below to choose a new password. If you didn't request this, you can ignore this email.',
+			"We received a request to reset your password. Click the button below to choose a new password. If you didn't request this, you can ignore this email.",
 		ctaText: 'Reset Password',
 		ctaUrl: resetUrl,
 		footer:
-			'For security, this link will expire in 1 hour. If you didn't request a password reset, please ignore this email.'
+			"For security, this link will expire in 1 hour. If you didn't request a password reset, please ignore this email."
 	});
 
 	return await sendEmail(apiKey, {
@@ -152,7 +152,7 @@ export async function sendInvitationEmail(
 	const inviteUrl = `${baseUrl}/accept-invite?token=${token}`;
 
 	const html = buildEmailTemplate({
-		title: 'You've been invited',
+		title: "You've been invited",
 		greeting: `Hi there,`,
 		message: `${inviterName} has invited you to join <strong>${orgName}</strong> on PaveRate. Click below to accept the invitation and get started.`,
 		ctaText: 'Accept Invitation',
