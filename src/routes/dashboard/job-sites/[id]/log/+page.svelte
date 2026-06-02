@@ -5,12 +5,14 @@
 	import GpsStationButton from '$lib/components/GpsStationButton.svelte';
 	import type { RouteWaypoint } from '$lib/services/gpsStation';
 	import TimeInput from '$lib/components/TimeInput.svelte';
-	import { Droplets, FileText, Clock } from 'lucide-svelte';
+	import { Droplets, FileText, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-svelte';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 
 	let { data }: { data: PageData } = $props();
 
-	let currentLog = $state<any>(data.todayLog);
+	let isHistoricalView = $derived(!!data.isHistoricalView);
+	let viewedLog = $derived(data.activeLog ?? data.todayLog);
+	let currentLog = $state<any>(data.activeLog);
 	let entries = $state<any[]>([]);
 	let entrySummary = $state<any>({ total_distance_ft: 0, total_tons: 0, total_loads: 0 });
 	let showEntryForm = $state(false);
@@ -51,15 +53,15 @@
 	});
 
 	$effect(() => {
-		if (data.todayLog) {
-			currentLog = data.todayLog;
+		if (viewedLog) {
+			currentLog = viewedLog;
 			loadLogDetails();
 		}
 	});
 
 	async function loadLogDetails() {
-		if (!currentLog) return;
-		const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}`);
+		if (!viewedLog) return;
+		const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs/${viewedLog.id}`);
 		if (res.ok) {
 			const result = await res.json();
 			entries = result.entries;
@@ -207,8 +209,43 @@
 		return `${ft.toLocaleString()} ft`;
 	}
 
-	// Entry type icon mapping - returns component name
-	// Icons rendered inline in the template
+	function navigateToPrevDay() {
+		if (data.prevLogId) {
+			goto(`/dashboard/job-sites/${data.jobSite.id}/log?date=${data.prevLogId}`);
+		}
+	}
+
+	function navigateToNextDay() {
+		if (data.nextLogId) {
+			goto(`/dashboard/job-sites/${data.jobSite.id}/log?date=${data.nextLogId}`);
+		}
+	}
+
+	function navigateToToday() {
+		goto(`/dashboard/job-sites/${data.jobSite.id}/log`);
+	}
+
+	function formatLogDate(dateString: string): string {
+		const date = new Date(dateString);
+		return date.toLocaleDateString('en-US', {
+			weekday: 'long',
+			year: 'numeric',
+			month: 'long',
+			day: 'numeric'
+		});
+	}
+
+	function getEntryTypeIcon(type: string): string {
+		const icons: Record<string, string> = {
+			paving: '🛣️',
+			milling: '⚙️',
+			tack: '💧',
+			break: '☕',
+			delay: '⏸️',
+			note: '📝'
+		};
+		return icons[type] || '📌';
+	}
 
 	function getEntryTypeColor(type: string): string {
 		const colors: Record<string, string> = {
@@ -286,7 +323,7 @@
 </script>
 
 <svelte:head>
-	<title>Daily Log — {data.jobSite.name} — {config.app.name}</title>
+	<title>Daily Log{isHistoricalView && currentLog ? ` — ${formatLogDate(currentLog.log_date)}` : ''} — {data.jobSite.name} — {config.app.name}</title>
 </svelte:head>
 
 <div class="dashboard">
@@ -320,10 +357,45 @@
 		<span>Daily Log</span>
 	</div>
 
+	{#if data.logs && data.logs.length > 0}
+		<div class="date-nav">
+			<a
+				href={data.prevLogId ? `/dashboard/job-sites/${data.jobSite.id}/log?date=${data.prevLogId}` : '#'}
+				class="date-nav-arrow"
+				class:disabled={!data.prevLogId}
+				aria-label="Previous day"
+			>
+				← Prev
+			</a>
+			<span class="date-nav-current">
+				{formatLogDate(viewedLog?.log_date ?? data.today)}
+			</span>
+			<a
+				href={data.nextLogId ? `/dashboard/job-sites/${data.jobSite.id}/log?date=${data.nextLogId}` : '#'}
+				class="date-nav-arrow"
+				class:disabled={!data.nextLogId}
+				aria-label="Next day"
+			>
+				Next →
+			</a>
+			{#if isHistoricalView}
+				<a href="/dashboard/job-sites/{data.jobSite.id}/log" class="date-nav-today">Today</a>
+			{/if}
+		</div>
+	{/if}
+
+	{#if isHistoricalView}
+		<div class="history-banner">
+			📖 Viewing past log — read only
+		</div>
+	{/if}
+
 	<div class="page-header">
 		<div>
 			<h2 class="page-title">Daily Log</h2>
-			<p class="page-subtitle">{new Date(data.today).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+			<p class="page-subtitle">
+				{isHistoricalView && viewedLog ? formatLogDate(viewedLog.log_date) : new Date(data.today).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+			</p>
 		</div>
 		<a href="/dashboard/job-sites/{data.jobSite.id}/log/history" class="btn-secondary">
 			<svg
@@ -363,7 +435,7 @@
 		</div>
 	{/if}
 
-	{#if !currentLog}
+	{#if !currentLog && !isHistoricalView}
 		<div class="empty-state">
 			<svg
 				width="48"
@@ -386,7 +458,7 @@
 				Start Today's Log
 			</button>
 		</div>
-	{:else}
+	{:else if currentLog}
 		{#if logDraft.current}
 			<div class="draft-banner">
 				<div class="draft-content">
@@ -444,11 +516,11 @@
 			<div class="conditions-grid">
 				<div class="field-compact">
 					<label for="temp">Temp (°F)</label>
-					<input type="number" id="temp" bind:value={currentLog.weather_temp_f} onblur={updateLog} />
+					<input type="number" id="temp" bind:value={currentLog.weather_temp_f} onblur={updateLog} disabled={isHistoricalView} />
 				</div>
 				<div class="field-compact">
 					<label for="conditions">Conditions</label>
-					<select id="conditions" bind:value={currentLog.weather_conditions} onchange={updateLog}>
+					<select id="conditions" bind:value={currentLog.weather_conditions} onchange={updateLog} disabled={isHistoricalView}>
 						<option value={null}>—</option>
 						<option value="clear">Clear</option>
 						<option value="cloudy">Cloudy</option>
@@ -459,19 +531,19 @@
 				</div>
 				<div class="field-compact">
 					<label for="wind">Wind (mph)</label>
-					<input type="number" id="wind" bind:value={currentLog.wind_speed_mph} onblur={updateLog} />
+					<input type="number" id="wind" bind:value={currentLog.wind_speed_mph} onblur={updateLog} disabled={isHistoricalView} />
 				</div>
 				<div class="field-compact">
 					<label for="crew">Crew</label>
-					<input type="number" id="crew" bind:value={currentLog.crew_count} onblur={updateLog} />
+					<input type="number" id="crew" bind:value={currentLog.crew_count} onblur={updateLog} disabled={isHistoricalView} />
 				</div>
 				<div class="field-compact">
 					<label for="start">Start</label>
-					<TimeInput bind:value={currentLog.start_time} id="start" onchange={updateLog} />
+					<TimeInput bind:value={currentLog.start_time} id="start" onchange={updateLog} disabled={isHistoricalView} />
 				</div>
 				<div class="field-compact">
 					<label for="end">End</label>
-					<TimeInput bind:value={currentLog.end_time} id="end" onchange={updateLog} />
+					<TimeInput bind:value={currentLog.end_time} id="end" onchange={updateLog} disabled={isHistoricalView} />
 				</div>
 			</div>
 		</section>
@@ -492,13 +564,17 @@
 		<section class="section">
 			<div class="section-header">
 				<h3>Timeline</h3>
-				<button class="btn-primary" onclick={openEntryForm}>+ Add Entry</button>
+				{#if !isHistoricalView}
+					<button class="btn-primary" onclick={openEntryForm}>+ Add Entry</button>
+				{/if}
 			</div>
 
 			{#if entries.length === 0}
 				<div class="empty-state-small">
-					<p>No entries yet. Tap the + button to add your first entry.</p>
-					<button class="btn-primary" style="margin-top: 16px;" onclick={openEntryForm}>+ Add Entry</button>
+					<p>No entries yet.{#if !isHistoricalView} Tap the + button to add your first entry.{/if}</p>
+					{#if !isHistoricalView}
+						<button class="btn-primary" style="margin-top: 16px;" onclick={openEntryForm}>+ Add Entry</button>
+					{/if}
 				</div>
 			{:else}
 				<div class="timeline">
@@ -534,10 +610,12 @@
 								{#if entry.notes}
 									<div class="entry-notes">{entry.notes}</div>
 								{/if}
-								<div class="entry-actions">
-									<button class="btn-icon" onclick={() => editEntry(entry)}>Edit</button>
-									<button class="btn-icon" onclick={() => deleteEntry(entry.id)}>Delete</button>
-								</div>
+								{#if !isHistoricalView}
+									<div class="entry-actions">
+										<button class="btn-icon" onclick={() => editEntry(entry)}>Edit</button>
+										<button class="btn-icon" onclick={() => deleteEntry(entry.id)}>Delete</button>
+									</div>
+								{/if}
 							</div>
 						</div>
 					{/each}
@@ -547,7 +625,7 @@
 	{/if}
 </div>
 
-{#if currentLog && !showEntryForm}
+{#if currentLog && !showEntryForm && !isHistoricalView}
 	<button class="fab" onclick={openEntryForm}>
 		<svg
 			width="24"
@@ -1212,6 +1290,80 @@
 
 	.modal-footer .btn-primary {
 		flex: 2;
+	}
+
+	.date-nav {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 0;
+		margin-bottom: 12px;
+		flex-wrap: wrap;
+	}
+
+	.date-nav-arrow {
+		min-height: 48px;
+		min-width: 56px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--accent);
+		font-weight: 600;
+		cursor: pointer;
+		text-decoration: none;
+		font-size: 0.9rem;
+		padding: 0 12px;
+		transition: background 0.2s;
+	}
+
+	.date-nav-arrow:hover {
+		background: var(--surface-alt);
+	}
+
+	.date-nav-arrow.disabled {
+		opacity: 0.35;
+		pointer-events: none;
+	}
+
+	.date-nav-current {
+		flex: 1;
+		text-align: center;
+		font-weight: 600;
+		font-size: 0.95rem;
+		min-width: 120px;
+	}
+
+	.date-nav-today {
+		min-height: 48px;
+		display: inline-flex;
+		align-items: center;
+		padding: 0 16px;
+		background: var(--accent);
+		color: var(--accent-text);
+		border-radius: var(--radius);
+		font-weight: 600;
+		font-size: 0.9rem;
+		cursor: pointer;
+		text-decoration: none;
+		transition: opacity 0.2s;
+	}
+
+	.date-nav-today:hover {
+		opacity: 0.9;
+	}
+
+	.history-banner {
+		background: rgba(245, 158, 11, 0.12);
+		color: #f59e0b;
+		border: 1px solid rgba(245, 158, 11, 0.3);
+		border-radius: var(--radius);
+		padding: 12px 16px;
+		margin-bottom: 16px;
+		font-size: 0.9rem;
+		font-weight: 600;
 	}
 
 	@media (min-width: 768px) {
