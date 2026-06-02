@@ -11,18 +11,18 @@
 
 	let { data } = $props();
 
-	const canEdit = $derived(data.settings.role === 'owner' || data.settings.role === 'admin');
+	const canEdit = $derived(data.settings?.role === 'owner' || data.settings?.role === 'admin');
 	const machines = config.machines;
 	const tackApplications = config.tack.field;
 	const courseTypes = config.spreadTolerance;
 
-	const ov: OrgOverrides = data.settings.overrides ?? {};
+	const ov: OrgOverrides = data.settings?.overrides ?? {};
 
 	// --- Organization identity / branding ---
-	let orgName = $state(data.settings.org?.name ?? '');
-	let accentColor = $state(data.settings.accentColor ?? config.theme.dark.accent);
-	let useCustomAccent = $state(!!data.settings.accentColor);
-	let hasLogo = $state(!!data.settings.hasLogo);
+	let orgName = $state(data.settings?.org?.name ?? '');
+	let accentColor = $state(data.settings?.accentColor ?? config.theme.dark.accent);
+	let useCustomAccent = $state(!!data.settings?.accentColor);
+	let hasLogo = $state(!!data.settings?.hasLogo);
 	let logoFile = $state<File | null>(null);
 	let logoPreview = $state<string | null>(null);
 
@@ -189,10 +189,18 @@
 	<header class="page-header">
 		<div>
 			<h2 class="page-title">Organization Settings</h2>
-			<p class="page-subtitle">{orgName || data.settings.org?.name}</p>
+			<p class="page-subtitle">{orgName || data.settings?.org?.name}</p>
 		</div>
 		<a href="/dashboard" class="ghost-btn">Back to Dashboard</a>
 	</header>
+
+	{#if data.error}
+		<div class="card error-card">
+			<h3>Unable to load settings</h3>
+			<p class="card-desc">{data.errorMessage}</p>
+			<a href="/dashboard" class="ghost-btn">Back to Dashboard</a>
+		</div>
+	{:else}
 
 	{#if !canEdit}
 		<div class="notice">You have view-only access. Ask an owner or admin to change settings.</div>
@@ -369,6 +377,8 @@
 			</button>
 		</div>
 	{/if}
+
+	{/if}
 </div>
 
 <style>
@@ -415,6 +425,14 @@
 		border-radius: var(--radius);
 		padding: 20px;
 		margin-bottom: 16px;
+	}
+
+	.error-card {
+		border-left: 3px solid var(--bad);
+	}
+	.error-card h3 {
+		color: var(--bad);
+		margin: 0 0 4px;
 	}
 
 	.card h3 {
