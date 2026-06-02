@@ -153,6 +153,7 @@ export interface ThemeTokens {
 export interface ThemeSet {
 	dark: ThemeTokens;
 	light: ThemeTokens;
+	sunlight: ThemeTokens;
 }
 
 export interface RefTable2Row {

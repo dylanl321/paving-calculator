@@ -146,6 +146,10 @@
 	color-scheme: light;
 }
 
+:root[data-theme='sunlight'] {
+	color-scheme: light;
+}
+
 * {
 	box-sizing: border-box;
 }
