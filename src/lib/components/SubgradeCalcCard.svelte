@@ -115,6 +115,7 @@
 		<code
 			>Truck Loads = Tons / 18 (assumes 18-ton truck) = {result ? result.truckLoads.toFixed(2) : '—'} loads</code
 		>
+		<p>Material densities per GDOT §207 Embankment and §310 Aggregate Base Course. Truck load assumes 18-ton (field standard); adjust for your actual fleet.</p>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>

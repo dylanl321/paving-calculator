@@ -103,6 +103,7 @@
 		{#if wasteFactor > 0}
 			<p>Waste factor of {wasteFactor}% applied to all results.</p>
 		{/if}
+		<p>Concrete volume calculation uses GDOT §500 Portland Cement Concrete Pavement (PCCP) methods. Standard mix design per §830 (portland cement, 94 lb/bag standard bag weight).</p>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>
