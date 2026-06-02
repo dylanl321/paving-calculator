@@ -5,6 +5,7 @@
 	import { searchPlaces, type GeoResult } from '$lib/services/weather';
 	import type { PageData } from './$types';
 	import { MapPin } from 'lucide-svelte';
+	import LoadTracker from '$lib/components/LoadTracker.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -897,6 +898,8 @@
 				{/if}
 			{/if}
 		</section>
+
+		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
 
 		<section class="panel">
 			<div class="panel-head">
