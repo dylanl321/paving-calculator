@@ -111,6 +111,14 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('spread-rate'));
+
+	// Display conversions (imperial result -> metric display)
+	const displayTargetRate = $derived(
+		targetRate != null && unitsStore.system === 'metric' ? toKgPerM2(targetRate) : targetRate
+	);
+	const displayPlacedRate = $derived(
+		placedRate != null && unitsStore.system === 'metric' ? toKgPerM2(placedRate) : placedRate
+	);
 </script>
 
 <CalcCard
@@ -121,20 +129,16 @@
 	<div class="two-up">
 		<div class="col">
 			<div class="col-head">Target (from job thickness)</div>
-			<NumberField
-				label="Custom target (optional)"
-				unit={UNIT_LABELS.lbsSy[unitsStore.system]}
-				bind:value={customTargetRateInput}
-			/>
-			{@const displayTargetRate =
-				targetRate != null && unitsStore.system === 'metric'
-					? toKgPerM2(targetRate)
-					: targetRate}
-			<ResultStat
-				value={displayTargetRate != null ? Math.round(displayTargetRate) : null}
-				unit={UNIT_LABELS.lbsSy[unitsStore.system]}
-				badge={targetBadge}
-			/>
+		<NumberField
+			label="Custom target (optional)"
+			unit={UNIT_LABELS.lbsSy[unitsStore.system]}
+			bind:value={customTargetRateInput}
+		/>
+		<ResultStat
+			value={displayTargetRate != null ? Math.round(displayTargetRate) : null}
+			unit={UNIT_LABELS.lbsSy[unitsStore.system]}
+			badge={targetBadge}
+		/>
 			<p class="col-note">
 				{#if customTargetRate != null && customTargetRate > 0}
 					Using custom target. Clear to use thickness-based rate.
@@ -156,10 +160,6 @@
 				unit={UNIT_LABELS.ft[unitsStore.system]}
 				bind:value={distanceInput}
 			/>
-			{@const displayPlacedRate =
-				placedRate != null && unitsStore.system === 'metric'
-					? toKgPerM2(placedRate)
-					: placedRate}
 			<ResultStat
 				value={displayPlacedRate != null ? Math.round(displayPlacedRate) : null}
 				unit={UNIT_LABELS.lbsSy[unitsStore.system]}

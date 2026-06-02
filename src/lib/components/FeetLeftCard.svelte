@@ -69,6 +69,10 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('feet-left'));
+
+	const displayFeet = $derived(
+		feet != null && unitsStore.system === 'metric' ? toMeters(feet) : feet
+	);
 </script>
 
 <CalcCard
@@ -95,8 +99,6 @@
 		hint="For progress tracking"
 	/>
 
-	{@const displayFeet =
-		feet != null && unitsStore.system === 'metric' ? toMeters(feet) : feet}
 	<ResultStat
 		value={displayFeet != null ? Math.round(displayFeet).toLocaleString() : null}
 		unit={`${UNIT_LABELS.ft[unitsStore.system]} left today`}

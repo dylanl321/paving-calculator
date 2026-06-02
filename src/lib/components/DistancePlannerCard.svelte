@@ -73,6 +73,27 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('distance-planner'));
+
+	const displayAvailableDistance = $derived(
+		availableDistance != null && unitsStore.system === 'metric'
+			? toMeters(availableDistance)
+			: availableDistance
+	);
+	const displayAvailableTons = $derived(
+		availableTons != null && unitsStore.system === 'metric'
+			? toMetricTonnes(availableTons)
+			: availableTons
+	);
+	const displayTonnageNeeded = $derived(
+		tonnageNeeded != null && unitsStore.system === 'metric'
+			? toMetricTonnes(tonnageNeeded)
+			: tonnageNeeded
+	);
+	const displayDesiredDistance = $derived(
+		desiredDistanceFt != null && unitsStore.system === 'metric'
+			? toMeters(desiredDistanceFt)
+			: desiredDistanceFt
+	);
 </script>
 
 <CalcCard
@@ -91,14 +112,6 @@
 		bind:value={tonsInTrucksInput}
 	/>
 
-	{@const displayAvailableDistance =
-		availableDistance != null && unitsStore.system === 'metric'
-			? toMeters(availableDistance)
-			: availableDistance}
-	{@const displayAvailableTons =
-		availableTons != null && unitsStore.system === 'metric'
-			? toMetricTonnes(availableTons)
-			: availableTons}
 	<ResultStat
 		value={
 			displayAvailableDistance != null
@@ -119,14 +132,6 @@
 		bind:value={desiredDistanceInput}
 	/>
 
-	{@const displayTonnageNeeded =
-		tonnageNeeded != null && unitsStore.system === 'metric'
-			? toMetricTonnes(tonnageNeeded)
-			: tonnageNeeded}
-	{@const displayDesiredDistance =
-		desiredDistanceFt != null && unitsStore.system === 'metric'
-			? toMeters(desiredDistanceFt)
-			: desiredDistanceFt}
 	<ResultStat
 		value={
 			displayTonnageNeeded != null

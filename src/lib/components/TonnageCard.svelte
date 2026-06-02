@@ -55,6 +55,10 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('tonnage'));
+
+	const displayTons = $derived(
+		tons != null && unitsStore.system === 'metric' ? toMetricTonnes(tons) : tons
+	);
 </script>
 
 <CalcCard
@@ -68,8 +72,6 @@
 		bind:value={lengthInput}
 	/>
 
-	{@const displayTons =
-		tons != null && unitsStore.system === 'metric' ? toMetricTonnes(tons) : tons}
 	<ResultStat
 		value={displayTons != null ? Math.round(displayTons).toLocaleString() : null}
 		unit={`${UNIT_LABELS.tons[unitsStore.system]} to order`}
