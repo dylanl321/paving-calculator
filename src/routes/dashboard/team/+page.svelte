@@ -34,6 +34,7 @@
 	let showInviteModal = $state(false);
 	let inviteForm = $state({ email: '', role: 'member' });
 	let inviting = $state(false);
+	let resending = $state(false);
 	let currentUserId = $state<string | null>(null);
 	let currentUserRole = $state<string | null>(null);
 	let searchQuery = $state('');
@@ -234,13 +235,38 @@
 
 			if (!res.ok) {
 				const data = await res.json();
-				alert(data.error || 'Failed to revoke invitation');
+				toastStore.error(data.error || 'Failed to revoke invitation');
 				return;
 			}
 
 			await loadTeam();
+			toastStore.success('Invitation revoked successfully');
 		} catch (e) {
-			alert('Failed to revoke invitation');
+			toastStore.error('Failed to revoke invitation');
+		}
+	}
+
+	async function resendInvitation(invite: Invitation) {
+		if (resending) return;
+
+		resending = true;
+		try {
+			const res = await fetch(`/api/org/invite/${invite.id}`, {
+				method: 'POST'
+			});
+
+			if (!res.ok) {
+				const data = await res.json();
+				toastStore.error(data.error || 'Failed to resend invitation');
+				return;
+			}
+
+			await loadTeam();
+			toastStore.success('Invitation resent successfully');
+		} catch (e) {
+			toastStore.error('Failed to resend invitation');
+		} finally {
+			resending = false;
 		}
 	}
 
@@ -457,8 +483,15 @@
 								</div>
 							</div>
 							<div class="card-actions">
+								<button
+									class="btn-secondary"
+									onclick={() => resendInvitation(invite)}
+									disabled={resending}
+								>
+									{resending ? 'Resending...' : 'Resend'}
+								</button>
 								<button class="btn-danger" onclick={() => revokeInvitation(invite)}>
-									Revoke Invitation
+									Revoke
 								</button>
 							</div>
 						</div>
@@ -947,11 +980,43 @@
 
 	.card-actions {
 		display: flex;
+		gap: var(--sp-2);
 		justify-content: flex-end;
 	}
 
+	.card-actions button {
+		padding: var(--sp-2) var(--sp-4);
+		min-height: var(--touch);
+		border: none;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
+		flex: 1;
+	}
+
+	.card-actions button:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.card-actions .btn-secondary {
+		background: var(--surface-alt);
+		color: var(--text);
+		border: 1px solid var(--border);
+	}
+
+	.card-actions .btn-secondary:hover:not(:disabled) {
+		background: var(--surface);
+	}
+
 	.card-actions .btn-danger {
-		width: 100%;
+		background: var(--bad);
+		color: white;
+	}
+
+	.card-actions .btn-danger:hover:not(:disabled) {
+		opacity: 0.9;
 	}
 
 	/* Modal styles */

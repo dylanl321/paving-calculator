@@ -746,6 +746,13 @@ export class DbHelper {
 			.first<DbInvitation>();
 	}
 
+	async getInvitationById(id: string): Promise<DbInvitation | null> {
+		return await this.db
+			.prepare('SELECT * FROM invitations WHERE id = ?')
+			.bind(id)
+			.first<DbInvitation>();
+	}
+
 	async acceptInvitation(token: string): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		await this.db
