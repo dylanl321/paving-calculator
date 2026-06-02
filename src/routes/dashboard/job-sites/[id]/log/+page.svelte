@@ -9,6 +9,8 @@
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import ComplianceGauge from '$lib/components/ComplianceGauge.svelte';
 	import NuclearGaugeLog from '$lib/components/NuclearGaugeLog.svelte';
+	import StationProgressLogger from '$lib/components/StationProgressLogger.svelte';
+	import CloseOutModal from '$lib/components/CloseOutModal.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -19,6 +21,7 @@
 	let entrySummary = $state<any>({ total_distance_ft: 0, total_tons: 0, total_loads: 0 });
 	let showEntryForm = $state(false);
 	let editingEntry = $state<any>(null);
+	let showCloseOut = $state(false);
 
 	// Route waypoints for GPS station detection
 	let routeWaypoints = $state<RouteWaypoint[]>([]);
@@ -412,6 +415,23 @@
 			}
 		);
 	}
+
+	function formatClosedDate(timestamp: number): string {
+		const date = new Date(timestamp * 1000);
+		return date.toLocaleString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit',
+			hour12: true
+		});
+	}
+
+	async function handleCloseOutComplete() {
+		await loadLogDetails();
+		await invalidateAll();
+	}
 </script>
 
 <svelte:head>
@@ -482,6 +502,30 @@
 		</div>
 	{/if}
 
+	{#if currentLog?.closed_at}
+		<div class="closed-banner">
+			<div class="closed-content">
+				<svg
+					width="20"
+					height="20"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+					<path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+				</svg>
+				<div>
+					<strong>Day Closed — {currentLog.foreman_name}</strong>
+					<p>{formatClosedDate(currentLog.closed_at)}</p>
+				</div>
+			</div>
+		</div>
+	{/if}
+
 	<div class="page-header">
 		<div>
 			<h2 class="page-title">Daily Log</h2>
@@ -491,6 +535,24 @@
 		</div>
 		<div style="display: flex; gap: 8px; flex-wrap: wrap;">
 			{#if currentLog}
+				{#if !currentLog.closed_at && !isHistoricalView}
+					<button class="btn-primary" onclick={() => (showCloseOut = true)}>
+						<svg
+							width="18"
+							height="18"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<path d="M9 11l3 3L22 4"></path>
+							<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+						</svg>
+						Close Out Day
+					</button>
+				{/if}
 				<button class="btn-secondary" onclick={exportDailyPDF}>
 					<svg
 						width="18"
@@ -685,6 +747,15 @@
 				jobSiteId={data.jobSite.id}
 				targetDensityPcf={(data.siteConfig as any)?.config?.target_density_pcf ?? null}
 				targetThicknessIn={(data.siteConfig as any)?.config?.target_thickness_in ?? null}
+			/>
+		{/if}
+
+		{#if currentLog && !isHistoricalView}
+			<StationProgressLogger
+				jobSiteId={data.jobSite.id}
+				logId={currentLog.id}
+				waypoints={routeWaypoints}
+				onLogged={loadLogDetails}
 			/>
 		{/if}
 
@@ -887,6 +958,20 @@
 			</div>
 		</div>
 	</div>
+{/if}
+
+{#if showCloseOut && currentLog}
+	<CloseOutModal
+		jobSiteId={data.jobSite.id}
+		logId={currentLog.id}
+		currentLog={currentLog}
+		entries={entries}
+		entrySummary={entrySummary}
+		siteConfig={data.siteConfig}
+		siteName={data.jobSite.name}
+		onClose={() => (showCloseOut = false)}
+		onComplete={handleCloseOutComplete}
+	/>
 {/if}
 
 <style>
@@ -1491,6 +1576,37 @@
 		margin-bottom: 16px;
 		font-size: 0.9rem;
 		font-weight: 600;
+	}
+
+	.closed-banner {
+		background: rgba(16, 185, 129, 0.12);
+		border: 1px solid rgba(16, 185, 129, 0.3);
+		border-radius: var(--radius);
+		padding: 16px;
+		margin-bottom: 16px;
+	}
+
+	.closed-content {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		color: var(--good, #10b981);
+	}
+
+	.closed-content svg {
+		flex-shrink: 0;
+	}
+
+	.closed-content strong {
+		display: block;
+		font-size: 0.95rem;
+		margin-bottom: 4px;
+	}
+
+	.closed-content p {
+		margin: 0;
+		font-size: 0.85rem;
+		opacity: 0.8;
 	}
 
 	@media (min-width: 768px) {

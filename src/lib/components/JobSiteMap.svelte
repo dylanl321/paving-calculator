@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { browser } from '$app/environment';
+	import L from 'leaflet';
+	import 'leaflet/dist/leaflet.css';
 
 	interface SitePin {
 		id: string;
@@ -18,7 +21,7 @@
 	let { sites, height = '320px' }: Props = $props();
 
 	let mapEl: HTMLDivElement;
-	let mapInstance: any = null;
+	let mapInstance: L.Map | null = null;
 
 	const STATUS_COLORS: Record<string, string> = {
 		active: '#22c55e',
@@ -28,29 +31,8 @@
 
 	const pinned = $derived(sites.filter((s) => s.latitude != null && s.longitude != null));
 
-	async function initMap() {
-		if (!mapEl || pinned.length === 0) return;
-
-		// Load Leaflet CSS
-		if (!document.querySelector('link[href*="leaflet"]')) {
-			const link = document.createElement('link');
-			link.rel = 'stylesheet';
-			link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-			document.head.appendChild(link);
-		}
-
-		// Load Leaflet JS
-		if (!(window as any).L) {
-			await new Promise<void>((resolve, reject) => {
-				const script = document.createElement('script');
-				script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-				script.onload = () => resolve();
-				script.onerror = () => reject(new Error('Failed to load Leaflet'));
-				document.head.appendChild(script);
-			});
-		}
-
-		const L = (window as any).L;
+	function initMap() {
+		if (!browser || !mapEl || pinned.length === 0) return;
 
 		// Destroy any existing instance
 		if (mapInstance) {
@@ -110,7 +92,7 @@
 	}
 
 	onMount(() => {
-		if (pinned.length > 0) {
+		if (browser && pinned.length > 0) {
 			initMap();
 		}
 	});
