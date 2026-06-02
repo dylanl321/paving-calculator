@@ -5,6 +5,8 @@
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import UserMenu from '$lib/components/UserMenu.svelte';
+	import { fade } from 'svelte/transition';
+	import { Menu, Calculator, BookOpen, LayoutDashboard, Clock } from 'lucide-svelte';
 
 	let drawerOpen = $state(false);
 
@@ -20,16 +22,25 @@
 		label: string;
 		icon: string;
 		authed?: boolean;
+		adminOnly?: boolean;
 	}
 
 	const navItems: NavItem[] = [
 		{ href: '/app', label: 'Calculators', icon: 'calc' },
 		{ href: '/reference', label: 'Reference', icon: 'book' },
-		{ href: '/dashboard', label: 'Dashboard', icon: 'layout', authed: true }
+		{ href: '/dashboard', label: 'Dashboard', icon: 'layout', authed: true },
+		{ href: '/dashboard/activity', label: 'Activity', icon: 'clock', authed: true, adminOnly: true }
 	];
 
 	const visibleItems = $derived(
-		navItems.filter((item) => !item.authed || authStore.isAuthenticated)
+		navItems.filter((item) => {
+			if (item.authed && !authStore.isAuthenticated) return false;
+			if (item.adminOnly) {
+				const role = authStore.user?.role;
+				return role === 'admin' || role === 'owner';
+			}
+			return true;
+		})
 	);
 
 	const currentPath = $derived($page.url.pathname);
@@ -43,11 +54,7 @@
 <!-- Mobile top bar (hidden on tablet+) -->
 <header class="mobile-bar">
 	<button class="hamburger" onclick={() => (drawerOpen = true)} aria-label="Open navigation">
-		<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-			<line x1="3" y1="6" x2="21" y2="6"></line>
-			<line x1="3" y1="12" x2="21" y2="12"></line>
-			<line x1="3" y1="18" x2="21" y2="18"></line>
-		</svg>
+		<Menu size={24} aria-hidden="true" />
 	</button>
 	<a href="/app" class="mobile-brand">
 		<img src={brandLogo} alt="" />
@@ -61,7 +68,12 @@
 
 <!-- Drawer scrim (mobile) -->
 {#if drawerOpen}
-	<button class="scrim" onclick={closeDrawer} aria-label="Close navigation"></button>
+	<button
+		class="scrim"
+		onclick={closeDrawer}
+		aria-label="Close navigation"
+		transition:fade={{ duration: 280 }}
+	></button>
 {/if}
 
 <!-- Sidebar / drawer -->
@@ -86,13 +98,13 @@
 				>
 					<span class="nav-icon" aria-hidden="true">
 						{#if item.icon === 'calc'}
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"></rect><line x1="8" y1="6" x2="16" y2="6"></line><line x1="8" y1="10" x2="8" y2="10"></line><line x1="12" y1="10" x2="12" y2="10"></line><line x1="16" y1="10" x2="16" y2="10"></line><line x1="8" y1="14" x2="8" y2="14"></line><line x1="12" y1="14" x2="12" y2="14"></line><line x1="16" y1="14" x2="16" y2="18"></line><line x1="8" y1="18" x2="12" y2="18"></line></svg>
-						{:else if item.icon === 'grid'}
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+							<Calculator size={22} />
 						{:else if item.icon === 'book'}
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+							<BookOpen size={22} />
 						{:else if item.icon === 'layout'}
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
+							<LayoutDashboard size={22} />
+						{:else if item.icon === 'clock'}
+							<Clock size={22} />
 						{/if}
 					</span>
 					<span class="nav-label">{item.label}</span>
@@ -140,6 +152,19 @@
 		color: var(--text);
 		cursor: pointer;
 		border-radius: 10px;
+		transition:
+			background var(--dur-normal) var(--ease),
+			transform var(--dur-fast) var(--ease);
+	}
+
+	.hamburger:hover {
+		background: var(--surface-hover);
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.hamburger:active {
+			transform: scale(0.95);
+		}
 	}
 
 	.mobile-brand {
@@ -186,7 +211,7 @@
 		display: flex;
 		flex-direction: column;
 		transform: translateX(-100%);
-		transition: transform 0.22s ease;
+		transition: transform var(--dur-slow) var(--ease);
 		z-index: 40;
 	}
 
@@ -247,7 +272,16 @@
 		color: var(--text-muted);
 		font-weight: 600;
 		font-size: 0.95rem;
-		transition: background 0.15s, color 0.15s;
+		transition:
+			background var(--dur-normal) var(--ease),
+			color var(--dur-normal) var(--ease),
+			transform var(--dur-fast) var(--ease);
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.nav-link:active {
+			transform: scale(0.98);
+		}
 	}
 
 	.nav-link:hover {
@@ -295,7 +329,7 @@
 		font-weight: 600;
 		letter-spacing: 0.2px;
 		text-decoration: none;
-		transition: color 0.15s;
+		transition: color var(--dur-normal) var(--ease);
 	}
 
 	.powered-by:hover {

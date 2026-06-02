@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { Camera } from 'lucide-svelte';
 
 	interface Props {
 		jobSiteId: string;

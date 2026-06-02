@@ -3,8 +3,9 @@
 	import { weather } from '$lib/stores/weather.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
-	import { fetchJobSites, pushTodayToCloud, type JobSiteOption } from '$lib/services/todaySync';
+	import { fetchJobSites, pushTodayToCloud, pullFromCloud, type JobSiteOption } from '$lib/services/todaySync';
 	import TodaySummary from './TodaySummary.svelte';
+	import TimeInput from '$lib/components/TimeInput.svelte';
 
 	const entries = $derived(today.entries);
 
@@ -14,6 +15,9 @@
 	let syncing = $state(false);
 	let syncMsg = $state<string | null>(null);
 	let syncErr = $state<string | null>(null);
+	let pulling = $state(false);
+	let pullMsg = $state<string | null>(null);
+	let pullErr = $state<string | null>(null);
 
 	$effect(() => {
 		if (authStore.isAuthenticated && jobSites.length === 0) {
@@ -47,6 +51,27 @@
 			syncErr = e instanceof Error ? e.message : 'Sync failed';
 		} finally {
 			syncing = false;
+		}
+	}
+
+	async function pullNow() {
+		if (!selectedSiteId) {
+			pullErr = 'Pick a job site first';
+			return;
+		}
+		pulling = true;
+		pullErr = null;
+		pullMsg = null;
+		try {
+			const count = await pullFromCloud(selectedSiteId);
+			pullMsg =
+				count > 0
+					? `Pulled ${count} ${count === 1 ? 'entry' : 'entries'} from cloud`
+					: 'No new entries in the cloud';
+		} catch (e) {
+			pullErr = e instanceof Error ? e.message : 'Pull failed';
+		} finally {
+			pulling = false;
 		}
 	}
 
@@ -182,6 +207,7 @@
 		today.removeEntry(id);
 	}
 
+	// Entry type icons - these are display elements in the timeline, kept as emoji for consistency with weather display patterns
 	const ENTRY_ICON: Record<EntryType, string> = {
 		paving: '🛣️',
 		milling: '🚜',
@@ -313,11 +339,11 @@
 			</label>
 			<label class="f">
 				<span>Start</span>
-				<input type="time" bind:value={today.startTime} />
+				<TimeInput bind:value={today.startTime} />
 			</label>
 			<label class="f">
 				<span>End</span>
-				<input type="time" bind:value={today.endTime} />
+				<TimeInput bind:value={today.endTime} />
 			</label>
 		</div>
 	</section>
@@ -336,12 +362,17 @@
 						{/each}
 					</select>
 				</label>
+				<button class="btn btn-secondary btn-sm" disabled={pulling || !selectedSiteId} onclick={pullNow}>
+					{pulling ? 'Pulling…' : 'Pull from cloud'}
+				</button>
 				<button class="btn btn-primary btn-sm" disabled={syncing || !selectedSiteId} onclick={syncNow}>
 					{syncing ? 'Syncing…' : 'Sync to cloud'}
 				</button>
 			</div>
 			{#if syncMsg}<p class="sync-ok">{syncMsg}</p>{/if}
 			{#if syncErr}<p class="sync-bad">{syncErr}</p>{/if}
+			{#if pullMsg}<p class="sync-ok">{pullMsg}</p>{/if}
+			{#if pullErr}<p class="sync-bad">{pullErr}</p>{/if}
 		</section>
 	{/if}
 
@@ -418,7 +449,7 @@
 			<div class="form-grid">
 				<label class="f">
 					<span>Time</span>
-					<input type="time" bind:value={form.timestamp} />
+					<TimeInput bind:value={form.timestamp} />
 				</label>
 
 				{#if form.entry_type === 'paving' || form.entry_type === 'milling'}
@@ -537,9 +568,6 @@
 	.f textarea {
 		padding: var(--sp-2);
 		min-height: auto;
-	}
-	.f input[type="time"] {
-		min-height: 48px;
 	}
 
 	.crew-field {

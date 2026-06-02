@@ -3,6 +3,7 @@
 	import NumberField from './NumberField.svelte';
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
+	import DotTable from './DotTable.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { feetFromTons, spreadRateFromThickness } from '$lib/config/formulas';
 	import { constant } from '$lib/config';
@@ -158,33 +159,17 @@
 		<p>Tonnage needed reverses it:</p>
 		<code>tons = desired feet × width × rate ÷ (2000 × 9)</code>
 		<p>Uses job width ({job.widthFt} ft) and target rate ({Math.round(rate)} lbs/SY).</p>
+		<p>Spread rate derived from GDOT §400 Table 12 tolerance bands. See Table 12 for course-type tolerances.</p>
+		<DotTable tableId="table-12" />
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>
 </CalcCard>
 
 <style>
-	.btn-clear {
-		width: 100%;
-		min-height: 3rem;
-		padding: 0.75rem;
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text-muted);
-		font-size: 0.9rem;
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-	.btn-clear:hover {
-		background: var(--surface-alt);
-		color: var(--text);
-	}
-
-
 	.divider {
 		height: 1px;
 		background: var(--border);
-		margin: 20px 0;
+		margin: var(--sp-5) 0;
 	}
 </style>

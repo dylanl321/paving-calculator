@@ -1,14 +1,16 @@
-// Theme preference store for light/dark mode toggle.
+// Theme preference store for light/dark/sunlight mode toggle.
 // Persisted to localStorage so the user's choice is remembered.
-const STORAGE_KEY = 'paverate.theme.v1';
+const STORAGE_KEY = 'paverate.theme.v2';
 
-type ThemeMode = 'dark' | 'light';
+type ThemeMode = 'dark' | 'light' | 'sunlight';
 
 function loadTheme(): ThemeMode {
 	if (typeof localStorage === 'undefined') return 'dark';
 	try {
 		const saved = localStorage.getItem(STORAGE_KEY);
-		return saved === 'light' ? 'light' : 'dark';
+		if (saved === 'light') return 'light';
+		if (saved === 'sunlight') return 'sunlight';
+		return 'dark';
 	} catch {
 		return 'dark';
 	}
@@ -33,7 +35,13 @@ class Theme {
 	}
 
 	toggle() {
-		this.mode = this.#mode === 'dark' ? 'light' : 'dark';
+		if (this.#mode === 'dark') {
+			this.mode = 'light';
+		} else if (this.#mode === 'light') {
+			this.mode = 'sunlight';
+		} else {
+			this.mode = 'dark';
+		}
 	}
 
 	#save() {

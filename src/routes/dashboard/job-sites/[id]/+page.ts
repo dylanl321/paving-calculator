@@ -20,12 +20,13 @@ export const load: PageLoad = async ({ params, fetch }) => {
 
 		const siteData = await siteRes.json();
 
-		const [calcRes, configRes, equipmentRes, assignmentsRes, routeRes] = await Promise.all([
+		const [calcRes, configRes, equipmentRes, assignmentsRes, routeRes, milestonesRes] = await Promise.all([
 			fetch(`/api/calculations?job_site_id=${params.id}`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/config`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/equipment`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/assignments`, { credentials: 'include' }),
-			fetch(`/api/job-sites/${params.id}/route`, { credentials: 'include' })
+			fetch(`/api/job-sites/${params.id}/route`, { credentials: 'include' }),
+			fetch(`/api/job-sites/${params.id}/milestones`, { credentials: 'include' })
 		]);
 
 		if (!calcRes.ok) {
@@ -37,6 +38,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 		const equipmentData = equipmentRes.ok ? await equipmentRes.json() : { equipment: [] };
 		const assignmentsData = assignmentsRes.ok ? await assignmentsRes.json() : { assignments: [] };
 		const routeData = routeRes.ok ? await routeRes.json() : { waypoints: [] };
+		const milestonesData = milestonesRes.ok ? await milestonesRes.json() : { milestones: [] };
 
 		return {
 			user: authData.user,
@@ -46,7 +48,8 @@ export const load: PageLoad = async ({ params, fetch }) => {
 			config: configData.config,
 			equipment: equipmentData.equipment || [],
 			assignments: assignmentsData.assignments || [],
-			routeWaypoints: routeData.waypoints || []
+			routeWaypoints: routeData.waypoints || [],
+			milestones: milestonesData.milestones || []
 		};
 	} catch (err) {
 		// Re-throw SvelteKit errors/redirects; do not swallow real load failures

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { LineChart } from 'layerchart';
-	import { onMount } from 'svelte';
+	import ChartMount from '$lib/components/charts/ChartMount.svelte';
 	import { feetFromLoads } from '$lib/config/formulas';
 
 	let {
@@ -8,11 +8,6 @@
 		rateLbsSy = 0,
 		tonsPerLoad = 18.5
 	}: { widthFt?: number; rateLbsSy?: number; tonsPerLoad?: number } = $props();
-
-	let mounted = $state(false);
-	onMount(() => {
-		mounted = true;
-	});
 
 	// Feet of road remaining for each count of loads still on the way, at the
 	// current width + spread rate. Pure function of the live job settings.
@@ -27,13 +22,15 @@
 </script>
 
 <div class="chart">
-	{#if mounted && rateLbsSy > 0}
-		<LineChart
-			{data}
-			x="loads"
-			y="feet"
-			padding={{ left: 52, bottom: 28, top: 8, right: 8 }}
-		/>
+	{#if rateLbsSy > 0}
+		<ChartMount>
+			<LineChart
+				{data}
+				x="loads"
+				y="feet"
+				padding={{ left: 52, bottom: 28, top: 8, right: 8 }}
+			/>
+		</ChartMount>
 	{:else}
 		<p class="empty">Set a target thickness to see the distance curve.</p>
 	{/if}

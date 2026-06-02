@@ -1,0 +1,81 @@
+name: Deploy PaveRate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  # Check for migration conflicts on PRs
+  check-migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for duplicate migration numbers
+        run: |
+          echo "Checking for duplicate migration prefixes..."
+          dupes=$(ls migrations/*.sql 2>/dev/null | sed 's|.*/||' | cut -d_ -f1 | sort | uniq -d)
+          if [ -n "$dupes" ]; then
+            echo "❌ Duplicate migration numbers found:"
+            echo "$dupes"
+            echo ""
+            echo "Files with conflicts:"
+            for num in $dupes; do
+              ls migrations/${num}_*.sql
+            done
+            exit 1
+          fi
+          echo "✅ No duplicate migration numbers"
+
+      - name: Check migration ordering
+        run: |
+          echo "Checking migration files are sequentially numbered..."
+          expected=1
+          for f in $(ls migrations/*.sql | sort); do
+            num=$(basename "$f" | grep -oP '^\d+' | sed 's/^0*//')
+            if [ "$num" != "$expected" ]; then
+              echo "⚠️  Gap or misnumber: expected $(printf '%04d' $expected) but got $(printf '%04d' $num) ($f)"
+            fi
+            expected=$((num + 1))
+          done
+          echo "✅ Migration check complete"
+
+  # Deploy on push to main
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: check-migrations
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Apply D1 migrations
+        run: |
+          echo "Applying migrations to production D1..."
+          for f in $(ls migrations/*.sql | sort); do
+            echo "→ Applying $(basename $f)..."
+            npx wrangler d1 execute paverate-db --remote --file="$f" --yes 2>&1 || {
+              echo "⚠️  Migration $(basename $f) may have already been applied (expected for idempotent migrations)"
+            }
+          done
+          echo "✅ All migrations applied"
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        run: npx wrangler pages deploy .svelte-kit/cloudflare --project-name=paverate

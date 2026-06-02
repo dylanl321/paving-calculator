@@ -379,8 +379,8 @@
 	}
 
 	.gps-hint.acquired {
-		color: #22c55e;
-		background: color-mix(in srgb, #22c55e 8%, transparent);
+		color: var(--good);
+		background: color-mix(in srgb, var(--good) 8%, transparent);
 	}
 
 	.gps-hint.denied {
@@ -453,13 +453,13 @@
 	}
 
 	.status-card.done {
-		border-color: #22c55e;
-		color: #22c55e;
+		border-color: var(--good);
+		color: var(--good);
 	}
 
 	.status-card.error {
-		border-color: #f59e0b;
-		color: #f59e0b;
+		border-color: var(--warn);
+		color: var(--warn);
 	}
 
 	@keyframes spin {

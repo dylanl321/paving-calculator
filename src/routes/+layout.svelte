@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
+	import { onNavigate } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { config } from '$lib/config';
 	import { themeStore } from '$lib/stores/theme.svelte';
@@ -62,6 +63,22 @@
 		// Apply theme tokens globally so background + scrollbars match.
 		document.documentElement.setAttribute('style', themeStyle);
 		document.documentElement.setAttribute('data-theme', themeStore.mode);
+	});
+
+	// Landing/auth pages and the app shell share this layout. SvelteKit can leave
+	// window.scrollY from a long marketing page when opening /app, which hides the
+	// mobile header and tool picker below the fold.
+	onNavigate((navigation) => {
+		const from = navigation.from?.url;
+		const to = navigation.to?.url;
+		if (!to) return;
+
+		if (from?.pathname === to.pathname) return;
+
+		return async () => {
+			await tick();
+			window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+		};
 	});
 
 	onMount(async () => {

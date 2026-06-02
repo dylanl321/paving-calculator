@@ -10,7 +10,7 @@
 	let { title, purpose, hideTitle = false, children }: Props = $props();
 </script>
 
-<section class="calc-card">
+<section class="calc-card calc-card-animate">
 	<header class="calc-head">
 		{#if !hideTitle}<h2>{title}</h2>{/if}
 		<p class="purpose">{purpose}</p>
