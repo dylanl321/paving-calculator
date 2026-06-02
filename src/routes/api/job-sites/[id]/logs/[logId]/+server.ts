@@ -29,8 +29,9 @@ export const GET: RequestHandler = async ({ params, locals, platform }) => {
 
 	const entries = await logDb.getLogEntries(params.logId);
 	const summary = await logDb.getLogSummary(params.logId);
+	const densityReadings = await logDb.getDensityReadings(params.logId);
 
-	return json({ log, entries, summary });
+	return json({ log, entries, summary, densityReadings });
 };
 
 export const PATCH: RequestHandler = async ({ params, locals, platform, request }) => {
