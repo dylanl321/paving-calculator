@@ -175,6 +175,19 @@ export interface DbNotificationPref {
 	updated_at: number;
 }
 
+export interface DbMilestone {
+	id: string;
+	job_site_id: string;
+	name: string;
+	description: string | null;
+	status: 'pending' | 'in_progress' | 'completed';
+	target_date: string | null;
+	completed_at: number | null;
+	sort_order: number;
+	created_at: number;
+	updated_at: number;
+}
+
 export class DbHelper {
 	constructor(private db: D1Database) {}
 
@@ -1224,5 +1237,125 @@ export class DbHelper {
 		);
 
 		await this.db.batch(statements);
+	}
+
+	async getMilestones(jobSiteId: string): Promise<DbMilestone[]> {
+		return await this.db
+			.prepare('SELECT * FROM job_site_milestones WHERE job_site_id = ? ORDER BY sort_order ASC, created_at ASC')
+			.bind(jobSiteId)
+			.all<DbMilestone>()
+			.then((r) => r.results);
+	}
+
+	async createMilestone(
+		jobSiteId: string,
+		data: {
+			name: string;
+			description?: string;
+			status?: 'pending' | 'in_progress' | 'completed';
+			target_date?: string;
+			sort_order?: number;
+		}
+	): Promise<DbMilestone> {
+		const id = crypto.randomUUID();
+		const now = Date.now();
+		const status = data.status || 'pending';
+		const completed_at = status === 'completed' ? now : null;
+
+		await this.db
+			.prepare(
+				'INSERT INTO job_site_milestones (id, job_site_id, name, description, status, target_date, completed_at, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+			)
+			.bind(
+				id,
+				jobSiteId,
+				data.name,
+				data.description || null,
+				status,
+				data.target_date || null,
+				completed_at,
+				data.sort_order || 0,
+				now,
+				now
+			)
+			.run();
+
+		return {
+			id,
+			job_site_id: jobSiteId,
+			name: data.name,
+			description: data.description || null,
+			status,
+			target_date: data.target_date || null,
+			completed_at,
+			sort_order: data.sort_order || 0,
+			created_at: now,
+			updated_at: now
+		};
+	}
+
+	async updateMilestone(
+		id: string,
+		data: Partial<Pick<DbMilestone, 'name' | 'description' | 'status' | 'target_date' | 'sort_order' | 'completed_at'>>
+	): Promise<DbMilestone | null> {
+		const existing = await this.db
+			.prepare('SELECT * FROM job_site_milestones WHERE id = ?')
+			.bind(id)
+			.first<DbMilestone>();
+
+		if (!existing) {
+			return null;
+		}
+
+		const now = Date.now();
+		const fields: string[] = [];
+		const values: (string | number | null)[] = [];
+
+		if (data.name !== undefined) {
+			fields.push('name = ?');
+			values.push(data.name);
+		}
+		if (data.description !== undefined) {
+			fields.push('description = ?');
+			values.push(data.description);
+		}
+		if (data.status !== undefined) {
+			fields.push('status = ?');
+			values.push(data.status);
+			if (data.status === 'completed' && !existing.completed_at) {
+				fields.push('completed_at = ?');
+				values.push(now);
+			}
+		}
+		if (data.target_date !== undefined) {
+			fields.push('target_date = ?');
+			values.push(data.target_date);
+		}
+		if (data.sort_order !== undefined) {
+			fields.push('sort_order = ?');
+			values.push(data.sort_order);
+		}
+		if (data.completed_at !== undefined) {
+			fields.push('completed_at = ?');
+			values.push(data.completed_at);
+		}
+
+		fields.push('updated_at = ?');
+		values.push(now);
+		values.push(id);
+
+		await this.db
+			.prepare(`UPDATE job_site_milestones SET ${fields.join(', ')} WHERE id = ?`)
+			.bind(...values)
+			.run();
+
+		return await this.db
+			.prepare('SELECT * FROM job_site_milestones WHERE id = ?')
+			.bind(id)
+			.first<DbMilestone>();
+	}
+
+	async deleteMilestone(id: string): Promise<void> {
+		await this.db.prepare('DELETE FROM job_site_milestones WHERE id = ?').bind(id).run();
 	}
 }
