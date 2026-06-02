@@ -12,6 +12,7 @@
 	import { weather } from '$lib/stores/weather.svelte';
 	import { formatRainTime, type GeoResult } from '$lib/services/weather';
 	import WeatherForecast from './WeatherForecast.svelte';
+	import { MapPin } from 'lucide-svelte';
 
 	interface Props {
 		/** panel = sticky sidebar; inline = mobile collapsible body */
@@ -104,7 +105,7 @@
 								disabled={weather.loading}
 								title="Use my location"
 							>
-								📍
+								<MapPin size={18} />
 							</button>
 						</div>
 						{#if searching}

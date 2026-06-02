@@ -183,6 +183,7 @@
 		today.removeEntry(id);
 	}
 
+	// Entry type icons - these are display elements in the timeline, kept as emoji for consistency with weather display patterns
 	const ENTRY_ICON: Record<EntryType, string> = {
 		paving: '🛣️',
 		milling: '🚜',
