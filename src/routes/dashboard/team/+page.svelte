@@ -408,7 +408,12 @@
 							<div class="card-header">
 								<div class="avatar">{getInitials(member.user_name)}</div>
 								<div class="member-info">
-									<div class="member-name">{member.user_name}</div>
+									<div class="member-name">
+										{member.user_name}
+										{#if member.user_id === currentUserId}
+											<span class="you-badge">You</span>
+										{/if}
+									</div>
 									<div class="member-email">{member.user_email}</div>
 								</div>
 							</div>
@@ -817,7 +822,7 @@
 
 	.role-select {
 		padding: var(--sp-2) var(--sp-3);
-		min-height: 40px;
+		min-height: var(--touch);
 		font-size: var(--fs-sm);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
@@ -839,6 +844,22 @@
 	}
 
 	.btn-danger:hover {
+		opacity: 0.9;
+	}
+
+	.btn-secondary {
+		padding: var(--sp-2) var(--sp-4);
+		min-height: var(--touch);
+		background: var(--surface);
+		color: var(--text);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
+	}
+
+	.btn-secondary:hover {
 		opacity: 0.9;
 	}
 
@@ -922,6 +943,21 @@
 		font-size: var(--fs-md);
 		color: var(--text);
 		margin-bottom: var(--sp-1);
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+	}
+
+	.you-badge {
+		display: inline-block;
+		padding: var(--sp-1) var(--sp-2);
+		background: rgba(34, 197, 94, 0.2);
+		color: rgb(34, 197, 94);
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-xs);
+		font-weight: var(--fw-semibold);
+		text-transform: uppercase;
+		letter-spacing: 0.025em;
 	}
 
 	.member-email {
@@ -990,6 +1026,10 @@
 	.card-actions {
 		display: flex;
 		justify-content: flex-end;
+	}
+
+	.card-actions button {
+		min-height: var(--touch);
 	}
 
 	.card-actions .btn-danger {
