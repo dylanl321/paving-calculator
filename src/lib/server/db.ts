@@ -168,6 +168,13 @@ export interface DbCrewMember {
 	assigned_at: number;
 }
 
+export interface DbNotificationPref {
+	user_id: string;
+	pref_key: string;
+	enabled: boolean;
+	updated_at: number;
+}
+
 export class DbHelper {
 	constructor(private db: D1Database) {}
 
@@ -1170,5 +1177,52 @@ export class DbHelper {
 			)
 			.bind(userId, orgId)
 			.first<DbCrew>();
+	}
+
+	async getNotificationPrefs(userId: string): Promise<Record<string, boolean>> {
+		const DEFAULTS: Record<string, boolean> = {
+			email_daily_summary: true,
+			email_invite: true,
+			email_spec_alerts: true,
+			email_job_updates: false,
+			push_spec_alerts: true,
+			push_job_updates: false
+		};
+
+		const rows = await this.db
+			.prepare('SELECT pref_key, enabled FROM user_notification_prefs WHERE user_id = ?')
+			.bind(userId)
+			.all<{ pref_key: string; enabled: number }>()
+			.then((r) => r.results);
+
+		const prefs = { ...DEFAULTS };
+		for (const row of rows) {
+			prefs[row.pref_key] = row.enabled === 1;
+		}
+
+		return prefs;
+	}
+
+	async setNotificationPref(userId: string, prefKey: string, enabled: boolean): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				'INSERT INTO user_notification_prefs (user_id, pref_key, enabled, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, pref_key) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at'
+			)
+			.bind(userId, prefKey, enabled ? 1 : 0, now)
+			.run();
+	}
+
+	async bulkSetNotificationPrefs(userId: string, prefs: Record<string, boolean>): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		const statements = Object.entries(prefs).map(([prefKey, enabled]) =>
+			this.db
+				.prepare(
+					'INSERT INTO user_notification_prefs (user_id, pref_key, enabled, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, pref_key) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at'
+				)
+				.bind(userId, prefKey, enabled ? 1 : 0, now)
+		);
+
+		await this.db.batch(statements);
 	}
 }
