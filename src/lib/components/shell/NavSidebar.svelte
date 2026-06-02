@@ -6,7 +6,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import UserMenu from '$lib/components/UserMenu.svelte';
 	import { fade } from 'svelte/transition';
-	import { Menu, Calculator, BookOpen, LayoutDashboard, Clock } from 'lucide-svelte';
+	import { Menu, Calculator, BookOpen, LayoutDashboard, Clock, Upload } from 'lucide-svelte';
 
 	let drawerOpen = $state(false);
 
@@ -29,6 +29,7 @@
 		{ href: '/app', label: 'Calculators', icon: 'calc' },
 		{ href: '/reference', label: 'Reference', icon: 'book' },
 		{ href: '/dashboard', label: 'Dashboard', icon: 'layout', authed: true },
+		{ href: '/dashboard/import', label: 'Import', icon: 'upload', authed: true },
 		{ href: '/dashboard/activity', label: 'Activity', icon: 'clock', authed: true, adminOnly: true }
 	];
 
@@ -103,6 +104,8 @@
 							<BookOpen size={22} />
 						{:else if item.icon === 'layout'}
 							<LayoutDashboard size={22} />
+						{:else if item.icon === 'upload'}
+							<Upload size={22} />
 						{:else if item.icon === 'clock'}
 							<Clock size={22} />
 						{/if}
