@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { toastStore, type Toast } from '$lib/stores/toast';
 	import { fly, fade } from 'svelte/transition';
+	import { CheckCircle2, AlertCircle, Info, X } from 'lucide-svelte';
 
 	let toasts = $state<Toast[]>([]);
 
@@ -16,26 +17,16 @@
 				class="toast toast-{toast.type}"
 				role={toast.type === 'error' ? 'alert' : 'status'}
 				aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
-				in:fly={{ y: 20, duration: 300 }}
-				out:fade={{ duration: 200 }}
+				in:fly={{ y: 20, duration: 280 }}
+				out:fade={{ duration: 160 }}
 			>
 				<div class="toast-icon" aria-hidden="true">
 					{#if toast.type === 'success'}
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M20 6L9 17l-5-5" />
-						</svg>
+						<CheckCircle2 size={22} />
 					{:else if toast.type === 'error'}
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-							<circle cx="12" cy="12" r="10" />
-							<line x1="12" y1="8" x2="12" y2="12" />
-							<line x1="12" y1="16" x2="12.01" y2="16" />
-						</svg>
+						<AlertCircle size={22} />
 					{:else}
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-							<circle cx="12" cy="12" r="10" />
-							<line x1="12" y1="16" x2="12" y2="12" />
-							<line x1="12" y1="8" x2="12.01" y2="8" />
-						</svg>
+						<Info size={22} />
 					{/if}
 				</div>
 				<p class="toast-message">{toast.message}</p>
@@ -45,10 +36,7 @@
 					onclick={() => toastStore.dismiss(toast.id)}
 					aria-label="Dismiss notification"
 				>
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<line x1="18" y1="6" x2="6" y2="18" />
-						<line x1="6" y1="6" x2="18" y2="18" />
-					</svg>
+					<X size={18} />
 				</button>
 			</div>
 		{/each}
@@ -76,29 +64,27 @@
 		gap: 12px;
 		padding: 14px 16px;
 		border-radius: var(--radius-md);
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.25);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.12);
 		pointer-events: auto;
 		min-height: 48px;
-		backdrop-filter: blur(10px);
-		-webkit-backdrop-filter: blur(10px);
 	}
 
 	.toast-success {
-		background: color-mix(in srgb, #4db88e 22%, #2e3b46);
-		border: 1px solid #4db88e;
-		color: #e8f7f2;
+		background: color-mix(in srgb, var(--good) 15%, var(--surface));
+		border: 1px solid var(--good);
+		color: var(--text);
 	}
 
 	.toast-error {
-		background: color-mix(in srgb, #d8584f 22%, #2e3b46);
-		border: 1px solid #d8584f;
-		color: #fce8e6;
+		background: color-mix(in srgb, var(--bad) 15%, var(--surface));
+		border: 1px solid var(--bad);
+		color: var(--text);
 	}
 
 	.toast-info {
-		background: color-mix(in srgb, #f2c037 22%, #2e3b46);
-		border: 1px solid #f2c037;
-		color: #fef9e8;
+		background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+		border: 1px solid var(--accent);
+		color: var(--text);
 	}
 
 	.toast-icon {
@@ -116,15 +102,15 @@
 	}
 
 	.toast-success .toast-icon {
-		color: #4db88e;
+		color: var(--good);
 	}
 
 	.toast-error .toast-icon {
-		color: #d8584f;
+		color: var(--bad);
 	}
 
 	.toast-info .toast-icon {
-		color: #f2c037;
+		color: var(--accent);
 	}
 
 	.toast-message {

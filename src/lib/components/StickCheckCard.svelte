@@ -4,6 +4,7 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
+	import DotTable from './DotTable.svelte';
 	import CrossSectionDiagram from './CrossSectionDiagram.svelte';
 	import { constantMeta } from '$lib/config';
 	import { stickCheck } from '$lib/config/formulas';
@@ -57,26 +58,13 @@
 	<ShowWork>
 		<code>loose = compacted × {factorMeta.value}</code>
 		<div class="src-row">Compaction factor: <SourceBadge status={factorMeta.status} tier={factorMeta.tier} /></div>
+		<p>Stick check uses GDOT §400.3.05.C (spreading & finishing). STICK_FACTOR 1.25 is the loose-to-compacted ratio applied to target depth to get the screed setting.</p>
+		<DotTable tableId="table-4" />
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>
 </CalcCard>
 
 <style>
-	.btn-clear {
-		width: 100%;
-		min-height: 3rem;
-		padding: 0.75rem;
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text-muted);
-		font-size: 0.9rem;
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-	.btn-clear:hover {
-		background: var(--surface-alt);
-		color: var(--text);
-	}
+	/* Component uses global .btn-clear utility from app.css */
 </style>

@@ -12,6 +12,7 @@
 	import { weather } from '$lib/stores/weather.svelte';
 	import { formatRainTime, type GeoResult } from '$lib/services/weather';
 	import WeatherForecast from './WeatherForecast.svelte';
+	import { MapPin } from 'lucide-svelte';
 
 	interface Props {
 		/** panel = sticky sidebar; inline = mobile collapsible body */
@@ -104,7 +105,7 @@
 								disabled={weather.loading}
 								title="Use my location"
 							>
-								📍
+								<MapPin size={18} />
 							</button>
 						</div>
 						{#if searching}
@@ -340,11 +341,11 @@
 	.settings-form {
 		display: flex;
 		flex-direction: column;
-		gap: 20px;
+		gap: var(--sp-5);
 	}
 
 	.settings-section {
-		padding-bottom: 4px;
+		padding-bottom: var(--sp-1);
 		border-bottom: 1px solid var(--border);
 	}
 
@@ -353,27 +354,27 @@
 	}
 
 	.section-head {
-		margin-bottom: 14px;
+		margin-bottom: var(--sp-4);
 	}
 
 	/* Inline variant (calculator Job Setup accordion): grouped cards in a grid */
 	.settings-form.inline {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-		gap: 12px;
+		gap: var(--sp-3);
 		align-items: start;
 	}
 
 	.settings-form.inline .settings-section {
 		background: var(--surface-alt, var(--surface));
 		border: 1px solid var(--border);
-		border-radius: 12px;
-		padding: 16px;
+		border-radius: var(--radius-md);
+		padding: var(--sp-4);
 	}
 
 	.settings-form.inline .section-head {
-		margin-bottom: 12px;
-		padding-bottom: 10px;
+		margin-bottom: var(--sp-3);
+		padding-bottom: var(--sp-3);
 		border-bottom: 1px solid var(--border);
 	}
 
@@ -387,8 +388,8 @@
 	}
 
 	.section-title {
-		margin: 0 0 6px;
-		font-size: 0.78rem;
+		margin: 0 0 var(--sp-2);
+		font-size: var(--fs-xs);
 		text-transform: uppercase;
 		letter-spacing: 0.6px;
 		color: var(--text-muted);
@@ -396,25 +397,25 @@
 
 	.section-desc {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--fs-sm);
 		color: var(--text-muted);
 		line-height: 1.4;
 	}
 
 	.field {
-		margin-bottom: 14px;
+		margin-bottom: var(--sp-4);
 	}
 
 	.field.compact {
-		margin-bottom: 8px;
+		margin-bottom: var(--sp-2);
 	}
 
 	.field label,
 	.field-label {
 		display: block;
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		color: var(--text-muted);
-		margin-bottom: 6px;
+		margin-bottom: var(--sp-2);
 	}
 
 	.field input[type='text'],
@@ -423,11 +424,11 @@
 		width: 100%;
 		min-height: 44px;
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-sm);
 		background: var(--surface);
 		color: var(--text);
-		padding: 10px 12px;
-		font-size: 0.95rem;
+		padding: var(--sp-3);
+		font-size: var(--fs-md);
 		font-family: inherit;
 	}
 
@@ -448,7 +449,7 @@
 		align-items: center;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-sm);
 		overflow: hidden;
 	}
 
@@ -460,7 +461,7 @@
 		color: var(--text);
 		font-size: 1.1rem;
 		font-weight: 600;
-		padding: 0 12px;
+		padding: 0 var(--sp-3);
 		text-align: right;
 	}
 
@@ -469,39 +470,39 @@
 	}
 
 	.unit {
-		padding: 0 12px;
+		padding: 0 var(--sp-3);
 		color: var(--text-muted);
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		white-space: nowrap;
 	}
 
 	.field-hint {
-		margin: 6px 0 0;
-		font-size: 0.75rem;
+		margin: var(--sp-2) 0 0;
+		font-size: var(--fs-xs);
 		color: var(--text-muted);
 		line-height: 1.35;
 	}
 
 	.field-hint.top {
-		margin: 0 0 8px;
+		margin: 0 0 var(--sp-2);
 	}
 
 	.field-error {
-		margin: 6px 0 0;
-		font-size: 0.8rem;
+		margin: var(--sp-2) 0 0;
+		font-size: var(--fs-sm);
 		color: var(--bad);
 	}
 
 	.search-row {
 		display: flex;
-		gap: 8px;
+		gap: var(--sp-2);
 	}
 
 	.gps-btn {
 		min-width: 44px;
 		min-height: 44px;
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-sm);
 		background: var(--surface);
 		font-size: 1.1rem;
 		cursor: pointer;
@@ -510,22 +511,22 @@
 
 	.results {
 		list-style: none;
-		margin: 8px 0 0;
+		margin: var(--sp-2) 0 0;
 		padding: 0;
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-sm);
 		overflow: hidden;
 	}
 
 	.results button {
 		width: 100%;
 		text-align: left;
-		padding: 10px 12px;
+		padding: var(--sp-3);
 		background: var(--surface);
 		border: 0;
 		border-bottom: 1px solid var(--border);
 		color: var(--text);
-		font-size: 0.9rem;
+		font-size: var(--fs-md);
 		cursor: pointer;
 		min-height: 44px;
 	}
@@ -535,12 +536,12 @@
 	}
 
 	.location-set {
-		margin: 8px 0 0;
-		font-size: 0.85rem;
+		margin: var(--sp-2) 0 0;
+		font-size: var(--fs-sm);
 		color: var(--text-muted);
 		display: flex;
 		align-items: center;
-		gap: 10px;
+		gap: var(--sp-3);
 		flex-wrap: wrap;
 	}
 
@@ -552,32 +553,32 @@
 		background: none;
 		border: 0;
 		color: var(--accent);
-		font-size: 0.8rem;
+		font-size: var(--fs-sm);
 		text-decoration: underline;
 		cursor: pointer;
 		padding: 0;
 	}
 
 	.mini-hint {
-		font-size: 0.8rem;
+		font-size: var(--fs-sm);
 		color: var(--text-muted);
-		margin: 6px 0;
+		margin: var(--sp-2) 0;
 	}
 
 	.chips {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 6px;
+		gap: var(--sp-2);
 	}
 
 	.chip {
 		min-height: 40px;
-		padding: 0 12px;
+		padding: 0 var(--sp-3);
 		border: 1px solid var(--border);
-		border-radius: 999px;
+		border-radius: var(--radius-pill);
 		background: var(--surface);
 		color: var(--text-muted);
-		font-size: 0.82rem;
+		font-size: var(--fs-sm);
 		cursor: pointer;
 	}
 
@@ -585,19 +586,19 @@
 		background: var(--accent);
 		color: var(--accent-text);
 		border-color: var(--accent);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.check-row {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		font-size: 0.85rem;
+		gap: var(--sp-3);
+		font-size: var(--fs-sm);
 		color: var(--text);
-		margin-bottom: 4px;
+		margin-bottom: var(--sp-1);
 		cursor: pointer;
 		min-height: 44px;
-		padding: 0 4px;
+		padding: 0 var(--sp-1);
 	}
 
 	.check-row input {
@@ -609,56 +610,56 @@
 
 	.check-hint {
 		display: block;
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 		color: var(--text-muted);
 		font-weight: 400;
-		margin-top: 2px;
+		margin-top: var(--sp-1);
 		line-height: 1.35;
 	}
 
 	.weather-panel {
-		margin-bottom: 8px;
+		margin-bottom: var(--sp-2);
 	}
 
 	.live-grid {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
-		gap: 6px;
-		margin-bottom: 10px;
+		gap: var(--sp-2);
+		margin-bottom: var(--sp-3);
 	}
 
 	.live-stat {
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 8px;
-		padding: 8px 6px;
+		border-radius: var(--radius-sm);
+		padding: var(--sp-2) var(--sp-2);
 		text-align: center;
 	}
 
 	.live-val {
 		display: block;
-		font-weight: 800;
-		font-size: 0.85rem;
+		font-weight: var(--fw-heavy);
+		font-size: var(--fs-sm);
 		color: var(--accent);
 		line-height: 1.2;
 	}
 
 	.live-lbl {
-		font-size: 0.65rem;
+		font-size: var(--fs-2xs);
 		color: var(--text-muted);
 	}
 
 	.table4-ref {
-		margin: 0 0 8px;
-		font-size: 0.78rem;
+		margin: 0 0 var(--sp-2);
+		font-size: var(--fs-xs);
 		color: var(--text-muted);
 	}
 
 	.status-banner {
-		font-size: 0.78rem;
-		padding: 8px 10px;
-		border-radius: 8px;
-		margin-bottom: 6px;
+		font-size: var(--fs-xs);
+		padding: var(--sp-2) var(--sp-3);
+		border-radius: var(--radius-sm);
+		margin-bottom: var(--sp-2);
 		line-height: 1.35;
 	}
 
@@ -678,12 +679,12 @@
 	}
 
 	.rain-block {
-		margin: 8px 0;
+		margin: var(--sp-2) 0;
 	}
 
 	.rain-title {
-		font-size: 0.72rem;
-		font-weight: 700;
+		font-size: var(--fs-2xs);
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.4px;
 		color: var(--text-muted);
@@ -691,42 +692,42 @@
 
 	.rain-list {
 		list-style: none;
-		margin: 6px 0 0;
+		margin: var(--sp-2) 0 0;
 		padding: 0;
 	}
 
 	.rain-list li {
 		display: flex;
 		justify-content: space-between;
-		font-size: 0.78rem;
-		padding: 5px 0;
+		font-size: var(--fs-xs);
+		padding: var(--sp-1) 0;
 		border-bottom: 1px solid var(--border);
 	}
 
 	.refresh {
-		margin-top: 4px;
+		margin-top: var(--sp-1);
 	}
 
 	.reset {
 		background: none;
 		border: 0;
 		color: var(--text-muted);
-		font-size: 0.8rem;
+		font-size: var(--fs-sm);
 		text-decoration: underline;
 		cursor: pointer;
-		padding: 8px 0;
+		padding: var(--sp-2) 0;
 		text-align: left;
 		min-height: 44px;
 	}
 
 	/* Panel variant: tighter for sidebar */
 	.settings-form.panel .section-desc {
-		font-size: 0.73rem;
+		font-size: var(--fs-2xs);
 		line-height: 1.35;
 	}
 
 	.settings-form.panel .field-hint {
-		font-size: 0.72rem;
+		font-size: var(--fs-2xs);
 	}
 
 	.settings-form.panel .with-unit input {
@@ -735,8 +736,8 @@
 	}
 
 	.settings-form.panel .chip {
-		font-size: 0.78rem;
-		padding: 0 10px;
+		font-size: var(--fs-xs);
+		padding: 0 var(--sp-3);
 		min-height: 36px;
 	}
 

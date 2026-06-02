@@ -44,6 +44,20 @@ theme:
     warn: '#c07820'        # darker orange
     bad: '#b8423a'         # darker red
     badRgb: '184, 66, 58'  # bad as rgb triplet for alpha overlays
+  sunlight:
+    bg: '#ffffff'          # pure white - maximum brightness
+    surface: '#f8f8f8'     # very light gray for cards
+    surfaceAlt: '#efefef'  # slightly darker alt
+    surfaceHover: '#e8e8e8' # hover state
+    border: '#000000'      # black borders for maximum definition
+    text: '#000000'        # pure black text - max contrast
+    textMuted: '#333333'   # dark gray still readable in sun
+    accent: '#f5a800'      # bright amber/yellow - visible outdoors
+    accentText: '#000000'  # black on accent
+    good: '#007a2f'        # deep green
+    warn: '#c05800'        # deep orange
+    bad: '#cc0000'         # deep red
+    badRgb: '204, 0, 0'    # bad as rgb triplet
 
 # ---------------------------------------------------------------------------
 # Constants (CONST.*)
@@ -227,6 +241,7 @@ weather:
   rainBlockIn: 0.10        # ~2.5 mm — do not pave or tack
   tempWarnMarginF: 5       # warn when within this many °F of Table 4 minimum
   ogfcMinAirTempF: 60      # Section 400.3.05.E — OGFC / PEM floor
+  tackMinAirTempF: 40      # Section 413.3.05.A — tack coat minimum air temp
   wetSurfaceBlocked: true  # no placement on wet or frozen surfaces
 
 # ---------------------------------------------------------------------------

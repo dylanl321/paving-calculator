@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { fade } from 'svelte/transition';
+
 	interface Badge {
 		kind: 'good' | 'warn' | 'bad';
 		text: string;
@@ -16,7 +18,9 @@
 	{#if value == null}
 		<div class="placeholder">Enter values above to see the result</div>
 	{:else}
-		<div class="value">{value}</div>
+		{#key value}
+			<div class="value" in:fade={{ duration: 160 }}>{value}</div>
+		{/key}
 		<div class="unit-label">{unit}</div>
 		{#if badge}<span class="badge {badge.kind}">{badge.text}</span>{/if}
 		{#if secondary}<div class="secondary">{secondary}</div>{/if}

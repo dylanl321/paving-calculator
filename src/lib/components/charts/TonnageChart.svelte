@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { AreaChart } from 'layerchart';
-	import { onMount } from 'svelte';
+	import ChartMount from '$lib/components/charts/ChartMount.svelte';
 	import { tonnageToOrder } from '$lib/config/formulas';
 
 	let {
@@ -8,11 +8,6 @@
 		rateLbsSy = 0,
 		wastePct = 0
 	}: { widthFt?: number; rateLbsSy?: number; wastePct?: number } = $props();
-
-	let mounted = $state(false);
-	onMount(() => {
-		mounted = true;
-	});
 
 	// Tons-to-order across a range of run lengths for the current width + rate.
 	// A planning curve computed straight from the tonnage formula -- no stored data.
@@ -29,13 +24,15 @@
 </script>
 
 <div class="chart">
-	{#if mounted && rateLbsSy > 0}
-		<AreaChart
-			{data}
-			x="length"
-			y="tons"
-			padding={{ left: 48, bottom: 28, top: 8, right: 8 }}
-		/>
+	{#if rateLbsSy > 0}
+		<ChartMount>
+			<AreaChart
+				{data}
+				x="length"
+				y="tons"
+				padding={{ left: 48, bottom: 28, top: 8, right: 8 }}
+			/>
+		</ChartMount>
 	{:else}
 		<p class="empty">Set a target thickness to see the tonnage curve.</p>
 	{/if}

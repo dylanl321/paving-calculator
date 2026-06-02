@@ -4,6 +4,8 @@
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import { searchPlaces, type GeoResult } from '$lib/services/weather';
 	import type { PageData } from './$types';
+	import { MapPin } from 'lucide-svelte';
+	import LoadTracker from '$lib/components/LoadTracker.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -76,7 +78,13 @@
 		target_spread_rate: data.config?.target_spread_rate || null,
 		tack_type: data.config?.tack_type || null,
 		target_tack_rate: data.config?.target_tack_rate || null,
-		notes: data.config?.notes || null
+		notes: data.config?.notes || null,
+		num_lifts: data.config?.num_lifts || null,
+		total_tonnage: data.config?.total_tonnage || null,
+		cost_per_ton: data.config?.cost_per_ton || null,
+		cost_per_sy: data.config?.cost_per_sy || null,
+		cost_per_mile: data.config?.cost_per_mile || null,
+		total_contract_value: data.config?.total_contract_value || null
 	});
 
 	let equipmentList = $state([...data.equipment]);
@@ -88,6 +96,18 @@
 	});
 
 	let saving = $state(false);
+
+	// Milestones state
+	let milestones = $state([...data.milestones]);
+	let milestoneForm = $state({
+		name: '',
+		description: '',
+		status: 'pending' as 'pending' | 'in_progress' | 'completed',
+		target_date: ''
+	});
+	let showMilestoneForm = $state(false);
+	let editingMilestone = $state<any | null>(null);
+	let milestoneSaving = $state(false);
 
 	// Photos state
 	let photos = $state<any[]>([]);
@@ -257,6 +277,76 @@
 		}
 	}
 
+	async function createMilestone() {
+		if (!milestoneForm.name) return;
+
+		milestoneSaving = true;
+		try {
+			const res = await fetch(`/api/job-sites/${data.jobSite.id}/milestones`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify(milestoneForm)
+			});
+
+			if (!res.ok) throw new Error('Failed to create milestone');
+
+			const { milestone } = await res.json();
+			milestones = [...milestones, milestone];
+
+			milestoneForm = {
+				name: '',
+				description: '',
+				status: 'pending',
+				target_date: ''
+			};
+			showMilestoneForm = false;
+		} catch (err) {
+			console.error(err);
+		} finally {
+			milestoneSaving = false;
+		}
+	}
+
+	async function updateMilestoneStatus(id: string, status: 'pending' | 'in_progress' | 'completed') {
+		milestoneSaving = true;
+		try {
+			const res = await fetch(`/api/job-sites/${data.jobSite.id}/milestones/${id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({ status })
+			});
+
+			if (!res.ok) throw new Error('Failed to update milestone');
+
+			const { milestone } = await res.json();
+			milestones = milestones.map((m) => (m.id === id ? milestone : m));
+		} catch (err) {
+			console.error(err);
+		} finally {
+			milestoneSaving = false;
+		}
+	}
+
+	async function deleteMilestone(id: string) {
+		milestoneSaving = true;
+		try {
+			const res = await fetch(`/api/job-sites/${data.jobSite.id}/milestones/${id}`, {
+				method: 'DELETE',
+				credentials: 'include'
+			});
+
+			if (!res.ok) throw new Error('Failed to delete milestone');
+
+			milestones = milestones.filter((m) => m.id !== id);
+		} catch (err) {
+			console.error(err);
+		} finally {
+			milestoneSaving = false;
+		}
+	}
+
 	function formatDate(timestamp: number): string {
 		return new Date(timestamp * 1000).toLocaleDateString('en-US', {
 			month: 'short',
@@ -320,6 +410,38 @@
 		return (totalAreaSqYd * configForm.target_spread_rate) / 2000;
 	});
 
+	const estCostByTon = $derived.by(() => {
+		const tonnage = configForm.total_tonnage || estTonnage;
+		if (!configForm.cost_per_ton || !tonnage) return null;
+		return configForm.cost_per_ton * tonnage;
+	});
+
+	const estCostBySY = $derived.by(() => {
+		if (!configForm.cost_per_sy || !totalAreaSqYd) return null;
+		return configForm.cost_per_sy * totalAreaSqYd;
+	});
+
+	const estCostByMile = $derived.by(() => {
+		if (!configForm.cost_per_mile || !configForm.total_length_ft) return null;
+		return configForm.cost_per_mile * (configForm.total_length_ft / 5280);
+	});
+
+	const costSummary = $derived.by(() => {
+		if (configForm.total_contract_value) {
+			return { value: configForm.total_contract_value, method: 'Contract Value' };
+		}
+		if (estCostByTon) {
+			return { value: estCostByTon, method: 'Est. by Tonnage' };
+		}
+		if (estCostBySY) {
+			return { value: estCostBySY, method: 'Est. by Area' };
+		}
+		if (estCostByMile) {
+			return { value: estCostByMile, method: 'Est. by Mileage' };
+		}
+		return null;
+	});
+
 	const configComplete = $derived(
 		Boolean(
 			configForm.road_type &&
@@ -335,6 +457,10 @@
 			minimumFractionDigits: digits,
 			maximumFractionDigits: digits
 		});
+	}
+
+	function fmtDollars(v: number): string {
+		return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 	}
 </script>
 
@@ -429,6 +555,13 @@
 		>
 			Daily Log
 		</button>
+		<button
+			class="tab"
+			class:active={activeTab === 'milestones'}
+			onclick={() => (activeTab = 'milestones')}
+		>
+			Milestones
+		</button>
 	</nav>
 
 	{#if activeTab === 'overview'}
@@ -484,32 +617,129 @@
 					<button class="link-btn" onclick={() => (activeTab = 'configuration')}>Edit</button>
 				</div>
 				<dl class="spec-list">
-					<div class="spec-item">
-						<dt>Road Type</dt>
-						<dd>{roadTypeLabel || '—'}</dd>
+						<div class="spec-item">
+							<dt>Road Type</dt>
+							<dd>{roadTypeLabel || '—'}</dd>
+						</div>
+						<div class="spec-item">
+							<dt>Length</dt>
+							<dd>{configForm.total_length_ft ? `${fmt(configForm.total_length_ft)} ft` : '—'}</dd>
+						</div>
+						<div class="spec-item">
+							<dt>Lanes × Width</dt>
+							<dd>
+								{configForm.num_lanes ?? '—'} × {configForm.lane_width_ft ? `${configForm.lane_width_ft} ft` : '—'}
+							</dd>
+						</div>
+						<div class="spec-item">
+							<dt>Lifts</dt>
+							<dd>{configForm.num_lifts ?? '—'}</dd>
+						</div>
+						<div class="spec-item">
+							<dt>Total Tonnage</dt>
+							<dd>{configForm.total_tonnage ? `${fmt(configForm.total_tonnage, 1)} t` : (estTonnage ? `${fmt(estTonnage, 1)} t (est.)` : '—')}</dd>
+						</div>
+					</dl>
+					<div class="derived-row">
+						<div class="derived">
+							<span class="derived-label">Total Area</span>
+							<span class="derived-value">{totalAreaSqYd ? `${fmt(totalAreaSqYd)} yd²` : '—'}</span>
+						</div>
+						<div class="derived">
+							<span class="derived-label">Est. Tonnage at Target</span>
+							<span class="derived-value">{estTonnage ? `${fmt(estTonnage, 1)} t` : '—'}</span>
+						</div>
 					</div>
-					<div class="spec-item">
-						<dt>Length</dt>
-						<dd>{configForm.total_length_ft ? `${fmt(configForm.total_length_ft)} ft` : '—'}</dd>
-					</div>
-					<div class="spec-item">
-						<dt>Lanes × Width</dt>
-						<dd>
-							{configForm.num_lanes ?? '—'} × {configForm.lane_width_ft ? `${configForm.lane_width_ft} ft` : '—'}
-						</dd>
-					</div>
-				</dl>
-				<div class="derived-row">
-					<div class="derived">
-						<span class="derived-label">Total Area</span>
-						<span class="derived-value">{totalAreaSqYd ? `${fmt(totalAreaSqYd)} yd²` : '—'}</span>
-					</div>
-					<div class="derived">
-						<span class="derived-label">Est. Tonnage at Target</span>
-						<span class="derived-value">{estTonnage ? `${fmt(estTonnage, 1)} t` : '—'}</span>
-					</div>
-				</div>
-			</section>
+					{#if configForm.total_contract_value || estCostByTon || estCostBySY || estCostByMile}
+						<div class="derived-row">
+							{#if configForm.total_contract_value}
+								<div class="derived">
+									<span class="derived-label">Contract Value</span>
+									<span class="derived-value">{fmtDollars(configForm.total_contract_value)}</span>
+								</div>
+							{/if}
+							{#if estCostByTon}
+								<div class="derived">
+									<span class="derived-label">Est. Cost (by ton)</span>
+									<span class="derived-value">{fmtDollars(estCostByTon)}</span>
+								</div>
+							{/if}
+							{#if estCostBySY}
+								<div class="derived">
+									<span class="derived-label">Est. Cost (by area)</span>
+									<span class="derived-value">{fmtDollars(estCostBySY)}</span>
+								</div>
+							{/if}
+							{#if estCostByMile}
+								<div class="derived">
+									<span class="derived-label">Est. Cost (by mile)</span>
+									<span class="derived-value">{fmtDollars(estCostByMile)}</span>
+								</div>
+							{/if}
+						</div>
+					{/if}
+				</section>
+
+				{#if configForm.cost_per_ton || configForm.cost_per_sy || configForm.cost_per_mile || configForm.total_contract_value}
+					<section class="panel">
+						<div class="panel-head">
+							<h3>Cost Breakdown</h3>
+							<button class="link-btn" onclick={() => (activeTab = 'configuration')}>Edit</button>
+						</div>
+						<dl class="spec-list">
+							{#if configForm.cost_per_ton}
+								<div class="spec-item">
+									<dt>Cost per Ton</dt>
+									<dd>{fmtDollars(configForm.cost_per_ton)}/ton</dd>
+								</div>
+							{/if}
+							{#if configForm.cost_per_sy}
+								<div class="spec-item">
+									<dt>Cost per SY</dt>
+									<dd>{fmtDollars(configForm.cost_per_sy)}/yd²</dd>
+								</div>
+							{/if}
+							{#if configForm.cost_per_mile}
+								<div class="spec-item">
+									<dt>Cost per Mile</dt>
+									<dd>{fmtDollars(configForm.cost_per_mile)}/mi</dd>
+								</div>
+							{/if}
+							{#if configForm.total_contract_value}
+								<div class="spec-item">
+									<dt>Contract</dt>
+									<dd>{fmtDollars(configForm.total_contract_value)}</dd>
+								</div>
+							{/if}
+						</dl>
+						{#if costSummary}
+							<div class="derived-row">
+								<div class="derived">
+									<span class="derived-label">{costSummary.method}</span>
+									<span class="derived-value">{fmtDollars(costSummary.value)}</span>
+								</div>
+								{#if costSummary.value && (configForm.total_tonnage || estTonnage)}
+									<div class="derived">
+										<span class="derived-label">$/ton (derived)</span>
+										<span class="derived-value">{fmtDollars(costSummary.value / (configForm.total_tonnage || estTonnage || 1))}/t</span>
+									</div>
+								{/if}
+								{#if costSummary.value && totalAreaSqYd}
+									<div class="derived">
+										<span class="derived-label">$/SY (derived)</span>
+										<span class="derived-value">{fmtDollars(costSummary.value / totalAreaSqYd)}/yd²</span>
+									</div>
+								{/if}
+								{#if costSummary.value && configForm.total_length_ft}
+									<div class="derived">
+										<span class="derived-label">$/mile (derived)</span>
+										<span class="derived-value">{fmtDollars(costSummary.value / (configForm.total_length_ft / 5280))}/mi</span>
+									</div>
+								{/if}
+							</div>
+						{/if}
+					</section>
+				{/if}
 		</div>
 
 		<div class="link-tiles">
@@ -669,6 +899,8 @@
 			{/if}
 		</section>
 
+		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
+
 		<section class="panel">
 			<div class="panel-head">
 				<h3>Assigned Crew</h3>
@@ -747,6 +979,86 @@
 						bind:value={configForm.total_length_ft}
 						min="1"
 						placeholder="e.g., 5280"
+					/>
+				</div>
+
+				<div class="form-group">
+					<label for="num_lifts">Number of Lifts</label>
+					<input
+						type="number"
+						id="num_lifts"
+						bind:value={configForm.num_lifts}
+						min="1"
+						placeholder="e.g., 2"
+					/>
+				</div>
+
+				<div class="form-group">
+					<label for="total_tonnage">Total Estimated Tonnage</label>
+					<input
+						type="number"
+						id="total_tonnage"
+						bind:value={configForm.total_tonnage}
+						min="0"
+						step="1"
+						placeholder="Auto-calculated or enter manually"
+					/>
+					{#if estTonnage}
+						<div class="hint-text">Auto-calculated: {fmt(estTonnage, 1)} tons</div>
+					{/if}
+				</div>
+
+				<h3 class="form-section-title">Contract Costs</h3>
+
+				<div class="form-group">
+					<label for="cost_per_ton">Cost per Ton ($/ton)</label>
+					<input
+						type="number"
+						id="cost_per_ton"
+						bind:value={configForm.cost_per_ton}
+						min="0"
+						step="0.01"
+						placeholder="e.g., 85.00"
+						onchange={() => saveConfig()}
+					/>
+				</div>
+
+				<div class="form-group">
+					<label for="cost_per_sy">Cost per SY ($/yd²)</label>
+					<input
+						type="number"
+						id="cost_per_sy"
+						bind:value={configForm.cost_per_sy}
+						min="0"
+						step="0.01"
+						placeholder="e.g., 12.50"
+						onchange={() => saveConfig()}
+					/>
+				</div>
+
+				<div class="form-group">
+					<label for="cost_per_mile">Cost per Mile ($/mile)</label>
+					<input
+						type="number"
+						id="cost_per_mile"
+						bind:value={configForm.cost_per_mile}
+						min="0"
+						step="0.01"
+						placeholder="e.g., 50000.00"
+						onchange={() => saveConfig()}
+					/>
+				</div>
+
+				<div class="form-group">
+					<label for="total_contract_value">Total Contract Value ($)</label>
+					<input
+						type="number"
+						id="total_contract_value"
+						bind:value={configForm.total_contract_value}
+						min="0"
+						step="0.01"
+						placeholder="e.g., 250000.00"
+						onchange={() => saveConfig()}
 					/>
 				</div>
 
@@ -848,6 +1160,7 @@
 						placeholder="Additional notes about this job site..."
 					></textarea>
 				</div>
+
 			</form>
 		</section>
 	{:else if activeTab === 'equipment'}
@@ -1058,6 +1371,156 @@
 				</div>
 			</div>
 		</section>
+	{:else if activeTab === 'milestones'}
+		<section class="section">
+			<div class="section-header">
+				<h3>Project Milestones</h3>
+				<button class="btn-primary" onclick={() => (showMilestoneForm = !showMilestoneForm)}>
+					<svg
+						width="18"
+						height="18"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<line x1="12" y1="5" x2="12" y2="19"></line>
+						<line x1="5" y1="12" x2="19" y2="12"></line>
+					</svg>
+					{showMilestoneForm ? 'Cancel' : 'Add Milestone'}
+				</button>
+			</div>
+
+			{#if milestones.length > 0}
+				<div class="milestone-progress">
+					<div class="milestone-progress-header">
+						<span class="milestone-progress-label">
+							{milestones.filter((m) => m.status === 'completed').length} of {milestones.length} complete
+						</span>
+					</div>
+					<div class="progress-bar">
+						<div
+							class="progress-fill"
+							style="width: {(milestones.filter((m) => m.status === 'completed').length / milestones.length) * 100}%"
+						></div>
+					</div>
+				</div>
+			{/if}
+
+			{#if showMilestoneForm}
+				<div class="milestone-form">
+					<div class="form-group">
+						<label for="milestone_name">Name</label>
+						<input
+							type="text"
+							id="milestone_name"
+							bind:value={milestoneForm.name}
+							placeholder="e.g., Base Layer Complete"
+						/>
+					</div>
+
+					<div class="form-group">
+						<label for="milestone_description">Description</label>
+						<textarea
+							id="milestone_description"
+							bind:value={milestoneForm.description}
+							rows="3"
+							placeholder="Additional details..."
+						></textarea>
+					</div>
+
+					<div class="form-row">
+						<div class="form-group">
+							<label for="milestone_status">Status</label>
+							<select id="milestone_status" bind:value={milestoneForm.status}>
+								<option value="pending">Pending</option>
+								<option value="in_progress">In Progress</option>
+								<option value="completed">Completed</option>
+							</select>
+						</div>
+
+						<div class="form-group">
+							<label for="milestone_target_date">Target Date</label>
+							<input type="date" id="milestone_target_date" bind:value={milestoneForm.target_date} />
+						</div>
+					</div>
+
+					<div class="form-actions">
+						<button class="btn-primary" onclick={createMilestone} disabled={!milestoneForm.name || milestoneSaving}>
+							Add Milestone
+						</button>
+						<button class="btn btn-ghost" onclick={() => (showMilestoneForm = false)}>Cancel</button>
+					</div>
+				</div>
+			{/if}
+
+			{#if milestones.length === 0}
+				<div class="empty-state-mini">
+					<p>No milestones yet. Add one to track project phases.</p>
+				</div>
+			{:else}
+				<div class="milestone-list">
+					{#each milestones as milestone (milestone.id)}
+						<div class="milestone-card">
+							<div class="milestone-header">
+								<div class="milestone-status-badge status-{milestone.status}">
+									<span class="status-dot"></span>
+								</div>
+								<div class="milestone-info">
+									<h4 class="milestone-name">{milestone.name}</h4>
+									{#if milestone.description}
+										<p class="milestone-description">{milestone.description}</p>
+									{/if}
+									{#if milestone.target_date}
+										<span class="milestone-date">
+											Target: {new Date(milestone.target_date).toLocaleDateString('en-US', {
+												month: 'short',
+												day: 'numeric',
+												year: 'numeric'
+											})}
+										</span>
+									{/if}
+								</div>
+							</div>
+							<div class="milestone-actions">
+								<select
+									class="milestone-status-select"
+									value={milestone.status}
+									onchange={(e) => updateMilestoneStatus(milestone.id, e.currentTarget.value as any)}
+									disabled={milestoneSaving}
+								>
+									<option value="pending">Pending</option>
+									<option value="in_progress">In Progress</option>
+									<option value="completed">Completed</option>
+								</select>
+								<button
+									class="btn-remove"
+									onclick={() => deleteMilestone(milestone.id)}
+									disabled={milestoneSaving}
+									aria-label="Delete milestone"
+								>
+									<svg
+										width="18"
+										height="18"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+									>
+										<line x1="18" y1="6" x2="6" y2="18"></line>
+										<line x1="6" y1="6" x2="18" y2="18"></line>
+									</svg>
+								</button>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</section>
 	{/if}
 </div>
 
@@ -1091,7 +1554,7 @@
 				{new Date(selectedPhoto.taken_at * 1000).toLocaleString()}
 				{#if selectedPhoto.lat != null && selectedPhoto.lng != null}
 					<span class="lightbox-gps">
-						📍 {selectedPhoto.lat.toFixed(6)}, {selectedPhoto.lng.toFixed(6)}
+						<MapPin size={14} style="display: inline-block; vertical-align: text-bottom;" /> {selectedPhoto.lat.toFixed(6)}, {selectedPhoto.lng.toFixed(6)}
 					</span>
 				{/if}
 			</div>
@@ -1401,6 +1864,78 @@
 		color: var(--accent);
 	}
 
+	.derived-highlight .derived-value {
+		color: var(--success, #22c55e);
+	}
+
+	.form-section-divider {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin: 24px 0 12px;
+		color: var(--text-muted);
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.form-section-divider::before,
+	.form-section-divider::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: var(--border);
+	}
+
+	.form-hint {
+		margin: 4px 0 0;
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+
+	.project-totals {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 12px 16px;
+		margin-top: 12px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.project-total-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		font-size: 0.9rem;
+	}
+
+	.project-total-label {
+		color: var(--text-muted);
+	}
+
+	.project-total-value {
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.project-total-grand {
+		border-top: 1px solid var(--border);
+		padding-top: 8px;
+		margin-top: 4px;
+	}
+
+	.project-total-grand .project-total-label {
+		color: var(--text);
+		font-weight: 600;
+	}
+
+	.project-total-grand .project-total-value {
+		color: var(--success, #22c55e);
+		font-size: 1.1rem;
+	}
+
 	.link-tiles {
 		display: grid;
 		grid-template-columns: repeat(4, 1fr);
@@ -1498,6 +2033,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+	}
+
+	.hint-text {
+		font-size: 0.78rem;
+		color: var(--text-muted);
+		padding: 4px 0;
 	}
 
 	.form-row {
@@ -2074,9 +2615,206 @@
 		font-family: monospace;
 	}
 
+	/* Milestones */
+	.milestone-progress {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 16px;
+		margin-bottom: 16px;
+	}
+
+	.milestone-progress-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 8px;
+	}
+
+	.milestone-progress-label {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--text-muted);
+	}
+
+	.progress-bar {
+		height: 8px;
+		background: var(--surface-alt);
+		border-radius: 4px;
+		overflow: hidden;
+	}
+
+	.progress-fill {
+		height: 100%;
+		background: var(--accent);
+		border-radius: 4px;
+		transition: width 0.3s ease;
+	}
+
+	.milestone-form {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 20px;
+		margin-bottom: 16px;
+	}
+
+	.form-actions {
+		display: flex;
+		gap: 12px;
+		margin-top: 16px;
+	}
+
+	.btn.btn-ghost {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 48px;
+		padding: 0 16px;
+		background: transparent;
+		color: var(--text-muted);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		font-size: 0.9rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: border-color 0.2s, color 0.2s;
+	}
+
+	.btn.btn-ghost:hover:not(:disabled) {
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+
+	.milestone-list {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.milestone-card {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 16px;
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: 16px;
+	}
+
+	.milestone-header {
+		flex: 1;
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+		min-width: 0;
+	}
+
+	.milestone-status-badge {
+		width: 40px;
+		height: 40px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.milestone-status-badge.status-pending {
+		background: rgba(128, 128, 128, 0.1);
+	}
+
+	.milestone-status-badge.status-in_progress {
+		background: rgba(59, 130, 246, 0.1);
+	}
+
+	.milestone-status-badge.status-completed {
+		background: rgba(34, 197, 94, 0.1);
+	}
+
+	.status-dot {
+		width: 12px;
+		height: 12px;
+		border-radius: 50%;
+	}
+
+	.milestone-status-badge.status-pending .status-dot {
+		background: var(--text-muted);
+	}
+
+	.milestone-status-badge.status-in_progress .status-dot {
+		background: var(--warn);
+	}
+
+	.milestone-status-badge.status-completed .status-dot {
+		background: var(--good);
+	}
+
+	.milestone-info {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.milestone-name {
+		margin: 0 0 4px;
+		font-size: 1rem;
+		font-weight: 600;
+	}
+
+	.milestone-description {
+		margin: 0 0 4px;
+		font-size: 0.85rem;
+		color: var(--text-muted);
+		line-height: 1.4;
+	}
+
+	.milestone-date {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.milestone-actions {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+		flex-shrink: 0;
+	}
+
+	.milestone-status-select {
+		min-height: 40px;
+		padding: 0 12px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		font-size: 0.85rem;
+		color: var(--text);
+		cursor: pointer;
+	}
+
+	.milestone-status-select:focus {
+		outline: 2px solid var(--accent);
+		outline-offset: 0;
+	}
+
 	@media (max-width: 768px) {
 		.photo-grid {
 			grid-template-columns: repeat(2, 1fr);
+		}
+
+		.milestone-card {
+			flex-direction: column;
+		}
+
+		.milestone-actions {
+			width: 100%;
+			justify-content: space-between;
+		}
+
+		.milestone-status-select {
+			flex: 1;
 		}
 	}
 </style>

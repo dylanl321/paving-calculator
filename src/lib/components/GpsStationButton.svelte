@@ -289,14 +289,14 @@
 	}
 
 	.gps-btn.done {
-		border-color: #22c55e;
-		color: #22c55e;
-		background: color-mix(in srgb, #22c55e 8%, transparent);
+		border-color: var(--good);
+		color: var(--good);
+		background: color-mix(in srgb, var(--good) 8%, transparent);
 	}
 
 	.gps-btn.error {
-		border-color: #f59e0b;
-		color: #f59e0b;
+		border-color: var(--warn);
+		color: var(--warn);
 	}
 
 	/* Compact icon-only variant */
@@ -336,14 +336,14 @@
 	}
 
 	.gps-btn-compact.done {
-		border-color: #22c55e;
-		color: #22c55e;
-		background: color-mix(in srgb, #22c55e 8%, transparent);
+		border-color: var(--good);
+		color: var(--good);
+		background: color-mix(in srgb, var(--good) 8%, transparent);
 	}
 
 	.gps-btn-compact.error {
-		border-color: #f59e0b;
-		color: #f59e0b;
+		border-color: var(--warn);
+		color: var(--warn);
 	}
 
 	@keyframes spin {
