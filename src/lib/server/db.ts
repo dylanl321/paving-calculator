@@ -137,6 +137,13 @@ export interface DbJobSiteEquipment {
 	created_at: number;
 }
 
+export interface DbJobSiteRoute {
+	job_site_id: string;
+	waypoints: string; // JSON array of {lat: number, lng: number}
+	created_at: number;
+	updated_at: number;
+}
+
 export class DbHelper {
 	constructor(private db: D1Database) {}
 
@@ -954,5 +961,45 @@ export class DbHelper {
 			.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?')
 			.bind(passwordHash, now, userId)
 			.run();
+	}
+
+	async getJobSiteRoute(jobSiteId: string): Promise<DbJobSiteRoute | null> {
+		return await this.db
+			.prepare('SELECT * FROM job_site_routes WHERE job_site_id = ?')
+			.bind(jobSiteId)
+			.first<DbJobSiteRoute>();
+	}
+
+	async upsertJobSiteRoute(
+		jobSiteId: string,
+		waypoints: Array<{ lat: number; lng: number }>
+	): Promise<DbJobSiteRoute> {
+		const now = Math.floor(Date.now() / 1000);
+		const waypointsJson = JSON.stringify(waypoints);
+
+		const existing = await this.getJobSiteRoute(jobSiteId);
+
+		if (existing) {
+			await this.db
+				.prepare(
+					'UPDATE job_site_routes SET waypoints = ?, updated_at = ? WHERE job_site_id = ?'
+				)
+				.bind(waypointsJson, now, jobSiteId)
+				.run();
+		} else {
+			await this.db
+				.prepare(
+					'INSERT INTO job_site_routes (job_site_id, waypoints, created_at, updated_at) VALUES (?, ?, ?, ?)'
+				)
+				.bind(jobSiteId, waypointsJson, now, now)
+				.run();
+		}
+
+		return {
+			job_site_id: jobSiteId,
+			waypoints: waypointsJson,
+			created_at: existing?.created_at ?? now,
+			updated_at: now
+		};
 	}
 }

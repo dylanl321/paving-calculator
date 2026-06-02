@@ -20,11 +20,12 @@ export const load: PageLoad = async ({ params, fetch }) => {
 
 		const siteData = await siteRes.json();
 
-		const [calcRes, configRes, equipmentRes, assignmentsRes] = await Promise.all([
+		const [calcRes, configRes, equipmentRes, assignmentsRes, routeRes] = await Promise.all([
 			fetch(`/api/calculations?job_site_id=${params.id}`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/config`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/equipment`, { credentials: 'include' }),
-			fetch(`/api/job-sites/${params.id}/assignments`, { credentials: 'include' })
+			fetch(`/api/job-sites/${params.id}/assignments`, { credentials: 'include' }),
+			fetch(`/api/job-sites/${params.id}/route`, { credentials: 'include' })
 		]);
 
 		if (!calcRes.ok) {
@@ -35,6 +36,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 		const configData = configRes.ok ? await configRes.json() : { config: null };
 		const equipmentData = equipmentRes.ok ? await equipmentRes.json() : { equipment: [] };
 		const assignmentsData = assignmentsRes.ok ? await assignmentsRes.json() : { assignments: [] };
+		const routeData = routeRes.ok ? await routeRes.json() : { waypoints: [] };
 
 		return {
 			user: authData.user,
@@ -43,7 +45,8 @@ export const load: PageLoad = async ({ params, fetch }) => {
 			calculations: calcData.calculations || [],
 			config: configData.config,
 			equipment: equipmentData.equipment || [],
-			assignments: assignmentsData.assignments || []
+			assignments: assignmentsData.assignments || [],
+			routeWaypoints: routeData.waypoints || []
 		};
 	} catch (err) {
 		if (err instanceof Response) throw err;

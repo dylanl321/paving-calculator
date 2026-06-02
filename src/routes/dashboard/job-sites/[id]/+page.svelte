@@ -479,7 +479,7 @@
 
 		<section class="panel location-panel">
 			<div class="panel-head">
-				<h3>Location</h3>
+				<h3>Location & Route</h3>
 				{#if data.jobSite.latitude != null}
 					<button class="link-btn" onclick={() => (showLocationSearch = !showLocationSearch)}>
 						{showLocationSearch ? 'Cancel' : 'Change'}
@@ -488,19 +488,30 @@
 			</div>
 
 			{#if data.jobSite.latitude != null && !showLocationSearch}
-				{#await import('$lib/components/JobSiteMap.svelte')}
+				{#await import('$lib/components/RouteAlignmentMap.svelte')}
 					<div class="map-mini-loading">Loading map&hellip;</div>
-				{:then { default: JobSiteMap }}
-					<JobSiteMap
-						sites={[{
+				{:then { default: RouteAlignmentMap }}
+					<RouteAlignmentMap
+						site={{
 							id: data.jobSite.id,
 							name: data.jobSite.name,
 							status: data.jobSite.status,
 							latitude: data.jobSite.latitude,
 							longitude: data.jobSite.longitude,
 							location_description: data.jobSite.location_description
-						}]}
-						height="220px"
+						}}
+						initialWaypoints={data.routeWaypoints}
+						numLanes={data.config?.num_lanes}
+						laneWidthFt={data.config?.lane_width_ft}
+						height="400px"
+						onRouteSave={async (waypoints) => {
+							await fetch(`/api/job-sites/${data.jobSite.id}/route`, {
+								method: 'PUT',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({ waypoints }),
+								credentials: 'include'
+							});
+						}}
 					/>
 				{/await}
 				<p class="location-coords">
