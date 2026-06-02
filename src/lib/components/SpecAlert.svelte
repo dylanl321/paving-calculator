@@ -32,11 +32,11 @@
 
 <style>
 	.spec-alert {
-		margin: 10px 0;
-		padding: 12px 14px;
-		border-radius: 10px;
-		border-left: 4px solid currentColor;
-		font-size: 0.85rem;
+		margin: var(--sp-3) 0;
+		padding: var(--sp-3) var(--sp-4);
+		border-radius: var(--radius-sm);
+		border-left: var(--sp-1) solid currentColor;
+		font-size: var(--fs-sm);
 		line-height: 1.4;
 	}
 	.spec-alert.good {
@@ -57,20 +57,20 @@
 	.alert-content {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: var(--sp-2);
 	}
 	.alert-message {
-		font-weight: 500;
+		font-weight: var(--fw-medium);
 	}
 	.clause-pill {
 		display: inline-block;
 		align-self: flex-start;
-		padding: 4px 10px;
+		padding: var(--sp-1) var(--sp-3);
 		background: color-mix(in srgb, var(--surface) 70%, currentColor 10%);
-		border-radius: 6px;
-		font-size: 0.7rem;
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-2xs);
 		font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-		font-weight: 600;
+		font-weight: var(--fw-semibold);
 		color: color-mix(in srgb, currentColor 90%, transparent);
 		cursor: help;
 	}

@@ -167,27 +167,9 @@
 </CalcCard>
 
 <style>
-	.btn-clear {
-		width: 100%;
-		min-height: 3rem;
-		padding: 0.75rem;
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text-muted);
-		font-size: 0.9rem;
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-	.btn-clear:hover {
-		background: var(--surface-alt);
-		color: var(--text);
-	}
-
-
 	.divider {
 		height: 1px;
 		background: var(--border);
-		margin: 20px 0;
+		margin: var(--sp-5) 0;
 	}
 </style>

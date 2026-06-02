@@ -113,52 +113,15 @@
 </CalcCard>
 
 <style>
-	.btn-clear {
-		width: 100%;
-		min-height: 3rem;
-		padding: 0.75rem;
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text-muted);
-		font-size: 0.9rem;
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-	.btn-clear:hover {
-		background: var(--surface-alt);
-		color: var(--text);
-	}
-
-
 	.results-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 10px;
-		margin: 12px 0;
+		gap: var(--sp-3);
+		margin: var(--sp-3) 0;
 	}
 	@media (max-width: 560px) {
 		.results-grid {
 			grid-template-columns: 1fr;
 		}
-	}
-	.result-item {
-		background: var(--surface-alt);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		padding: 12px;
-		text-align: center;
-	}
-	.result-label {
-		font-size: 0.75rem;
-		color: var(--text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.4px;
-		margin-bottom: 4px;
-	}
-	.result-value {
-		font-size: 1.3rem;
-		font-weight: 700;
-		color: var(--text);
 	}
 </style>

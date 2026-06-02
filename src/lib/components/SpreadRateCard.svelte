@@ -275,56 +275,38 @@
 </CalcCard>
 
 <style>
-	.btn-clear {
-		width: 100%;
-		min-height: 3rem;
-		padding: 0.75rem;
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text-muted);
-		font-size: 0.9rem;
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-	.btn-clear:hover {
-		background: var(--surface-alt);
-		color: var(--text);
-	}
-
-
 	.two-up {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 14px;
+		gap: var(--sp-4);
 	}
 	.col-head {
-		font-size: 0.78rem;
-		font-weight: 700;
+		font-size: var(--fs-2xs);
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.4px;
 		color: var(--text-muted);
-		margin-bottom: 8px;
+		margin-bottom: var(--sp-2);
 	}
 	.col-note {
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 		color: var(--text-muted);
-		margin: 6px 0 0;
+		margin: var(--sp-2) 0 0;
 	}
 	.override-toggle {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		min-height: 48px;
+		gap: var(--sp-2);
+		min-height: var(--touch);
 		width: 100%;
-		padding: 12px;
-		margin-bottom: 8px;
+		padding: var(--sp-3);
+		margin-bottom: var(--sp-2);
 		background: transparent;
 		border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
-		border-radius: 8px;
+		border-radius: var(--radius-sm);
 		color: var(--text-muted);
-		font-size: 0.875rem;
-		font-weight: 500;
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-medium);
 		cursor: pointer;
 		transition: all 0.15s ease;
 	}
@@ -343,23 +325,23 @@
 		transform: rotate(180deg);
 	}
 	.override-section {
-		margin-bottom: 12px;
+		margin-bottom: var(--sp-3);
 	}
 	.warning-banner {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 12px;
-		margin: 8px 0 0;
-		padding: 12px;
+		gap: var(--sp-3);
+		margin: var(--sp-2) 0 0;
+		padding: var(--sp-3);
 		background: color-mix(in srgb, var(--warn) 16%, transparent);
 		border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
-		border-radius: 8px;
+		border-radius: var(--radius-sm);
 	}
 	.warning-content {
 		display: flex;
 		align-items: flex-start;
-		gap: 8px;
+		gap: var(--sp-2);
 		flex: 1;
 	}
 	.warning-icon {
@@ -368,24 +350,24 @@
 		margin-top: 2px;
 	}
 	.warning-text {
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 		line-height: 1.4;
 		color: var(--warn);
-		font-weight: 500;
+		font-weight: var(--fw-medium);
 	}
 	.clear-button {
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		min-height: 48px;
-		min-width: 48px;
-		padding: 10px 14px;
+		gap: var(--sp-2);
+		min-height: var(--touch);
+		min-width: var(--touch);
+		padding: var(--sp-3) var(--sp-4);
 		background: color-mix(in srgb, var(--surface-2) 80%, transparent);
 		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
-		border-radius: 6px;
+		border-radius: var(--radius-sm);
 		color: var(--warn);
-		font-size: 0.8125rem;
-		font-weight: 600;
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
 		cursor: pointer;
 		transition: all 0.15s ease;
 		flex-shrink: 0;
@@ -401,20 +383,20 @@
 		flex-shrink: 0;
 	}
 	.snap-btn {
-		margin-top: 8px;
+		margin-top: var(--sp-2);
 		width: 100%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 6px;
-		padding: 10px 12px;
-		min-height: 48px;
+		gap: var(--sp-2);
+		padding: var(--sp-3);
+		min-height: var(--touch);
 		background: var(--surface-alt);
 		color: var(--text);
 		border: 1px solid var(--border);
-		border-radius: 8px;
-		font-size: 0.875rem;
-		font-weight: 600;
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
 		cursor: pointer;
 		white-space: nowrap;
 		transition: all 0.15s;
