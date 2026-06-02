@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { toastStore, type Toast } from '$lib/stores/toast';
 	import { fly, fade } from 'svelte/transition';
+	import { CheckCircle2, AlertCircle, Info, X } from 'lucide-svelte';
 
 	let toasts = $state<Toast[]>([]);
 
@@ -21,21 +22,11 @@
 			>
 				<div class="toast-icon" aria-hidden="true">
 					{#if toast.type === 'success'}
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M20 6L9 17l-5-5" />
-						</svg>
+						<CheckCircle2 size={22} />
 					{:else if toast.type === 'error'}
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-							<circle cx="12" cy="12" r="10" />
-							<line x1="12" y1="8" x2="12" y2="12" />
-							<line x1="12" y1="16" x2="12.01" y2="16" />
-						</svg>
+						<AlertCircle size={22} />
 					{:else}
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-							<circle cx="12" cy="12" r="10" />
-							<line x1="12" y1="16" x2="12" y2="12" />
-							<line x1="12" y1="8" x2="12.01" y2="8" />
-						</svg>
+						<Info size={22} />
 					{/if}
 				</div>
 				<p class="toast-message">{toast.message}</p>
@@ -45,10 +36,7 @@
 					onclick={() => toastStore.dismiss(toast.id)}
 					aria-label="Dismiss notification"
 				>
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<line x1="18" y1="6" x2="6" y2="18" />
-						<line x1="6" y1="6" x2="18" y2="18" />
-					</svg>
+					<X size={18} />
 				</button>
 			</div>
 		{/each}

@@ -4,6 +4,7 @@
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import { searchPlaces, type GeoResult } from '$lib/services/weather';
 	import type { PageData } from './$types';
+	import { MapPin } from 'lucide-svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -1550,7 +1551,7 @@
 				{new Date(selectedPhoto.taken_at * 1000).toLocaleString()}
 				{#if selectedPhoto.lat != null && selectedPhoto.lng != null}
 					<span class="lightbox-gps">
-						📍 {selectedPhoto.lat.toFixed(6)}, {selectedPhoto.lng.toFixed(6)}
+						<MapPin size={14} style="display: inline-block; vertical-align: text-bottom;" /> {selectedPhoto.lat.toFixed(6)}, {selectedPhoto.lng.toFixed(6)}
 					</span>
 				{/if}
 			</div>

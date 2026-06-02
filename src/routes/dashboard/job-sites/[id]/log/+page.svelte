@@ -5,6 +5,7 @@
 	import GpsStationButton from '$lib/components/GpsStationButton.svelte';
 	import type { RouteWaypoint } from '$lib/services/gpsStation';
 	import TimeInput from '$lib/components/TimeInput.svelte';
+	import { Droplets, FileText } from 'lucide-svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -178,17 +179,8 @@
 		return `${ft.toLocaleString()} ft`;
 	}
 
-	function getEntryTypeIcon(type: string): string {
-		const icons: Record<string, string> = {
-			paving: '🛣️',
-			milling: '🚜',
-			tack: '💧',
-			break: '☕',
-			delay: '⏸️',
-			note: '📝'
-		};
-		return icons[type] || '•';
-	}
+	// Entry type icon mapping - returns component name
+	// Icons rendered inline in the template
 
 	function getEntryTypeColor(type: string): string {
 		const colors: Record<string, string> = {
