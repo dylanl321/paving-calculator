@@ -26,6 +26,7 @@
 
 <CalcCard
 	title="Concrete Volume"
+	hideTitle
 	purpose="Calculate volume needed for slabs, footings, or pads. Includes waste factor."
 >
 	<NumberField label="Length" unit="ft" bind:value={lengthFt} />

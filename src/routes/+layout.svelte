@@ -1,21 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
 	import { config } from '$lib/config';
 	import { themeStore } from '$lib/stores/theme.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import AppShell from '$lib/components/shell/AppShell.svelte';
-	import ContextPanel from '$lib/components/shell/ContextPanel.svelte';
 	import '../app.css';
 
 	let { children } = $props();
 
 	const themeTokens = $derived(config.theme[themeStore.mode]);
-
-	// Calculator surfaces get the live-job context panel on wide screens.
-	const showContext = $derived(
-		$page.url.pathname === '/' || $page.url.pathname.startsWith('/calculators')
-	);
 
 	const themeStyle = $derived(
 		[
@@ -51,9 +44,5 @@
 </script>
 
 <div class="app-root" style={themeStyle}>
-	<AppShell hasContext={showContext} {children} {context} />
+	<AppShell {children} />
 </div>
-
-{#snippet context()}
-	<ContextPanel />
-{/snippet}

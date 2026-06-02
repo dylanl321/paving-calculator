@@ -10,8 +10,6 @@
 
 	const rate = $derived(job.thicknessIn > 0 ? spreadRateFromThickness(job.thicknessIn) : 0);
 
-	const waste = [0, 5, 10];
-
 	const tons = $derived(
 		lengthFt && rate > 0 && job.widthFt > 0
 			? tonnageToOrder({
@@ -26,46 +24,18 @@
 
 <CalcCard
 	title="Tonnage to Order"
+	hideTitle
 	purpose="How much asphalt to order for a job at the job width and target thickness."
 >
 	<NumberField label="Length of the job" unit="ft" bind:value={lengthFt} />
 
-	<div class="waste">
-		<span class="waste-label">Waste allowance</span>
-		<div class="chips">
-			{#each waste as w (w)}
-				<button class="chip" class:active={job.wastePct === w} onclick={() => (job.wastePct = w)}>
-					{w === 0 ? 'None' : `+${w}%`}
-				</button>
-			{/each}
-		</div>
-	</div>
-
 	<ResultStat
 		value={tons != null ? Math.round(tons).toLocaleString() : null}
 		unit="tons to order"
-		secondary={`At ${job.widthFt} ft wide, ${job.thicknessIn}" (${Math.round(rate)} lbs/SY)`}
+		secondary={`At ${job.widthFt} ft wide, ${job.thicknessIn}" (${Math.round(rate)} lbs/SY) · ${job.wastePct}% waste`}
 	/>
 
 	<ShowWork>
 		<code>tons = (length × width ÷ 9 × rate) ÷ 2000 × (1 + waste%)</code>
 	</ShowWork>
 </CalcCard>
-
-<style>
-	.waste {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-		margin-bottom: 16px;
-	}
-	.waste-label {
-		font-size: 0.85rem;
-		color: var(--text-muted);
-	}
-	.waste .chips {
-		display: flex;
-		gap: 6px;
-	}
-</style>

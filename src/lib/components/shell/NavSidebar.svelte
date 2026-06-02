@@ -20,7 +20,6 @@
 
 	const navItems: NavItem[] = [
 		{ href: '/', label: 'Calculators', icon: 'calc' },
-		{ href: '/calculators', label: 'All Calculators', icon: 'grid' },
 		{ href: '/reference', label: 'Reference', icon: 'book' },
 		{ href: '/dashboard', label: 'Dashboard', icon: 'layout', authed: true }
 	];

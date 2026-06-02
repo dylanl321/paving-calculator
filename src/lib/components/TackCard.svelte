@@ -35,6 +35,7 @@
 
 <CalcCard
 	title="Tack Rate"
+	hideTitle
 	purpose="Gallons of tack to shoot for an area. Shows the safe min–max window for the chosen application, with the mid-rate as the suggested amount."
 >
 	<NumberField label="Length to shoot" unit="ft" bind:value={lengthFt} />

@@ -38,6 +38,7 @@
 
 <CalcCard
 	title="Subgrade / Base Stone"
+	hideTitle
 	purpose="Calculate tonnage and truck loads for base material by depth and density."
 >
 	<NumberField label="Length" unit="ft" bind:value={lengthFt} />

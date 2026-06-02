@@ -5,7 +5,7 @@
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
 	import SpreadRateGauge from './SpreadRateGauge.svelte';
-	import { machines, constantMeta, placementCheck, rainCheck } from '$lib/config';
+	import { constantMeta, placementCheck, rainCheck } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
 	import { spreadRateFromThickness, spreadRatePlaced } from '$lib/config/formulas';
@@ -44,7 +44,6 @@
 			: { kind: 'warn' as const, text: 'Low vs target' };
 	});
 
-	const machineLabel = $derived(machines.find((m) => m.id === job.machineId)?.label ?? 'None');
 	const multMeta = constantMeta('CONST.THICK_MULT');
 	const placement = $derived(placementCheck(weather.effectiveTempF, job.thicknessIn));
 	const rain = $derived(rainCheck(weather.rainNext24hIn));
@@ -71,6 +70,7 @@
 
 <CalcCard
 	title="Spread Rate"
+	hideTitle
 	purpose="Two numbers side by side: your target rate from the job thickness, and the actual rate from a real load. The badge tells you if you are on spec."
 >
 	<div class="two-up">
@@ -111,21 +111,6 @@
 		<SpreadRateGauge actual={placedRate} target={targetRate} />
 	{/if}
 
-	{#if job.machineId !== 'none'}
-		{@const checkboxLabel =
-			job.machineId === 'paver'
-				? 'Is the paver hopper full?'
-				: job.machineId === 'shuttle'
-					? 'Is the shuttle buggy full?'
-					: job.machineId === 'mtv'
-						? 'Is the MTV full?'
-						: `First pass — subtract ${machineLabel} retained material`}
-		<label class="firstpass">
-			<input type="checkbox" bind:checked={job.firstPass} />
-			{checkboxLabel}
-		</label>
-	{/if}
-
 	<ShowWork>
 		<p>Target uses the field rule-of-thumb:</p>
 		<code>rate = thickness(in) × {multMeta.value}  →  {job.thicknessIn} × {multMeta.value} = {targetRate != null ? Math.round(targetRate) : '—'} lbs/SY</code>
@@ -153,19 +138,6 @@
 		font-size: 0.75rem;
 		color: var(--text-muted);
 		margin: 6px 0 0;
-	}
-	.firstpass {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: 0.85rem;
-		color: var(--text-muted);
-		margin-top: 14px;
-	}
-	.firstpass input {
-		width: 20px;
-		height: 20px;
-		accent-color: var(--accent);
 	}
 	@media (max-width: 460px) {
 		.two-up {

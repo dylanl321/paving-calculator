@@ -21,6 +21,7 @@
 
 <CalcCard
 	title="Slope / Grade"
+	hideTitle
 	purpose="Calculate slope grade percentage, ratio, and angle for drainage or grading work."
 >
 	<div class="rise-input-group">

@@ -32,6 +32,7 @@
 
 <CalcCard
 	title="Distance Planner"
+	hideTitle
 	purpose="Figure out how much asphalt to order to reach a specific stopping point. Shows how far available material will cover and how much is needed for a desired distance."
 >
 	<NumberField label="Tons in silo" unit="tons" bind:value={tonsInSilo} />

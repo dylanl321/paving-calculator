@@ -3,14 +3,16 @@
 	interface Props {
 		title: string;
 		purpose: string;
+		/** Hide the in-card title (the workspace stage header already shows it) */
+		hideTitle?: boolean;
 		children: Snippet;
 	}
-	let { title, purpose, children }: Props = $props();
+	let { title, purpose, hideTitle = false, children }: Props = $props();
 </script>
 
 <section class="calc-card">
 	<header class="calc-head">
-		<h2>{title}</h2>
+		{#if !hideTitle}<h2>{title}</h2>{/if}
 		<p class="purpose">{purpose}</p>
 	</header>
 	{@render children()}
@@ -20,21 +22,22 @@
 	.calc-card {
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		padding: 18px 16px;
-		margin-bottom: 16px;
+		border-radius: var(--radius-lg);
+		padding: var(--sp-5);
+		margin-bottom: var(--sp-4);
 	}
 	.calc-head {
-		margin-bottom: 16px;
+		margin-bottom: var(--sp-5);
 	}
 	.calc-head h2 {
-		margin: 0;
-		font-size: 1.2rem;
+		margin: 0 0 var(--sp-1);
+		font-size: var(--fs-lg);
+		font-weight: var(--fw-bold);
 	}
 	.purpose {
-		margin: 4px 0 0;
-		font-size: 0.85rem;
+		margin: 0;
+		font-size: var(--fs-sm);
 		color: var(--text-muted);
-		line-height: 1.35;
+		line-height: 1.45;
 	}
 </style>

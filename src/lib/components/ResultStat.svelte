@@ -25,43 +25,44 @@
 
 <style>
 	.result {
-		margin-top: 8px;
+		margin-top: var(--sp-2);
 		background: var(--surface-alt);
 		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		padding: 20px 16px;
+		border-radius: var(--radius-lg);
+		padding: var(--sp-6) var(--sp-4);
 		text-align: center;
 	}
 	.result.empty {
-		padding: 16px;
+		padding: var(--sp-4);
 	}
 	.placeholder {
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		color: var(--text-muted);
 	}
 	.value {
-		font-size: 2.8rem;
-		font-weight: 800;
+		font-size: var(--fs-result);
+		font-weight: var(--fw-heavy);
 		line-height: 1;
 		color: var(--accent);
+		letter-spacing: -0.5px;
 	}
 	.unit-label {
-		font-size: 0.9rem;
+		font-size: var(--fs-sm);
 		color: var(--text-muted);
-		margin-top: 6px;
+		margin-top: var(--sp-2);
 	}
 	.secondary {
-		font-size: 0.82rem;
+		font-size: var(--fs-sm);
 		color: var(--text-muted);
-		margin-top: 8px;
+		margin-top: var(--sp-2);
 	}
 	.badge {
 		display: inline-block;
-		margin-top: 12px;
+		margin-top: var(--sp-3);
 		padding: 5px 12px;
-		border-radius: 999px;
-		font-size: 0.8rem;
-		font-weight: 700;
+		border-radius: var(--radius-pill);
+		font-size: var(--fs-xs);
+		font-weight: var(--fw-bold);
 	}
 	.badge.good {
 		background: color-mix(in srgb, var(--good) 22%, transparent);

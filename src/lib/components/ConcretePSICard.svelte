@@ -7,6 +7,7 @@
 
 <CalcCard
 	title="Concrete PSI Quick Reference"
+	hideTitle
 	purpose="Common concrete strength ratings and their typical applications."
 >
 	<div class="psi-table">

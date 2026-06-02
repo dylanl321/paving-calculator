@@ -35,6 +35,7 @@
 
 <CalcCard
 	title="Soil Compaction"
+	hideTitle
 	purpose="Calculate field density and percent compaction from test mold measurements."
 >
 	<NumberField label="Wet weight of soil" unit="lbs" bind:value={wetWeightLbs} />

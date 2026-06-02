@@ -32,6 +32,7 @@
 
 <CalcCard
 	title="Feet Left Today"
+	hideTitle
 	purpose="How many more feet you can pave with what is left, at the job width and target rate set above."
 >
 	<NumberField

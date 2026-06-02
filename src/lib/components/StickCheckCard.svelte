@@ -17,6 +17,7 @@
 
 <CalcCard
 	title="Stick Check"
+	hideTitle
 	purpose="Loose material height to look for behind the screed for a target compacted thickness."
 >
 	<NumberField label="Target compacted thickness" unit="in" step={0.25} bind:value={target} />
