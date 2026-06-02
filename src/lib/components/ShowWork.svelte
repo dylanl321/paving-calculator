@@ -56,4 +56,11 @@
 		gap: 8px;
 		margin-top: 6px;
 	}
+	.work-body :global(.src-note) {
+		font-size: 0.78rem;
+		color: var(--text-muted);
+		border-left: 2px solid var(--border);
+		padding-left: 8px;
+		margin-top: 8px;
+	}
 </style>

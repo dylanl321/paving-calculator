@@ -106,7 +106,7 @@
 		<code
 			>% Compaction = (Field Dry Density / Proctor Max) × 100 = ({result?.dryDensity.toFixed(1) ?? '—'} / {proctorMaxDryPcf ?? '—'}) × 100 = {result?.compactionPct.toFixed(1) ?? '—'}%</code
 		>
-		<p>Typical spec: ≥95% for subgrade, 92-95% marginal, &lt;92% fail.</p>
+		<p>Compaction spec: <strong>≥95%</strong> for subgrade per GDOT §207.3.05; 92–95% marginal, &lt;92% fail. Test method: AASHTO T 99 / T 180 (Proctor).</p>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>

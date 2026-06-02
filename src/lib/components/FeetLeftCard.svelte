@@ -3,9 +3,12 @@
 	import NumberField from './NumberField.svelte';
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
+	import SourceBadge from './SourceBadge.svelte';
+	import DotTable from './DotTable.svelte';
 	import RoadProgressBar from './RoadProgressBar.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { feetFromOrderedMinusPlaced, spreadRateFromThickness } from '$lib/config/formulas';
+	import { constantMeta } from '$lib/config';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
 	import { unitsStore } from '$lib/stores/units.svelte';
@@ -80,6 +83,8 @@
 	const displayFeet = $derived(
 		feet != null && unitsStore.system === 'metric' ? toMeters(feet) : feet
 	);
+
+	const thickMultMeta = constantMeta('CONST.THICK_MULT');
 </script>
 
 <CalcCard
@@ -120,6 +125,8 @@
 		<p>Tons → feet conversion:</p>
 		<code>feet = (ordered − placed) × 2000 × 9 ÷ (width × rate)</code>
 		<p>Ordered minus placed gives remaining tons available today.</p>
+		<p>Rate comes from THICK_MULT (§400 rule-of-thumb: <SourceBadge status={thickMultMeta.status} tier={thickMultMeta.tier} /> = {thickMultMeta.value} lbs/SY per inch). Actual rate shown from job settings.</p>
+		<DotTable tableId="table-12" />
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>

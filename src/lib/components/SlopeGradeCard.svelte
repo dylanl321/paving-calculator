@@ -94,6 +94,7 @@
 			<li>2% cross-slope for drainage (1:50 ratio)</li>
 			<li>1-3% longitudinal for highways</li>
 		</ul>
+		<p class="src-note">2% cross-slope per GDOT Design Policy Manual §3.2; 1–3% longitudinal per AASHTO "Green Book" Table 3-1.</p>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>
