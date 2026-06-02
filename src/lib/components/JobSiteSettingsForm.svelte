@@ -3,6 +3,7 @@
 		jobSite,
 		machines,
 		tack,
+		spreadTolerance,
 		placementCheck,
 		rainCheck,
 		minAirTempForThickness
@@ -285,6 +286,23 @@
 									onclick={() => (job.tackApplication = t.id)}
 								>
 									{t.label}
+								</button>
+							{/each}
+						</div>
+						{#if field.hint}<p class="field-hint">{field.hint}</p>{/if}
+					</div>
+				{:else if field.type === 'course'}
+					<div class="field">
+						<span class="field-label">{field.label}</span>
+						<div class="chips">
+							{#each spreadTolerance as c (c.id)}
+								<button
+									type="button"
+									class="chip"
+									class:active={job.courseType === c.id}
+									onclick={() => (job.courseType = c.id)}
+								>
+									{c.label}
 								</button>
 							{/each}
 						</div>

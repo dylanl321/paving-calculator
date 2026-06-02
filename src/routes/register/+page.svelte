@@ -51,7 +51,7 @@
 	<div class="auth-container">
 		<div class="auth-card">
 			<div class="auth-logo">
-				<img src="/icons/icon-192.png" alt="Paverate" />
+				<img class="logo-badge" src="/logo-wordmark.png" alt="Paverate" />
 				<h1>Create account</h1>
 				<p>Start tracking your paving jobs</p>
 			</div>
@@ -174,11 +174,12 @@
 		margin-bottom: 32px;
 	}
 
-	.auth-logo img {
-		width: 64px;
-		height: 64px;
-		border-radius: 16px;
+	.auth-logo img.logo-badge {
+		width: auto;
+		height: 120px;
+		border-radius: 0;
 		margin-bottom: 16px;
+		filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.4));
 	}
 
 	.auth-logo h1 {

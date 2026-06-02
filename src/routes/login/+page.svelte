@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { dev } from '$app/environment';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { config } from '$lib/config';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -15,6 +16,20 @@
 		loading = true;
 
 		const result = await authStore.login(email, password);
+
+		if (result.error) {
+			error = result.error;
+			loading = false;
+		} else {
+			goto('/dashboard');
+		}
+	}
+
+	async function handleDevLogin() {
+		error = '';
+		loading = true;
+
+		const result = await authStore.devLogin();
 
 		if (result.error) {
 			error = result.error;
@@ -92,18 +107,7 @@
 
 	<header class="topbar">
 		<a href="/" class="brand">
-			<svg class="brand-mark" viewBox="0 0 120 120" aria-hidden="true">
-				<rect x="6" y="6" width="108" height="108" rx="24" fill="#2e3b46" stroke="#f2c037" stroke-width="3" />
-				<path d="M44 104 L60 104 L54 40 L50 40 Z" fill="#5a6b78" />
-				<rect x="51" y="44" width="3.6" height="9" rx="1.8" fill="#f2c037" />
-				<rect x="50.4" y="60" width="4" height="10" rx="2" fill="#f2c037" />
-				<rect x="49.6" y="78" width="4.8" height="12" rx="2.4" fill="#f2c037" />
-				<g fill="none" stroke="#9fb0bd" stroke-width="2.4" stroke-linejoin="round" opacity="0.85">
-					<polygon points="68,52 76,47 84,52 84,62 76,67 68,62" />
-					<polygon points="86,52 94,47 102,52 102,62 94,67 86,62" />
-					<polygon points="77,70 85,65 93,70 93,80 85,85 77,80" />
-				</g>
-			</svg>
+			<img class="brand-mark" src="/logo-mark.png" alt="" />
 			<span>{config.app.name}</span>
 		</a>
 		<ThemeToggle />
@@ -112,23 +116,7 @@
 	<main class="auth-container">
 		<div class="auth-card">
 			<div class="auth-logo">
-				<div class="logo-mark">
-					<svg viewBox="0 0 120 120" role="img" aria-label="{config.app.name}">
-						<!-- Brand badge background (slate, transparent corners) -->
-						<rect x="6" y="6" width="108" height="108" rx="24" fill="#2e3b46" stroke="#f2c037" stroke-width="3" />
-						<!-- Road receding with a dashed yellow lane -->
-						<path d="M44 104 L60 104 L54 40 L50 40 Z" fill="#5a6b78" />
-						<rect x="51" y="44" width="3.6" height="9" rx="1.8" fill="#f2c037" />
-						<rect x="50.4" y="60" width="4" height="10" rx="2" fill="#f2c037" />
-						<rect x="49.6" y="78" width="4.8" height="12" rx="2.4" fill="#f2c037" />
-						<!-- Hex paver cluster on the shoulder -->
-						<g fill="none" stroke="#9fb0bd" stroke-width="2.4" stroke-linejoin="round" opacity="0.85">
-							<polygon points="68,52 76,47 84,52 84,62 76,67 68,62" />
-							<polygon points="86,52 94,47 102,52 102,62 94,67 86,62" />
-							<polygon points="77,70 85,65 93,70 93,80 85,85 77,80" />
-						</g>
-					</svg>
-				</div>
+				<img class="logo-badge" src="/logo-wordmark.png" alt="{config.app.name}" />
 				<h1>Welcome back</h1>
 				<p>Sign in to manage your job sites and daily logs.</p>
 			</div>
@@ -166,6 +154,12 @@
 					{loading ? 'Signing in…' : 'Sign In'}
 				</button>
 			</form>
+
+			{#if dev}
+				<button type="button" class="dev-btn" onclick={handleDevLogin} disabled={loading}>
+					Dev login (local only)
+				</button>
+			{/if}
 
 			<div class="auth-footer">
 				Don't have an account? <a href="/register" class="link">Create one</a>
@@ -237,6 +231,7 @@
 		width: 30px;
 		height: 30px;
 		display: block;
+		object-fit: contain;
 	}
 
 	/* ---- Card ---- */
@@ -271,16 +266,12 @@
 		margin-bottom: 30px;
 	}
 
-	.logo-mark {
-		width: 76px;
-		height: 76px;
+	.logo-badge {
+		width: auto;
+		height: 132px;
 		margin: 0 auto 18px;
-		filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45));
-	}
-	.logo-mark svg {
-		width: 100%;
-		height: 100%;
 		display: block;
+		filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.45));
 	}
 
 	.auth-logo h1 {
@@ -374,6 +365,34 @@
 	}
 
 	.submit-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.dev-btn {
+		width: 100%;
+		min-height: var(--touch);
+		margin-top: 14px;
+		background: transparent;
+		color: #cdd8e0;
+		border: 1px dashed rgba(159, 176, 189, 0.4);
+		border-radius: var(--radius);
+		font-size: 0.9rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition:
+			color 0.15s,
+			border-color 0.15s,
+			background 0.15s;
+	}
+
+	.dev-btn:hover:not(:disabled) {
+		color: #f4f6f7;
+		border-color: rgba(159, 176, 189, 0.7);
+		background: rgba(159, 176, 189, 0.08);
+	}
+
+	.dev-btn:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
 	}

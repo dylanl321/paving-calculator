@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
+	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -9,7 +10,7 @@
 	let configForm = $state({
 		road_type: data.config?.road_type || null,
 		num_lanes: data.config?.num_lanes || null,
-		lane_width_ft: data.config?.lane_width_ft || 12,
+		lane_width_ft: data.config?.lane_width_ft || orgSettingsStore.resolvedDefaults.roadWidthFt,
 		total_length_ft: data.config?.total_length_ft || null,
 		scope_of_work: data.config?.scope_of_work || null,
 		mix_type: data.config?.mix_type || null,
@@ -73,7 +74,8 @@
 			configForm.target_thickness_in > 0 &&
 			!configForm.target_spread_rate
 		) {
-			configForm.target_spread_rate = configForm.target_thickness_in * 110;
+			configForm.target_spread_rate =
+				configForm.target_thickness_in * orgSettingsStore.resolvedConstant('CONST.THICK_MULT');
 		}
 	});
 

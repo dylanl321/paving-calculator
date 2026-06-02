@@ -5,7 +5,7 @@
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
 	import SpreadRateGauge from './SpreadRateGauge.svelte';
-	import { constantMeta, placementCheck, rainCheck } from '$lib/config';
+	import { constantMeta, placementCheck, rainCheck, spreadSpecCheck, spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
 	import { spreadRateFromThickness, spreadRatePlaced } from '$lib/config/formulas';
@@ -37,14 +37,12 @@
 			: null
 	);
 
-	const badge = $derived.by(() => {
-		if (placedRate == null || targetRate == null) return null;
-		const diff = (placedRate - targetRate) / targetRate;
-		if (Math.abs(diff) <= 0.05) return { kind: 'good' as const, text: 'In spec vs target' };
-		return diff > 0
-			? { kind: 'bad' as const, text: 'High vs target' }
-			: { kind: 'warn' as const, text: 'Low vs target' };
-	});
+	const tolerance = $derived(spreadToleranceFor(job.courseType));
+	const spec = $derived(spreadSpecCheck(placedRate, targetRate, job.courseType));
+
+	const badge = $derived(
+		spec ? { kind: spec.status, text: spec.label } : null
+	);
 
 	const multMeta = constantMeta('CONST.THICK_MULT');
 	const placement = $derived(placementCheck(weather.effectiveTempF, job.thicknessIn));
@@ -128,7 +126,10 @@
 	</div>
 
 	{#if placedRate != null && targetRate != null}
-		<SpreadRateGauge actual={placedRate} target={targetRate} />
+		<SpreadRateGauge actual={placedRate} target={targetRate} toleranceLbsSy={tolerance.toleranceLbsSy} />
+		{#if spec}
+			<p class="spec-note {spec.status}">{spec.message}</p>
+		{/if}
 	{/if}
 
 	<ShowWork>
@@ -136,7 +137,13 @@
 		<code>rate = thickness(in) × {multMeta.value}  →  {job.thicknessIn} × {multMeta.value} = {targetRate != null ? Math.round(targetRate) : '—'} lbs/SY</code>
 		<p>Actual converts a real load over the area paved:</p>
 		<code>rate = (tons − retained) × 2000 ÷ (length × width ÷ 9)</code>
+		<p>
+			In-spec is judged against GDOT Section 400 Table 12 — for a
+			<b>{tolerance.label}</b> the placed rate must stay within
+			<b>±{tolerance.toleranceLbsSy} lbs/SY</b> of the target.
+		</p>
 		<div class="src-row">Thickness × 110 multiplier: <SourceBadge status={multMeta.status} tier={multMeta.tier} /></div>
+		<div class="src-row">Table 12 tolerance (±{tolerance.toleranceLbsSy} lbs/SY): <SourceBadge status={tolerance.status} tier={tolerance.tier} /></div>
 	</ShowWork>
 </CalcCard>
 
@@ -158,6 +165,25 @@
 		font-size: 0.75rem;
 		color: var(--text-muted);
 		margin: 6px 0 0;
+	}
+	.spec-note {
+		font-size: 0.78rem;
+		margin: 10px 0 0;
+		padding: 8px 10px;
+		border-radius: 8px;
+		line-height: 1.35;
+	}
+	.spec-note.good {
+		background: color-mix(in srgb, var(--good) 16%, transparent);
+		color: var(--good);
+	}
+	.spec-note.warn {
+		background: color-mix(in srgb, var(--warn) 16%, transparent);
+		color: var(--warn);
+	}
+	.spec-note.bad {
+		background: color-mix(in srgb, var(--bad) 16%, transparent);
+		color: var(--bad);
 	}
 	@media (max-width: 460px) {
 		.two-up {

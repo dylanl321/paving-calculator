@@ -3,13 +3,14 @@
 /// <reference types="@vite-pwa/sveltekit" />
 /// <reference types="vite-plugin-pwa/client" />
 
-import type { D1Database } from './cloudflare';
+import type { D1Database, R2Bucket } from './cloudflare';
 
 declare global {
 	namespace App {
 		interface Platform {
 			env: {
 				DB: D1Database;
+				ASSETS_BUCKET: R2Bucket;
 			};
 			ctx: ExecutionContext;
 			caches: CacheStorage;

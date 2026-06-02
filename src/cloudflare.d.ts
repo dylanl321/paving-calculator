@@ -30,3 +30,38 @@ export interface D1ExecResult {
 	count: number;
 	duration: number;
 }
+
+// Minimal R2 type definitions for Cloudflare Workers
+export interface R2Bucket {
+	put(
+		key: string,
+		value: ArrayBuffer | ArrayBufferView | string | ReadableStream | Blob,
+		options?: R2PutOptions
+	): Promise<R2Object>;
+	get(key: string): Promise<R2ObjectBody | null>;
+	head(key: string): Promise<R2Object | null>;
+	delete(key: string | string[]): Promise<void>;
+}
+
+export interface R2PutOptions {
+	httpMetadata?: { contentType?: string; cacheControl?: string };
+	customMetadata?: Record<string, string>;
+}
+
+export interface R2Object {
+	key: string;
+	size: number;
+	etag: string;
+	httpEtag: string;
+	uploaded: Date;
+	httpMetadata?: { contentType?: string; cacheControl?: string };
+	customMetadata?: Record<string, string>;
+}
+
+export interface R2ObjectBody extends R2Object {
+	body: ReadableStream;
+	bodyUsed: boolean;
+	arrayBuffer(): Promise<ArrayBuffer>;
+	text(): Promise<string>;
+	blob(): Promise<Blob>;
+}

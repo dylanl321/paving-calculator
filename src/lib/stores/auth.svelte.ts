@@ -83,6 +83,27 @@ class AuthStore {
 		}
 	}
 
+	async devLogin(): Promise<{ error?: string }> {
+		try {
+			const res = await fetch('/api/auth/dev-login', {
+				method: 'POST',
+				credentials: 'include'
+			});
+
+			const data = await res.json();
+
+			if (!res.ok) {
+				return { error: data.error || 'Dev login failed' };
+			}
+
+			await this.fetch();
+			return {};
+		} catch (err) {
+			console.error('Dev login error:', err);
+			return { error: 'Network error' };
+		}
+	}
+
 	async register(
 		name: string,
 		email: string,

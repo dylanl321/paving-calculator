@@ -98,7 +98,23 @@ source hierarchy, and status definitions.
 
 ---
 
-## Soil / Aggregate Densities (field rules-of-thumb → confirm vs. mix design)
+## Spread-Rate Tolerance (GDOT Section 400 Table 12)
+
+| ID | Course | Tolerance (± lbs/yd²) | Tier | Citation | Status |
+|----|--------|-----------------------|:----:|----------|:------:|
+| `TOLERANCE.BASE` | Asphaltic concrete base course | ±55 | 1 | Std Spec §400.4.A.2.b Table 12 | ✅ |
+| `TOLERANCE.INTERMEDIATE_WEARING` | Intermediate / wearing course | ±27.5 | 1 | Std Spec §400.4.A.2.b Table 12 | ✅ |
+| `TOLERANCE.OGFC` | 9.5 / 12.5 mm OGFC | within 7 (per lot) | 1 | Std Spec §400.4.A.2.b Table 12 note | ✅ |
+| `TOLERANCE.PEM` | 12.5 mm PEM | within 10 (per lot) | 1 | Std Spec §400.4.A.2.b Table 12 note | ✅ |
+
+> Table 12 also specifies **thickness** tolerances (base ±0.5 in, intermediate/wearing
+> ±0.25 in). Only the **spread-rate** rows are wired into the app today (Spread Rate
+> card "in spec" judgment). The "any combination of base + surface" row uses the
+> base ±55 value. Replaces the prior flat ±5% heuristic, which had no spec basis.
+
+---
+
+
 
 | ID | Material | Typical pcf | Tier | Citation | Status |
 |----|----------|-------------|:----:|----------|:------:|

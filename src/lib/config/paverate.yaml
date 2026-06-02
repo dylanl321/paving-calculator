@@ -125,6 +125,7 @@ defaults:
   firstPass: false        # apply machine retention only on first pass
   tackApplication: TACK.FIELD_LEVELING
   wastePct: 0             # 0 | 5 | 10
+  courseType: TOLERANCE.INTERMEDIATE_WEARING  # Table 12 spread-rate tolerance class
 
 # ---------------------------------------------------------------------------
 # Job site settings UI — labels, hints, and section layout for the settings
@@ -170,6 +171,10 @@ jobSite:
           unit: in
           type: number
           step: 0.25
+        - key: courseType
+          label: Course type
+          hint: Sets the GDOT Table 12 spread-rate tolerance — base ±55, intermediate/wearing ±27.5, OGFC ±7, PEM ±10 lbs/SY of the target rate.
+          type: course
         - key: machineId
           label: Machine
           hint: Paver or shuttle buggy — retained tonnage is subtracted from spread-rate reality checks on the first pass.
@@ -384,6 +389,38 @@ mixThickness:
     maxTotalIn: ~
     tier: 1
     status: UNVERIFIED
+
+# ---------------------------------------------------------------------------
+# Spread-rate acceptance tolerance (TOLERANCE.*) -- GDOT Section 400 Table 12
+# "Thickness and Spread Rate Tolerance at Any Given Location."
+# toleranceLbsSy = allowed +/- deviation from the DESIGNATED spread rate (lbs/yd2).
+# OGFC/PEM use the per-lot control window from the Table 12 note.
+# ---------------------------------------------------------------------------
+spreadTolerance:
+  - id: TOLERANCE.BASE
+    label: Base course
+    toleranceLbsSy: 55
+    note: Asphaltic concrete base course (also any combination of base + surface)
+    tier: 1
+    status: VERIFIED
+  - id: TOLERANCE.INTERMEDIATE_WEARING
+    label: Intermediate / wearing course
+    toleranceLbsSy: 27.5
+    note: Intermediate and/or wearing course
+    tier: 1
+    status: VERIFIED
+  - id: TOLERANCE.OGFC
+    label: OGFC (9.5 / 12.5 mm)
+    toleranceLbsSy: 7
+    note: Control spread rate per lot within 7 lbs/yd2 of the designated rate
+    tier: 1
+    status: VERIFIED
+  - id: TOLERANCE.PEM
+    label: 12.5 mm PEM
+    toleranceLbsSy: 10
+    note: Control spread rate per lot within 10 lbs/yd2 of the designated rate
+    tier: 1
+    status: VERIFIED
 
 # ---------------------------------------------------------------------------
 # Soil / aggregate reference densities (DENSITY.*) -- field rules-of-thumb

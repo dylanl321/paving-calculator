@@ -2,27 +2,35 @@
 	interface Props {
 		actual: number | null;
 		target: number | null;
+		/** GDOT Table 12 absolute tolerance (lbs/yd²) for the selected course. */
+		toleranceLbsSy: number;
 	}
 
-	let { actual, target }: Props = $props();
+	let { actual, target, toleranceLbsSy }: Props = $props();
 
-	// Calculate position and status (in-spec = within 5%)
-	const inSpec = $derived.by(() => {
+	// Status from the absolute Table 12 tolerance: good within ±tol, warn within
+	// 1.5× tol, bad beyond.
+	const status = $derived.by(() => {
 		if (actual == null || target == null) return null;
-		const diff = Math.abs((actual - target) / target);
-		return diff <= 0.05;
+		const absDelta = Math.abs(actual - target);
+		if (absDelta <= toleranceLbsSy) return 'good';
+		if (absDelta <= toleranceLbsSy * 1.5) return 'warn';
+		return 'bad';
 	});
 
 	const percentage = $derived.by(() => {
 		if (actual == null || target == null) return 0;
-		// Map to 0-100% scale where target is at 50%
-		// Range: 70% of target (low) to 130% of target (high)
-		const ratio = actual / target;
-		const scaledRatio = (ratio - 0.7) / 0.6; // Maps 0.7-1.3 to 0-1
-		return Math.max(0, Math.min(100, scaledRatio * 100));
+		// Scale the bar so the in-spec band (±tolerance) occupies the middle.
+		// Full range spans ±3× tolerance around the target, clamped to 0-100%.
+		const span = toleranceLbsSy * 3;
+		if (span <= 0) return 50;
+		const scaled = ((actual - target) / span + 1) / 2; // target=0.5
+		return Math.max(0, Math.min(100, scaled * 100));
 	});
 
-	const statusColor = $derived(inSpec ? 'var(--good)' : 'var(--bad)');
+	const statusColor = $derived(
+		status === 'good' ? 'var(--good)' : status === 'warn' ? 'var(--warn)' : 'var(--bad)'
+	);
 </script>
 
 <div class="gauge-wrapper">

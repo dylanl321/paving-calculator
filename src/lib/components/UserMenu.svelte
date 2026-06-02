@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { authStore } from '$lib/stores/auth.svelte';
+	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import { goto } from '$app/navigation';
+
+	let {
+		direction = 'down',
+		align = 'right'
+	}: { direction?: 'up' | 'down'; align?: 'left' | 'right' } = $props();
 
 	let open = $state(false);
 
@@ -14,6 +20,7 @@
 
 	async function handleLogout() {
 		await authStore.logout();
+		orgSettingsStore.clear();
 		close();
 		goto('/');
 	}
@@ -42,7 +49,7 @@
 		</button>
 
 		{#if open}
-			<div class="dropdown">
+			<div class="dropdown" class:up={direction === 'up'} class:align-left={align === 'left'}>
 				<div class="user-info">
 					<div class="name">{authStore.user.name}</div>
 					<div class="email">{authStore.user.email}</div>
@@ -113,12 +120,26 @@
 		position: absolute;
 		top: calc(100% + 8px);
 		right: 0;
+		width: max-content;
 		min-width: 240px;
+		max-width: min(280px, calc(100vw - 24px));
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 		z-index: 100;
+	}
+
+	/* Open upward when anchored at the bottom of the viewport (sidebar footer). */
+	.dropdown.up {
+		top: auto;
+		bottom: calc(100% + 8px);
+	}
+
+	/* Anchor to the left edge so the menu opens rightward (narrow icon rail). */
+	.dropdown.align-left {
+		right: auto;
+		left: 0;
 	}
 
 	.user-info {

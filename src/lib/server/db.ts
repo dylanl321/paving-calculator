@@ -62,6 +62,16 @@ export interface DbSession {
 	created_at: number;
 }
 
+export interface DbOrgSettings {
+	org_id: string;
+	accent_color: string | null;
+	logo_key: string | null;
+	logo_content_type: string | null;
+	overrides: string | null; // JSON
+	updated_by: string | null;
+	updated_at: number;
+}
+
 export interface DbInvitation {
 	id: string;
 	org_id: string;
@@ -569,6 +579,87 @@ export class DbHelper {
 			.prepare('UPDATE org_members SET role = ? WHERE user_id = ? AND org_id = ?')
 			.bind(role, userId, orgId)
 			.run();
+	}
+
+	// Organization settings (branding + value overrides)
+	async getOrgSettings(orgId: string): Promise<DbOrgSettings | null> {
+		return await this.db
+			.prepare('SELECT * FROM org_settings WHERE org_id = ?')
+			.bind(orgId)
+			.first<DbOrgSettings>();
+	}
+
+	async upsertOrgSettings(
+		orgId: string,
+		updates: {
+			accentColor?: string | null;
+			logoKey?: string | null;
+			logoContentType?: string | null;
+			overrides?: string | null;
+			updatedBy?: string | null;
+		}
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		const existing = await this.getOrgSettings(orgId);
+
+		if (!existing) {
+			await this.db
+				.prepare(
+					`INSERT INTO org_settings (org_id, accent_color, logo_key, logo_content_type, overrides, updated_by, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?)`
+				)
+				.bind(
+					orgId,
+					updates.accentColor ?? null,
+					updates.logoKey ?? null,
+					updates.logoContentType ?? null,
+					updates.overrides ?? null,
+					updates.updatedBy ?? null,
+					now
+				)
+				.run();
+			return;
+		}
+
+		const fields: string[] = [];
+		const values: (string | number | null)[] = [];
+
+		if (updates.accentColor !== undefined) {
+			fields.push('accent_color = ?');
+			values.push(updates.accentColor);
+		}
+		if (updates.logoKey !== undefined) {
+			fields.push('logo_key = ?');
+			values.push(updates.logoKey);
+		}
+		if (updates.logoContentType !== undefined) {
+			fields.push('logo_content_type = ?');
+			values.push(updates.logoContentType);
+		}
+		if (updates.overrides !== undefined) {
+			fields.push('overrides = ?');
+			values.push(updates.overrides);
+		}
+		if (updates.updatedBy !== undefined) {
+			fields.push('updated_by = ?');
+			values.push(updates.updatedBy);
+		}
+
+		fields.push('updated_at = ?');
+		values.push(now);
+		values.push(orgId);
+
+		await this.db
+			.prepare(`UPDATE org_settings SET ${fields.join(', ')} WHERE org_id = ?`)
+			.bind(...values)
+			.run();
+	}
+
+	async getOrgBySlug(slug: string): Promise<DbOrganization | null> {
+		return await this.db
+			.prepare('SELECT * FROM organizations WHERE slug = ?')
+			.bind(slug)
+			.first<DbOrganization>();
 	}
 
 	// Invitation methods

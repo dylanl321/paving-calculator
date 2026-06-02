@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { config } from '$lib/config';
 	import { authStore } from '$lib/stores/auth.svelte';
+	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import UserMenu from '$lib/components/UserMenu.svelte';
 
@@ -10,6 +11,9 @@
 	function closeDrawer() {
 		drawerOpen = false;
 	}
+
+	const brandLogo = $derived(orgSettingsStore.logoUrl ?? '/icons/icon-192.png');
+	const brandName = $derived(orgSettingsStore.orgName ?? config.app.name);
 
 	interface NavItem {
 		href: string;
@@ -46,8 +50,8 @@
 		</svg>
 	</button>
 	<a href="/" class="mobile-brand">
-		<img src="/icons/icon-192.png" alt="" />
-		<span>{config.app.name}</span>
+		<img src={brandLogo} alt="" />
+		<span>{brandName}</span>
 	</a>
 	<div class="mobile-actions">
 		<ThemeToggle />
@@ -63,9 +67,9 @@
 <!-- Sidebar / drawer -->
 <nav class="sidebar" class:open={drawerOpen} aria-label="Primary">
 	<div class="brand">
-		<img src="/icons/icon-192.png" alt="Paverate" />
+		<img src={brandLogo} alt={brandName} />
 		<div class="brand-text">
-			<span class="brand-name">{config.app.name}</span>
+			<span class="brand-name">{brandName}</span>
 			<span class="brand-tag">{config.app.tagline}</span>
 		</div>
 	</div>
@@ -99,8 +103,14 @@
 	<div class="sidebar-footer">
 		<div class="footer-actions">
 			<ThemeToggle />
-			<UserMenu />
+			<UserMenu direction="up" align="left" />
 		</div>
+		{#if orgSettingsStore.orgName}
+			<a href="/" class="powered-by">
+				<img src="/icons/icon-192.png" alt="" />
+				<span>Powered by {config.app.name}</span>
+			</a>
+		{/if}
 	</div>
 </nav>
 
@@ -274,6 +284,30 @@
 		justify-content: space-between;
 	}
 
+	.powered-by {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		margin-top: 10px;
+		color: var(--text-muted);
+		font-size: 0.72rem;
+		font-weight: 600;
+		letter-spacing: 0.2px;
+		text-decoration: none;
+		transition: color 0.15s;
+	}
+
+	.powered-by:hover {
+		color: var(--text);
+	}
+
+	.powered-by img {
+		width: 16px;
+		height: 16px;
+		border-radius: 4px;
+		flex-shrink: 0;
+	}
+
 	/* ---- Tablet: static icon rail ---- */
 	@media (min-width: 768px) {
 		.mobile-bar,
@@ -312,6 +346,14 @@
 			flex-direction: column;
 			gap: 10px;
 		}
+
+		.powered-by {
+			justify-content: center;
+		}
+
+		.powered-by span {
+			display: none;
+		}
 	}
 
 	/* ---- Desktop: full labelled sidebar ---- */
@@ -340,6 +382,14 @@
 
 		.footer-actions {
 			flex-direction: row;
+		}
+
+		.powered-by {
+			justify-content: flex-start;
+		}
+
+		.powered-by span {
+			display: inline;
 		}
 	}
 </style>

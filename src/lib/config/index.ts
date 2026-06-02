@@ -42,6 +42,15 @@ export interface MixThicknessEntry {
 	status: Status;
 }
 
+export interface SpreadToleranceEntry {
+	id: string;
+	label: string;
+	toleranceLbsSy: number;
+	note?: string;
+	tier?: number | null;
+	status: Status;
+}
+
 export interface DensityEntry {
 	id: string;
 	label: string;
@@ -156,6 +165,7 @@ interface PaverateConfig {
 		firstPass: boolean;
 		tackApplication: string;
 		wastePct: number;
+		courseType: string;
 	};
 	machines: MachineEntry[];
 	tack: {
@@ -167,6 +177,7 @@ interface PaverateConfig {
 	jobSite: JobSiteConfig;
 	temperature: TempEntry[];
 	mixThickness: MixThicknessEntry[];
+	spreadTolerance: SpreadToleranceEntry[];
 	densities: DensityEntry[];
 	materials?: MaterialEntry[];
 	concretePsi?: ConcretePsiEntry[];
@@ -203,6 +214,7 @@ export const slopeReference = config.slopeReference;
 export const tack = config.tack;
 export const temperature = config.temperature;
 export const mixThickness = config.mixThickness;
+export const spreadTolerance = config.spreadTolerance;
 
 export function machine(id: string): MachineEntry {
 	return config.machines.find((m) => m.id === id) ?? config.machines[0];
@@ -238,6 +250,73 @@ export const jobSite = config.jobSite;
 export function minAirTempForThickness(thicknessIn: number): TempEntry {
 	const sorted = [...config.temperature].sort((a, b) => a.maxThicknessIn - b.maxThicknessIn);
 	return sorted.find((t) => thicknessIn <= t.maxThicknessIn) ?? sorted[sorted.length - 1];
+}
+
+/** GDOT Table 12 spread-rate tolerance entry for a course-type id. */
+export function spreadToleranceFor(courseId: string | null | undefined): SpreadToleranceEntry {
+	return (
+		config.spreadTolerance.find((t) => t.id === courseId) ??
+		config.spreadTolerance.find((t) => t.id === config.defaults.courseType) ??
+		config.spreadTolerance[0]
+	);
+}
+
+export type SpreadSpecStatus = 'good' | 'warn' | 'bad';
+
+export interface SpreadSpecCheck {
+	status: SpreadSpecStatus;
+	toleranceLbsSy: number;
+	deltaLbsSy: number;
+	label: string;
+	courseLabel: string;
+	message: string;
+}
+
+/**
+ * Judge a placed spread rate against a target using the GDOT Table 12 absolute
+ * tolerance (lbs/yd²) for the selected course type — replacing a flat percentage.
+ * Inside ±tolerance = good; within 1.5× tolerance = warn; beyond = bad.
+ */
+export function spreadSpecCheck(
+	placedLbsSy: number | null,
+	targetLbsSy: number | null,
+	courseId: string | null | undefined
+): SpreadSpecCheck | null {
+	if (placedLbsSy == null || targetLbsSy == null || targetLbsSy <= 0) return null;
+	const tol = spreadToleranceFor(courseId);
+	const delta = placedLbsSy - targetLbsSy;
+	const absDelta = Math.abs(delta);
+	const direction = delta > 0 ? 'high' : 'low';
+	const off = `${Math.round(absDelta)} lbs/SY ${direction}`;
+
+	if (absDelta <= tol.toleranceLbsSy) {
+		return {
+			status: 'good',
+			toleranceLbsSy: tol.toleranceLbsSy,
+			deltaLbsSy: delta,
+			label: 'In spec',
+			courseLabel: tol.label,
+			message: `Within ±${tol.toleranceLbsSy} lbs/SY (Table 12, ${tol.label})`
+		};
+	}
+	if (absDelta <= tol.toleranceLbsSy * 1.5) {
+		return {
+			status: 'warn',
+			toleranceLbsSy: tol.toleranceLbsSy,
+			deltaLbsSy: delta,
+			label: `Marginal — ${off}`,
+			courseLabel: tol.label,
+			message: `${off}; tolerance is ±${tol.toleranceLbsSy} lbs/SY (Table 12, ${tol.label})`
+		};
+	}
+	return {
+		status: 'bad',
+		toleranceLbsSy: tol.toleranceLbsSy,
+		deltaLbsSy: delta,
+		label: `Out of spec — ${off}`,
+		courseLabel: tol.label,
+		message: `${off}; exceeds ±${tol.toleranceLbsSy} lbs/SY (Table 12, ${tol.label})`
+	};
 }
 
 export type PlacementStatus = 'pass' | 'warn' | 'fail';

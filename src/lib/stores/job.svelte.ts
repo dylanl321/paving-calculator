@@ -16,6 +16,7 @@ export interface JobState {
 	truckLoadTons: number;
 	tackApplication: string;
 	wastePct: number;
+	courseType: string;
 }
 
 function initial(): JobState {
@@ -28,7 +29,8 @@ function initial(): JobState {
 		firstPass: defaults.firstPass,
 		truckLoadTons: defaults.truckLoadTons,
 		tackApplication: defaults.tackApplication,
-		wastePct: defaults.wastePct
+		wastePct: defaults.wastePct,
+		courseType: defaults.courseType
 	};
 }
 
@@ -122,6 +124,14 @@ class Job {
 	}
 	set wastePct(v: number) {
 		this.#state.wastePct = v;
+		this.#save();
+	}
+
+	get courseType() {
+		return this.#state.courseType;
+	}
+	set courseType(v: string) {
+		this.#state.courseType = v;
 		this.#save();
 	}
 

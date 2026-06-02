@@ -10,5 +10,11 @@
 			"database_name": "paverate-db",
 			"database_id": "aead16ae-73b7-4508-8423-4c7c290cfcf5"
 		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "ASSETS_BUCKET",
+			"bucket_name": "paverate-org-assets"
+		}
 	]
 }
