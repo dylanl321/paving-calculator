@@ -4,6 +4,9 @@
 	import type { DbLoad } from '$lib/server/db';
 	import { unitsStore } from '$lib/stores/units.svelte';
 	import { UNIT_LABELS, toMetricTonnes, fromMetricTonnes } from '$lib/utils/unitConvert';
+	import SpreadRateHistogram from './charts/SpreadRateHistogram.svelte';
+	import { job } from '$lib/stores/job.svelte';
+	import { spreadToleranceFor } from '$lib/config';
 
 	interface Props {
 		jobSiteId: string;
@@ -167,6 +170,11 @@
 	function formatLoadTons(tons: number): number {
 		return unitsStore.system === 'metric' ? toMetricTonnes(tons) : tons;
 	}
+
+	const tolerance = $derived(spreadToleranceFor(job.courseType));
+	const targetRate = $derived(
+		job.thicknessIn > 0 ? job.thicknessIn * 110 : null
+	);
 </script>
 
 <div class="load-tracker">
@@ -273,6 +281,15 @@
 					</div>
 				{/if}
 			</div>
+		</div>
+
+		<div class="histogram-section">
+			<h4>Spread Rate Distribution</h4>
+			<SpreadRateHistogram
+				loads={loads}
+				targetRate={targetRate}
+				toleranceLbsSy={tolerance.toleranceLbsSy}
+			/>
 		</div>
 
 		<div class="load-history">
@@ -510,6 +527,20 @@
 		font-size: var(--fs-xs);
 		color: var(--text-muted);
 		margin-top: var(--sp-1);
+	}
+
+	.histogram-section {
+		margin-top: var(--sp-4);
+		padding: var(--sp-4);
+		background: var(--surface-alt);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+	}
+
+	.histogram-section h4 {
+		margin: 0 0 var(--sp-3) 0;
+		font-size: var(--fs-md);
+		font-weight: var(--fw-semibold);
 	}
 
 	.load-history {
