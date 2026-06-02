@@ -32,6 +32,15 @@ export const PATCH: RequestHandler = async ({ params, locals, platform, request 
 		throw error(403, 'Access denied');
 	}
 
+	// Check if log is locked
+	if (log.closed_at) {
+		const userRole = await db.getUserRole(locals.user.id, org.id);
+		const isAdmin = userRole === 'owner' || userRole === 'admin' || locals.user.isGlobalAdmin;
+		if (!isAdmin) {
+			throw error(423, 'Log is locked after close-out. Contact an admin to unlock.');
+		}
+	}
+
 	const body = await request.json();
 
 	await logDb.updateLogEntry(params.entryId, body);
@@ -78,6 +87,15 @@ export const DELETE: RequestHandler = async ({ params, locals, platform }) => {
 	const org = await db.getOrgByUserId(locals.user.id);
 	if (!org || org.id !== jobSite.org_id) {
 		throw error(403, 'Access denied');
+	}
+
+	// Check if log is locked
+	if (log.closed_at) {
+		const userRole = await db.getUserRole(locals.user.id, org.id);
+		const isAdmin = userRole === 'owner' || userRole === 'admin' || locals.user.isGlobalAdmin;
+		if (!isAdmin) {
+			throw error(423, 'Log is locked after close-out. Contact an admin to unlock.');
+		}
 	}
 
 	await logDb.deleteLogEntry(params.entryId);

@@ -6,6 +6,12 @@
 	import type { PageData } from './$types';
 	import { MapPin } from 'lucide-svelte';
 	import LoadTracker from '$lib/components/LoadTracker.svelte';
+	import TruckQueue from '$lib/components/TruckQueue.svelte';
+	import SpreadRateHistogram from '$lib/components/SpreadRateHistogram.svelte';
+	import WasteYieldAnalysis from '$lib/components/WasteYieldAnalysis.svelte';
+	import ETACalculator from '$lib/components/ETACalculator.svelte';
+	import { spreadToleranceFor } from '$lib/config';
+	import { job } from '$lib/stores/job.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -899,7 +905,29 @@
 			{/if}
 		</section>
 
-		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
+		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} numLanes={data.config?.num_lanes} targetTonnage={configForm.total_tonnage || estTonnage || null} />
+
+		<WasteYieldAnalysis
+			jobSiteId={data.jobSite.id}
+			plannedTonnage={configForm.total_tonnage || estTonnage || null}
+			isAuthenticated={!!data.user}
+		/>
+
+		<ETACalculator
+			jobSiteId={data.jobSite.id}
+			targetTonnage={configForm.total_tonnage || estTonnage || null}
+			isAuthenticated={!!data.user}
+			latitude={data.jobSite.latitude}
+			longitude={data.jobSite.longitude}
+		/>
+
+		<TruckQueue jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
+
+		<SpreadRateHistogram
+			jobSiteId={data.jobSite.id}
+			targetRate={configForm.target_spread_rate}
+			toleranceLbsSy={spreadToleranceFor(job.courseType).toleranceLbsSy}
+		/>
 
 		<section class="panel">
 			<div class="panel-head">
