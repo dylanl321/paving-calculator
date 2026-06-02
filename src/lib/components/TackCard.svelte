@@ -4,6 +4,7 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
+	import DotTable from './DotTable.svelte';
 	import { tack, tackMid, rainCheck, weatherConfig } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -117,6 +118,7 @@
 		<p>Width in use: <strong>{job.widthFt} ft</strong> (from job settings).</p>
 		<p>{selected.label}: {selected.min}–{selected.max} gal/SY.</p>
 		<div class="src-row">Tack range source: <SourceBadge status={selected.status} tier={selected.tier} /></div>
+		<DotTable tableId="table-2" />
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>

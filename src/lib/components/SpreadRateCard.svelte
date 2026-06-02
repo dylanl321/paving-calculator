@@ -5,6 +5,7 @@
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
 	import SpreadRateGauge from './SpreadRateGauge.svelte';
+	import DotTable from './DotTable.svelte';
 	import { constantMeta, placementCheck, rainCheck, spreadSpecCheck, spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -209,6 +210,7 @@
 		</p>
 		<div class="src-row">Thickness × 110 multiplier: <SourceBadge status={multMeta.status} tier={multMeta.tier} /></div>
 		<div class="src-row">Table 12 tolerance (±{tolerance.toleranceLbsSy} lbs/SY): <SourceBadge status={tolerance.status} tier={tolerance.tier} /></div>
+		<DotTable tableId="table-12" highlightRow={job.courseType} />
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>

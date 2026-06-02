@@ -154,6 +154,46 @@ export interface ThemeSet {
 	light: ThemeTokens;
 }
 
+export interface RefTable2Row {
+	id: string;
+	label: string;
+	min_gal_yd2: number;
+	max_gal_yd2: number;
+	min_metric: string;
+	max_metric: string;
+}
+
+export interface RefTable4Row {
+	id: string;
+	label: string;
+	min_temp_f: number;
+	min_temp_c: number;
+	note?: string;
+}
+
+export interface RefTable5Row {
+	id: string;
+	label: string;
+	min_layer: string;
+	max_layer: string;
+	max_total: string;
+}
+
+export interface RefTable12Row {
+	id: string;
+	label: string;
+	thickness_tolerance: string;
+	spread_tolerance: string;
+	note?: string;
+}
+
+export interface ReferenceTables {
+	table_2: RefTable2Row[];
+	table_4: RefTable4Row[];
+	table_5: RefTable5Row[];
+	table_12: RefTable12Row[];
+}
+
 interface PaverateConfig {
 	app: { name: string; tagline: string };
 	theme: ThemeSet;
@@ -182,6 +222,7 @@ interface PaverateConfig {
 	materials?: MaterialEntry[];
 	concretePsi?: ConcretePsiEntry[];
 	slopeReference?: SlopeReferenceEntry[];
+	reference_tables: ReferenceTables;
 	calculators: CalculatorEntry[];
 }
 
@@ -215,6 +256,7 @@ export const tack = config.tack;
 export const temperature = config.temperature;
 export const mixThickness = config.mixThickness;
 export const spreadTolerance = config.spreadTolerance;
+export const referenceTables = config.reference_tables;
 
 export function machine(id: string): MachineEntry {
 	return config.machines.find((m) => m.id === id) ?? config.machines[0];
