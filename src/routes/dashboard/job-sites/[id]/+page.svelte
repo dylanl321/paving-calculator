@@ -78,7 +78,11 @@
 		target_tack_rate: data.config?.target_tack_rate || null,
 		notes: data.config?.notes || null,
 		num_lifts: data.config?.num_lifts || null,
-		total_tonnage: data.config?.total_tonnage || null
+		total_tonnage: data.config?.total_tonnage || null,
+		cost_per_ton: data.config?.cost_per_ton || null,
+		cost_per_sy: data.config?.cost_per_sy || null,
+		cost_per_mile: data.config?.cost_per_mile || null,
+		total_contract_value: data.config?.total_contract_value || null
 	});
 
 	let equipmentList = $state([...data.equipment]);
@@ -322,6 +326,38 @@
 		return (totalAreaSqYd * configForm.target_spread_rate) / 2000;
 	});
 
+	const estCostByTon = $derived.by(() => {
+		const tonnage = configForm.total_tonnage || estTonnage;
+		if (!configForm.cost_per_ton || !tonnage) return null;
+		return configForm.cost_per_ton * tonnage;
+	});
+
+	const estCostBySY = $derived.by(() => {
+		if (!configForm.cost_per_sy || !totalAreaSqYd) return null;
+		return configForm.cost_per_sy * totalAreaSqYd;
+	});
+
+	const estCostByMile = $derived.by(() => {
+		if (!configForm.cost_per_mile || !configForm.total_length_ft) return null;
+		return configForm.cost_per_mile * (configForm.total_length_ft / 5280);
+	});
+
+	const costSummary = $derived.by(() => {
+		if (configForm.total_contract_value) {
+			return { value: configForm.total_contract_value, method: 'Contract Value' };
+		}
+		if (estCostByTon) {
+			return { value: estCostByTon, method: 'Est. by Tonnage' };
+		}
+		if (estCostBySY) {
+			return { value: estCostBySY, method: 'Est. by Area' };
+		}
+		if (estCostByMile) {
+			return { value: estCostByMile, method: 'Est. by Mileage' };
+		}
+		return null;
+	});
+
 	const configComplete = $derived(
 		Boolean(
 			configForm.road_type &&
@@ -337,6 +373,10 @@
 			minimumFractionDigits: digits,
 			maximumFractionDigits: digits
 		});
+	}
+
+	function fmtDollars(v: number): string {
+		return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 	}
 </script>
 
@@ -519,7 +559,96 @@
 							<span class="derived-value">{estTonnage ? `${fmt(estTonnage, 1)} t` : '—'}</span>
 						</div>
 					</div>
+					{#if configForm.total_contract_value || estCostByTon || estCostBySY || estCostByMile}
+						<div class="derived-row">
+							{#if configForm.total_contract_value}
+								<div class="derived">
+									<span class="derived-label">Contract Value</span>
+									<span class="derived-value">{fmtDollars(configForm.total_contract_value)}</span>
+								</div>
+							{/if}
+							{#if estCostByTon}
+								<div class="derived">
+									<span class="derived-label">Est. Cost (by ton)</span>
+									<span class="derived-value">{fmtDollars(estCostByTon)}</span>
+								</div>
+							{/if}
+							{#if estCostBySY}
+								<div class="derived">
+									<span class="derived-label">Est. Cost (by area)</span>
+									<span class="derived-value">{fmtDollars(estCostBySY)}</span>
+								</div>
+							{/if}
+							{#if estCostByMile}
+								<div class="derived">
+									<span class="derived-label">Est. Cost (by mile)</span>
+									<span class="derived-value">{fmtDollars(estCostByMile)}</span>
+								</div>
+							{/if}
+						</div>
+					{/if}
 				</section>
+
+				{#if configForm.cost_per_ton || configForm.cost_per_sy || configForm.cost_per_mile || configForm.total_contract_value}
+					<section class="panel">
+						<div class="panel-head">
+							<h3>Cost Breakdown</h3>
+							<button class="link-btn" onclick={() => (activeTab = 'configuration')}>Edit</button>
+						</div>
+						<dl class="spec-list">
+							{#if configForm.cost_per_ton}
+								<div class="spec-item">
+									<dt>Cost per Ton</dt>
+									<dd>{fmtDollars(configForm.cost_per_ton)}/ton</dd>
+								</div>
+							{/if}
+							{#if configForm.cost_per_sy}
+								<div class="spec-item">
+									<dt>Cost per SY</dt>
+									<dd>{fmtDollars(configForm.cost_per_sy)}/yd²</dd>
+								</div>
+							{/if}
+							{#if configForm.cost_per_mile}
+								<div class="spec-item">
+									<dt>Cost per Mile</dt>
+									<dd>{fmtDollars(configForm.cost_per_mile)}/mi</dd>
+								</div>
+							{/if}
+							{#if configForm.total_contract_value}
+								<div class="spec-item">
+									<dt>Contract</dt>
+									<dd>{fmtDollars(configForm.total_contract_value)}</dd>
+								</div>
+							{/if}
+						</dl>
+						{#if costSummary}
+							<div class="derived-row">
+								<div class="derived">
+									<span class="derived-label">{costSummary.method}</span>
+									<span class="derived-value">{fmtDollars(costSummary.value)}</span>
+								</div>
+								{#if costSummary.value && (configForm.total_tonnage || estTonnage)}
+									<div class="derived">
+										<span class="derived-label">$/ton (derived)</span>
+										<span class="derived-value">{fmtDollars(costSummary.value / (configForm.total_tonnage || estTonnage || 1))}/t</span>
+									</div>
+								{/if}
+								{#if costSummary.value && totalAreaSqYd}
+									<div class="derived">
+										<span class="derived-label">$/SY (derived)</span>
+										<span class="derived-value">{fmtDollars(costSummary.value / totalAreaSqYd)}/yd²</span>
+									</div>
+								{/if}
+								{#if costSummary.value && configForm.total_length_ft}
+									<div class="derived">
+										<span class="derived-label">$/mile (derived)</span>
+										<span class="derived-value">{fmtDollars(costSummary.value / (configForm.total_length_ft / 5280))}/mi</span>
+									</div>
+								{/if}
+							</div>
+						{/if}
+					</section>
+				{/if}
 		</div>
 
 		<div class="link-tiles">
@@ -784,6 +913,60 @@
 					{#if estTonnage}
 						<div class="hint-text">Auto-calculated: {fmt(estTonnage, 1)} tons</div>
 					{/if}
+				</div>
+
+				<h3 class="form-section-title">Contract Costs</h3>
+
+				<div class="form-group">
+					<label for="cost_per_ton">Cost per Ton ($/ton)</label>
+					<input
+						type="number"
+						id="cost_per_ton"
+						bind:value={configForm.cost_per_ton}
+						min="0"
+						step="0.01"
+						placeholder="e.g., 85.00"
+						onchange={() => saveConfig()}
+					/>
+				</div>
+
+				<div class="form-group">
+					<label for="cost_per_sy">Cost per SY ($/yd²)</label>
+					<input
+						type="number"
+						id="cost_per_sy"
+						bind:value={configForm.cost_per_sy}
+						min="0"
+						step="0.01"
+						placeholder="e.g., 12.50"
+						onchange={() => saveConfig()}
+					/>
+				</div>
+
+				<div class="form-group">
+					<label for="cost_per_mile">Cost per Mile ($/mile)</label>
+					<input
+						type="number"
+						id="cost_per_mile"
+						bind:value={configForm.cost_per_mile}
+						min="0"
+						step="0.01"
+						placeholder="e.g., 50000.00"
+						onchange={() => saveConfig()}
+					/>
+				</div>
+
+				<div class="form-group">
+					<label for="total_contract_value">Total Contract Value ($)</label>
+					<input
+						type="number"
+						id="total_contract_value"
+						bind:value={configForm.total_contract_value}
+						min="0"
+						step="0.01"
+						placeholder="e.g., 250000.00"
+						onchange={() => saveConfig()}
+					/>
 				</div>
 
 				<div class="form-group">

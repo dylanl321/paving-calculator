@@ -119,6 +119,10 @@ export interface DbJobSiteConfig {
 	notes: string | null;
 	num_lifts: number | null;
 	total_tonnage: number | null;
+	cost_per_ton: number | null;
+	cost_per_sy: number | null;
+	cost_per_mile: number | null;
+	total_contract_value: number | null;
 	created_at: number;
 	updated_at: number;
 }
@@ -833,8 +837,9 @@ export class DbHelper {
 						job_site_id, road_type, num_lanes, lane_width_ft, total_length_ft,
 						scope_of_work, mix_type, target_thickness_in, target_spread_rate,
 						tack_type, target_tack_rate, notes, num_lifts, total_tonnage,
+						cost_per_ton, cost_per_sy, cost_per_mile, total_contract_value,
 						created_at, updated_at
-					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 				)
 				.bind(
 					jobSiteId,
@@ -851,6 +856,10 @@ export class DbHelper {
 					config.notes || null,
 					config.num_lifts || null,
 					config.total_tonnage || null,
+					config.cost_per_ton || null,
+					config.cost_per_sy || null,
+					config.cost_per_mile || null,
+					config.total_contract_value || null,
 					now,
 					now
 				)
@@ -910,6 +919,22 @@ export class DbHelper {
 			if (config.total_tonnage !== undefined) {
 				fields.push('total_tonnage = ?');
 				values.push(config.total_tonnage);
+			}
+			if (config.cost_per_ton !== undefined) {
+				fields.push('cost_per_ton = ?');
+				values.push(config.cost_per_ton);
+			}
+			if (config.cost_per_sy !== undefined) {
+				fields.push('cost_per_sy = ?');
+				values.push(config.cost_per_sy);
+			}
+			if (config.cost_per_mile !== undefined) {
+				fields.push('cost_per_mile = ?');
+				values.push(config.cost_per_mile);
+			}
+			if (config.total_contract_value !== undefined) {
+				fields.push('total_contract_value = ?');
+				values.push(config.total_contract_value);
 			}
 
 			if (fields.length > 0) {
