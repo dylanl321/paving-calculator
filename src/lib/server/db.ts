@@ -186,6 +186,7 @@ export interface DbLoad {
 	rejected: number;
 	rejection_reason: string | null;
 	rejection_notes: string | null;
+	ticket_photo_id: string | null;
 }
 
 export class DbHelper {
