@@ -2,10 +2,11 @@ import { error } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import type { DbDailyLog, LogSummary } from '$lib/server/db-logs';
 
-export const load: PageLoad = async ({ params, fetch, parent }) => {
+export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 	await parent();
 
 	const today = new Date().toISOString().split('T')[0];
+	const viewDateId = url.searchParams.get('date');
 
 	const [logsRes, summaryRes, configRes] = await Promise.all([
 		fetch(`/api/job-sites/${params.id}/logs`),
@@ -26,11 +27,39 @@ export const load: PageLoad = async ({ params, fetch, parent }) => {
 
 	const todayLog = logs.find((l) => l.log_date === today);
 
+	let activeLog = todayLog;
+	let isHistoricalView = false;
+	let prevLogId: string | null = null;
+	let nextLogId: string | null = null;
+
+	if (viewDateId) {
+		const historicalLog = logs.find((l) => l.id === viewDateId);
+		if (historicalLog) {
+			activeLog = historicalLog;
+			isHistoricalView = true;
+
+			const sortedLogs = [...logs].sort(
+				(a, b) => new Date(a.log_date).getTime() - new Date(b.log_date).getTime()
+			);
+			const currentIndex = sortedLogs.findIndex((l) => l.id === viewDateId);
+			if (currentIndex > 0) {
+				prevLogId = sortedLogs[currentIndex - 1].id;
+			}
+			if (currentIndex < sortedLogs.length - 1) {
+				nextLogId = sortedLogs[currentIndex + 1].id;
+			}
+		}
+	}
+
 	return {
 		logs,
 		summary,
 		todayLog,
 		today,
-		siteConfig
+		siteConfig,
+		activeLog,
+		isHistoricalView,
+		prevLogId,
+		nextLogId
 	};
 };
