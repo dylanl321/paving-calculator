@@ -18,6 +18,23 @@
 
 	let { data }: { data: PageData } = $props();
 
+	interface LogDetailsResponse {
+		entries: any[];
+		summary: { total_distance_ft: number; total_tons: number; total_loads: number };
+	}
+	interface RouteResponse {
+		waypoints?: RouteWaypoint[];
+	}
+	interface LogResponse {
+		log: any;
+	}
+	interface LoadsResponse {
+		loads?: any[];
+	}
+	interface UnlockErrorResponse {
+		message?: string;
+	}
+
 	let isHistoricalView = $derived(!!data.isHistoricalView);
 	let viewedLog = $derived(data.activeLog ?? data.todayLog);
 	let currentLog = $state<any>(data.activeLog);
@@ -41,7 +58,7 @@
 		try {
 			const res = await fetch(`/api/job-sites/${data.jobSite.id}/route`);
 			if (res.ok) {
-				const { waypoints } = await res.json();
+				const { waypoints } = (await res.json()) as RouteResponse;
 				routeWaypoints = Array.isArray(waypoints) ? waypoints : [];
 			}
 		} catch {
@@ -79,7 +96,7 @@
 		if (!viewedLog) return;
 		const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs/${viewedLog.id}`);
 		if (res.ok) {
-			const result = await res.json();
+			const result = (await res.json()) as LogDetailsResponse;
 			entries = result.entries;
 			entrySummary = result.summary;
 		}
@@ -88,7 +105,7 @@
 	async function startLog() {
 		const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs`, { method: 'POST' });
 		if (res.ok) {
-			const { log } = await res.json();
+			const { log } = (await res.json()) as LogResponse;
 			currentLog = log;
 			await invalidateAll();
 		}
@@ -352,7 +369,7 @@
 				const currentDate = currentLog.log_date;
 				const res = await fetch(`/api/job-sites/${data.jobSite.id}/loads?start_date=${currentDate}`);
 				if (res.ok) {
-					const loadData = await res.json();
+					const loadData = (await res.json()) as LoadsResponse;
 					loads = loadData.loads || [];
 				}
 			} catch {
@@ -451,11 +468,11 @@
 				{ method: 'POST' }
 			);
 			if (res.ok) {
-				const { log } = await res.json();
+				const { log } = (await res.json()) as LogResponse;
 				currentLog = log;
 				await invalidateAll();
 			} else {
-				const err = await res.json();
+				const err = (await res.json()) as UnlockErrorResponse;
 				alert(err.message || 'Failed to unlock log');
 			}
 		} catch (err) {

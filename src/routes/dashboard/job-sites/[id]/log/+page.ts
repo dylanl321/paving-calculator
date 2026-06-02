@@ -2,6 +2,14 @@ import { error } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import type { DbDailyLog, LogSummary } from '$lib/server/db-logs';
 
+interface ConfigResponse {
+	config: unknown;
+}
+interface RoleResponse {
+	role: string | null;
+	isGlobalAdmin: boolean;
+}
+
 export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 	await parent();
 
@@ -24,10 +32,10 @@ export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 
 	const { logs }: { logs: DbDailyLog[] } = await logsRes.json();
 	const { summary }: { summary: LogSummary } = await summaryRes.json();
-	const siteConfig = configRes.ok ? await configRes.json() : null;
-	const { role: userRole, isGlobalAdmin } = roleRes.ok
-		? await roleRes.json()
-		: { role: null, isGlobalAdmin: false };
+	const siteConfig = configRes.ok ? ((await configRes.json()) as ConfigResponse) : null;
+	const { role: userRole, isGlobalAdmin } = (
+		roleRes.ok ? await roleRes.json() : { role: null, isGlobalAdmin: false }
+	) as RoleResponse;
 
 	const todayLog = logs.find((l) => l.log_date === today);
 
