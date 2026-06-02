@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
-	import { browser } from '$app/environment';
-	import L from 'leaflet';
-	import 'leaflet/dist/leaflet.css';
+	import { onDestroy } from 'svelte';
+	import type L from 'leaflet';
+	import { MapContainer, MapMarker, MapPolyline, MapPolygon, MapCircleMarker } from '$lib/components/map';
 
 	interface Waypoint {
 		lat: number;
@@ -36,14 +35,10 @@
 		onRouteSave
 	}: Props = $props();
 
-	let mapEl: HTMLDivElement;
 	let mapInstance: L.Map | null = null;
 	let waypoints = $state<Waypoint[]>([...initialWaypoints]);
 	let drawMode = $state(false);
 	let saving = $state(false);
-	let routePolyline: L.Polyline | null = null;
-	let bufferPolygon: L.Polygon | null = null;
-	let waypointMarkers: L.CircleMarker[] = [];
 
 	const isMobile = $derived(
 		typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
@@ -85,26 +80,26 @@
 		return R * c;
 	}
 
-	function computeBufferPolygon(waypoints: Waypoint[], widthMeters: number): [number, number][] {
-		if (waypoints.length < 2) return [];
+	function computeBufferPolygon(wps: Waypoint[], widthMeters: number): [number, number][] {
+		if (wps.length < 2) return [];
 
 		const halfWidth = widthMeters / 2;
 		const leftSide: [number, number][] = [];
 		const rightSide: [number, number][] = [];
 
-		for (let i = 0; i < waypoints.length; i++) {
-			const curr = waypoints[i];
+		for (let i = 0; i < wps.length; i++) {
+			const curr = wps[i];
 			let perpAngle: number;
 
 			if (i === 0) {
-				const next = waypoints[i + 1];
+				const next = wps[i + 1];
 				perpAngle = Math.atan2(next.lat - curr.lat, next.lng - curr.lng);
-			} else if (i === waypoints.length - 1) {
-				const prev = waypoints[i - 1];
+			} else if (i === wps.length - 1) {
+				const prev = wps[i - 1];
 				perpAngle = Math.atan2(curr.lat - prev.lat, curr.lng - prev.lng);
 			} else {
-				const prev = waypoints[i - 1];
-				const next = waypoints[i + 1];
+				const prev = wps[i - 1];
+				const next = wps[i + 1];
 				const angle1 = Math.atan2(curr.lat - prev.lat, curr.lng - prev.lng);
 				const angle2 = Math.atan2(next.lat - curr.lat, next.lng - curr.lng);
 				perpAngle = (angle1 + angle2) / 2;
@@ -116,128 +111,52 @@
 			const perpLat = Math.sin(perpAngle + Math.PI / 2);
 			const perpLng = Math.cos(perpAngle + Math.PI / 2);
 
-			const leftLat = curr.lat + perpLat * halfWidth * latOffsetPerMeter;
-			const leftLng = curr.lng + perpLng * halfWidth * lngOffsetPerMeter;
-
-			const rightLat = curr.lat - perpLat * halfWidth * latOffsetPerMeter;
-			const rightLng = curr.lng - perpLng * halfWidth * lngOffsetPerMeter;
-
-			leftSide.push([leftLat, leftLng]);
-			rightSide.push([rightLat, rightLng]);
+			leftSide.push([
+				curr.lat + perpLat * halfWidth * latOffsetPerMeter,
+				curr.lng + perpLng * halfWidth * lngOffsetPerMeter
+			]);
+			rightSide.push([
+				curr.lat - perpLat * halfWidth * latOffsetPerMeter,
+				curr.lng - perpLng * halfWidth * lngOffsetPerMeter
+			]);
 		}
 
 		return [...leftSide, ...rightSide.reverse()];
 	}
 
-	function updateRouteOverlay() {
-		if (!mapInstance) return;
-		if (routePolyline) {
-			mapInstance.removeLayer(routePolyline);
-			routePolyline = null;
-		}
-		if (bufferPolygon) {
-			mapInstance.removeLayer(bufferPolygon);
-			bufferPolygon = null;
-		}
-		for (const marker of waypointMarkers) {
-			mapInstance.removeLayer(marker);
-		}
-		waypointMarkers = [];
+	const color = $derived(STATUS_COLORS[site.status] ?? STATUS_COLORS.active);
 
-		if (waypoints.length === 0) return;
-
-		if (waypoints.length >= 2) {
-			routePolyline = L.polyline(
-				waypoints.map((wp) => [wp.lat, wp.lng]),
-				{
-					color: '#f2c037',
-					weight: 3
-				}
-			).addTo(mapInstance);
-
-			if (numLanes && laneWidthFt && numLanes > 0 && laneWidthFt > 0) {
-				const totalWidthFt = numLanes * laneWidthFt;
-				const totalWidthMeters = totalWidthFt * 0.3048;
-
-				const bufferCoords = computeBufferPolygon(waypoints, totalWidthMeters);
-				if (bufferCoords.length > 0) {
-					bufferPolygon = L.polygon(bufferCoords, {
-						color: 'rgba(242, 192, 55, 0.4)',
-						fillColor: 'rgba(242, 192, 55, 0.15)',
-						fillOpacity: 1,
-						weight: 1
-					}).addTo(mapInstance);
-				}
-			}
-		}
-
-		if (drawMode) {
-			for (const wp of waypoints) {
-				const marker = L.circleMarker([wp.lat, wp.lng], {
-					radius: 5,
-					color: '#f2c037',
-					fillColor: '#f2c037',
-					fillOpacity: 1,
-					weight: 2
-				}).addTo(mapInstance);
-				waypointMarkers.push(marker);
-			}
-		}
-	}
-
-	function initMap() {
-		if (!browser || !mapEl || !pinned) return;
-
-		if (mapInstance) {
-			mapInstance.remove();
-			mapInstance = null;
-		}
-
-		mapInstance = L.map(mapEl, {
-			zoomControl: true,
-			attributionControl: true
-		});
-
-		L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-			attribution:
-				'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-			maxZoom: 19
-		}).addTo(mapInstance);
-
-		const lat = site.latitude as number;
-		const lng = site.longitude as number;
-
-		const color = STATUS_COLORS[site.status] ?? STATUS_COLORS.active;
-		const icon = L.divIcon({
-			html: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+	const sitePinSvg = $derived(
+		`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
 				<path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="${color}" stroke="#fff" stroke-width="2"/>
 				<circle cx="14" cy="14" r="5" fill="#fff"/>
-			</svg>`,
-			className: '',
-			iconSize: [28, 36],
-			iconAnchor: [14, 36],
-			popupAnchor: [0, -36]
-		});
+			</svg>`
+	);
 
+	const sitePopupHtml = $derived.by(() => {
 		const statusLabel = site.status.charAt(0).toUpperCase() + site.status.slice(1);
-		const popup = L.popup().setContent(
-			`<div style="min-width:160px;font-family:system-ui,sans-serif">
+		return `<div style="min-width:160px;font-family:system-ui,sans-serif">
 				<strong style="font-size:0.95rem">${site.name}</strong><br>
 				<span style="display:inline-block;margin:4px 0;padding:2px 8px;border-radius:999px;background:${color};color:#fff;font-size:0.7rem;font-weight:700;text-transform:uppercase">${statusLabel}</span>
 				${site.location_description ? `<br><span style="font-size:0.8rem;color:#666">${site.location_description}</span>` : ''}
-			</div>`
-		);
+			</div>`;
+	});
 
-		L.marker([lat, lng], { icon }).bindPopup(popup).addTo(mapInstance);
+	const routePoints = $derived<[number, number][]>(waypoints.map((wp) => [wp.lat, wp.lng]));
 
-		mapInstance.setView([lat, lng], 15);
+	const bufferCoords = $derived.by<[number, number][]>(() => {
+		if (waypoints.length < 2 || !numLanes || !laneWidthFt || numLanes <= 0 || laneWidthFt <= 0)
+			return [];
+		const totalWidthMeters = numLanes * laneWidthFt * 0.3048;
+		return computeBufferPolygon(waypoints, totalWidthMeters);
+	});
 
-		updateRouteOverlay(L);
-
-		mapInstance.on('click', (e: any) => {
+	function handleMapReady(map: L.Map) {
+		mapInstance = map;
+		map.setView([site.latitude as number, site.longitude as number], 15);
+		map.on('click', (e: L.LeafletMouseEvent) => {
 			if (drawMode && !isMobile) {
 				waypoints = [...waypoints, { lat: e.latlng.lat, lng: e.latlng.lng }];
-				updateRouteOverlay();
 			}
 		});
 	}
@@ -245,12 +164,7 @@
 	function toggleDrawMode() {
 		drawMode = !drawMode;
 		if (mapInstance) {
-				if (drawMode) {
-				mapInstance.getContainer().style.cursor = 'crosshair';
-			} else {
-				mapInstance.getContainer().style.cursor = '';
-			}
-			updateRouteOverlay(L);
+			mapInstance.getContainer().style.cursor = drawMode ? 'crosshair' : '';
 		}
 	}
 
@@ -258,14 +172,10 @@
 		if (!mapInstance || !drawMode) return;
 		const center = mapInstance.getCenter();
 		waypoints = [...waypoints, { lat: center.lat, lng: center.lng }];
-		updateRouteOverlay(L);
 	}
 
 	function clearRoute() {
 		waypoints = [];
-		if (mapInstance) {
-				updateRouteOverlay(L);
-		}
 	}
 
 	async function saveRoute() {
@@ -280,17 +190,8 @@
 		}
 	}
 
-	onMount(() => {
-		if (browser && pinned) {
-			initMap();
-		}
-	});
-
 	onDestroy(() => {
-		if (mapInstance) {
-			mapInstance.remove();
-			mapInstance = null;
-		}
+		mapInstance = null;
 	});
 </script>
 
@@ -314,7 +215,49 @@
 	</div>
 {:else}
 	<div class="map-wrap" style="height:{height}">
-		<div bind:this={mapEl} class="map-el"></div>
+		<MapContainer
+			class="route-map"
+			{height}
+			center={[site.latitude as number, site.longitude as number]}
+			zoom={15}
+			onready={handleMapReady}
+		>
+			<MapMarker
+				lat={site.latitude as number}
+				lng={site.longitude as number}
+				title={site.name}
+				{color}
+				popupHtml={sitePopupHtml}
+				popupMinWidth={160}
+			/>
+
+			{#if waypoints.length >= 2}
+				<MapPolyline points={routePoints} color="#f2c037" weight={3} />
+				{#if bufferCoords.length > 0}
+					<MapPolygon
+						points={bufferCoords}
+						color="rgba(242, 192, 55, 0.4)"
+						fillColor="rgba(242, 192, 55, 0.15)"
+						fillOpacity={1}
+						weight={1}
+					/>
+				{/if}
+			{/if}
+
+			{#if drawMode}
+				{#each waypoints as wp, i (i)}
+					<MapCircleMarker
+						lat={wp.lat}
+						lng={wp.lng}
+						radius={5}
+						color="#f2c037"
+						fillColor="#f2c037"
+						fillOpacity={1}
+						weight={2}
+					/>
+				{/each}
+			{/if}
+		</MapContainer>
 
 		<div class="map-controls">
 			<button
@@ -435,17 +378,9 @@
 		border: 1px solid var(--border);
 	}
 
-	.map-el {
-		width: 100%;
+	.map-wrap :global(.route-map) {
 		height: 100%;
-	}
-
-	.map-el :global(.leaflet-pane) {
-		z-index: 1;
-	}
-	.map-el :global(.leaflet-top),
-	.map-el :global(.leaflet-bottom) {
-		z-index: 2;
+		border-radius: 0;
 	}
 
 	.empty-map {
