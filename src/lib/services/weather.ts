@@ -17,12 +17,22 @@ export interface RainHour {
 	probability: number;
 }
 
+export interface DayForecast {
+	date: string;
+	highF: number;
+	lowF: number;
+	conditions: string;
+	precipIn: number;
+	precipProbabilityMax: number;
+}
+
 export interface WeatherSnapshot {
 	airTempF: number;
 	conditions: string;
 	isRaining: boolean;
 	rainNext24hIn: number;
 	rainHours: RainHour[];
+	dailyForecast: DayForecast[];
 	fetchedAt: number;
 }
 
@@ -85,7 +95,7 @@ export async function searchPlaces(query: string): Promise<GeoResult[]> {
 	return data.results ?? [];
 }
 
-/** Fetch current conditions + next-24h rain forecast for a lat/lng. */
+/** Fetch current conditions + next-24h rain forecast + 10-day daily forecast for a lat/lng. */
 export async function fetchWeather(lat: number, lng: number): Promise<WeatherSnapshot> {
 	const url = new URL(weatherConfig.forecastUrl);
 	url.searchParams.set('latitude', String(lat));
@@ -95,7 +105,11 @@ export async function fetchWeather(lat: number, lng: number): Promise<WeatherSna
 		'temperature_2m,weather_code,precipitation,is_day'
 	);
 	url.searchParams.set('hourly', 'precipitation,precipitation_probability,weather_code');
-	url.searchParams.set('forecast_days', '2');
+	url.searchParams.set(
+		'daily',
+		'temperature_2m_max,temperature_2m_min,weather_code,precipitation_sum,precipitation_probability_max'
+	);
+	url.searchParams.set('forecast_days', '10');
 	url.searchParams.set('temperature_unit', 'fahrenheit');
 	url.searchParams.set('precipitation_unit', 'mm');
 	url.searchParams.set('timezone', 'auto');
@@ -114,6 +128,14 @@ export async function fetchWeather(lat: number, lng: number): Promise<WeatherSna
 			precipitation: number[];
 			precipitation_probability: number[];
 			weather_code: number[];
+		};
+		daily: {
+			time: string[];
+			temperature_2m_max: number[];
+			temperature_2m_min: number[];
+			weather_code: number[];
+			precipitation_sum: number[];
+			precipitation_probability_max: number[];
 		};
 	};
 
@@ -145,12 +167,25 @@ export async function fetchWeather(lat: number, lng: number): Promise<WeatherSna
 	const code = data.current.weather_code;
 	const currentPrecip = data.current.precipitation ?? 0;
 
+	const dailyForecast: DayForecast[] = [];
+	for (let i = 0; i < data.daily.time.length; i++) {
+		dailyForecast.push({
+			date: data.daily.time[i],
+			highF: Math.round(data.daily.temperature_2m_max[i]),
+			lowF: Math.round(data.daily.temperature_2m_min[i]),
+			conditions: labelFromCode(data.daily.weather_code[i]),
+			precipIn: (data.daily.precipitation_sum[i] ?? 0) * MM_TO_IN,
+			precipProbabilityMax: data.daily.precipitation_probability_max[i] ?? 0
+		});
+	}
+
 	return {
 		airTempF: Math.round(data.current.temperature_2m),
 		conditions: labelFromCode(code),
 		isRaining: currentPrecip > 0 || isRainCode(code),
 		rainNext24hIn: rainNext24hMm * MM_TO_IN,
 		rainHours,
+		dailyForecast,
 		fetchedAt: now
 	};
 }

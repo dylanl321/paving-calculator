@@ -11,6 +11,7 @@
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
 	import { formatRainTime, type GeoResult } from '$lib/services/weather';
+	import WeatherForecast from './WeatherForecast.svelte';
 
 	interface Props {
 		/** panel = sticky sidebar; inline = mobile collapsible body */
@@ -187,6 +188,8 @@
 									</ul>
 								</div>
 							{/if}
+
+							<WeatherForecast />
 
 							<label class="check-row">
 								<input type="checkbox" bind:checked={weather.useManualTemp} />
