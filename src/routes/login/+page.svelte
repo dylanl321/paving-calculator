@@ -4,7 +4,7 @@
 	import { page } from '$app/stores';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { config } from '$lib/config';
-	import { toastStore } from '$lib/stores/toast';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	let email = $state('');

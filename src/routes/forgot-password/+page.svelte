@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { config } from '$lib/config';
-	import { toastStore } from '$lib/stores/toast';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	let email = $state('');

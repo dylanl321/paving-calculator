@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { toastStore } from '$lib/stores/toast';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import GpsStationButton from '$lib/components/GpsStationButton.svelte';
 	import { formatStation, type RouteWaypoint } from '$lib/services/gpsStation';
 
