@@ -3,7 +3,7 @@
 	import { weather } from '$lib/stores/weather.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
-	import { fetchJobSites, pushTodayToCloud, type JobSiteOption } from '$lib/services/todaySync';
+	import { fetchJobSites, pushTodayToCloud, pullFromCloud, type JobSiteOption } from '$lib/services/todaySync';
 	import TodaySummary from './TodaySummary.svelte';
 	import TimeInput from '$lib/components/TimeInput.svelte';
 
@@ -15,6 +15,9 @@
 	let syncing = $state(false);
 	let syncMsg = $state<string | null>(null);
 	let syncErr = $state<string | null>(null);
+	let pulling = $state(false);
+	let pullMsg = $state<string | null>(null);
+	let pullErr = $state<string | null>(null);
 
 	$effect(() => {
 		if (authStore.isAuthenticated && jobSites.length === 0) {
@@ -48,6 +51,27 @@
 			syncErr = e instanceof Error ? e.message : 'Sync failed';
 		} finally {
 			syncing = false;
+		}
+	}
+
+	async function pullNow() {
+		if (!selectedSiteId) {
+			pullErr = 'Pick a job site first';
+			return;
+		}
+		pulling = true;
+		pullErr = null;
+		pullMsg = null;
+		try {
+			const count = await pullFromCloud(selectedSiteId);
+			pullMsg =
+				count > 0
+					? `Pulled ${count} ${count === 1 ? 'entry' : 'entries'} from cloud`
+					: 'No new entries in the cloud';
+		} catch (e) {
+			pullErr = e instanceof Error ? e.message : 'Pull failed';
+		} finally {
+			pulling = false;
 		}
 	}
 
@@ -338,12 +362,17 @@
 						{/each}
 					</select>
 				</label>
+				<button class="btn btn-secondary btn-sm" disabled={pulling || !selectedSiteId} onclick={pullNow}>
+					{pulling ? 'Pulling…' : 'Pull from cloud'}
+				</button>
 				<button class="btn btn-primary btn-sm" disabled={syncing || !selectedSiteId} onclick={syncNow}>
 					{syncing ? 'Syncing…' : 'Sync to cloud'}
 				</button>
 			</div>
 			{#if syncMsg}<p class="sync-ok">{syncMsg}</p>{/if}
 			{#if syncErr}<p class="sync-bad">{syncErr}</p>{/if}
+			{#if pullMsg}<p class="sync-ok">{pullMsg}</p>{/if}
+			{#if pullErr}<p class="sync-bad">{pullErr}</p>{/if}
 		</section>
 	{/if}
 

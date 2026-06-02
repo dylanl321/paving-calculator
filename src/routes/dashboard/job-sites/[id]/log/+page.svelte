@@ -6,6 +6,7 @@
 	import type { RouteWaypoint } from '$lib/services/gpsStation';
 	import TimeInput from '$lib/components/TimeInput.svelte';
 	import { Droplets, FileText } from 'lucide-svelte';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -43,6 +44,8 @@
 		distance_ft: null as number | null,
 		tons_placed: null as number | null,
 		loads_count: null as number | null,
+		spread_rate_actual: null as number | null,
+		tack_gallons: null as number | null,
 		lane: '',
 		notes: ''
 	});
@@ -109,8 +112,31 @@
 			distance_ft: null,
 			tons_placed: null,
 			loads_count: null,
+			spread_rate_actual: null,
+			tack_gallons: null,
 			lane: '',
 			notes: ''
+		};
+		editingEntry = null;
+		showEntryForm = true;
+	}
+
+	function fillFromCalculator() {
+		if (!logDraft.current) return;
+		const draft = logDraft.current;
+		const now = new Date();
+		entryForm = {
+			entry_type: draft.entryType,
+			timestamp: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+			station_start: draft.fields.station_start ?? null,
+			station_end: draft.fields.station_end ?? null,
+			distance_ft: draft.fields.distance_ft ?? null,
+			tons_placed: draft.fields.tons_placed ?? null,
+			loads_count: draft.fields.loads_count ?? null,
+			spread_rate_actual: draft.fields.spread_rate_actual ?? null,
+			tack_gallons: draft.fields.tack_gallons ?? null,
+			lane: draft.fields.lane ?? '',
+			notes: draft.fields.notes ?? ''
 		};
 		editingEntry = null;
 		showEntryForm = true;
@@ -125,6 +151,8 @@
 			distance_ft: entry.distance_ft,
 			tons_placed: entry.tons_placed,
 			loads_count: entry.loads_count,
+			spread_rate_actual: entry.spread_rate_actual,
+			tack_gallons: entry.tack_gallons,
 			lane: entry.lane || '',
 			notes: entry.notes || ''
 		};
@@ -307,6 +335,19 @@
 			</button>
 		</div>
 	{:else}
+		{#if logDraft.current}
+			<div class="draft-banner">
+				<div class="draft-content">
+					<span class="draft-icon">🧮</span>
+					<div class="draft-text">
+						<strong>Calculator result ready</strong>
+						<p>{logDraft.current.summary}</p>
+					</div>
+				</div>
+				<button class="btn-primary" onclick={fillFromCalculator}>Fill from Calculator</button>
+			</div>
+		{/if}
+
 		<section class="section">
 			<h3>Site Conditions</h3>
 			<div class="conditions-grid">
@@ -506,6 +547,17 @@
 					</div>
 				</div>
 
+				<div class="field-row">
+					<div class="field-compact">
+						<label for="spread-rate">Spread Rate (lbs/SY)</label>
+						<input type="number" id="spread-rate" bind:value={entryForm.spread_rate_actual} step="0.1" />
+					</div>
+					<div class="field-compact">
+						<label for="tack">Tack (gallons)</label>
+						<input type="number" id="tack" bind:value={entryForm.tack_gallons} step="0.1" />
+					</div>
+				</div>
+
 				<div class="field-compact">
 					<label for="lane">Lane</label>
 					<input type="text" id="lane" bind:value={entryForm.lane} placeholder="e.g., left, right" />
@@ -559,6 +611,48 @@
 	.breadcrumb a {
 		color: var(--text-muted);
 		transition: color 0.2s;
+	}
+
+	.draft-banner {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		background: var(--surface);
+		border: 2px solid var(--accent);
+		border-radius: var(--radius);
+		padding: 16px;
+		margin-bottom: 24px;
+	}
+
+	.draft-content {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.draft-icon {
+		font-size: 2rem;
+		flex-shrink: 0;
+	}
+
+	.draft-text {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.draft-text strong {
+		display: block;
+		margin-bottom: 4px;
+		font-size: 1rem;
+	}
+
+	.draft-text p {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--text-muted);
 	}
 
 	.breadcrumb a:hover {
