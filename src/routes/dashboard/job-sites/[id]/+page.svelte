@@ -518,6 +518,34 @@
 					{data.jobSite.latitude.toFixed(5)}, {data.jobSite.longitude?.toFixed(5)}
 					<button class="link-btn-sm" onclick={clearCoordinates}>Clear</button>
 				</p>
+
+				{#if data.routeWaypoints.length >= 2}
+					<div class="progress-map-section">
+						<div class="progress-map-head">
+							<h4>Paving Progress</h4>
+							<span class="progress-map-sub">Completed segments shown in green</span>
+						</div>
+						{#await import('$lib/components/StationProgressMap.svelte')}
+							<div class="map-mini-loading">Loading progress map&hellip;</div>
+						{:then { default: StationProgressMap }}
+							<StationProgressMap
+								site={{
+									id: data.jobSite.id,
+									name: data.jobSite.name,
+									status: data.jobSite.status,
+									latitude: data.jobSite.latitude,
+									longitude: data.jobSite.longitude,
+									location_description: data.jobSite.location_description
+								}}
+								waypoints={data.routeWaypoints}
+								numLanes={data.config?.num_lanes}
+								laneWidthFt={data.config?.lane_width_ft}
+								totalLengthFt={data.config?.total_length_ft}
+								height="320px"
+							/>
+						{/await}
+					</div>
+				{/if}
 			{:else}
 				{#if showLocationSearch || data.jobSite.latitude == null}
 					<div class="location-search">
@@ -1763,5 +1791,28 @@
 		text-align: center;
 		color: var(--text-muted);
 		font-size: 0.875rem;
+	}
+
+	.progress-map-section {
+		margin-top: 20px;
+	}
+
+	.progress-map-head {
+		display: flex;
+		align-items: baseline;
+		gap: 10px;
+		margin-bottom: 10px;
+	}
+
+	.progress-map-head h4 {
+		margin: 0;
+		font-size: 0.95rem;
+		font-weight: 700;
+		color: var(--text);
+	}
+
+	.progress-map-sub {
+		font-size: 0.78rem;
+		color: var(--text-muted);
 	}
 </style>
