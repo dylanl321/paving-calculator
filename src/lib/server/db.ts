@@ -181,6 +181,9 @@ export interface DbLoad {
 	spread_rate: number | null;
 	notes: string | null;
 	created_at: number;
+	rejected: number;
+	rejection_reason: string | null;
+	rejection_notes: string | null;
 }
 
 export class DbHelper {
