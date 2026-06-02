@@ -353,7 +353,7 @@
 	}
 
 	.dot.green {
-		background: #22c55e;
+		background: var(--good);
 	}
 
 	.dot.muted {

@@ -345,7 +345,7 @@
 		flex: 1;
 	}
 	.warning-icon {
-		color: #f2c037;
+		color: var(--accent);
 		flex-shrink: 0;
 		margin-top: 2px;
 	}

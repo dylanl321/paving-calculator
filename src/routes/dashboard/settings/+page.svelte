@@ -377,7 +377,7 @@
 					<iframe
 						title="Email preview"
 						srcDoc={previewHtml}
-						style="width:100%;height:600px;border:none;background:#1b2228;border-radius:8px;"
+						style="width:100%;height:600px;border:none;background:var(--surface);border-radius:8px;"
 					></iframe>
 				</div>
 			{:else}
