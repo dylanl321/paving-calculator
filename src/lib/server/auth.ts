@@ -169,7 +169,7 @@ export async function requireGlobalAdmin(event: RequestEvent): Promise<AuthUser>
 export async function requireOrgRole(
 	event: RequestEvent,
 	orgId: string,
-	allowedRoles: Array<'owner' | 'admin' | 'member'>
+	allowedRoles: Array<'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer'>
 ): Promise<{ user: AuthUser; role: string }> {
 	const user = await requireAuth(event);
 	if (!event.platform?.env?.DB) {
@@ -181,7 +181,7 @@ export async function requireOrgRole(
 	const db = new DbHelper(event.platform.env.DB);
 	const role = await db.getUserRole(user.id, orgId);
 
-	if (!role || !allowedRoles.includes(role as 'owner' | 'admin' | 'member')) {
+	if (!role || !allowedRoles.includes(role as 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer')) {
 		throw new Response(JSON.stringify({ error: 'Forbidden: Insufficient permissions' }), {
 			status: 403,
 			headers: { 'Content-Type': 'application/json' }
@@ -189,4 +189,28 @@ export async function requireOrgRole(
 	}
 
 	return { user, role };
+}
+
+// Roles that can manage crews and job sites (admin level+)
+export const ADMIN_ROLES = ['owner', 'admin'] as const;
+
+// Roles that have field-level access (foreman and below)
+export const FIELD_ROLES = ['foreman', 'operator', 'inspector', 'office', 'laborer', 'member'] as const;
+
+// Laborer: can only log loads and run calcs (no management)
+export const LABORER_ROLES = ['laborer'] as const;
+
+// Helper: can this role manage crews/job-sites?
+export function canManage(role: string): boolean {
+	return role === 'owner' || role === 'admin';
+}
+
+// Helper: is this a foreman who has crew-scoped access?
+export function isForeman(role: string): boolean {
+	return role === 'foreman';
+}
+
+// Helper: is this a laborer (logging + calc only)?
+export function isLaborer(role: string): boolean {
+	return role === 'laborer';
 }

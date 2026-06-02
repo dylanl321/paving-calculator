@@ -23,7 +23,7 @@ export interface DbOrganization {
 export interface DbOrgMember {
 	user_id: string;
 	org_id: string;
-	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office';
+	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer';
 	invited_at: number;
 	accepted_at: number | null;
 }
@@ -81,7 +81,7 @@ export interface DbInvitation {
 	id: string;
 	org_id: string;
 	email: string;
-	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office';
+	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer';
 	token: string;
 	invited_by: string;
 	created_at: number;
@@ -168,6 +168,14 @@ export interface DbCrewMember {
 	assigned_at: number;
 }
 
+export interface DbCrewJobSite {
+	crew_id: string;
+	job_site_id: string;
+	org_id: string;
+	assigned_at: number;
+	assigned_by: string;
+}
+
 export interface DbNotificationPref {
 	user_id: string;
 	pref_key: string;
@@ -242,7 +250,7 @@ export class DbHelper {
 	async addOrgMember(
 		userId: string,
 		orgId: string,
-		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office'
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer'
 	): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		await this.db
@@ -644,7 +652,7 @@ export class DbHelper {
 	async updateOrgMemberRole(
 		userId: string,
 		orgId: string,
-		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office'
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer'
 	): Promise<void> {
 		await this.db
 			.prepare('UPDATE org_members SET role = ? WHERE user_id = ? AND org_id = ?')
@@ -749,7 +757,7 @@ export class DbHelper {
 	async createInvitation(
 		orgId: string,
 		email: string,
-		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office',
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer',
 		invitedBy: string
 	): Promise<DbInvitation> {
 		const id = crypto.randomUUID();
@@ -1190,6 +1198,68 @@ export class DbHelper {
 			)
 			.bind(userId, orgId)
 			.first<DbCrew>();
+	}
+
+	// Crew-to-job-site assignment methods
+	async assignJobSiteToCrew(crewId: string, jobSiteId: string, orgId: string, assignedBy: string): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				'INSERT OR REPLACE INTO crew_job_sites (crew_id, job_site_id, org_id, assigned_at, assigned_by) VALUES (?, ?, ?, ?, ?)'
+			)
+			.bind(crewId, jobSiteId, orgId, now, assignedBy)
+			.run();
+	}
+
+	async removeJobSiteFromCrew(crewId: string, jobSiteId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM crew_job_sites WHERE crew_id = ? AND job_site_id = ?')
+			.bind(crewId, jobSiteId)
+			.run();
+	}
+
+	async getCrewJobSites(crewId: string): Promise<DbJobSite[]> {
+		return await this.db
+			.prepare(
+				`SELECT js.*
+				FROM job_sites js
+				JOIN crew_job_sites cjs ON cjs.job_site_id = js.id
+				WHERE cjs.crew_id = ?
+				ORDER BY js.name ASC`
+			)
+			.bind(crewId)
+			.all<DbJobSite>()
+			.then((r) => r.results);
+	}
+
+	async getJobSiteCrews(jobSiteId: string): Promise<DbCrew[]> {
+		return await this.db
+			.prepare(
+				`SELECT c.*
+				FROM crews c
+				JOIN crew_job_sites cjs ON cjs.crew_id = c.id
+				WHERE cjs.job_site_id = ?
+				ORDER BY c.name ASC`
+			)
+			.bind(jobSiteId)
+			.all<DbCrew>()
+			.then((r) => r.results);
+	}
+
+	// Get job sites visible to a foreman (only their crew's assigned job sites)
+	async getJobSitesByForeman(userId: string, orgId: string): Promise<DbJobSite[]> {
+		return await this.db
+			.prepare(
+				`SELECT DISTINCT js.*
+				FROM job_sites js
+				JOIN crew_job_sites cjs ON cjs.job_site_id = js.id
+				JOIN crew_members cm ON cm.crew_id = cjs.crew_id
+				WHERE cm.user_id = ? AND cm.org_id = ?
+				ORDER BY js.name ASC`
+			)
+			.bind(userId, orgId)
+			.all<DbJobSite>()
+			.then((r) => r.results);
 	}
 
 	async getNotificationPrefs(userId: string): Promise<Record<string, boolean>> {
