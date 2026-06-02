@@ -3,8 +3,9 @@
 	import { weather } from '$lib/stores/weather.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
-	import { fetchJobSites, pushTodayToCloud, type JobSiteOption } from '$lib/services/todaySync';
+	import { fetchJobSites, pushTodayToCloud, pullFromCloud, type JobSiteOption } from '$lib/services/todaySync';
 	import TodaySummary from './TodaySummary.svelte';
+	import TimeInput from '$lib/components/TimeInput.svelte';
 
 	const entries = $derived(today.entries);
 
@@ -14,6 +15,9 @@
 	let syncing = $state(false);
 	let syncMsg = $state<string | null>(null);
 	let syncErr = $state<string | null>(null);
+	let pulling = $state(false);
+	let pullMsg = $state<string | null>(null);
+	let pullErr = $state<string | null>(null);
 
 	$effect(() => {
 		if (authStore.isAuthenticated && jobSites.length === 0) {
@@ -47,6 +51,27 @@
 			syncErr = e instanceof Error ? e.message : 'Sync failed';
 		} finally {
 			syncing = false;
+		}
+	}
+
+	async function pullNow() {
+		if (!selectedSiteId) {
+			pullErr = 'Pick a job site first';
+			return;
+		}
+		pulling = true;
+		pullErr = null;
+		pullMsg = null;
+		try {
+			const count = await pullFromCloud(selectedSiteId);
+			pullMsg =
+				count > 0
+					? `Pulled ${count} ${count === 1 ? 'entry' : 'entries'} from cloud`
+					: 'No new entries in the cloud';
+		} catch (e) {
+			pullErr = e instanceof Error ? e.message : 'Pull failed';
+		} finally {
+			pulling = false;
 		}
 	}
 
@@ -182,6 +207,7 @@
 		today.removeEntry(id);
 	}
 
+	// Entry type icons - these are display elements in the timeline, kept as emoji for consistency with weather display patterns
 	const ENTRY_ICON: Record<EntryType, string> = {
 		paving: '🛣️',
 		milling: '🚜',
@@ -209,6 +235,21 @@
 		const { generateDailyReportPDF } = await import('$lib/utils/pdf-export');
 		const r = today.rollup;
 		const y = today.yieldVsTarget(job.widthFt, job.thicknessIn);
+
+		let loads: any[] = [];
+		if (authStore.isAuthenticated && today.jobSiteId) {
+			try {
+				const todayDate = today.date;
+				const res = await fetch(`/api/job-sites/${today.jobSiteId}/loads?start_date=${todayDate}`, { credentials: 'include' });
+				if (res.ok) {
+					const data = await res.json();
+					loads = data.loads || [];
+				}
+			} catch {
+				// Non-fatal - continue without loads
+			}
+		}
+
 		await generateDailyReportPDF(
 			{
 				widthFt: job.widthFt,
@@ -256,7 +297,15 @@
 					actualRate: y.actualRate,
 					targetRate: y.targetRate,
 					diffPct: y.diffPct
-				}
+				},
+				loads: loads.map(l => ({
+					id: l.id,
+					ticket_number: l.ticket_number,
+					tons: l.tons,
+					timestamp: l.timestamp,
+					spread_rate: l.spread_rate,
+					notes: l.notes
+				}))
 			}
 		);
 	}
@@ -313,11 +362,11 @@
 			</label>
 			<label class="f">
 				<span>Start</span>
-				<input type="time" bind:value={today.startTime} />
+				<TimeInput bind:value={today.startTime} />
 			</label>
 			<label class="f">
 				<span>End</span>
-				<input type="time" bind:value={today.endTime} />
+				<TimeInput bind:value={today.endTime} />
 			</label>
 		</div>
 	</section>
@@ -336,12 +385,17 @@
 						{/each}
 					</select>
 				</label>
+				<button class="btn btn-secondary btn-sm" disabled={pulling || !selectedSiteId} onclick={pullNow}>
+					{pulling ? 'Pulling…' : 'Pull from cloud'}
+				</button>
 				<button class="btn btn-primary btn-sm" disabled={syncing || !selectedSiteId} onclick={syncNow}>
 					{syncing ? 'Syncing…' : 'Sync to cloud'}
 				</button>
 			</div>
 			{#if syncMsg}<p class="sync-ok">{syncMsg}</p>{/if}
 			{#if syncErr}<p class="sync-bad">{syncErr}</p>{/if}
+			{#if pullMsg}<p class="sync-ok">{pullMsg}</p>{/if}
+			{#if pullErr}<p class="sync-bad">{pullErr}</p>{/if}
 		</section>
 	{/if}
 
@@ -364,7 +418,16 @@
 								{#if e.source_calc}<span class="src">from {e.source_calc}</span>{/if}
 							</div>
 							<div class="line2">
-								{#if e.tons_placed != null}<span>{e.tons_placed} t</span>{/if}
+								{#if e.tons_placed != null && e.tons_placed > 0}
+									<span class="actual-tons">
+										{e.tons_placed} t
+										<svg class="check-inline" width="12" height="12" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+											<path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+										</svg>
+									</span>
+								{:else if e.loads_count != null && e.loads_count > 0}
+									<span class="est-tons">{(e.loads_count * job.truckLoadTons).toFixed(1)}T est.</span>
+								{/if}
 								{#if e.distance_ft != null}<span>{fmtFeet(e.distance_ft)}</span>{/if}
 								{#if e.station_start != null && e.station_end != null}
 									<span>{e.station_start}+00 → {e.station_end}+00</span>
@@ -418,15 +481,39 @@
 			<div class="form-grid">
 				<label class="f">
 					<span>Time</span>
-					<input type="time" bind:value={form.timestamp} />
+					<TimeInput bind:value={form.timestamp} />
 				</label>
 
 				{#if form.entry_type === 'paving' || form.entry_type === 'milling'}
 					<label class="f"><span>Station start</span><input type="number" inputmode="decimal" bind:value={form.station_start} /></label>
 					<label class="f"><span>Station end</span><input type="number" inputmode="decimal" bind:value={form.station_end} /></label>
 					<label class="f"><span>Distance ft</span><input type="number" inputmode="decimal" bind:value={form.distance_ft} placeholder="auto from stations" /></label>
-					<label class="f"><span>Tons placed</span><input type="number" inputmode="decimal" bind:value={form.tons_placed} /></label>
+					<label class="f">
+						<span>Tons placed</span>
+						<input type="number" inputmode="decimal" bind:value={form.tons_placed} />
+						<div class="hint">Enter actual weight from load ticket</div>
+					</label>
 					<label class="f"><span>Loads</span><input type="number" inputmode="numeric" bind:value={form.loads_count} /></label>
+					{#if form.tons_placed != null && form.tons_placed > 0 && form.loads_count != null && form.loads_count > 0}
+						<div class="weight-badge actual-badge wide">
+							<svg class="check-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+								<path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+							</svg>
+							avg {(form.tons_placed / form.loads_count).toFixed(1)} T/load — actual tickets
+						</div>
+					{:else if form.tons_placed == null && form.loads_count != null && form.loads_count > 0}
+						<div class="weight-badge estimate-badge wide">
+							{(form.loads_count * job.truckLoadTons).toFixed(1)}T est. (using {job.truckLoadTons} T/load)
+							<div class="est-note">Actual ticket weights improve accuracy</div>
+						</div>
+					{:else if form.tons_placed != null && form.tons_placed > 0 && (form.loads_count == null || form.loads_count === 0)}
+						<div class="weight-badge actual-badge wide">
+							<svg class="check-icon" width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+								<path d="M13.5 4.5L6 12L2.5 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+							</svg>
+							actual ticket weight
+						</div>
+					{/if}
 					<label class="f"><span>Actual lbs/SY</span><input type="number" inputmode="decimal" bind:value={form.spread_rate_actual} /></label>
 					<label class="f"><span>Lane</span><input type="text" bind:value={form.lane} /></label>
 					<label class="f wide"><span>Truck tickets (comma-sep)</span><input type="text" bind:value={form.truck_tickets} placeholder="1042, 1043" /></label>
@@ -537,9 +624,6 @@
 	.f textarea {
 		padding: var(--sp-2);
 		min-height: auto;
-	}
-	.f input[type="time"] {
-		min-height: 48px;
 	}
 
 	.crew-field {
@@ -728,6 +812,55 @@
 	}
 	.f.wide {
 		grid-column: 1 / -1;
+	}
+	.hint {
+		font-size: var(--fs-2xs);
+		color: var(--text-muted);
+		margin-top: 2px;
+	}
+	.weight-badge {
+		grid-column: 1 / -1;
+		padding: 8px 12px;
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-xs);
+		font-weight: var(--fw-medium);
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.actual-badge {
+		background: color-mix(in srgb, var(--good) 16%, transparent);
+		border: 1px solid color-mix(in srgb, var(--good) 30%, transparent);
+		color: var(--good);
+	}
+	.estimate-badge {
+		background: color-mix(in srgb, var(--warn) 16%, transparent);
+		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+		color: var(--warn);
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 4px;
+	}
+	.est-note {
+		font-size: var(--fs-2xs);
+		opacity: 0.85;
+	}
+	.check-icon {
+		flex-shrink: 0;
+		color: var(--good);
+	}
+	.actual-tons {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+	}
+	.check-inline {
+		color: var(--good);
+		flex-shrink: 0;
+	}
+	.est-tons {
+		color: var(--text-muted);
+		font-style: italic;
 	}
 
 	@media (min-width: 768px) {

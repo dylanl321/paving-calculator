@@ -13,7 +13,7 @@ export async function POST(event: RequestEvent) {
 			return json({ error: 'Email and role are required' }, { status: 400 });
 		}
 
-		if (!['owner', 'admin', 'member'].includes(role)) {
+		if (!['owner', 'admin', 'member', 'foreman', 'operator', 'inspector', 'office'].includes(role)) {
 			return json({ error: 'Invalid role' }, { status: 400 });
 		}
 

@@ -35,6 +35,10 @@ export async function GET(event: RequestEvent) {
 		const url = event.url;
 		const resourceType = url.searchParams.get('resource_type');
 		const resourceId = url.searchParams.get('resource_id');
+		const actorUserId = url.searchParams.get('actor_user_id');
+		const action = url.searchParams.get('action');
+		const fromTs = url.searchParams.get('from_ts');
+		const toTs = url.searchParams.get('to_ts');
 		const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 200);
 		const before = url.searchParams.get('before')
 			? parseInt(url.searchParams.get('before')!)
@@ -53,6 +57,32 @@ export async function GET(event: RequestEvent) {
 			params.push(resourceId);
 		}
 
+		if (actorUserId) {
+			query += ' AND actor_user_id = ?';
+			params.push(actorUserId);
+		}
+
+		if (action) {
+			query += ' AND action = ?';
+			params.push(action);
+		}
+
+		if (fromTs) {
+			const fromTimestamp = parseInt(fromTs);
+			if (!isNaN(fromTimestamp)) {
+				query += ' AND created_at >= ?';
+				params.push(fromTimestamp);
+			}
+		}
+
+		if (toTs) {
+			const toTimestamp = parseInt(toTs);
+			if (!isNaN(toTimestamp)) {
+				query += ' AND created_at <= ?';
+				params.push(toTimestamp);
+			}
+		}
+
 		if (before) {
 			query += ' AND created_at < ?';
 			params.push(before);
@@ -68,6 +98,15 @@ export async function GET(event: RequestEvent) {
 		const entries = results.results || [];
 		const hasMore = entries.length > limit;
 		const returnedEntries = hasMore ? entries.slice(0, limit) : entries;
+
+		event.platform!.env.DB.prepare(
+			'DELETE FROM audit_log WHERE org_id = ? AND created_at < ?'
+		)
+			.bind(org.id, Math.floor(Date.now() / 1000) - 7776000)
+			.run()
+			.catch((err: unknown) => {
+				console.error('Failed to prune old audit entries:', err);
+			});
 
 		return json({
 			entries: returnedEntries,

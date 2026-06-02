@@ -26,6 +26,17 @@
 	let logoFile = $state<File | null>(null);
 	let logoPreview = $state<string | null>(null);
 
+	// --- Email branding ---
+	let emailFromName = $state(data.settings?.emailFromName ?? '');
+	let emailReplyTo = $state(data.settings?.emailReplyTo ?? '');
+
+	// --- Email preview ---
+	let previewType = $state<'invitation' | 'verification' | 'password-reset'>('invitation');
+	let previewHtml = $state('');
+	let previewSubject = $state('');
+	let previewFrom = $state('');
+	let loadingPreview = $state(false);
+
 	// --- Default job setup (seeded from YAML, overridden where present) ---
 	let roadWidthFt = $state(ov.defaults?.roadWidthFt ?? config.defaults.roadWidthFt);
 	let truckLoadTons = $state(ov.defaults?.truckLoadTons ?? config.defaults.truckLoadTons);
@@ -48,6 +59,12 @@
 	}
 	let tackField = $state<RangeEntry[]>(cloneRanges(ov.tack?.field ?? config.tack.field));
 	let tackSpec = $state<RangeEntry[]>(cloneRanges(ov.tack?.spec ?? config.tack.spec));
+
+	// --- Notification preferences ---
+	let notificationPrefs = $state<Record<string, boolean>>(data.notificationPrefs ?? {});
+	let savingNotifications = $state(false);
+	let notificationMessage = $state('');
+	let notificationMessageType = $state<'ok' | 'error'>('ok');
 
 	let saving = $state(false);
 	let message = $state('');
@@ -111,6 +128,8 @@
 				body: JSON.stringify({
 					name: orgName.trim(),
 					accentColor: useCustomAccent ? accentColor : null,
+					emailFromName: emailFromName.trim() || null,
+					emailReplyTo: emailReplyTo.trim() || null,
 					overrides
 				})
 			});
@@ -176,9 +195,58 @@
 		}
 	}
 
+	async function saveNotificationPrefs() {
+		savingNotifications = true;
+		notificationMessage = '';
+		try {
+			const res = await fetch('/api/user/notification-prefs', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({ prefs: notificationPrefs })
+			});
+			const result = await res.json();
+			if (!res.ok) {
+				notificationMessage = result.error || 'Failed to save preferences';
+				notificationMessageType = 'error';
+				return;
+			}
+			notificationPrefs = result.prefs;
+			notificationMessage = 'Notification preferences saved';
+			notificationMessageType = 'ok';
+		} catch (e) {
+			notificationMessage = 'Network error while saving';
+			notificationMessageType = 'error';
+		} finally {
+			savingNotifications = false;
+		}
+	}
+
 	const currentLogoSrc = $derived(
 		logoPreview ?? (hasLogo ? `/api/org/logo?t=${Date.now()}` : null)
 	);
+
+	async function loadPreview() {
+		loadingPreview = true;
+		try {
+			const res = await fetch(`/api/org/email-preview?type=${previewType}`, {
+				credentials: 'include'
+			});
+			if (!res.ok) {
+				const error = await res.json();
+				console.error('Preview error:', error);
+				return;
+			}
+			const data = await res.json();
+			previewHtml = data.html;
+			previewSubject = data.subject;
+			previewFrom = data.from;
+		} catch (e) {
+			console.error('Failed to load preview:', e);
+		} finally {
+			loadingPreview = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -252,6 +320,69 @@
 					<input type="color" bind:value={accentColor} disabled={!canEdit} />
 					<input type="text" class="color-hex" bind:value={accentColor} disabled={!canEdit} />
 					<span class="swatch" style="background:{accentColor}"></span>
+				</div>
+			{/if}
+		</div>
+	</section>
+
+	<!-- Email branding -->
+	<section class="card">
+		<h3>Email Branding</h3>
+		<p class="card-desc">Customize how emails from your organization appear to recipients.</p>
+
+		<div class="field">
+			<label for="emailFromName">From name</label>
+			<input
+				id="emailFromName"
+				type="text"
+				placeholder="PaveRate"
+				bind:value={emailFromName}
+				disabled={!canEdit}
+				maxlength="100"
+			/>
+			<span class="hint">The name shown in the "From" field of emails (max 100 characters)</span>
+		</div>
+
+		<div class="field">
+			<label for="emailReplyTo">Reply-To address</label>
+			<input
+				id="emailReplyTo"
+				type="email"
+				placeholder="support@yourcompany.com"
+				bind:value={emailReplyTo}
+				disabled={!canEdit}
+			/>
+			<span class="hint">Optional email address for replies</span>
+		</div>
+
+		<div class="preview-section">
+			<h4 style="margin:0 0 12px;font-size:0.95rem;color:var(--text);">Email Preview</h4>
+			<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+				<select bind:value={previewType} style="flex:1;max-width:220px;" onchange={loadPreview}>
+					<option value="invitation">Team Invitation</option>
+					<option value="verification">Email Verification</option>
+					<option value="password-reset">Password Reset</option>
+				</select>
+				<button type="button" class="ghost-btn" onclick={loadPreview} disabled={loadingPreview}>
+					{loadingPreview ? 'Loading...' : 'Refresh Preview'}
+				</button>
+			</div>
+
+			{#if previewHtml}
+				<div class="preview-meta">
+					<div><strong>From:</strong> {previewFrom}</div>
+					<div><strong>Subject:</strong> {previewSubject}</div>
+				</div>
+				<div class="preview-frame">
+					<iframe
+						title="Email preview"
+						srcDoc={previewHtml}
+						style="width:100%;height:600px;border:none;background:var(--surface);border-radius:8px;"
+					></iframe>
+				</div>
+			{:else}
+				<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:0.9rem;">
+					Click "Refresh Preview" to see how your emails will look
 				</div>
 			{/if}
 		</div>
@@ -364,6 +495,89 @@
 					<label class="mini">max<input type="number" step="0.005" min="0" max="5" bind:value={tackSpec[i].max} disabled={!canEdit} /></label>
 				</div>
 			{/each}
+		</div>
+	</section>
+
+	<!-- Notification Preferences -->
+	<section class="card">
+		<h3>Notification Preferences</h3>
+		<p class="card-desc">Control which notifications you receive for your account.</p>
+
+		<div class="notification-group">
+			<h4 class="group-heading">Email Notifications</h4>
+			<label class="notification-toggle">
+				<input
+					type="checkbox"
+					bind:checked={notificationPrefs.email_daily_summary}
+				/>
+				<div class="notification-info">
+					<span class="notification-label">Daily Summary</span>
+					<span class="notification-desc">Receive a daily email summary of job activity</span>
+				</div>
+			</label>
+			<label class="notification-toggle">
+				<input
+					type="checkbox"
+					bind:checked={notificationPrefs.email_invite}
+				/>
+				<div class="notification-info">
+					<span class="notification-label">Organization Invites</span>
+					<span class="notification-desc">Email notifications when invited to an organization</span>
+				</div>
+			</label>
+			<label class="notification-toggle">
+				<input
+					type="checkbox"
+					bind:checked={notificationPrefs.email_spec_alerts}
+				/>
+				<div class="notification-info">
+					<span class="notification-label">Specification Alerts</span>
+					<span class="notification-desc">Real-time alerts for spec violations via email</span>
+				</div>
+			</label>
+			<label class="notification-toggle">
+				<input
+					type="checkbox"
+					bind:checked={notificationPrefs.email_job_updates}
+				/>
+				<div class="notification-info">
+					<span class="notification-label">Job Status Changes</span>
+					<span class="notification-desc">Email when job site status changes</span>
+				</div>
+			</label>
+		</div>
+
+		<div class="notification-group">
+			<h4 class="group-heading">Push Notifications</h4>
+			<label class="notification-toggle">
+				<input
+					type="checkbox"
+					bind:checked={notificationPrefs.push_spec_alerts}
+				/>
+				<div class="notification-info">
+					<span class="notification-label">Specification Alerts</span>
+					<span class="notification-desc">Browser push notifications for spec violations</span>
+				</div>
+			</label>
+			<label class="notification-toggle">
+				<input
+					type="checkbox"
+					bind:checked={notificationPrefs.push_job_updates}
+				/>
+				<div class="notification-info">
+					<span class="notification-label">Job Updates</span>
+					<span class="notification-desc">Browser push notifications for job site updates</span>
+				</div>
+			</label>
+		</div>
+
+		<div class="notification-save-bar">
+			{#if notificationMessage}
+				<span class="save-msg" class:error={notificationMessageType === 'error'}>{notificationMessage}</span>
+			{/if}
+			<button type="button" class="save-btn" onclick={saveNotificationPrefs} disabled={savingNotifications}>
+				{savingNotifications ? 'Saving…' : 'Save Preferences'}
+			</button>
 		</div>
 	</section>
 
@@ -736,6 +950,104 @@
 	.save-btn:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
+	}
+
+	.notification-group {
+		margin-bottom: 24px;
+	}
+
+	.notification-group:last-of-type {
+		margin-bottom: 20px;
+	}
+
+	.group-heading {
+		margin: 0 0 12px;
+		font-size: 0.95rem;
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.notification-toggle {
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+		padding: 12px;
+		margin-bottom: 8px;
+		border-radius: var(--radius);
+		cursor: pointer;
+		min-height: 48px;
+		transition: background 0.15s;
+	}
+
+	.notification-toggle:hover {
+		background: rgba(255, 255, 255, 0.03);
+	}
+
+	.notification-toggle input[type="checkbox"] {
+		width: 20px;
+		min-height: 20px;
+		height: 20px;
+		margin-top: 2px;
+		flex-shrink: 0;
+		cursor: pointer;
+	}
+
+	.notification-info {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.notification-label {
+		font-size: 0.95rem;
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.notification-desc {
+		font-size: 0.82rem;
+		color: var(--text-muted);
+		line-height: 1.4;
+	}
+
+	.notification-save-bar {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 14px;
+		padding-top: 8px;
+		border-top: 1px solid var(--border);
+	}
+
+	.preview-section {
+		margin-top: 24px;
+		padding-top: 24px;
+		border-top: 1px solid var(--border);
+	}
+
+	.preview-meta {
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 12px 14px;
+		margin-bottom: 12px;
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.preview-meta div {
+		margin: 4px 0;
+	}
+
+	.preview-meta strong {
+		color: var(--text);
+		font-weight: 600;
+	}
+
+	.preview-frame {
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		overflow: hidden;
 	}
 
 	@media (max-width: 640px) {

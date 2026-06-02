@@ -72,3 +72,64 @@ export async function pushTodayToCloud(jobSiteId: string): Promise<SyncResult> {
 
 	return { pushed, logId };
 }
+
+/**
+ * Pull today's entries from the cloud daily log into the local Today store.
+ * Only pulls entries that don't already exist locally (based on remote_id).
+ * Returns the count of new entries pulled.
+ */
+export async function pullFromCloud(jobSiteId: string): Promise<number> {
+	// 1. Fetch today's log list to find today's log ID
+	const logsRes = await fetch(`/api/job-sites/${jobSiteId}/logs`, {
+		credentials: 'include'
+	});
+	if (!logsRes.ok) throw new Error('Could not fetch logs');
+
+	const logsData = await logsRes.json();
+	const todayDate = new Date().toISOString().split('T')[0];
+	const todayLog = logsData.logs?.find((log: any) => log.log_date === todayDate);
+
+	if (!todayLog) {
+		// No log for today in the cloud
+		return 0;
+	}
+
+	// 2. Fetch full log details with entries
+	const logRes = await fetch(`/api/job-sites/${jobSiteId}/logs/${todayLog.id}`, {
+		credentials: 'include'
+	});
+	if (!logRes.ok) throw new Error('Could not fetch log details');
+
+	const logData = await logRes.json();
+	const cloudEntries = logData.entries || [];
+
+	// 3. Find entries that don't exist locally
+	const existingRemoteIds = new Set(
+		today.entries.filter(e => e.remote_id).map(e => e.remote_id)
+	);
+
+	let pulled = 0;
+	for (const cloudEntry of cloudEntries) {
+		if (existingRemoteIds.has(cloudEntry.id)) continue;
+
+		// Add the cloud entry to local today store, then update it with remote_id
+		const entry = today.addEntry({
+			entry_type: cloudEntry.entry_type,
+			timestamp: cloudEntry.timestamp,
+			station_start: cloudEntry.station_start,
+			station_end: cloudEntry.station_end,
+			distance_ft: cloudEntry.distance_ft,
+			tons_placed: cloudEntry.tons_placed,
+			loads_count: cloudEntry.loads_count,
+			truck_tickets: cloudEntry.truck_tickets,
+			spread_rate_actual: cloudEntry.spread_rate_actual,
+			tack_gallons: cloudEntry.tack_gallons,
+			lane: cloudEntry.lane,
+			notes: cloudEntry.notes
+		});
+		today.updateEntry(entry.id, { remote_id: cloudEntry.id });
+		pulled++;
+	}
+
+	return pulled;
+}

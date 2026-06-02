@@ -10,6 +10,21 @@
 	}
 
 	let { activeId, todayActive = false, onselect, onselecttoday }: Props = $props();
+
+	// Scroll active tool into view on mobile
+	function scrollIntoView(node: HTMLElement, isActive: boolean) {
+		if (isActive && window.innerWidth < 768) {
+			node.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+		}
+
+		return {
+			update(newIsActive: boolean) {
+				if (newIsActive && window.innerWidth < 768) {
+					node.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+				}
+			}
+		};
+	}
 </script>
 
 <nav class="tool-list" aria-label="Calculators">
@@ -21,6 +36,7 @@
 				class:active={todayActive}
 				aria-current={todayActive ? 'true' : undefined}
 				onclick={onselecttoday}
+				use:scrollIntoView={todayActive}
 			>
 				<span class="tool-label">Today</span>
 				<span class="tool-blurb">
@@ -43,6 +59,7 @@
 							class:active={activeId === tool.id}
 							aria-current={activeId === tool.id ? 'true' : undefined}
 							onclick={() => onselect(tool.id)}
+							use:scrollIntoView={activeId === tool.id}
 						>
 							<span class="tool-label">{tool.label}</span>
 							<span class="tool-blurb">{tool.blurb}</span>
@@ -88,8 +105,15 @@
 		color: var(--text);
 		cursor: pointer;
 		transition:
-			background var(--dur) var(--ease),
-			border-color var(--dur) var(--ease);
+			background var(--dur-normal) var(--ease),
+			border-color var(--dur-normal) var(--ease),
+			transform var(--dur-fast) var(--ease);
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.tool:active {
+			transform: scale(0.98);
+		}
 	}
 
 	.tool:hover {

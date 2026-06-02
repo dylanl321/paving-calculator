@@ -4,10 +4,18 @@
 	import type { PageData } from './$types';
 	import GpsStationButton from '$lib/components/GpsStationButton.svelte';
 	import type { RouteWaypoint } from '$lib/services/gpsStation';
+	import TimeInput from '$lib/components/TimeInput.svelte';
+	import { Droplets, FileText, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-svelte';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import ComplianceGauge from '$lib/components/ComplianceGauge.svelte';
+	import NuclearGaugeLog from '$lib/components/NuclearGaugeLog.svelte';
+	import StationProgressLogger from '$lib/components/StationProgressLogger.svelte';
 
 	let { data }: { data: PageData } = $props();
 
-	let currentLog = $state<any>(data.todayLog);
+	let isHistoricalView = $derived(!!data.isHistoricalView);
+	let viewedLog = $derived(data.activeLog ?? data.todayLog);
+	let currentLog = $state<any>(data.activeLog);
 	let entries = $state<any[]>([]);
 	let entrySummary = $state<any>({ total_distance_ft: 0, total_tons: 0, total_loads: 0 });
 	let showEntryForm = $state(false);
@@ -41,20 +49,22 @@
 		distance_ft: null as number | null,
 		tons_placed: null as number | null,
 		loads_count: null as number | null,
+		spread_rate_actual: null as number | null,
+		tack_gallons: null as number | null,
 		lane: '',
 		notes: ''
 	});
 
 	$effect(() => {
-		if (data.todayLog) {
-			currentLog = data.todayLog;
+		if (viewedLog) {
+			currentLog = viewedLog;
 			loadLogDetails();
 		}
 	});
 
 	async function loadLogDetails() {
-		if (!currentLog) return;
-		const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}`);
+		if (!viewedLog) return;
+		const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs/${viewedLog.id}`);
 		if (res.ok) {
 			const result = await res.json();
 			entries = result.entries;
@@ -107,8 +117,31 @@
 			distance_ft: null,
 			tons_placed: null,
 			loads_count: null,
+			spread_rate_actual: null,
+			tack_gallons: null,
 			lane: '',
 			notes: ''
+		};
+		editingEntry = null;
+		showEntryForm = true;
+	}
+
+	function fillFromCalculator() {
+		if (!logDraft.current) return;
+		const draft = logDraft.current;
+		const now = new Date();
+		entryForm = {
+			entry_type: draft.entryType,
+			timestamp: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+			station_start: draft.fields.station_start ?? null,
+			station_end: draft.fields.station_end ?? null,
+			distance_ft: draft.fields.distance_ft ?? null,
+			tons_placed: draft.fields.tons_placed ?? null,
+			loads_count: draft.fields.loads_count ?? null,
+			spread_rate_actual: draft.fields.spread_rate_actual ?? null,
+			tack_gallons: draft.fields.tack_gallons ?? null,
+			lane: draft.fields.lane ?? '',
+			notes: draft.fields.notes ?? ''
 		};
 		editingEntry = null;
 		showEntryForm = true;
@@ -123,6 +156,8 @@
 			distance_ft: entry.distance_ft,
 			tons_placed: entry.tons_placed,
 			loads_count: entry.loads_count,
+			spread_rate_actual: entry.spread_rate_actual,
+			tack_gallons: entry.tack_gallons,
 			lane: entry.lane || '',
 			notes: entry.notes || ''
 		};
@@ -177,16 +212,42 @@
 		return `${ft.toLocaleString()} ft`;
 	}
 
+	function navigateToPrevDay() {
+		if (data.prevLogId) {
+			goto(`/dashboard/job-sites/${data.jobSite.id}/log?date=${data.prevLogId}`);
+		}
+	}
+
+	function navigateToNextDay() {
+		if (data.nextLogId) {
+			goto(`/dashboard/job-sites/${data.jobSite.id}/log?date=${data.nextLogId}`);
+		}
+	}
+
+	function navigateToToday() {
+		goto(`/dashboard/job-sites/${data.jobSite.id}/log`);
+	}
+
+	function formatLogDate(dateString: string): string {
+		const date = new Date(dateString);
+		return date.toLocaleDateString('en-US', {
+			weekday: 'long',
+			year: 'numeric',
+			month: 'long',
+			day: 'numeric'
+		});
+	}
+
 	function getEntryTypeIcon(type: string): string {
 		const icons: Record<string, string> = {
 			paving: '🛣️',
-			milling: '🚜',
+			milling: '⚙️',
 			tack: '💧',
 			break: '☕',
 			delay: '⏸️',
 			note: '📝'
 		};
-		return icons[type] || '•';
+		return icons[type] || '📌';
 	}
 
 	function getEntryTypeColor(type: string): string {
@@ -210,10 +271,152 @@
 			entryForm.distance_ft = (entryForm.station_end - entryForm.station_start) * 100;
 		}
 	});
+
+	// Real-time ETA — updates every 30 seconds
+	let now = $state(new Date());
+	$effect(() => {
+		const interval = setInterval(() => {
+			now = new Date();
+		}, 30000);
+		return () => clearInterval(interval);
+	});
+
+	// ETA calculations
+	const todayPavingFt = $derived(
+		entries.filter((e) => e.entry_type === 'paving').reduce((sum: number, e: any) => sum + (e.distance_ft || 0), 0)
+	);
+
+	const sessionStartMinutes = $derived.by(() => {
+		if (currentLog?.start_time) {
+			const [h, m] = currentLog.start_time.split(':').map(Number);
+			return h * 60 + m;
+		}
+		const firstPaving = entries.find((e: any) => e.entry_type === 'paving');
+		if (firstPaving?.timestamp) {
+			const [h, m] = firstPaving.timestamp.split(':').map(Number);
+			return h * 60 + m;
+		}
+		return null;
+	});
+
+	const nowMinutes = $derived(now.getHours() * 60 + now.getMinutes());
+	const elapsedHours = $derived(
+		sessionStartMinutes !== null ? Math.max(0.25, (nowMinutes - sessionStartMinutes) / 60) : 0.25
+	);
+	const pavingRateFtPerHr = $derived(
+		todayPavingFt > 0 && elapsedHours > 0 ? todayPavingFt / elapsedHours : 0
+	);
+	const targetFt = $derived((data.siteConfig as any)?.config?.total_length_ft ?? null);
+	const remainingFt = $derived(targetFt ? Math.max(0, targetFt - todayPavingFt) : null);
+	const etaHours = $derived(
+		pavingRateFtPerHr > 0 && remainingFt !== null ? remainingFt / pavingRateFtPerHr : null
+	);
+	const etaTime = $derived.by(() => {
+		if (etaHours === null) return null;
+		const eta = new Date(now.getTime() + etaHours * 60 * 60 * 1000);
+		const h = eta.getHours();
+		const m = String(eta.getMinutes()).padStart(2, '0');
+		const period = h >= 12 ? 'PM' : 'AM';
+		const displayHour = h % 12 || 12;
+		return `${displayHour}:${m} ${period}`;
+	});
+	const percentComplete = $derived(
+		targetFt && targetFt > 0 ? Math.min(100, (todayPavingFt / targetFt) * 100) : null
+	);
+
+	async function exportDailyPDF() {
+		if (!currentLog) return;
+		const { generateDailyReportPDF } = await import('$lib/utils/pdf-export');
+
+		let loads: any[] = [];
+		try {
+			const currentDate = currentLog.log_date;
+			const res = await fetch(`/api/job-sites/${data.jobSite.id}/loads?start_date=${currentDate}`);
+			if (res.ok) {
+				const loadData = await res.json();
+				loads = loadData.loads || [];
+			}
+		} catch {
+			// Non-fatal - continue without loads
+		}
+
+		const hoursWorked = currentLog.start_time && currentLog.end_time
+			? (() => {
+				const [startH, startM] = currentLog.start_time.split(':').map(Number);
+				const [endH, endM] = currentLog.end_time.split(':').map(Number);
+				return Math.max(0, (endH * 60 + endM - (startH * 60 + startM)) / 60);
+			})()
+			: 0;
+
+		const actualRate = entrySummary.total_distance_ft > 0 && entrySummary.total_tons > 0
+			? (entrySummary.total_tons * 2000 * 9) / entrySummary.total_distance_ft
+			: null;
+		const targetRate = (data.siteConfig as any)?.config?.target_spread_rate || null;
+		const diffPct = actualRate && targetRate ? ((actualRate - targetRate) / targetRate) * 100 : null;
+
+		await generateDailyReportPDF(
+			{
+				widthFt: (data.siteConfig as any)?.config?.lane_width_ft || 12,
+				thicknessIn: (data.siteConfig as any)?.config?.target_thickness_in || 2,
+				machineId: 'none',
+				firstPass: false,
+				truckLoadTons: 22,
+				tackApplication: 'new-to-new',
+				wastePct: 5,
+				siteName: data.jobSite.name,
+				siteDescription: data.jobSite.location_description || ''
+			},
+			{
+				date: currentLog.log_date,
+				siteName: data.jobSite.name,
+				weatherTempF: currentLog.weather_temp_f,
+				weatherConditions: currentLog.weather_conditions,
+				windSpeedMph: currentLog.wind_speed_mph,
+				crewCount: currentLog.crew_count,
+				startTime: currentLog.start_time,
+				endTime: currentLog.end_time,
+				notes: currentLog.notes,
+				entries: entries.map((e) => ({
+					entry_type: e.entry_type,
+					timestamp: e.timestamp,
+					station_start: e.station_start,
+					station_end: e.station_end,
+					distance_ft: e.distance_ft,
+					tons_placed: e.tons_placed,
+					loads_count: e.loads_count,
+					truck_tickets: null,
+					spread_rate_actual: e.spread_rate_actual,
+					tack_gallons: e.tack_gallons,
+					lane: e.lane,
+					notes: e.notes
+				})),
+				totals: {
+					totalTons: entrySummary.total_tons,
+					totalDistanceFt: entrySummary.total_distance_ft,
+					totalLoads: entrySummary.total_loads,
+					totalTackGallons: 0,
+					hoursWorked
+				},
+				yield: {
+					actualRate,
+					targetRate,
+					diffPct
+				},
+				loads: loads.map(l => ({
+					id: l.id,
+					ticket_number: l.ticket_number,
+					tons: l.tons,
+					timestamp: l.timestamp,
+					spread_rate: l.spread_rate,
+					notes: l.notes
+				}))
+			}
+		);
+	}
 </script>
 
 <svelte:head>
-	<title>Daily Log — {data.jobSite.name} — {config.app.name}</title>
+	<title>Daily Log{isHistoricalView && currentLog ? ` — ${formatLogDate(currentLog.log_date)}` : ''} — {data.jobSite.name} — {config.app.name}</title>
 </svelte:head>
 
 <div class="dashboard">
@@ -247,29 +450,84 @@
 		<span>Daily Log</span>
 	</div>
 
+	{#if data.logs && data.logs.length > 0}
+		<div class="date-nav">
+			<a
+				href={data.prevLogId ? `/dashboard/job-sites/${data.jobSite.id}/log?date=${data.prevLogId}` : '#'}
+				class="date-nav-arrow"
+				class:disabled={!data.prevLogId}
+				aria-label="Previous day"
+			>
+				← Prev
+			</a>
+			<span class="date-nav-current">
+				{formatLogDate(viewedLog?.log_date ?? data.today)}
+			</span>
+			<a
+				href={data.nextLogId ? `/dashboard/job-sites/${data.jobSite.id}/log?date=${data.nextLogId}` : '#'}
+				class="date-nav-arrow"
+				class:disabled={!data.nextLogId}
+				aria-label="Next day"
+			>
+				Next →
+			</a>
+			{#if isHistoricalView}
+				<a href="/dashboard/job-sites/{data.jobSite.id}/log" class="date-nav-today">Today</a>
+			{/if}
+		</div>
+	{/if}
+
+	{#if isHistoricalView}
+		<div class="history-banner">
+			📖 Viewing past log — read only
+		</div>
+	{/if}
+
 	<div class="page-header">
 		<div>
 			<h2 class="page-title">Daily Log</h2>
-			<p class="page-subtitle">{new Date(data.today).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+			<p class="page-subtitle">
+				{isHistoricalView && viewedLog ? formatLogDate(viewedLog.log_date) : new Date(data.today).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+			</p>
 		</div>
-		<a href="/dashboard/job-sites/{data.jobSite.id}/log/history" class="btn-secondary">
-			<svg
-				width="18"
-				height="18"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-			>
-				<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-				<line x1="16" y1="2" x2="16" y2="6"></line>
-				<line x1="8" y1="2" x2="8" y2="6"></line>
-				<line x1="3" y1="10" x2="21" y2="10"></line>
-			</svg>
-			History
-		</a>
+		<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+			{#if currentLog}
+				<button class="btn-secondary" onclick={exportDailyPDF}>
+					<svg
+						width="18"
+						height="18"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+						<polyline points="14 2 14 8 20 8"></polyline>
+					</svg>
+					PDF
+				</button>
+			{/if}
+			<a href="/dashboard/job-sites/{data.jobSite.id}/log/history" class="btn-secondary">
+				<svg
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+					<line x1="16" y1="2" x2="16" y2="6"></line>
+					<line x1="8" y1="2" x2="8" y2="6"></line>
+					<line x1="3" y1="10" x2="21" y2="10"></line>
+				</svg>
+				History
+			</a>
+		</div>
 	</div>
 
 	{#if data.summary.total_distance_ft > 0}
@@ -290,7 +548,7 @@
 		</div>
 	{/if}
 
-	{#if !currentLog}
+	{#if !currentLog && !isHistoricalView}
 		<div class="empty-state">
 			<svg
 				width="48"
@@ -313,17 +571,69 @@
 				Start Today's Log
 			</button>
 		</div>
-	{:else}
+	{:else if currentLog}
+		{#if logDraft.current}
+			<div class="draft-banner">
+				<div class="draft-content">
+					<span class="draft-icon">🧮</span>
+					<div class="draft-text">
+						<strong>Calculator result ready</strong>
+						<p>{logDraft.current.summary}</p>
+					</div>
+				</div>
+				<button class="btn-primary" onclick={fillFromCalculator}>Fill from Calculator</button>
+			</div>
+		{/if}
+
+		<!-- Day Session ETA Widget -->
+		<div class="eta-card">
+			<div class="eta-card-header">
+				<Clock size={18} />
+				<span>Session Progress</span>
+			</div>
+
+			{#if percentComplete !== null}
+				<div class="progress-bar">
+					<div
+						class="progress-fill"
+						style="width: {percentComplete}%; background: {percentComplete >= 80 ? 'var(--good)' : 'var(--accent)'}"
+					></div>
+				</div>
+			{/if}
+
+			<div class="eta-stats">
+				<div>
+					<span>{formatDistance(todayPavingFt)}</span>
+					{#if targetFt}
+						<span style="color: var(--text-muted)"> / {formatDistance(targetFt)}</span>
+					{/if}
+				</div>
+				{#if pavingRateFtPerHr > 0}
+					<div class="eta-rate">
+						{pavingRateFtPerHr.toFixed(0)} ft/hr
+					</div>
+				{/if}
+			</div>
+
+			{#if etaTime}
+				<div class="eta-time">✓ ETA: Done by {etaTime}</div>
+			{:else if targetFt === null}
+				<div style="color: var(--text-muted); font-size: 0.85rem;">Set total length in job config for ETA</div>
+			{:else if pavingRateFtPerHr === 0 && entries.length > 0}
+				<div style="color: var(--text-muted); font-size: 0.85rem;">Set start time for rate calculation</div>
+			{/if}
+		</div>
+
 		<section class="section">
 			<h3>Site Conditions</h3>
 			<div class="conditions-grid">
 				<div class="field-compact">
 					<label for="temp">Temp (°F)</label>
-					<input type="number" id="temp" bind:value={currentLog.weather_temp_f} onblur={updateLog} />
+					<input type="number" id="temp" bind:value={currentLog.weather_temp_f} onblur={updateLog} disabled={isHistoricalView} />
 				</div>
 				<div class="field-compact">
 					<label for="conditions">Conditions</label>
-					<select id="conditions" bind:value={currentLog.weather_conditions} onchange={updateLog}>
+					<select id="conditions" bind:value={currentLog.weather_conditions} onchange={updateLog} disabled={isHistoricalView}>
 						<option value={null}>—</option>
 						<option value="clear">Clear</option>
 						<option value="cloudy">Cloudy</option>
@@ -334,19 +644,19 @@
 				</div>
 				<div class="field-compact">
 					<label for="wind">Wind (mph)</label>
-					<input type="number" id="wind" bind:value={currentLog.wind_speed_mph} onblur={updateLog} />
+					<input type="number" id="wind" bind:value={currentLog.wind_speed_mph} onblur={updateLog} disabled={isHistoricalView} />
 				</div>
 				<div class="field-compact">
 					<label for="crew">Crew</label>
-					<input type="number" id="crew" bind:value={currentLog.crew_count} onblur={updateLog} />
+					<input type="number" id="crew" bind:value={currentLog.crew_count} onblur={updateLog} disabled={isHistoricalView} />
 				</div>
 				<div class="field-compact">
 					<label for="start">Start</label>
-					<input type="time" id="start" bind:value={currentLog.start_time} onblur={updateLog} />
+					<TimeInput bind:value={currentLog.start_time} id="start" onchange={updateLog} disabled={isHistoricalView} />
 				</div>
 				<div class="field-compact">
 					<label for="end">End</label>
-					<input type="time" id="end" bind:value={currentLog.end_time} onblur={updateLog} />
+					<TimeInput bind:value={currentLog.end_time} id="end" onchange={updateLog} disabled={isHistoricalView} />
 				</div>
 			</div>
 		</section>
@@ -364,16 +674,44 @@
 			</div>
 		{/if}
 
+		<ComplianceGauge
+			entries={entries}
+			targetSpreadRate={(data.siteConfig as any)?.config?.target_spread_rate ?? null}
+			courseType={(data.siteConfig as any)?.config?.course_type ?? null}
+		/>
+
+		{#if currentLog}
+			<NuclearGaugeLog
+				logId={currentLog.id}
+				jobSiteId={data.jobSite.id}
+				targetDensityPcf={(data.siteConfig as any)?.config?.target_density_pcf ?? null}
+				targetThicknessIn={(data.siteConfig as any)?.config?.target_thickness_in ?? null}
+			/>
+		{/if}
+
+		{#if currentLog && !isHistoricalView}
+			<StationProgressLogger
+				jobSiteId={data.jobSite.id}
+				logId={currentLog.id}
+				waypoints={routeWaypoints}
+				onLogged={loadLogDetails}
+			/>
+		{/if}
+
 		<section class="section">
 			<div class="section-header">
 				<h3>Timeline</h3>
-				<button class="btn-primary" onclick={openEntryForm}>+ Add Entry</button>
+				{#if !isHistoricalView}
+					<button class="btn-primary" onclick={openEntryForm}>+ Add Entry</button>
+				{/if}
 			</div>
 
 			{#if entries.length === 0}
 				<div class="empty-state-small">
-					<p>No entries yet. Tap the + button to add your first entry.</p>
-					<button class="btn-primary" style="margin-top: 16px;" onclick={openEntryForm}>+ Add Entry</button>
+					<p>No entries yet.{#if !isHistoricalView} Tap the + button to add your first entry.{/if}</p>
+					{#if !isHistoricalView}
+						<button class="btn-primary" style="margin-top: 16px;" onclick={openEntryForm}>+ Add Entry</button>
+					{/if}
 				</div>
 			{:else}
 				<div class="timeline">
@@ -409,10 +747,12 @@
 								{#if entry.notes}
 									<div class="entry-notes">{entry.notes}</div>
 								{/if}
-								<div class="entry-actions">
-									<button class="btn-icon" onclick={() => editEntry(entry)}>Edit</button>
-									<button class="btn-icon" onclick={() => deleteEntry(entry.id)}>Delete</button>
-								</div>
+								{#if !isHistoricalView}
+									<div class="entry-actions">
+										<button class="btn-icon" onclick={() => editEntry(entry)}>Edit</button>
+										<button class="btn-icon" onclick={() => deleteEntry(entry.id)}>Delete</button>
+									</div>
+								{/if}
 							</div>
 						</div>
 					{/each}
@@ -422,7 +762,7 @@
 	{/if}
 </div>
 
-{#if currentLog && !showEntryForm}
+{#if currentLog && !showEntryForm && !isHistoricalView}
 	<button class="fab" onclick={openEntryForm}>
 		<svg
 			width="24"
@@ -463,7 +803,7 @@
 
 				<div class="field-compact">
 					<label for="entry-time">Time</label>
-					<input type="time" id="entry-time" bind:value={entryForm.timestamp} />
+					<TimeInput bind:value={entryForm.timestamp} id="entry-time" />
 				</div>
 
 				<div class="field-row">
@@ -510,6 +850,17 @@
 					<div class="field-compact">
 						<label for="loads">Loads</label>
 						<input type="number" id="loads" bind:value={entryForm.loads_count} />
+					</div>
+				</div>
+
+				<div class="field-row">
+					<div class="field-compact">
+						<label for="spread-rate">Spread Rate (lbs/SY)</label>
+						<input type="number" id="spread-rate" bind:value={entryForm.spread_rate_actual} step="0.1" />
+					</div>
+					<div class="field-compact">
+						<label for="tack">Tack (gallons)</label>
+						<input type="number" id="tack" bind:value={entryForm.tack_gallons} step="0.1" />
 					</div>
 				</div>
 
@@ -566,6 +917,98 @@
 	.breadcrumb a {
 		color: var(--text-muted);
 		transition: color 0.2s;
+	}
+
+	.eta-card {
+		padding: 16px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		margin-bottom: 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.eta-card-header {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-weight: 600;
+		font-size: 0.95rem;
+	}
+
+	.progress-bar {
+		height: 8px;
+		background: var(--surface-alt);
+		border-radius: 4px;
+		overflow: hidden;
+	}
+
+	.progress-fill {
+		height: 100%;
+		border-radius: 4px;
+		transition: width 0.5s ease;
+	}
+
+	.eta-stats {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		font-size: 0.9rem;
+	}
+
+	.eta-rate {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.eta-time {
+		color: var(--good);
+		font-weight: 600;
+		font-size: 0.9rem;
+	}
+
+	.draft-banner {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		background: var(--surface);
+		border: 2px solid var(--accent);
+		border-radius: var(--radius);
+		padding: 16px;
+		margin-bottom: 24px;
+	}
+
+	.draft-content {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.draft-icon {
+		font-size: 2rem;
+		flex-shrink: 0;
+	}
+
+	.draft-text {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.draft-text strong {
+		display: block;
+		margin-bottom: 4px;
+		font-size: 1rem;
+	}
+
+	.draft-text p {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--text-muted);
 	}
 
 	.breadcrumb a:hover {
@@ -984,6 +1427,80 @@
 
 	.modal-footer .btn-primary {
 		flex: 2;
+	}
+
+	.date-nav {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 0;
+		margin-bottom: 12px;
+		flex-wrap: wrap;
+	}
+
+	.date-nav-arrow {
+		min-height: 48px;
+		min-width: 56px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--accent);
+		font-weight: 600;
+		cursor: pointer;
+		text-decoration: none;
+		font-size: 0.9rem;
+		padding: 0 12px;
+		transition: background 0.2s;
+	}
+
+	.date-nav-arrow:hover {
+		background: var(--surface-alt);
+	}
+
+	.date-nav-arrow.disabled {
+		opacity: 0.35;
+		pointer-events: none;
+	}
+
+	.date-nav-current {
+		flex: 1;
+		text-align: center;
+		font-weight: 600;
+		font-size: 0.95rem;
+		min-width: 120px;
+	}
+
+	.date-nav-today {
+		min-height: 48px;
+		display: inline-flex;
+		align-items: center;
+		padding: 0 16px;
+		background: var(--accent);
+		color: var(--accent-text);
+		border-radius: var(--radius);
+		font-weight: 600;
+		font-size: 0.9rem;
+		cursor: pointer;
+		text-decoration: none;
+		transition: opacity 0.2s;
+	}
+
+	.date-nav-today:hover {
+		opacity: 0.9;
+	}
+
+	.history-banner {
+		background: rgba(245, 158, 11, 0.12);
+		color: #f59e0b;
+		border: 1px solid rgba(245, 158, 11, 0.3);
+		border-radius: var(--radius);
+		padding: 12px 16px;
+		margin-bottom: 16px;
+		font-size: 0.9rem;
+		font-weight: 600;
 	}
 
 	@media (min-width: 768px) {

@@ -2,6 +2,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import { goto } from '$app/navigation';
+	import { scale } from 'svelte/transition';
 
 	let {
 		direction = 'down',
@@ -49,7 +50,12 @@
 		</button>
 
 		{#if open}
-			<div class="dropdown" class:up={direction === 'up'} class:align-left={align === 'left'}>
+			<div
+				class="dropdown"
+				class:up={direction === 'up'}
+				class:align-left={align === 'left'}
+				transition:scale={{ duration: 160, start: 0.95 }}
+			>
 				<div class="user-info">
 					<div class="name">{authStore.user.name}</div>
 					<div class="email">{authStore.user.email}</div>
@@ -85,15 +91,19 @@
 		font-weight: 700;
 		font-size: 0.9rem;
 		cursor: pointer;
-		transition: opacity 0.2s;
+		transition:
+			opacity var(--dur-normal) var(--ease),
+			transform var(--dur-fast) var(--ease);
 	}
 
 	.avatar-btn:hover {
 		opacity: 0.9;
 	}
 
-	.avatar-btn:active {
-		transform: scale(0.96);
+	@media (prefers-reduced-motion: no-preference) {
+		.avatar-btn:active {
+			transform: scale(0.96);
+		}
 	}
 
 	.login-link {
@@ -109,7 +119,9 @@
 		color: var(--text);
 		font-weight: 600;
 		font-size: 0.9rem;
-		transition: background 0.2s;
+		transition:
+			background var(--dur-normal) var(--ease),
+			transform var(--dur-fast) var(--ease);
 	}
 
 	.login-link:hover {
@@ -183,7 +195,15 @@
 		color: var(--text);
 		font-size: 0.9rem;
 		cursor: pointer;
-		transition: background 0.2s;
+		transition:
+			background var(--dur-normal) var(--ease),
+			transform var(--dur-fast) var(--ease);
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.menu-item:active {
+			transform: scale(0.98);
+		}
 	}
 
 	.menu-item:hover {

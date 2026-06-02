@@ -2,6 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbLogHelper } from '$lib/server/db-logs';
 import { recordAudit } from '$lib/server/audit';
+import { deliverWebhook } from '$lib/server/webhooks';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, locals, platform, url }) => {
@@ -65,6 +66,19 @@ export const POST: RequestHandler = async ({ params, locals, platform }) => {
 		resourceId: log.id,
 		action: 'created',
 		newValue: { log_date: log.log_date, job_site_id: log.job_site_id }
+	});
+
+	// Fire webhook event (fire and forget)
+	void deliverWebhook(platform!.env.DB, {
+		type: 'daily_log.created',
+		orgId: org.id,
+		payload: {
+			log_id: log.id,
+			job_site_id: log.job_site_id,
+			org_id: org.id,
+			date: log.log_date
+		},
+		occurredAt: log.created_at
 	});
 
 	return json({ log }, { status: 201 });
