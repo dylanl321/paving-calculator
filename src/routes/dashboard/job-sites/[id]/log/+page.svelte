@@ -5,7 +5,7 @@
 	import GpsStationButton from '$lib/components/GpsStationButton.svelte';
 	import type { RouteWaypoint } from '$lib/services/gpsStation';
 	import TimeInput from '$lib/components/TimeInput.svelte';
-	import { Droplets, FileText } from 'lucide-svelte';
+	import { Droplets, FileText, Clock } from 'lucide-svelte';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 
 	let { data }: { data: PageData } = $props();
@@ -231,6 +231,58 @@
 			entryForm.distance_ft = (entryForm.station_end - entryForm.station_start) * 100;
 		}
 	});
+
+	// Real-time ETA — updates every 30 seconds
+	let now = $state(new Date());
+	$effect(() => {
+		const interval = setInterval(() => {
+			now = new Date();
+		}, 30000);
+		return () => clearInterval(interval);
+	});
+
+	// ETA calculations
+	const todayPavingFt = $derived(
+		entries.filter((e) => e.entry_type === 'paving').reduce((sum: number, e: any) => sum + (e.distance_ft || 0), 0)
+	);
+
+	const sessionStartMinutes = $derived.by(() => {
+		if (currentLog?.start_time) {
+			const [h, m] = currentLog.start_time.split(':').map(Number);
+			return h * 60 + m;
+		}
+		const firstPaving = entries.find((e: any) => e.entry_type === 'paving');
+		if (firstPaving?.timestamp) {
+			const [h, m] = firstPaving.timestamp.split(':').map(Number);
+			return h * 60 + m;
+		}
+		return null;
+	});
+
+	const nowMinutes = $derived(now.getHours() * 60 + now.getMinutes());
+	const elapsedHours = $derived(
+		sessionStartMinutes !== null ? Math.max(0.25, (nowMinutes - sessionStartMinutes) / 60) : 0.25
+	);
+	const pavingRateFtPerHr = $derived(
+		todayPavingFt > 0 && elapsedHours > 0 ? todayPavingFt / elapsedHours : 0
+	);
+	const targetFt = $derived((data.siteConfig as any)?.config?.total_length_ft ?? null);
+	const remainingFt = $derived(targetFt ? Math.max(0, targetFt - todayPavingFt) : null);
+	const etaHours = $derived(
+		pavingRateFtPerHr > 0 && remainingFt !== null ? remainingFt / pavingRateFtPerHr : null
+	);
+	const etaTime = $derived.by(() => {
+		if (etaHours === null) return null;
+		const eta = new Date(now.getTime() + etaHours * 60 * 60 * 1000);
+		const h = eta.getHours();
+		const m = String(eta.getMinutes()).padStart(2, '0');
+		const period = h >= 12 ? 'PM' : 'AM';
+		const displayHour = h % 12 || 12;
+		return `${displayHour}:${m} ${period}`;
+	});
+	const percentComplete = $derived(
+		targetFt && targetFt > 0 ? Math.min(100, (todayPavingFt / targetFt) * 100) : null
+	);
 </script>
 
 <svelte:head>
@@ -347,6 +399,45 @@
 				<button class="btn-primary" onclick={fillFromCalculator}>Fill from Calculator</button>
 			</div>
 		{/if}
+
+		<!-- Day Session ETA Widget -->
+		<div class="eta-card">
+			<div class="eta-card-header">
+				<Clock size={18} />
+				<span>Session Progress</span>
+			</div>
+
+			{#if percentComplete !== null}
+				<div class="progress-bar">
+					<div
+						class="progress-fill"
+						style="width: {percentComplete}%; background: {percentComplete >= 80 ? 'var(--good)' : 'var(--accent)'}"
+					></div>
+				</div>
+			{/if}
+
+			<div class="eta-stats">
+				<div>
+					<span>{formatDistance(todayPavingFt)}</span>
+					{#if targetFt}
+						<span style="color: var(--text-muted)"> / {formatDistance(targetFt)}</span>
+					{/if}
+				</div>
+				{#if pavingRateFtPerHr > 0}
+					<div class="eta-rate">
+						{pavingRateFtPerHr.toFixed(0)} ft/hr
+					</div>
+				{/if}
+			</div>
+
+			{#if etaTime}
+				<div class="eta-time">✓ ETA: Done by {etaTime}</div>
+			{:else if targetFt === null}
+				<div style="color: var(--text-muted); font-size: 0.85rem;">Set total length in job config for ETA</div>
+			{:else if pavingRateFtPerHr === 0 && entries.length > 0}
+				<div style="color: var(--text-muted); font-size: 0.85rem;">Set start time for rate calculation</div>
+			{/if}
+		</div>
 
 		<section class="section">
 			<h3>Site Conditions</h3>
@@ -611,6 +702,56 @@
 	.breadcrumb a {
 		color: var(--text-muted);
 		transition: color 0.2s;
+	}
+
+	.eta-card {
+		padding: 16px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		margin-bottom: 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.eta-card-header {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-weight: 600;
+		font-size: 0.95rem;
+	}
+
+	.progress-bar {
+		height: 8px;
+		background: var(--surface-alt);
+		border-radius: 4px;
+		overflow: hidden;
+	}
+
+	.progress-fill {
+		height: 100%;
+		border-radius: 4px;
+		transition: width 0.5s ease;
+	}
+
+	.eta-stats {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		font-size: 0.9rem;
+	}
+
+	.eta-rate {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.eta-time {
+		color: var(--good);
+		font-weight: 600;
+		font-size: 0.9rem;
 	}
 
 	.draft-banner {
