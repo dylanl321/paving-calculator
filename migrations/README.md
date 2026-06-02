@@ -75,8 +75,10 @@ curl http://localhost:5173/api/auth/me \
 
 - **users** — user accounts with email/password
 - **organizations** — companies/teams
-- **org_members** — user-org relationships with roles (owner/admin/member)
+- **org_members** — user-org relationships with roles (owner/admin/member/foreman/operator/inspector/office)
 - **job_sites** — construction sites linked to orgs
 - **job_site_assignments** — users assigned to sites with roles (foreman/operator/inspector)
 - **calculations** — saved calculations linked to job sites
 - **sessions** — user sessions for authentication
+- **crews** — named crew groups within orgs (migration 0011)
+- **crew_members** — members assigned to crews (one crew per member per org)

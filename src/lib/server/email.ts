@@ -3,17 +3,36 @@ interface EmailPayload {
 	to: string;
 	subject: string;
 	html: string;
+	replyTo?: string;
+}
+
+export interface OrgBranding {
+	orgName?: string;
+	accentColor?: string;
+	emailFromName?: string;
+	emailReplyTo?: string;
 }
 
 async function sendEmail(apiKey: string, payload: EmailPayload): Promise<boolean> {
 	try {
+		const requestBody: Record<string, string> = {
+			from: payload.from,
+			to: payload.to,
+			subject: payload.subject,
+			html: payload.html
+		};
+
+		if (payload.replyTo) {
+			requestBody.reply_to = payload.replyTo;
+		}
+
 		const response = await fetch('https://api.resend.com/emails', {
 			method: 'POST',
 			headers: {
 				Authorization: `Bearer ${apiKey}`,
 				'Content-Type': 'application/json'
 			},
-			body: JSON.stringify(payload)
+			body: JSON.stringify(requestBody)
 		});
 
 		if (!response.ok) {
@@ -29,14 +48,31 @@ async function sendEmail(apiKey: string, payload: EmailPayload): Promise<boolean
 	}
 }
 
-function buildEmailTemplate(content: {
-	title: string;
-	greeting: string;
-	message: string;
-	ctaText: string;
-	ctaUrl: string;
-	footer: string;
-}): string {
+function getContrastColor(hexColor: string): string {
+	const hex = hexColor.replace('#', '');
+	const r = parseInt(hex.substring(0, 2), 16);
+	const g = parseInt(hex.substring(2, 4), 16);
+	const b = parseInt(hex.substring(4, 6), 16);
+	const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+	return luma > 186 ? '#1b2228' : '#f4f6f7';
+}
+
+function buildEmailTemplate(
+	content: {
+		title: string;
+		greeting: string;
+		message: string;
+		ctaText: string;
+		ctaUrl: string;
+		footer: string;
+	},
+	branding?: OrgBranding
+): string {
+	const accentColor = branding?.accentColor ?? '#f2c037';
+	const buttonTextColor = getContrastColor(accentColor);
+	const orgName = branding?.orgName ?? 'PaveRate';
+	const showPoweredBy = orgName !== 'PaveRate';
+
 	return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -47,7 +83,7 @@ function buildEmailTemplate(content: {
 <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
   <div style="background:#1b2228;padding:40px 20px;min-height:100vh;">
     <div style="max-width:480px;margin:0 auto;background:#232c34;border-radius:12px;padding:32px;border:1px solid #37444f;">
-      <h1 style="color:#f2c037;margin:0 0 16px;font-size:24px;font-weight:700;">PaveRate</h1>
+      <h1 style="color:${accentColor};margin:0 0 16px;font-size:24px;font-weight:700;">${orgName}</h1>
 
       <p style="color:#f4f6f7;font-size:16px;line-height:1.6;margin:0 0 12px;">
         ${content.greeting}
@@ -57,13 +93,17 @@ function buildEmailTemplate(content: {
         ${content.message}
       </p>
 
-      <a href="${content.ctaUrl}" style="display:inline-block;padding:14px 28px;background:#f2c037;color:#1b2228;text-decoration:none;border-radius:8px;font-weight:700;font-size:16px;">
+      <a href="${content.ctaUrl}" style="display:inline-block;padding:14px 28px;background:${accentColor};color:${buttonTextColor};text-decoration:none;border-radius:8px;font-weight:700;font-size:16px;">
         ${content.ctaText}
       </a>
 
       <p style="color:#7e8f9c;font-size:13px;line-height:1.5;margin:28px 0 0;padding-top:24px;border-top:1px solid #37444f;">
         ${content.footer}
-      </p>
+      </p>${
+				showPoweredBy
+					? '\n      <p style="color:#7e8f9c;font-size:12px;margin:12px 0 0;text-align:center;">Powered by PaveRate</p>'
+					: ''
+			}
     </div>
   </div>
 </body>
@@ -75,7 +115,8 @@ export async function sendVerificationEmail(
 	to: string,
 	name: string,
 	token: string,
-	baseUrl: string
+	baseUrl: string,
+	branding?: OrgBranding
 ): Promise<boolean> {
 	if (!apiKey) {
 		console.warn('RESEND_API_KEY not set, skipping verification email');
@@ -83,23 +124,27 @@ export async function sendVerificationEmail(
 	}
 
 	const verifyUrl = `${baseUrl}/api/auth/verify-email?token=${token}`;
+	const fromName = branding?.emailFromName ?? 'PaveRate';
+	const orgName = branding?.orgName ?? 'PaveRate';
 
-	const html = buildEmailTemplate({
-		title: 'Verify your email',
-		greeting: `Hi ${name},`,
-		message:
-			"Thanks for signing up for PaveRate! Click the button below to verify your email address and get full access to your account.",
-		ctaText: 'Verify Email',
-		ctaUrl: verifyUrl,
-		footer:
-			"If you didn't create a PaveRate account, you can safely ignore this email. This link will expire in 24 hours."
-	});
+	const html = buildEmailTemplate(
+		{
+			title: 'Verify your email',
+			greeting: `Hi ${name},`,
+			message: `Thanks for signing up for ${orgName}! Click the button below to verify your email address and get full access to your account.`,
+			ctaText: 'Verify Email',
+			ctaUrl: verifyUrl,
+			footer: `If you didn't create a ${orgName} account, you can safely ignore this email. This link will expire in 24 hours.`
+		},
+		branding
+	);
 
 	return await sendEmail(apiKey, {
-		from: 'noreply@paverate.com',
+		from: `${fromName} <noreply@paverate.com>`,
 		to,
-		subject: 'Verify your PaveRate account',
-		html
+		subject: `Verify your ${orgName} account`,
+		html,
+		replyTo: branding?.emailReplyTo
 	});
 }
 
@@ -108,7 +153,8 @@ export async function sendPasswordResetEmail(
 	to: string,
 	name: string,
 	token: string,
-	baseUrl: string
+	baseUrl: string,
+	branding?: OrgBranding
 ): Promise<boolean> {
 	if (!apiKey) {
 		console.warn('RESEND_API_KEY not set, skipping password reset email');
@@ -116,23 +162,27 @@ export async function sendPasswordResetEmail(
 	}
 
 	const resetUrl = `${baseUrl}/reset-password?token=${token}`;
+	const fromName = branding?.emailFromName ?? 'PaveRate';
+	const orgName = branding?.orgName ?? 'PaveRate';
 
-	const html = buildEmailTemplate({
-		title: 'Reset your password',
-		greeting: `Hi ${name},`,
-		message:
-			"We received a request to reset your password. Click the button below to choose a new password. If you didn't request this, you can ignore this email.",
-		ctaText: 'Reset Password',
-		ctaUrl: resetUrl,
-		footer:
-			"For security, this link will expire in 1 hour. If you didn't request a password reset, please ignore this email."
-	});
+	const html = buildEmailTemplate(
+		{
+			title: 'Reset your password',
+			greeting: `Hi ${name},`,
+			message: `We received a request to reset your password. Click the button below to choose a new password. If you didn't request this, you can ignore this email.`,
+			ctaText: 'Reset Password',
+			ctaUrl: resetUrl,
+			footer: `For security, this link will expire in 1 hour. If you didn't request a password reset, please ignore this email.`
+		},
+		branding
+	);
 
 	return await sendEmail(apiKey, {
-		from: 'noreply@paverate.com',
+		from: `${fromName} <noreply@paverate.com>`,
 		to,
-		subject: 'Reset your PaveRate password',
-		html
+		subject: `Reset your ${orgName} password`,
+		html,
+		replyTo: branding?.emailReplyTo
 	});
 }
 
@@ -142,7 +192,8 @@ export async function sendInvitationEmail(
 	inviterName: string,
 	orgName: string,
 	token: string,
-	baseUrl: string
+	baseUrl: string,
+	branding?: OrgBranding
 ): Promise<boolean> {
 	if (!apiKey) {
 		console.warn('RESEND_API_KEY not set, skipping invitation email');
@@ -150,20 +201,63 @@ export async function sendInvitationEmail(
 	}
 
 	const inviteUrl = `${baseUrl}/accept-invite?token=${token}`;
+	const fromName = branding?.emailFromName ?? 'PaveRate';
+	const displayOrgName = branding?.orgName ?? orgName;
 
-	const html = buildEmailTemplate({
-		title: "You've been invited",
-		greeting: `Hi there,`,
-		message: `${inviterName} has invited you to join <strong>${orgName}</strong> on PaveRate. Click below to accept the invitation and get started.`,
-		ctaText: 'Accept Invitation',
-		ctaUrl: inviteUrl,
-		footer: 'This invitation will expire in 7 days.'
-	});
+	const html = buildEmailTemplate(
+		{
+			title: "You've been invited",
+			greeting: `Hi there,`,
+			message: `${inviterName} has invited you to join <strong>${displayOrgName}</strong> on PaveRate. Click below to accept the invitation and get started.`,
+			ctaText: 'Accept Invitation',
+			ctaUrl: inviteUrl,
+			footer: 'This invitation will expire in 7 days.'
+		},
+		branding
+	);
 
 	return await sendEmail(apiKey, {
-		from: 'noreply@paverate.com',
+		from: `${fromName} <noreply@paverate.com>`,
 		to,
-		subject: `${inviterName} invited you to ${orgName} on PaveRate`,
-		html
+		subject: `${inviterName} invited you to ${displayOrgName} on PaveRate`,
+		html,
+		replyTo: branding?.emailReplyTo
+	});
+}
+
+export async function sendWelcomeEmail(
+	apiKey: string | undefined,
+	to: string,
+	name: string,
+	orgName: string,
+	baseUrl: string,
+	branding?: OrgBranding
+): Promise<boolean> {
+	if (!apiKey) {
+		console.warn('RESEND_API_KEY not set, skipping welcome email');
+		return false;
+	}
+
+	const fromName = branding?.emailFromName ?? 'PaveRate';
+	const displayOrgName = branding?.orgName ?? orgName;
+
+	const html = buildEmailTemplate(
+		{
+			title: 'Welcome to PaveRate!',
+			greeting: `Hi ${name},`,
+			message: `You have successfully joined <strong>${displayOrgName}</strong> on PaveRate. You can now collaborate with your team, track paving jobs, and stay on top of daily progress.`,
+			ctaText: 'Go to Dashboard',
+			ctaUrl: `${baseUrl}/dashboard`,
+			footer: `You received this email because you accepted an invitation to join ${displayOrgName} on PaveRate.`
+		},
+		branding
+	);
+
+	return await sendEmail(apiKey, {
+		from: `${fromName} <noreply@paverate.com>`,
+		to,
+		subject: `Welcome to ${displayOrgName}!`,
+		html,
+		replyTo: branding?.emailReplyTo
 	});
 }

@@ -35,6 +35,8 @@ export async function GET(event: RequestEvent) {
 			role,
 			accentColor: settings?.accent_color ?? null,
 			hasLogo: !!settings?.logo_key,
+			emailFromName: settings?.email_from_name ?? null,
+			emailReplyTo: settings?.email_reply_to ?? null,
 			overrides: parseOverrides(settings?.overrides ?? null),
 			updatedAt: settings?.updated_at ?? null
 		});
@@ -63,7 +65,13 @@ export async function PUT(event: RequestEvent) {
 
 		const body = await event.request.json();
 
-		const update: { accentColor?: string | null; overrides?: string | null; updatedBy: string } = {
+		const update: {
+			accentColor?: string | null;
+			emailFromName?: string | null;
+			emailReplyTo?: string | null;
+			overrides?: string | null;
+			updatedBy: string;
+		} = {
 			updatedBy: user.id
 		};
 
@@ -75,6 +83,36 @@ export async function PUT(event: RequestEvent) {
 				update.accentColor = ac;
 			} else {
 				return json({ error: 'accentColor must be a hex color like #f2c037' }, { status: 400 });
+			}
+		}
+
+		if ('emailFromName' in body) {
+			const efn = body.emailFromName;
+			if (efn === null || efn === '') {
+				update.emailFromName = null;
+			} else if (typeof efn === 'string') {
+				const cleaned = efn.replace(/<[^>]*>/g, '').trim();
+				if (cleaned.length > 100) {
+					return json({ error: 'emailFromName must be 100 characters or less' }, { status: 400 });
+				}
+				update.emailFromName = cleaned;
+			} else {
+				return json({ error: 'emailFromName must be a string' }, { status: 400 });
+			}
+		}
+
+		if ('emailReplyTo' in body) {
+			const ert = body.emailReplyTo;
+			if (ert === null || ert === '') {
+				update.emailReplyTo = null;
+			} else if (typeof ert === 'string') {
+				const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+				if (!emailRegex.test(ert)) {
+					return json({ error: 'emailReplyTo must be a valid email address' }, { status: 400 });
+				}
+				update.emailReplyTo = ert;
+			} else {
+				return json({ error: 'emailReplyTo must be a string' }, { status: 400 });
 			}
 		}
 
@@ -100,6 +138,8 @@ export async function PUT(event: RequestEvent) {
 			org: { id: org.id, name: updatedOrg?.name ?? org.name, slug: org.slug },
 			accentColor: settings?.accent_color ?? null,
 			hasLogo: !!settings?.logo_key,
+			emailFromName: settings?.email_from_name ?? null,
+			emailReplyTo: settings?.email_reply_to ?? null,
 			overrides: parseOverrides(settings?.overrides ?? null),
 			updatedAt: settings?.updated_at ?? null
 		});

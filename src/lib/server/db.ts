@@ -23,7 +23,7 @@ export interface DbOrganization {
 export interface DbOrgMember {
 	user_id: string;
 	org_id: string;
-	role: 'owner' | 'admin' | 'member';
+	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office';
 	invited_at: number;
 	accepted_at: number | null;
 }
@@ -70,6 +70,8 @@ export interface DbOrgSettings {
 	accent_color: string | null;
 	logo_key: string | null;
 	logo_content_type: string | null;
+	email_from_name: string | null;
+	email_reply_to: string | null;
 	overrides: string | null; // JSON
 	updated_by: string | null;
 	updated_at: number;
@@ -79,7 +81,7 @@ export interface DbInvitation {
 	id: string;
 	org_id: string;
 	email: string;
-	role: 'owner' | 'admin' | 'member';
+	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office';
 	token: string;
 	invited_by: string;
 	created_at: number;
@@ -115,6 +117,12 @@ export interface DbJobSiteConfig {
 	tack_type: 'anionic' | 'cationic' | 'polymer_modified' | 'trackless' | null;
 	target_tack_rate: number | null;
 	notes: string | null;
+	num_lifts: number | null;
+	total_tonnage: number | null;
+	cost_per_ton: number | null;
+	cost_per_sy: number | null;
+	cost_per_mile: number | null;
+	total_contract_value: number | null;
 	created_at: number;
 	updated_at: number;
 }
@@ -141,6 +149,29 @@ export interface DbJobSiteRoute {
 	job_site_id: string;
 	waypoints: string; // JSON array of {lat: number, lng: number}
 	created_at: number;
+	updated_at: number;
+}
+
+export interface DbCrew {
+	id: string;
+	org_id: string;
+	name: string;
+	color: string;
+	created_by: string;
+	created_at: number;
+}
+
+export interface DbCrewMember {
+	crew_id: string;
+	user_id: string;
+	org_id: string;
+	assigned_at: number;
+}
+
+export interface DbNotificationPref {
+	user_id: string;
+	pref_key: string;
+	enabled: boolean;
 	updated_at: number;
 }
 
@@ -198,7 +229,7 @@ export class DbHelper {
 	async addOrgMember(
 		userId: string,
 		orgId: string,
-		role: 'owner' | 'admin' | 'member'
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office'
 	): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		await this.db
@@ -600,7 +631,7 @@ export class DbHelper {
 	async updateOrgMemberRole(
 		userId: string,
 		orgId: string,
-		role: 'owner' | 'admin' | 'member'
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office'
 	): Promise<void> {
 		await this.db
 			.prepare('UPDATE org_members SET role = ? WHERE user_id = ? AND org_id = ?')
@@ -622,6 +653,8 @@ export class DbHelper {
 			accentColor?: string | null;
 			logoKey?: string | null;
 			logoContentType?: string | null;
+			emailFromName?: string | null;
+			emailReplyTo?: string | null;
 			overrides?: string | null;
 			updatedBy?: string | null;
 		}
@@ -632,14 +665,16 @@ export class DbHelper {
 		if (!existing) {
 			await this.db
 				.prepare(
-					`INSERT INTO org_settings (org_id, accent_color, logo_key, logo_content_type, overrides, updated_by, updated_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?)`
+					`INSERT INTO org_settings (org_id, accent_color, logo_key, logo_content_type, email_from_name, email_reply_to, overrides, updated_by, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 				)
 				.bind(
 					orgId,
 					updates.accentColor ?? null,
 					updates.logoKey ?? null,
 					updates.logoContentType ?? null,
+					updates.emailFromName ?? null,
+					updates.emailReplyTo ?? null,
 					updates.overrides ?? null,
 					updates.updatedBy ?? null,
 					now
@@ -662,6 +697,14 @@ export class DbHelper {
 		if (updates.logoContentType !== undefined) {
 			fields.push('logo_content_type = ?');
 			values.push(updates.logoContentType);
+		}
+		if (updates.emailFromName !== undefined) {
+			fields.push('email_from_name = ?');
+			values.push(updates.emailFromName);
+		}
+		if (updates.emailReplyTo !== undefined) {
+			fields.push('email_reply_to = ?');
+			values.push(updates.emailReplyTo);
 		}
 		if (updates.overrides !== undefined) {
 			fields.push('overrides = ?');
@@ -693,7 +736,7 @@ export class DbHelper {
 	async createInvitation(
 		orgId: string,
 		email: string,
-		role: 'owner' | 'admin' | 'member',
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office',
 		invitedBy: string
 	): Promise<DbInvitation> {
 		const id = crypto.randomUUID();
@@ -746,6 +789,20 @@ export class DbHelper {
 			.first<DbInvitation>();
 	}
 
+	async getInvitationById(id: string): Promise<DbInvitation | null> {
+		return await this.db
+			.prepare('SELECT * FROM invitations WHERE id = ?')
+			.bind(id)
+			.first<DbInvitation>();
+	}
+
+	async getInvitationByEmail(orgId: string, email: string): Promise<DbInvitation | null> {
+		return await this.db
+			.prepare('SELECT * FROM invitations WHERE org_id = ? AND email = ? COLLATE NOCASE AND accepted_at IS NULL')
+			.bind(orgId, email)
+			.first<DbInvitation>();
+	}
+
 	async acceptInvitation(token: string): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		await this.db
@@ -786,8 +843,10 @@ export class DbHelper {
 					`INSERT INTO job_site_config (
 						job_site_id, road_type, num_lanes, lane_width_ft, total_length_ft,
 						scope_of_work, mix_type, target_thickness_in, target_spread_rate,
-						tack_type, target_tack_rate, notes, created_at, updated_at
-					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+						tack_type, target_tack_rate, notes, num_lifts, total_tonnage,
+						cost_per_ton, cost_per_sy, cost_per_mile, total_contract_value,
+						created_at, updated_at
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 				)
 				.bind(
 					jobSiteId,
@@ -802,6 +861,12 @@ export class DbHelper {
 					config.tack_type || null,
 					config.target_tack_rate || null,
 					config.notes || null,
+					config.num_lifts || null,
+					config.total_tonnage || null,
+					config.cost_per_ton || null,
+					config.cost_per_sy || null,
+					config.cost_per_mile || null,
+					config.total_contract_value || null,
 					now,
 					now
 				)
@@ -853,6 +918,30 @@ export class DbHelper {
 			if (config.notes !== undefined) {
 				fields.push('notes = ?');
 				values.push(config.notes);
+			}
+			if (config.num_lifts !== undefined) {
+				fields.push('num_lifts = ?');
+				values.push(config.num_lifts);
+			}
+			if (config.total_tonnage !== undefined) {
+				fields.push('total_tonnage = ?');
+				values.push(config.total_tonnage);
+			}
+			if (config.cost_per_ton !== undefined) {
+				fields.push('cost_per_ton = ?');
+				values.push(config.cost_per_ton);
+			}
+			if (config.cost_per_sy !== undefined) {
+				fields.push('cost_per_sy = ?');
+				values.push(config.cost_per_sy);
+			}
+			if (config.cost_per_mile !== undefined) {
+				fields.push('cost_per_mile = ?');
+				values.push(config.cost_per_mile);
+			}
+			if (config.total_contract_value !== undefined) {
+				fields.push('total_contract_value = ?');
+				values.push(config.total_contract_value);
 			}
 
 			if (fields.length > 0) {
@@ -1001,5 +1090,139 @@ export class DbHelper {
 			created_at: existing?.created_at ?? now,
 			updated_at: now
 		};
+	}
+
+	// Crew methods
+	async createCrew(
+		orgId: string,
+		name: string,
+		color: string,
+		createdBy: string
+	): Promise<DbCrew> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+
+		await this.db
+			.prepare(
+				'INSERT INTO crews (id, org_id, name, color, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+			)
+			.bind(id, orgId, name, color, createdBy, now)
+			.run();
+
+		return {
+			id,
+			org_id: orgId,
+			name,
+			color,
+			created_by: createdBy,
+			created_at: now
+		};
+	}
+
+	async listCrews(orgId: string): Promise<DbCrew[]> {
+		return await this.db
+			.prepare('SELECT * FROM crews WHERE org_id = ? ORDER BY created_at ASC')
+			.bind(orgId)
+			.all<DbCrew>()
+			.then((r) => r.results);
+	}
+
+	async deleteCrew(crewId: string, orgId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM crews WHERE id = ? AND org_id = ?')
+			.bind(crewId, orgId)
+			.run();
+	}
+
+	async assignMemberToCrew(crewId: string, userId: string, orgId: string): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				'INSERT OR REPLACE INTO crew_members (crew_id, user_id, org_id, assigned_at) VALUES (?, ?, ?, ?)'
+			)
+			.bind(crewId, userId, orgId, now)
+			.run();
+	}
+
+	async removeMemberFromCrew(userId: string, orgId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM crew_members WHERE user_id = ? AND org_id = ?')
+			.bind(userId, orgId)
+			.run();
+	}
+
+	async getCrewMembers(
+		crewId: string
+	): Promise<Array<{ user_id: string; user_name: string }>> {
+		return await this.db
+			.prepare(
+				`SELECT cm.user_id, u.name as user_name
+				FROM crew_members cm
+				JOIN users u ON u.id = cm.user_id
+				WHERE cm.crew_id = ?
+				ORDER BY u.name ASC`
+			)
+			.bind(crewId)
+			.all<{ user_id: string; user_name: string }>()
+			.then((r) => r.results);
+	}
+
+	async getMemberCrew(userId: string, orgId: string): Promise<DbCrew | null> {
+		return await this.db
+			.prepare(
+				`SELECT c.*
+				FROM crews c
+				JOIN crew_members cm ON cm.crew_id = c.id
+				WHERE cm.user_id = ? AND cm.org_id = ?`
+			)
+			.bind(userId, orgId)
+			.first<DbCrew>();
+	}
+
+	async getNotificationPrefs(userId: string): Promise<Record<string, boolean>> {
+		const DEFAULTS: Record<string, boolean> = {
+			email_daily_summary: true,
+			email_invite: true,
+			email_spec_alerts: true,
+			email_job_updates: false,
+			push_spec_alerts: true,
+			push_job_updates: false
+		};
+
+		const rows = await this.db
+			.prepare('SELECT pref_key, enabled FROM user_notification_prefs WHERE user_id = ?')
+			.bind(userId)
+			.all<{ pref_key: string; enabled: number }>()
+			.then((r) => r.results);
+
+		const prefs = { ...DEFAULTS };
+		for (const row of rows) {
+			prefs[row.pref_key] = row.enabled === 1;
+		}
+
+		return prefs;
+	}
+
+	async setNotificationPref(userId: string, prefKey: string, enabled: boolean): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				'INSERT INTO user_notification_prefs (user_id, pref_key, enabled, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, pref_key) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at'
+			)
+			.bind(userId, prefKey, enabled ? 1 : 0, now)
+			.run();
+	}
+
+	async bulkSetNotificationPrefs(userId: string, prefs: Record<string, boolean>): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		const statements = Object.entries(prefs).map(([prefKey, enabled]) =>
+			this.db
+				.prepare(
+					'INSERT INTO user_notification_prefs (user_id, pref_key, enabled, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, pref_key) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at'
+				)
+				.bind(userId, prefKey, enabled ? 1 : 0, now)
+		);
+
+		await this.db.batch(statements);
 	}
 }

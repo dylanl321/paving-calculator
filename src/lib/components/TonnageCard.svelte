@@ -3,8 +3,11 @@
 	import NumberField from './NumberField.svelte';
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
+	import SourceBadge from './SourceBadge.svelte';
+	import DotTable from './DotTable.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { spreadRateFromThickness, tonnageToOrder } from '$lib/config/formulas';
+	import { constantMeta } from '$lib/config';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
 	import { unitsStore } from '$lib/stores/units.svelte';
@@ -64,6 +67,8 @@
 	const displayTons = $derived(
 		tons != null && unitsStore.system === 'metric' ? toMetricTonnes(tons) : tons
 	);
+
+	const thickMultMeta = constantMeta('CONST.THICK_MULT');
 </script>
 
 <CalcCard
@@ -85,6 +90,8 @@
 
 	<ShowWork>
 		<code>tons = (length × width ÷ 9 × rate) ÷ 2000 × (1 + waste%)</code>
+		<p class="src-note">Spread rate from GDOT §400 Table 12 (§400.4.A.2.b); THICK_MULT constant: <SourceBadge status={thickMultMeta.status} tier={thickMultMeta.tier} /> ({thickMultMeta.value} lbs/SY/in from §400).</p>
+		<DotTable tableId="table-12" />
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>
