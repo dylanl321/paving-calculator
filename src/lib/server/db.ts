@@ -769,6 +769,13 @@ export class DbHelper {
 			.first<DbInvitation>();
 	}
 
+	async getInvitationByEmail(orgId: string, email: string): Promise<DbInvitation | null> {
+		return await this.db
+			.prepare('SELECT * FROM invitations WHERE org_id = ? AND email = ? COLLATE NOCASE AND accepted_at IS NULL')
+			.bind(orgId, email)
+			.first<DbInvitation>();
+	}
+
 	async acceptInvitation(token: string): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		await this.db
