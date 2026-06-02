@@ -2,6 +2,7 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
 import { recordAudit } from '$lib/server/audit';
+import { deliverWebhook } from '$lib/server/webhooks';
 
 export async function GET(event: RequestEvent) {
 	try {
@@ -93,6 +94,18 @@ export async function POST(event: RequestEvent) {
 				event.request.headers.get('x-forwarded-for') ||
 				undefined,
 			userAgent: event.request.headers.get('user-agent') || undefined
+		});
+
+		// Fire webhook event (fire and forget)
+		void deliverWebhook(event.platform!.env.DB, {
+			type: 'job_site.created',
+			orgId: org.id,
+			payload: {
+				job_site_id: jobSite.id,
+				name: jobSite.name,
+				org_id: org.id
+			},
+			occurredAt: jobSite.created_at
 		});
 
 		return json({
