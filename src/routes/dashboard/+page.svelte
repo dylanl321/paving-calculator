@@ -63,9 +63,9 @@
 			}
 
 			// Navigate to the new job site
-			goto(`/dashboard/job-sites/${result.id}`);
+			await goto(`/dashboard/job-sites/${result.id}`);
 		} catch (err) {
-			createError = 'Network error';
+			createError = 'Network error — check your connection and try again';
 			creating = false;
 		}
 	}

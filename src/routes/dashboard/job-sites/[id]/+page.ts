@@ -49,7 +49,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 			routeWaypoints: routeData.waypoints || []
 		};
 	} catch (err) {
-		if (err instanceof Response) throw err;
-		throw redirect(302, '/login');
+		// Re-throw SvelteKit errors/redirects; do not swallow real load failures
+		throw err;
 	}
 };
