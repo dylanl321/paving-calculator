@@ -10,9 +10,12 @@
 
 	let { children } = $props();
 
-	// Auth pages (login/register) render full-bleed without the app shell chrome.
+	// Auth pages (login/register/forgot-password/reset-password) render full-bleed without the app shell chrome.
 	const isStandalone = $derived(
-		$page.url.pathname === '/login' || $page.url.pathname === '/register'
+		$page.url.pathname === '/login' ||
+			$page.url.pathname === '/register' ||
+			$page.url.pathname === '/forgot-password' ||
+			$page.url.pathname === '/reset-password'
 	);
 
 	const themeTokens = $derived(config.theme[themeStore.mode]);

@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { hashPassword, slugify, createSession, setSessionCookie } from '$lib/server/auth';
+import { sendVerificationEmail } from '$lib/server/email';
 
 interface RegisterRequest {
 	email: string;
@@ -39,11 +40,23 @@ export async function POST(event: RequestEvent) {
 		const sessionToken = await createSession(db, user.id);
 		setSessionCookie(event.cookies, sessionToken);
 
+		// Send verification email (24h expiry)
+		const verifyToken = await db.createEmailToken(user.id, 'verify_email', 24 * 60 * 60);
+		const baseUrl = new URL(event.request.url).origin;
+		await sendVerificationEmail(
+			event.platform?.env.RESEND_API_KEY,
+			user.email,
+			user.name,
+			verifyToken,
+			baseUrl
+		);
+
 		return json({
 			user: {
 				id: user.id,
 				email: user.email,
-				name: user.name
+				name: user.name,
+				email_verified: false
 			},
 			org: {
 				id: org.id,

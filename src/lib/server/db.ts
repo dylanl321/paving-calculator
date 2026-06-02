@@ -7,6 +7,7 @@ export interface DbUser {
 	name: string;
 	is_global_admin: boolean;
 	disabled: boolean;
+	email_verified: boolean;
 	phone: string | null;
 	created_at: number;
 	updated_at: number;
@@ -166,6 +167,7 @@ export class DbHelper {
 			name,
 			is_global_admin: false,
 			disabled: false,
+			email_verified: false,
 			phone: null,
 			created_at: now,
 			updated_at: now
@@ -885,6 +887,58 @@ export class DbHelper {
 		await this.db
 			.prepare('DELETE FROM job_site_equipment WHERE id = ?')
 			.bind(equipmentId)
+			.run();
+	}
+
+	// Email token methods
+	async createEmailToken(
+		userId: string,
+		type: string,
+		expiresInSeconds: number
+	): Promise<string> {
+		const token = crypto.randomUUID();
+		const id = crypto.randomUUID();
+		const expiresAt = Math.floor(Date.now() / 1000) + expiresInSeconds;
+		await this.db
+			.prepare(
+				'INSERT INTO email_tokens (id, user_id, type, token, expires_at) VALUES (?, ?, ?, ?, ?)'
+			)
+			.bind(id, userId, type, token, expiresAt)
+			.run();
+		return token;
+	}
+
+	async getEmailToken(
+		token: string,
+		type: string
+	): Promise<{ user_id: string; expires_at: number; used_at: number | null } | null> {
+		return await this.db
+			.prepare('SELECT user_id, expires_at, used_at FROM email_tokens WHERE token = ? AND type = ?')
+			.bind(token, type)
+			.first<{ user_id: string; expires_at: number; used_at: number | null }>();
+	}
+
+	async markEmailTokenUsed(token: string): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare('UPDATE email_tokens SET used_at = ? WHERE token = ?')
+			.bind(now, token)
+			.run();
+	}
+
+	async setEmailVerified(userId: string): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare('UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?')
+			.bind(now, userId)
+			.run();
+	}
+
+	async updatePassword(userId: string, passwordHash: string): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?')
+			.bind(passwordHash, now, userId)
 			.run();
 	}
 }
