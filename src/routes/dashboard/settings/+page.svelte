@@ -509,6 +509,8 @@
 		align-items: center;
 		gap: 10px;
 		cursor: pointer;
+		min-height: 44px;
+		padding: 0 4px;
 	}
 
 	.checkbox-row input {
