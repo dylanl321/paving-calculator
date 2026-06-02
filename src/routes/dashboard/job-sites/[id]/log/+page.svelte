@@ -22,6 +22,11 @@
 	let showEntryForm = $state(false);
 	let editingEntry = $state<any>(null);
 	let showCloseOut = $state(false);
+	let unlocking = $state(false);
+
+	let isAdmin = $derived(
+		data.userRole === 'owner' || data.userRole === 'admin' || data.isGlobalAdmin
+	);
 
 	// Route waypoints for GPS station detection
 	let routeWaypoints = $state<RouteWaypoint[]>([]);
@@ -101,6 +106,8 @@
 		});
 		if (res.ok) {
 			await loadLogDetails();
+		} else if (res.status === 423) {
+			alert('This day is locked after close-out. Ask an admin to unlock it.');
 		}
 	}
 
@@ -182,6 +189,8 @@
 			if (res.ok) {
 				showEntryForm = false;
 				await loadLogDetails();
+			} else if (res.status === 423) {
+				alert('This day is locked after close-out. Ask an admin to unlock it.');
 			}
 		} else {
 			const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries`, {
@@ -192,6 +201,8 @@
 			if (res.ok) {
 				showEntryForm = false;
 				await loadLogDetails();
+			} else if (res.status === 423) {
+				alert('This day is locked after close-out. Ask an admin to unlock it.');
 			}
 		}
 	}
@@ -204,6 +215,8 @@
 		);
 		if (res.ok) {
 			await loadLogDetails();
+		} else if (res.status === 423) {
+			alert('This day is locked after close-out. Ask an admin to unlock it.');
 		}
 	}
 
@@ -416,6 +429,29 @@
 		);
 	}
 
+	async function unlockLog() {
+		if (!currentLog) return;
+		unlocking = true;
+		try {
+			const res = await fetch(
+				`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/unlock`,
+				{ method: 'POST' }
+			);
+			if (res.ok) {
+				const { log } = await res.json();
+				currentLog = log;
+				await invalidateAll();
+			} else {
+				const err = await res.json();
+				alert(err.message || 'Failed to unlock log');
+			}
+		} catch (err) {
+			alert('Failed to unlock log');
+		} finally {
+			unlocking = false;
+		}
+	}
+
 	function formatClosedDate(timestamp: number): string {
 		const date = new Date(timestamp * 1000);
 		return date.toLocaleString('en-US', {
@@ -523,6 +559,11 @@
 					<p>{formatClosedDate(currentLog.closed_at)}</p>
 				</div>
 			</div>
+			{#if isAdmin}
+				<button class="btn-unlock" disabled={unlocking} onclick={unlockLog}>
+					{unlocking ? 'Unlocking...' : 'Admin Unlock'}
+				</button>
+			{/if}
 		</div>
 	{/if}
 
@@ -1584,6 +1625,10 @@
 		border-radius: var(--radius);
 		padding: 16px;
 		margin-bottom: 16px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
 	}
 
 	.closed-content {
@@ -1591,6 +1636,34 @@
 		align-items: center;
 		gap: 12px;
 		color: var(--good, #10b981);
+	}
+
+	.btn-unlock {
+		background: var(--warning, #f59e0b);
+		color: var(--bg-dark, #0f172a);
+		border: none;
+		border-radius: var(--radius);
+		padding: 8px 16px;
+		min-height: 48px;
+		font-size: 0.875rem;
+		font-weight: 600;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: all 0.2s;
+	}
+
+	.btn-unlock:hover:not(:disabled) {
+		background: var(--warning-hover, #d97706);
+		transform: scale(1.02);
+	}
+
+	.btn-unlock:active:not(:disabled) {
+		transform: scale(0.98);
+	}
+
+	.btn-unlock:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	.closed-content svg {
