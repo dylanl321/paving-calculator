@@ -9,6 +9,7 @@
 	import { job } from '$lib/stores/job.svelte';
 	import { spreadToleranceFor } from '$lib/config';
 	import TicketCapture from './TicketCapture.svelte';
+	import MaterialOrderForecast from './MaterialOrderForecast.svelte';
 
 	interface Props {
 		jobSiteId: string;
@@ -491,6 +492,16 @@
 						{/if}
 					</div>
 				</div>
+
+				{#if completionPct < 100}
+					<MaterialOrderForecast
+						{remainingTons}
+						{avgTonsPerLoad}
+						{tonsPerHour}
+						{targetTonnage}
+						{totalTons}
+					/>
+				{/if}
 			{/if}
 
 			{#if targetRate != null}

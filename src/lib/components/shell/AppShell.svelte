@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import NavSidebar from './NavSidebar.svelte';
+	import { APP_VERSION } from '$lib/version';
 
 	let {
 		children,
@@ -21,6 +22,10 @@
 	<main class="shell-main">
 		{@render children()}
 	</main>
+
+	<footer class="shell-footer">
+		<span class="version-label">v{APP_VERSION}</span>
+	</footer>
 
 	{#if showContext && context}
 		<aside class="shell-context">
@@ -44,6 +49,17 @@
 
 	.shell-context {
 		display: none;
+	}
+
+	.shell-footer {
+		text-align: center;
+		padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+	}
+
+	.version-label {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		opacity: 0.6;
 	}
 
 	/* Tablet / iPad: icon-rail sidebar + content + job-site settings panel. */

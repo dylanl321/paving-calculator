@@ -3,11 +3,14 @@
 	import { config } from '$lib/config';
 	import type { PageData } from './$types';
 	import DailySummaryReport from '$lib/components/DailySummaryReport.svelte';
+	import WeeklyMonthlyReport from '$lib/components/WeeklyMonthlyReport.svelte';
 	import ProductionLineChart from '$lib/components/charts/ProductionLineChart.svelte';
+	import ProductionRateTrendChart from '$lib/components/charts/ProductionRateTrendChart.svelte';
 	import { formatFeet } from '$lib/utils/format';
 
 	let { data }: { data: PageData } = $props();
 	let summaryLog = $state<any>(null);
+	let showReports = $state(false);
 
 	// Build chart data from logs, sorted by date ascending
 	const chartData = $derived(
@@ -17,6 +20,29 @@
 				date: log.log_date,
 				tons: log.summary?.total_tons ?? 0
 			}))
+	);
+
+	// Build rate chart data (only logs with hours)
+	const rateChartData = $derived(
+		[...data.logs]
+			.sort((a, b) => a.log_date.localeCompare(b.log_date))
+			.map((log) => ({
+				date: log.log_date,
+				tons: log.summary?.total_tons ?? 0,
+				hours: log.summary?.hours_worked ?? 0
+			}))
+	);
+
+	// Check if we have any rate data
+	const hasRateData = $derived(rateChartData.some((d) => d.hours > 0));
+
+	// Avg rate across days with hours > 0
+	const avgRate = $derived(
+		(() => {
+			const valid = rateChartData.filter((d) => d.hours > 0);
+			if (valid.length === 0) return 0;
+			return valid.reduce((sum, d) => sum + d.tons / d.hours, 0) / valid.length;
+		})()
 	);
 
 	// Calculate total tons across all days
@@ -107,21 +133,40 @@
 			<h2 class="page-title">Log History</h2>
 			<p class="page-subtitle">{data.logs.length} day{data.logs.length === 1 ? '' : 's'} logged</p>
 		</div>
-		<a href="/dashboard/job-sites/{data.jobSite.id}/log" class="btn-secondary">
-			<svg
-				width="18"
-				height="18"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-			>
-				<polyline points="15 18 9 12 15 6"></polyline>
-			</svg>
-			Back to Today
-		</a>
+		<div class="header-actions">
+			<button class="btn-primary" onclick={() => (showReports = true)}>
+				<svg
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+					<line x1="3" y1="9" x2="21" y2="9"></line>
+					<line x1="9" y1="21" x2="9" y2="9"></line>
+				</svg>
+				Reports
+			</button>
+			<a href="/dashboard/job-sites/{data.jobSite.id}/log" class="btn-secondary">
+				<svg
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<polyline points="15 18 9 12 15 6"></polyline>
+				</svg>
+				Back to Today
+			</a>
+		</div>
 	</div>
 
 	{#if data.logs.length === 0}
@@ -157,6 +202,18 @@
 			</div>
 			<ProductionLineChart data={chartData} />
 		</div>
+
+		{#if hasRateData}
+			<div class="chart-section">
+				<div class="section-header">
+					<h3>Production Rate Trend</h3>
+					<p class="section-subtitle">
+						{avgRate.toFixed(1)} T/hr avg &mdash; 3-day rolling average
+					</p>
+				</div>
+				<ProductionRateTrendChart data={rateChartData} />
+			</div>
+		{/if}
 
 		<div class="log-list">
 			{#each data.logs as log}
@@ -234,6 +291,13 @@
 	/>
 {/if}
 
+{#if showReports}
+	<WeeklyMonthlyReport
+		jobSiteId={data.jobSite.id}
+		onClose={() => (showReports = false)}
+	/>
+{/if}
+
 <style>
 	.dashboard {
 		width: 100%;
@@ -268,6 +332,12 @@
 		align-items: flex-start;
 		gap: 16px;
 		margin-bottom: 24px;
+	}
+
+	.header-actions {
+		display: flex;
+		gap: 10px;
+		flex-wrap: wrap;
 	}
 
 	.page-title {
