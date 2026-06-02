@@ -5,6 +5,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { fetchJobSites, pushTodayToCloud, type JobSiteOption } from '$lib/services/todaySync';
 	import TodaySummary from './TodaySummary.svelte';
+	import TimeInput from '$lib/components/TimeInput.svelte';
 
 	const entries = $derived(today.entries);
 
@@ -313,11 +314,11 @@
 			</label>
 			<label class="f">
 				<span>Start</span>
-				<input type="time" bind:value={today.startTime} />
+				<TimeInput bind:value={today.startTime} />
 			</label>
 			<label class="f">
 				<span>End</span>
-				<input type="time" bind:value={today.endTime} />
+				<TimeInput bind:value={today.endTime} />
 			</label>
 		</div>
 	</section>
@@ -418,7 +419,7 @@
 			<div class="form-grid">
 				<label class="f">
 					<span>Time</span>
-					<input type="time" bind:value={form.timestamp} />
+					<TimeInput bind:value={form.timestamp} />
 				</label>
 
 				{#if form.entry_type === 'paving' || form.entry_type === 'milling'}
@@ -537,9 +538,6 @@
 	.f textarea {
 		padding: var(--sp-2);
 		min-height: auto;
-	}
-	.f input[type="time"] {
-		min-height: 48px;
 	}
 
 	.crew-field {
