@@ -185,7 +185,7 @@
 		background: color-mix(in srgb, var(--bad) 16%, transparent);
 		color: var(--bad);
 	}
-	@media (max-width: 460px) {
+	@media (max-width: 767px) {
 		.two-up {
 			grid-template-columns: 1fr;
 		}
