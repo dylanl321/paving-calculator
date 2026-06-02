@@ -45,6 +45,22 @@ export interface LogSummary {
 	tack_entries: number;
 }
 
+export interface DbDensityReading {
+	id: string;
+	daily_log_id: string;
+	station_number: number;
+	lane: string | null;
+	reading_number: number;
+	wet_density_pcf: number;
+	moisture_pct: number;
+	dry_density_pcf: number | null;
+	target_density_pcf: number | null;
+	compaction_pct: number | null;
+	depth_in: number | null;
+	notes: string | null;
+	created_at: number;
+}
+
 export class DbLogHelper {
 	constructor(private db: D1Database) {}
 
@@ -412,5 +428,84 @@ export class DbLogHelper {
 			total_days: logs.length,
 			total_hours: totalHours
 		};
+	}
+
+	async addDensityReading(
+		dailyLogId: string,
+		reading: {
+			station_number: number;
+			lane?: string | null;
+			reading_number?: number;
+			wet_density_pcf: number;
+			moisture_pct: number;
+			target_density_pcf?: number | null;
+			depth_in?: number | null;
+			notes?: string | null;
+		}
+	): Promise<DbDensityReading> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+
+		// Calculate dry density: wet_density / (1 + moisture/100)
+		const dryDensity = reading.wet_density_pcf / (1 + reading.moisture_pct / 100);
+
+		// Calculate compaction %: (dry_density / target) * 100
+		const compactionPct =
+			reading.target_density_pcf && reading.target_density_pcf > 0
+				? (dryDensity / reading.target_density_pcf) * 100
+				: null;
+
+		await this.db
+			.prepare(
+				`INSERT INTO density_readings (
+					id, daily_log_id, station_number, lane, reading_number,
+					wet_density_pcf, moisture_pct, dry_density_pcf,
+					target_density_pcf, compaction_pct, depth_in, notes, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			)
+			.bind(
+				id,
+				dailyLogId,
+				reading.station_number,
+				reading.lane ?? null,
+				reading.reading_number ?? 1,
+				reading.wet_density_pcf,
+				reading.moisture_pct,
+				dryDensity,
+				reading.target_density_pcf ?? null,
+				compactionPct,
+				reading.depth_in ?? null,
+				reading.notes ?? null,
+				now
+			)
+			.run();
+
+		return {
+			id,
+			daily_log_id: dailyLogId,
+			station_number: reading.station_number,
+			lane: reading.lane ?? null,
+			reading_number: reading.reading_number ?? 1,
+			wet_density_pcf: reading.wet_density_pcf,
+			moisture_pct: reading.moisture_pct,
+			dry_density_pcf: dryDensity,
+			target_density_pcf: reading.target_density_pcf ?? null,
+			compaction_pct: compactionPct,
+			depth_in: reading.depth_in ?? null,
+			notes: reading.notes ?? null,
+			created_at: now
+		};
+	}
+
+	async getDensityReadings(dailyLogId: string): Promise<DbDensityReading[]> {
+		return await this.db
+			.prepare('SELECT * FROM density_readings WHERE daily_log_id = ? ORDER BY station_number ASC, reading_number ASC')
+			.bind(dailyLogId)
+			.all<DbDensityReading>()
+			.then((r) => r.results);
+	}
+
+	async deleteDensityReading(id: string): Promise<void> {
+		await this.db.prepare('DELETE FROM density_readings WHERE id = ?').bind(id).run();
 	}
 }

@@ -8,6 +8,7 @@
 	import { Droplets, FileText, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-svelte';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import ComplianceGauge from '$lib/components/ComplianceGauge.svelte';
+	import NuclearGaugeLog from '$lib/components/NuclearGaugeLog.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -677,6 +678,15 @@
 			targetSpreadRate={(data.siteConfig as any)?.config?.target_spread_rate ?? null}
 			courseType={(data.siteConfig as any)?.config?.course_type ?? null}
 		/>
+
+		{#if currentLog}
+			<NuclearGaugeLog
+				logId={currentLog.id}
+				jobSiteId={data.jobSite.id}
+				targetDensityPcf={(data.siteConfig as any)?.config?.target_density_pcf ?? null}
+				targetThicknessIn={(data.siteConfig as any)?.config?.target_thickness_in ?? null}
+			/>
+		{/if}
 
 		<section class="section">
 			<div class="section-header">
