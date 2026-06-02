@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { getInitials } from '$lib/utils/format';
 
 	type Member = {
 		user_id: string;
@@ -254,15 +255,6 @@
 			return false;
 		}
 		return true;
-	}
-
-	function getInitials(name: string): string {
-		return name
-			.split(' ')
-			.map((n) => n[0])
-			.join('')
-			.toUpperCase()
-			.slice(0, 2);
 	}
 
 	function formatRelativeTime(timestamp: number): string {
