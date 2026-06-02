@@ -20,23 +20,71 @@
 		expires_at: number;
 	};
 
+	type MemberActivity = {
+		action: string;
+		resource_type: string;
+		created_at: number;
+	} | null;
+
 	let members = $state<Member[]>([]);
 	let invitations = $state<Invitation[]>([]);
+	let memberActivity = $state<Record<string, MemberActivity>>({});
 	let loading = $state(true);
 	let error = $state('');
 	let showInviteModal = $state(false);
-	let inviteForm = $state({ email: '', role: 'member' });
+	let inviteForm = $state({ emails: [] as string[], role: 'member' });
+	let emailInput = $state('');
 	let inviting = $state(false);
+	let resending = $state(false);
 	let currentUserId = $state<string | null>(null);
 	let currentUserRole = $state<string | null>(null);
 	let searchQuery = $state('');
+	let roleFilter = $state<string>('all');
+	let sortOrder = $state<string>('name-asc');
 	let roleChangeConfirm = $state<{ member: Member; newRole: string } | null>(null);
 
-	const filteredMembers = $derived(
-		members.filter(
-			(m) =>
-				m.user_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				m.user_email.toLowerCase().includes(searchQuery.toLowerCase())
+	const filteredMembers = $derived.by(() => {
+		const q = searchQuery.toLowerCase();
+		let result = members.filter((m) => {
+			const matchesSearch =
+				!q ||
+				m.user_name.toLowerCase().includes(q) ||
+				m.user_email.toLowerCase().includes(q);
+			const matchesRole = roleFilter === 'all' || m.role === roleFilter;
+			return matchesSearch && matchesRole;
+		});
+
+		switch (sortOrder) {
+			case 'name-asc':
+				result = result.slice().sort((a, b) => a.user_name.localeCompare(b.user_name));
+				break;
+			case 'name-desc':
+				result = result.slice().sort((a, b) => b.user_name.localeCompare(a.user_name));
+				break;
+			case 'newest':
+				result = result.slice().sort((a, b) => b.invited_at - a.invited_at);
+				break;
+			case 'oldest':
+				result = result.slice().sort((a, b) => a.invited_at - b.invited_at);
+				break;
+		}
+
+		return result;
+	});
+
+	const hasActiveFilters = $derived(searchQuery !== '' || roleFilter !== 'all');
+
+	function clearFilters() {
+		searchQuery = '';
+		roleFilter = 'all';
+	}
+
+	const roleCounts = $derived(
+		Object.fromEntries(
+			['all', 'owner', 'admin', 'member'].map((r) => [
+				r,
+				r === 'all' ? members.length : members.filter((m) => m.role === r).length
+			])
 		)
 	);
 
@@ -60,9 +108,10 @@
 
 	async function loadTeam() {
 		try {
-			const [membersRes, invitesRes] = await Promise.all([
+			const [membersRes, invitesRes, activityRes] = await Promise.all([
 				fetch('/api/org'),
-				fetch('/api/org/invite')
+				fetch('/api/org/invite'),
+				fetch('/api/org/activity')
 			]);
 
 			if (!membersRes.ok) {
@@ -82,6 +131,11 @@
 				const invitesData = await invitesRes.json();
 				invitations = invitesData.invitations || [];
 			}
+
+			if (activityRes.ok) {
+				const activityData = await activityRes.json();
+				memberActivity = activityData.activity || {};
+			}
 		} catch (e) {
 			error = 'Failed to load team';
 		} finally {
@@ -89,32 +143,83 @@
 		}
 	}
 
+	function addEmail() {
+		const email = emailInput.trim();
+		if (!email) return;
+
+		// Basic email validation
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+			toastStore.error('Invalid email address');
+			return;
+		}
+
+		// Check for duplicates
+		if (inviteForm.emails.includes(email)) {
+			toastStore.error('Email already added');
+			return;
+		}
+
+		inviteForm.emails = [...inviteForm.emails, email];
+		emailInput = '';
+	}
+
+	function removeEmail(email: string) {
+		inviteForm.emails = inviteForm.emails.filter(e => e !== email);
+	}
+
+	function handleEmailKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' || e.key === ',') {
+			e.preventDefault();
+			addEmail();
+		}
+	}
+
 	async function sendInvite() {
-		if (!inviteForm.email.trim()) return;
+		// Add pending email if valid
+		if (emailInput.trim()) {
+			addEmail();
+		}
+
+		if (inviteForm.emails.length === 0) return;
 
 		inviting = true;
-		try {
-			const res = await fetch('/api/org/invite', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					email: inviteForm.email.trim(),
-					role: inviteForm.role
-				})
-			});
+		let successCount = 0;
+		let failCount = 0;
 
-			if (!res.ok) {
-				const data = await res.json();
-				toastStore.error(data.error || 'Failed to send invitation');
-				return;
+		try {
+			// Send one POST per email
+			for (const email of inviteForm.emails) {
+				try {
+					const res = await fetch('/api/org/invite', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							email: email,
+							role: inviteForm.role
+						})
+					});
+
+					if (res.ok) {
+						successCount++;
+					} else {
+						failCount++;
+						const data = await res.json();
+						toastStore.error(`Failed to invite ${email}: ${data.error || 'Unknown error'}`);
+					}
+				} catch (e) {
+					failCount++;
+					toastStore.error(`Failed to invite ${email}`);
+				}
 			}
 
 			await loadTeam();
 			showInviteModal = false;
-			inviteForm = { email: '', role: 'member' };
-			toastStore.success('Invitation sent successfully');
-		} catch (e) {
-			toastStore.error('Failed to send invitation');
+			inviteForm = { emails: [], role: 'member' };
+			emailInput = '';
+
+			if (successCount > 0) {
+				toastStore.success(`${successCount} invitation${successCount > 1 ? 's' : ''} sent successfully`);
+			}
 		} finally {
 			inviting = false;
 		}
@@ -182,13 +287,38 @@
 
 			if (!res.ok) {
 				const data = await res.json();
-				alert(data.error || 'Failed to revoke invitation');
+				toastStore.error(data.error || 'Failed to revoke invitation');
 				return;
 			}
 
 			await loadTeam();
+			toastStore.success('Invitation revoked successfully');
 		} catch (e) {
-			alert('Failed to revoke invitation');
+			toastStore.error('Failed to revoke invitation');
+		}
+	}
+
+	async function resendInvitation(invite: Invitation) {
+		if (resending) return;
+
+		resending = true;
+		try {
+			const res = await fetch(`/api/org/invite/${invite.id}`, {
+				method: 'POST'
+			});
+
+			if (!res.ok) {
+				const data = await res.json();
+				toastStore.error(data.error || 'Failed to resend invitation');
+				return;
+			}
+
+			await loadTeam();
+			toastStore.success('Invitation resent successfully');
+		} catch (e) {
+			toastStore.error('Failed to resend invitation');
+		} finally {
+			resending = false;
 		}
 	}
 
@@ -212,6 +342,53 @@
 			.toUpperCase()
 			.slice(0, 2);
 	}
+
+	function formatRelativeTime(timestamp: number): string {
+		const now = Math.floor(Date.now() / 1000);
+		const diff = now - timestamp;
+
+		if (diff < 60) return 'just now';
+		if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+		if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+		if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+		if (diff < 2592000) return `${Math.floor(diff / 604800)}w ago`;
+		return formatDate(timestamp);
+	}
+
+	function formatActivityLabel(activity: MemberActivity): string {
+		if (!activity) return '';
+
+		const { action, resource_type } = activity;
+
+		if (action === 'ran calc') {
+			const calcLabels: Record<string, string> = {
+				spread_rate: 'spread rate calc',
+				feet_left: 'feet left calc',
+				tonnage: 'tonnage calc',
+				tack_rate: 'tack rate calc',
+				stick_check: 'stick check calc'
+			};
+			return `ran ${calcLabels[resource_type] || resource_type}`;
+		}
+
+		if (action === 'logged day') {
+			return 'logged a day';
+		}
+
+		if (action === 'created' || action === 'updated' || action === 'deleted') {
+			const resourceLabels: Record<string, string> = {
+				job_site: 'job site',
+				calculation: 'calculation',
+				daily_log: 'daily log',
+				org_member: 'team member',
+				org_settings: 'org settings',
+				user: 'profile'
+			};
+			return `${action} ${resourceLabels[resource_type] || resource_type}`;
+		}
+
+		return `${action} ${resource_type}`;
+	}
 </script>
 
 <div class="team-page">
@@ -231,15 +408,46 @@
 		<section class="members-section">
 			<div class="section-header">
 				<h2>Team Members ({members.length})</h2>
-				<input
-					type="search"
-					class="search-input"
-					placeholder="Search by name or email..."
-					bind:value={searchQuery}
-				/>
+				<div class="filter-bar">
+					<input
+						type="search"
+						class="search-input"
+						placeholder="Search by name or email..."
+						bind:value={searchQuery}
+					/>
+					<div class="role-filter-pills">
+						{#each ['all', 'owner', 'admin', 'member'] as role}
+							<button
+								type="button"
+								class="pill {roleFilter === role ? 'pill-active' : ''}"
+								onclick={() => (roleFilter = role)}
+								aria-pressed={roleFilter === role}
+							>
+								{role === 'all' ? 'All' : role.charAt(0).toUpperCase() + role.slice(1)}
+								<span class="pill-count">{roleCounts[role]}</span>
+							</button>
+						{/each}
+					</div>
+					<select class="sort-select" bind:value={sortOrder} aria-label="Sort members">
+						<option value="name-asc">Name A-Z</option>
+						<option value="name-desc">Name Z-A</option>
+						<option value="newest">Newest first</option>
+						<option value="oldest">Oldest first</option>
+					</select>
+				</div>
 			</div>
+			{#if hasActiveFilters}
+				<div class="filter-status">
+					<span class="filter-count">
+						{filteredMembers.length} of {members.length} member{members.length !== 1 ? 's' : ''}
+					</span>
+					<button type="button" class="btn-clear-filters" onclick={clearFilters}>
+						Clear filters
+					</button>
+				</div>
+			{/if}
 			{#if filteredMembers.length === 0}
-				<p class="empty">{searchQuery ? 'No members found' : 'No team members yet'}</p>
+				<p class="empty">{hasActiveFilters ? 'No members match your filters' : 'No team members yet'}</p>
 			{:else}
 				<div class="members-cards">
 					{#each filteredMembers as member}
@@ -260,12 +468,27 @@
 											value={member.role}
 											onchange={(e) => requestRoleChange(member, e.currentTarget.value)}
 										>
-											<option value="member">Member</option>
-											<option value="admin">Admin</option>
 											<option value="owner">Owner</option>
+											<option value="admin">Admin</option>
+											<option value="member">Member</option>
+											<option value="foreman">Foreman</option>
+											<option value="operator">Operator</option>
+											<option value="inspector">Inspector</option>
+											<option value="office">Office</option>
 										</select>
 									{:else}
-										<span class="role-badge owner">{member.role}</span>
+										<span class="role-badge {member.role}">{member.role}</span>
+									{/if}
+								</div>
+								<div class="card-row">
+									<span class="label">Last Active</span>
+									{#if memberActivity[member.user_id]}
+										<div class="activity-info">
+											<span class="activity-label">{formatActivityLabel(memberActivity[member.user_id])}</span>
+											<span class="activity-time">{formatRelativeTime(memberActivity[member.user_id]!.created_at)}</span>
+										</div>
+									{:else}
+										<span class="activity-none">No activity yet</span>
 									{/if}
 								</div>
 								<div class="card-row">
@@ -295,7 +518,7 @@
 						<div class="invitation-card">
 							<div class="card-header">
 								<div class="invitation-email">{invite.email}</div>
-								<span class="role-badge">{invite.role}</span>
+								<span class="role-badge {invite.role}">{invite.role}</span>
 							</div>
 							<div class="card-body">
 								<div class="card-row">
@@ -312,8 +535,15 @@
 								</div>
 							</div>
 							<div class="card-actions">
+								<button
+									class="btn-secondary"
+									onclick={() => resendInvitation(invite)}
+									disabled={resending}
+								>
+									{resending ? 'Resending...' : 'Resend'}
+								</button>
 								<button class="btn-danger" onclick={() => revokeInvitation(invite)}>
-									Revoke Invitation
+									Revoke
 								</button>
 							</div>
 						</div>
@@ -326,31 +556,71 @@
 
 {#if showInviteModal}
 	<div class="modal-overlay" onclick={() => (showInviteModal = false)}></div>
-	<div class="modal">
-		<h2>Invite Team Member</h2>
+	<div class="modal invite-modal">
+		<div class="modal-header">
+			<h2>Invite Team Members</h2>
+			<button type="button" class="modal-close" onclick={() => (showInviteModal = false)} aria-label="Close modal">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M18 6L6 18M6 6l12 12"/>
+				</svg>
+			</button>
+		</div>
 		<form onsubmit={(e) => { e.preventDefault(); sendInvite(); }}>
-			<label>
-				Email
-				<input
-					type="email"
-					bind:value={inviteForm.email}
-					placeholder="member@example.com"
-					required
-					autofocus
-				/>
-			</label>
-			<label>
-				Role
-				<select bind:value={inviteForm.role}>
-					<option value="member">Member</option>
-					<option value="admin">Admin</option>
-					<option value="owner">Owner</option>
-				</select>
-			</label>
-			<div class="modal-actions">
-				<button type="button" onclick={() => (showInviteModal = false)}>Cancel</button>
-				<button type="submit" disabled={inviting || !inviteForm.email.trim()}>
-					{inviting ? 'Sending...' : 'Send Invite'}
+			<div class="modal-body">
+				<label class="form-label">
+					<span class="label-text">Email Addresses</span>
+					<div class="email-chips-container">
+						{#if inviteForm.emails.length > 0}
+							<div class="email-chips">
+								{#each inviteForm.emails as email}
+									<span class="email-chip">
+										<span>{email}</span>
+										<button
+											type="button"
+											class="chip-remove"
+											onclick={() => removeEmail(email)}
+											aria-label="Remove {email}"
+										>
+											×
+										</button>
+									</span>
+								{/each}
+							</div>
+						{/if}
+						<input
+							type="text"
+							class="email-input"
+							bind:value={emailInput}
+							onkeydown={handleEmailKeydown}
+							placeholder="Type email and press Enter"
+							autofocus
+						/>
+					</div>
+					{#if inviteForm.emails.length > 0}
+						<div class="invite-count">
+							{inviteForm.emails.length} invitation{inviteForm.emails.length > 1 ? 's' : ''} will be sent
+						</div>
+					{/if}
+				</label>
+				<label class="form-label">
+					<span class="label-text">Role</span>
+					<select class="role-input" bind:value={inviteForm.role}>
+						<option value="owner">Owner</option>
+						<option value="admin">Admin</option>
+						<option value="member">Member</option>
+						<option value="foreman">Foreman</option>
+						<option value="operator">Operator</option>
+						<option value="inspector">Inspector</option>
+						<option value="office">Office</option>
+					</select>
+				</label>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn-secondary" onclick={() => (showInviteModal = false)}>
+					Cancel
+				</button>
+				<button type="submit" class="btn-primary" disabled={inviting || (inviteForm.emails.length === 0 && !emailInput.trim())}>
+					{inviting ? 'Sending...' : `Send ${inviteForm.emails.length > 0 ? inviteForm.emails.length + ' ' : ''}Invite${inviteForm.emails.length !== 1 ? 's' : ''}`}
 				</button>
 			</div>
 		</form>
@@ -363,8 +633,8 @@
 		<h2>Confirm Role Change</h2>
 		<p class="confirm-message">
 			Change <strong>{roleChangeConfirm.member.user_name}</strong>'s role from
-			<strong>{roleChangeConfirm.member.role}</strong> to
-			<strong>{roleChangeConfirm.newRole}</strong>?
+			<strong>{roleChangeConfirm.member.role.charAt(0).toUpperCase() + roleChangeConfirm.member.role.slice(1)}</strong> to
+			<strong>{roleChangeConfirm.newRole.charAt(0).toUpperCase() + roleChangeConfirm.newRole.slice(1)}</strong>?
 		</p>
 		<div class="modal-actions">
 			<button type="button" onclick={() => (roleChangeConfirm = null)}>Cancel</button>
@@ -481,6 +751,109 @@
 		color: var(--text-muted);
 	}
 
+	.filter-bar {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-3);
+		width: 100%;
+	}
+
+	.role-filter-pills {
+		display: flex;
+		gap: var(--sp-2);
+		flex-wrap: wrap;
+	}
+
+	.pill {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--sp-2);
+		padding: var(--sp-2) var(--sp-3);
+		min-height: 36px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-full, 999px);
+		background: var(--surface);
+		color: var(--text-muted);
+		font-size: var(--fs-sm);
+		cursor: pointer;
+		transition:
+			background 0.1s,
+			color 0.1s,
+			border-color 0.1s;
+	}
+
+	.pill:hover {
+		background: var(--surface-alt);
+		color: var(--text);
+	}
+
+	.pill-active {
+		background: var(--accent);
+		color: var(--accent-text);
+		border-color: var(--accent);
+	}
+
+	.pill-count {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 18px;
+		height: 18px;
+		padding: 0 var(--sp-1);
+		background: rgba(0, 0, 0, 0.15);
+		border-radius: var(--radius-full, 999px);
+		font-size: 0.7rem;
+		font-weight: var(--fw-bold);
+	}
+
+	.pill-active .pill-count {
+		background: rgba(0, 0, 0, 0.2);
+	}
+
+	.sort-select {
+		padding: var(--sp-2) var(--sp-3);
+		min-height: 40px;
+		font-size: var(--fs-sm);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface);
+		color: var(--text);
+		cursor: pointer;
+		align-self: flex-start;
+	}
+
+	.filter-status {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+		margin-bottom: var(--sp-4);
+		padding: var(--sp-2) var(--sp-3);
+		background: var(--surface-alt);
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-sm);
+	}
+
+	.filter-count {
+		color: var(--text-muted);
+		flex: 1;
+	}
+
+	.btn-clear-filters {
+		padding: var(--sp-1) var(--sp-3);
+		min-height: 32px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: transparent;
+		color: var(--text);
+		font-size: var(--fs-sm);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.btn-clear-filters:hover {
+		background: var(--surface);
+	}
+
 	.role-badge {
 		display: inline-block;
 		padding: var(--sp-1) var(--sp-3);
@@ -494,6 +867,31 @@
 	.role-badge.owner {
 		background: rgba(249, 115, 22, 0.2);
 		color: rgb(249, 115, 22);
+	}
+
+	.role-badge.admin {
+		background: rgba(59, 130, 246, 0.2);
+		color: rgb(59, 130, 246);
+	}
+
+	.role-badge.foreman {
+		background: rgba(245, 158, 11, 0.2);
+		color: rgb(245, 158, 11);
+	}
+
+	.role-badge.operator {
+		background: rgba(34, 197, 94, 0.2);
+		color: rgb(34, 197, 94);
+	}
+
+	.role-badge.inspector {
+		background: rgba(168, 85, 247, 0.2);
+		color: rgb(168, 85, 247);
+	}
+
+	.role-badge.office {
+		background: rgba(20, 184, 166, 0.2);
+		color: rgb(20, 184, 166);
 	}
 
 	.role-select {
@@ -645,16 +1043,82 @@
 		max-width: 150px;
 	}
 
+	.activity-info {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: var(--sp-1);
+	}
+
+	.activity-label {
+		font-size: var(--fs-sm);
+		color: var(--text);
+	}
+
+	.activity-time {
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+	}
+
+	.activity-none {
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+		font-style: italic;
+	}
+
 	.card-actions {
 		display: flex;
+		gap: var(--sp-2);
 		justify-content: flex-end;
 	}
 
+	.card-actions button {
+		padding: var(--sp-2) var(--sp-4);
+		min-height: var(--touch);
+		border: none;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
+		flex: 1;
+	}
+
+	.card-actions button:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.card-actions .btn-secondary {
+		background: var(--surface-alt);
+		color: var(--text);
+		border: 1px solid var(--border);
+	}
+
+	.card-actions .btn-secondary:hover:not(:disabled) {
+		background: var(--surface);
+	}
+
 	.card-actions .btn-danger {
-		width: 100%;
+		background: var(--bad);
+		color: white;
+	}
+
+	.card-actions .btn-danger:hover:not(:disabled) {
+		opacity: 0.9;
 	}
 
 	/* Modal styles */
+	@keyframes modal-in {
+		from {
+			opacity: 0;
+			transform: translate(-50%, -50%) scale(0.95);
+		}
+		to {
+			opacity: 1;
+			transform: translate(-50%, -50%) scale(1);
+		}
+	}
+
 	.modal-overlay {
 		position: fixed;
 		inset: 0;
@@ -667,41 +1131,206 @@
 		top: 50%;
 		left: 50%;
 		transform: translate(-50%, -50%);
-		background: var(--bg);
-		padding: var(--sp-8);
+		background: var(--surface);
 		border-radius: var(--radius-md);
 		z-index: 101;
 		min-width: 300px;
 		max-width: 500px;
 		width: 90%;
 		border: 1px solid var(--border);
+		box-shadow: var(--shadow-lg);
+		border-top: 3px solid var(--accent);
+		animation: modal-in 150ms ease;
+		padding: var(--sp-8);
 	}
 
-	.modal h2 {
-		margin: 0 0 var(--sp-6) 0;
+	/* Invite modal overrides base padding — it manages its own internal spacing */
+	.invite-modal {
+		padding: 0;
+		max-width: 520px;
+	}
+
+	.modal-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: var(--sp-6) var(--sp-6) var(--sp-4) var(--sp-6);
+		border-bottom: 1px solid var(--border);
+	}
+
+	.modal-header h2 {
+		margin: 0;
 		color: var(--text);
 		font-size: var(--fs-xl);
 	}
 
-	.modal label {
-		display: block;
-		margin-bottom: var(--sp-4);
-		color: var(--text);
-		font-weight: var(--fw-medium);
+	.modal-close {
+		width: 44px;
+		height: 44px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: background 0.1s, color 0.1s;
 	}
 
-	.modal input,
-	.modal select {
+	.modal-close:hover {
+		background: var(--surface-hover, var(--surface-alt));
+		color: var(--text);
+	}
+
+	.modal-body {
+		padding: var(--sp-6) var(--sp-6) var(--sp-5) var(--sp-6);
+	}
+
+	.form-label {
+		display: block;
+		margin-bottom: var(--sp-5);
+	}
+
+	.label-text {
+		display: block;
+		font-size: var(--fs-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-muted);
+		font-weight: var(--fw-semibold);
+		margin-bottom: var(--sp-2);
+	}
+
+	.email-chips-container {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--sp-2);
+		padding: var(--sp-3);
+		min-height: var(--touch);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--bg);
+	}
+
+	.email-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--sp-2);
+		width: 100%;
+	}
+
+	.email-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--sp-2);
+		padding: var(--sp-1) var(--sp-3);
+		background: var(--surface-hover, var(--surface-alt));
+		border-radius: var(--radius-pill, 999px);
+		font-size: var(--fs-sm);
+		color: var(--text);
+	}
+
+	.chip-remove {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		background: transparent;
+		border: none;
+		border-radius: 50%;
+		color: var(--text-muted);
+		cursor: pointer;
+		font-size: 1.25rem;
+		line-height: 1;
+		transition: background 0.1s, color 0.1s;
+	}
+
+	.chip-remove:hover {
+		background: rgba(0, 0, 0, 0.2);
+		color: var(--text);
+	}
+
+	.email-input {
+		flex: 1;
+		min-width: 200px;
+		background: transparent;
+		border: none;
+		outline: none;
+		padding: var(--sp-1);
+		font-size: var(--fs-md);
+		color: var(--text);
+	}
+
+	.email-input::placeholder {
+		color: var(--text-muted);
+	}
+
+	.invite-count {
+		margin-top: var(--sp-2);
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+	}
+
+	.role-input {
 		display: block;
 		width: 100%;
-		margin-top: var(--sp-2);
 		padding: var(--sp-3);
 		font-size: var(--fs-md);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
-		background: var(--surface);
+		background: var(--bg);
 		color: var(--text);
 		min-height: var(--touch);
+		cursor: pointer;
+	}
+
+	.modal-footer {
+		display: flex;
+		justify-content: flex-end;
+		gap: var(--sp-3);
+		padding: var(--sp-5) var(--sp-6) var(--sp-6) var(--sp-6);
+		border-top: 1px solid var(--border);
+	}
+
+	.btn-secondary {
+		padding: 0 var(--sp-6);
+		min-height: var(--touch);
+		background: transparent;
+		color: var(--text);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-md);
+		font-weight: var(--fw-semibold);
+		cursor: pointer;
+		transition: background 0.1s;
+	}
+
+	.btn-secondary:hover {
+		background: var(--surface-alt);
+	}
+
+	.btn-primary {
+		padding: 0 var(--sp-6);
+		min-height: var(--touch);
+		background: var(--accent);
+		color: var(--accent-text);
+		border: none;
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-md);
+		font-weight: var(--fw-semibold);
+		cursor: pointer;
+		transition: opacity 0.1s;
+	}
+
+	.btn-primary:hover:not(:disabled) {
+		opacity: 0.9;
+	}
+
+	.btn-primary:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	.confirm-message {
@@ -768,8 +1397,18 @@
 	@media (min-width: 768px) {
 		.section-header {
 			flex-direction: row;
-			align-items: center;
+			align-items: flex-start;
 			justify-content: space-between;
+			gap: var(--sp-4);
+		}
+
+		.section-header h2 {
+			white-space: nowrap;
+			padding-top: var(--sp-2);
+		}
+
+		.filter-bar {
+			max-width: 480px;
 		}
 
 		.search-input {

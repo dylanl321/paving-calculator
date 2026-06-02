@@ -1,14 +1,9 @@
 <script lang="ts">
 	import { BarChart } from 'layerchart';
-	import { onMount } from 'svelte';
+	import ChartMount from '$lib/components/charts/ChartMount.svelte';
 	import { spreadRateFromThickness } from '$lib/config/formulas';
 
 	let { targetRate = 0 }: { targetRate?: number } = $props();
-
-	let mounted = $state(false);
-	onMount(() => {
-		mounted = true;
-	});
 
 	// Lift-thickness candidates the crew commonly runs. The target rate is a
 	// pure function of thickness (THICK_MULT), so this is the real rate curve
@@ -24,14 +19,14 @@
 </script>
 
 <div class="chart">
-	{#if mounted}
+	<ChartMount>
 		<BarChart
 			{data}
 			x="thickness"
 			y="rate"
 			padding={{ left: 44, bottom: 24, top: 8, right: 8 }}
 		/>
-	{/if}
+	</ChartMount>
 </div>
 
 <style>
