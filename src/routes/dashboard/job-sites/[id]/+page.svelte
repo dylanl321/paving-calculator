@@ -89,6 +89,60 @@
 
 	let saving = $state(false);
 
+	// Photos state
+	let photos = $state<any[]>([]);
+	let selectedPhoto = $state<any | null>(null);
+
+	async function loadPhotos() {
+		try {
+			const res = await fetch(`/api/job-sites/${data.jobSite.id}/photos`);
+			if (!res.ok) return;
+			const result = await res.json();
+			photos = result.photos ?? [];
+			renderPhotoGrid();
+		} catch {
+			// ignore
+		}
+	}
+
+	function renderPhotoGrid() {
+		const grid = document.getElementById('photo-grid');
+		if (!grid) return;
+
+		if (photos.length === 0) {
+			grid.innerHTML = '<div class="empty-state-mini"><p>No photos yet</p></div>';
+			return;
+		}
+
+		grid.innerHTML = photos
+			.map(
+				(photo) => `
+			<div class="photo-thumb" data-photo-id="${photo.id}">
+				<img src="/api/job-sites/${data.jobSite.id}/photos/${photo.id}/view" alt="${photo.caption || photo.filename}" />
+				${photo.caption ? `<div class="photo-caption">${photo.caption}</div>` : ''}
+			</div>
+		`
+			)
+			.join('');
+
+		// Add click handlers
+		grid.querySelectorAll('.photo-thumb').forEach((el) => {
+			el.addEventListener('click', () => {
+				const photoId = el.getAttribute('data-photo-id');
+				const photo = photos.find((p) => p.id === photoId);
+				if (photo) openLightbox(photo);
+			});
+		});
+	}
+
+	function openLightbox(photo: any) {
+		selectedPhoto = photo;
+	}
+
+	function closeLightbox() {
+		selectedPhoto = null;
+	}
+
 	const roadTypeLabels = {
 		highway: 'Highway',
 		state_route: 'State Route',
@@ -546,6 +600,36 @@
 						{/await}
 					</div>
 				{/if}
+
+				{#if data.jobSite.latitude != null && data.jobSite.longitude != null}
+					<div class="photos-section">
+						<div class="photos-head">
+							<h4>Field Photos</h4>
+							{#await import('$lib/components/PhotoCapture.svelte')}
+								<span class="loading-text">Loading...</span>
+							{:then { default: PhotoCapture }}
+								<PhotoCapture
+									jobSiteId={data.jobSite.id}
+									onUploaded={loadPhotos}
+									compact={false}
+								/>
+							{/await}
+						</div>
+
+						{#await import('$lib/components/PhotoGeoMap.svelte')}
+							<div class="map-mini-loading">Loading photo map&hellip;</div>
+						{:then { default: PhotoGeoMap }}
+							<PhotoGeoMap
+								jobSiteId={data.jobSite.id}
+								lat={data.jobSite.latitude}
+								lng={data.jobSite.longitude}
+								height="360px"
+							/>
+						{/await}
+
+						<div class="photo-grid" id="photo-grid"></div>
+					</div>
+				{/if}
 			{:else}
 				{#if showLocationSearch || data.jobSite.latitude == null}
 					<div class="location-search">
@@ -976,6 +1060,44 @@
 		</section>
 	{/if}
 </div>
+
+{#if selectedPhoto}
+	<dialog class="lightbox" open onclick={closeLightbox}>
+		<div class="lightbox-content" onclick={(e) => e.stopPropagation()}>
+			<button type="button" class="lightbox-close" onclick={closeLightbox} aria-label="Close">
+				<svg
+					width="24"
+					height="24"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<line x1="18" y1="6" x2="6" y2="18" />
+					<line x1="6" y1="6" x2="18" y2="18" />
+				</svg>
+			</button>
+			<img
+				src="/api/job-sites/{data.jobSite.id}/photos/{selectedPhoto.id}/view"
+				alt={selectedPhoto.caption || selectedPhoto.filename}
+				class="lightbox-img"
+			/>
+			{#if selectedPhoto.caption}
+				<div class="lightbox-caption">{selectedPhoto.caption}</div>
+			{/if}
+			<div class="lightbox-meta">
+				{new Date(selectedPhoto.taken_at * 1000).toLocaleString()}
+				{#if selectedPhoto.lat != null && selectedPhoto.lng != null}
+					<span class="lightbox-gps">
+						📍 {selectedPhoto.lat.toFixed(6)}, {selectedPhoto.lng.toFixed(6)}
+					</span>
+				{/if}
+			</div>
+		</div>
+	</dialog>
+{/if}
 
 <style>
 	.dashboard {
@@ -1814,5 +1936,147 @@
 	.progress-map-sub {
 		font-size: 0.78rem;
 		color: var(--text-muted);
+	}
+
+	/* Photos section */
+	.photos-section {
+		margin-top: 20px;
+	}
+
+	.photos-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		margin-bottom: 12px;
+	}
+
+	.photos-head h4 {
+		margin: 0;
+		font-size: 0.95rem;
+		font-weight: 700;
+		color: var(--text);
+	}
+
+	.loading-text {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+
+	.photo-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 8px;
+		margin-top: 12px;
+	}
+
+	.photo-thumb {
+		position: relative;
+		aspect-ratio: 1;
+		border-radius: 6px;
+		overflow: hidden;
+		cursor: pointer;
+		border: 1px solid var(--border);
+		transition: transform 0.15s;
+	}
+
+	.photo-thumb:hover {
+		transform: scale(1.02);
+	}
+
+	.photo-thumb :global(img) {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+
+	:global(.photo-caption) {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+		color: white;
+		font-size: 0.75rem;
+		padding: 8px 6px 4px;
+		line-height: 1.2;
+	}
+
+	/* Lightbox */
+	.lightbox {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.9);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+		border: none;
+		padding: 20px;
+		max-width: 100vw;
+		max-height: 100vh;
+	}
+
+	.lightbox-content {
+		position: relative;
+		max-width: 90vw;
+		max-height: 90vh;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.lightbox-close {
+		position: absolute;
+		top: -40px;
+		right: 0;
+		background: transparent;
+		border: none;
+		color: white;
+		cursor: pointer;
+		padding: 8px;
+		z-index: 1001;
+		min-height: 40px;
+		min-width: 40px;
+	}
+
+	.lightbox-close:hover {
+		opacity: 0.7;
+	}
+
+	.lightbox-img {
+		max-width: 100%;
+		max-height: calc(90vh - 100px);
+		object-fit: contain;
+		border-radius: 8px;
+	}
+
+	.lightbox-caption {
+		color: white;
+		font-size: 1rem;
+		margin-top: 12px;
+		text-align: center;
+		font-weight: 500;
+	}
+
+	.lightbox-meta {
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.875rem;
+		margin-top: 8px;
+		text-align: center;
+		display: flex;
+		gap: 16px;
+		align-items: center;
+	}
+
+	.lightbox-gps {
+		font-family: monospace;
+	}
+
+	@media (max-width: 768px) {
+		.photo-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
 	}
 </style>

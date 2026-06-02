@@ -92,6 +92,11 @@
 		}
 	}
 
+	function handlePhotoUploaded() {
+		// Photo uploaded successfully - could reload log details here if needed
+		console.log('Photo uploaded');
+	}
+
 	function openEntryForm() {
 		const now = new Date();
 		entryForm = {
@@ -517,6 +522,20 @@
 					<label for="notes">Notes</label>
 					<textarea id="notes" bind:value={entryForm.notes} rows="3"></textarea>
 				</div>
+
+				<div class="field-compact">
+					<span class="field-label">Attach Photo</span>
+					{#await import('$lib/components/PhotoCapture.svelte')}
+						<span class="loading-hint">Loading...</span>
+					{:then { default: PhotoCapture }}
+						<PhotoCapture
+							jobSiteId={data.jobSite.id}
+							dailyLogId={currentLog?.id}
+							onUploaded={handlePhotoUploaded}
+							compact={false}
+						/>
+					{/await}
+				</div>
 			</div>
 
 			<div class="modal-footer">
@@ -719,7 +738,8 @@
 		gap: 6px;
 	}
 
-	.field-compact label {
+	.field-compact label,
+	.field-compact .field-label {
 		font-size: 0.8rem;
 		color: var(--text-muted);
 	}
