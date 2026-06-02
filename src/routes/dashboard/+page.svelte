@@ -98,6 +98,15 @@
 			<h2 class="page-title">Dashboard</h2>
 			<p class="page-subtitle">{data.org.name}</p>
 		</div>
+		{#if !showCreateForm}
+			<button class="btn-primary header-btn" onclick={() => (showCreateForm = true)}>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<line x1="12" y1="5" x2="12" y2="19"></line>
+					<line x1="5" y1="12" x2="19" y2="12"></line>
+				</svg>
+				New Job Site
+			</button>
+		{/if}
 	</div>
 
 	<nav class="quick-links">
@@ -139,46 +148,37 @@
 		{/if}
 	</nav>
 
-	<section class="stats-row">
-		<div class="stat-card">
-			<span class="stat-num">{totalSites}</span>
-			<span class="stat-cap">Job sites</span>
-		</div>
-		<div class="stat-card">
-			<span class="stat-num">{activeSites}</span>
-			<span class="stat-cap">Active</span>
-		</div>
-		<div class="stat-card">
-			<span class="stat-num">{totalCalcs}</span>
-			<span class="stat-cap">Saved calculations</span>
-		</div>
-		{#if statusData.length > 0}
-			<div class="stat-card chart-card">
-				<span class="stat-cap">Site status</span>
-				<div class="mini-chart">
-					{#if chartReady}
-						<PieChart data={statusData} key="status" value="count" innerRadius={-20} />
-					{/if}
+	<div class="dashboard-grid">
+		<aside class="stats-column">
+			<div class="stat-card">
+				<span class="stat-num">{totalSites}</span>
+				<span class="stat-cap">Total Sites</span>
+			</div>
+			<div class="stat-card">
+				<span class="stat-num">{activeSites}</span>
+				<span class="stat-cap">Active</span>
+			</div>
+			<div class="stat-card">
+				<span class="stat-num">{totalCalcs}</span>
+				<span class="stat-cap">Calculations</span>
+			</div>
+		</aside>
+
+		{#if mapSites.length > 0}
+			<section class="section map-section">
+				<div class="section-header">
+					<h3>Job Site Locations</h3>
 				</div>
-			</div>
+				{#await import('$lib/components/JobSiteMap.svelte')}
+					<div class="map-loading">Loading map&hellip;</div>
+				{:then { default: JobSiteMap }}
+					<JobSiteMap sites={mapSites} />
+				{/await}
+			</section>
 		{/if}
-	</section>
 
-	{#if mapSites.length > 0}
-		<section class="section">
-			<div class="section-header">
-				<h3>Job Site Locations</h3>
-			</div>
-			{#await import('$lib/components/JobSiteMap.svelte')}
-				<div class="map-loading">Loading map&hellip;</div>
-			{:then { default: JobSiteMap }}
-				<JobSiteMap sites={mapSites} />
-			{/await}
-		</section>
-	{/if}
-
-	<section class="section">
-		<div class="section-header">
+		<section class="main-section">
+		<div class="section-header mobile-header">
 			<h3>Active Job Sites</h3>
 			{#if !showCreateForm}
 				<button class="btn-primary" onclick={() => (showCreateForm = true)}>
@@ -270,17 +270,31 @@
 		{/if}
 	</section>
 </div>
+</div>
 
 <style>
 	.dashboard {
 		width: 100%;
 	}
 
-	.stats-row {
+	.dashboard-grid {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-4);
+	}
+
+	.stats-column {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 		gap: 14px;
-		margin-bottom: 28px;
+	}
+
+	.main-section {
+		width: 100%;
+	}
+
+	.header-btn {
+		display: none;
 	}
 
 	.stat-card {
@@ -328,6 +342,8 @@
 		justify-content: space-between;
 		align-items: flex-start;
 		margin-bottom: 24px;
+		flex-wrap: wrap;
+		gap: 16px;
 	}
 
 	.page-title {
@@ -614,5 +630,28 @@
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md, 12px);
+	}
+
+	@media (min-width: 1100px) {
+		.dashboard-grid {
+			display: grid;
+			grid-template-columns: 340px 1fr;
+			gap: var(--sp-6);
+			align-items: start;
+		}
+
+		.stats-column {
+			display: flex;
+			flex-direction: column;
+			gap: 14px;
+		}
+
+		.header-btn {
+			display: inline-flex;
+		}
+
+		.mobile-header {
+			display: none;
+		}
 	}
 </style>

@@ -82,6 +82,7 @@
 					class="nav-link"
 					class:active={isActive(item.href)}
 					onclick={closeDrawer}
+					title={item.label}
 				>
 					<span class="nav-icon" aria-hidden="true">
 						{#if item.icon === 'calc'}
