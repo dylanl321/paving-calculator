@@ -8,6 +8,7 @@
 	import YieldEfficiencyGauge from './YieldEfficiencyGauge.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { spreadToleranceFor } from '$lib/config';
+	import TicketCapture from './TicketCapture.svelte';
 
 	interface Props {
 		jobSiteId: string;
@@ -280,7 +281,22 @@
 			<TruckIcon size={24} />
 			<h3>Load Tracker</h3>
 		</div>
-		{#if !showNewLoadForm}
+		{#if !showNewLoadForm && isAuthenticated}
+			<div class="header-actions">
+				<TicketCapture
+					{jobSiteId}
+					onLogged={(load) => {
+						loads = [load, ...loads];
+					}}
+					{numLanes}
+					compact
+				/>
+				<button class="btn-new-load" onclick={() => { showNewLoadForm = true; }}>
+					<Plus size={20} />
+					New Load
+				</button>
+			</div>
+		{:else if !showNewLoadForm}
 			<button class="btn-new-load" onclick={() => { showNewLoadForm = true; }}>
 				<Plus size={20} />
 				New Load
@@ -616,6 +632,12 @@
 		margin: 0;
 		font-size: var(--fs-lg);
 		font-weight: var(--fw-bold);
+	}
+
+	.header-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
 	}
 
 	.btn-new-load,
