@@ -7,6 +7,7 @@ import {
 	getCurrentPosition,
 	reverseGeocode,
 	searchPlaces,
+	type DayForecast,
 	type GeoResult,
 	type RainHour,
 	type WeatherSnapshot
@@ -23,6 +24,7 @@ export interface WeatherState {
 	isRaining: boolean;
 	rainNext24hIn: number | null;
 	rainHours: RainHour[];
+	dailyForecast: DayForecast[];
 	manualTempF: number | null;
 	useManualTemp: boolean;
 	lastFetchedAt: number | null;
@@ -38,6 +40,7 @@ function initial(): WeatherState {
 		isRaining: false,
 		rainNext24hIn: null,
 		rainHours: [],
+		dailyForecast: [],
 		manualTempF: null,
 		useManualTemp: false,
 		lastFetchedAt: null
@@ -63,6 +66,7 @@ function applySnapshot(state: WeatherState, snap: WeatherSnapshot): WeatherState
 		isRaining: snap.isRaining,
 		rainNext24hIn: snap.rainNext24hIn,
 		rainHours: snap.rainHours,
+		dailyForecast: snap.dailyForecast,
 		lastFetchedAt: snap.fetchedAt
 	};
 }
@@ -104,6 +108,9 @@ class Weather {
 	}
 	get rainHours() {
 		return this.#state.rainHours;
+	}
+	get dailyForecast() {
+		return this.#state.dailyForecast;
 	}
 	get manualTempF() {
 		return this.#state.manualTempF;
