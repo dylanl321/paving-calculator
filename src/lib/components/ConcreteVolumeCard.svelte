@@ -103,80 +103,36 @@
 		{#if wasteFactor > 0}
 			<p>Waste factor of {wasteFactor}% applied to all results.</p>
 		{/if}
+		<p>Concrete volume calculation uses GDOT §500 Portland Cement Concrete Pavement (PCCP) methods. Standard mix design per §830 (portland cement, 94 lb/bag standard bag weight).</p>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>
 </CalcCard>
 
 <style>
-	.btn-clear {
-		width: 100%;
-		min-height: 3rem;
-		padding: 0.75rem;
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text-muted);
-		font-size: 0.9rem;
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-	.btn-clear:hover {
-		background: var(--surface-alt);
-		color: var(--text);
-	}
-
-
 	.waste-buttons {
 		display: flex;
-		gap: 8px;
-		margin: 12px 0;
+		gap: var(--sp-2);
+		margin: var(--sp-3) 0;
 	}
 	.waste-buttons button {
 		flex: 1;
-		padding: 10px 12px;
+		padding: var(--sp-3);
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		color: var(--text);
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		cursor: pointer;
-		transition: all 0.15s;
+		transition:
+			background var(--dur) var(--ease),
+			border-color var(--dur) var(--ease),
+			color var(--dur) var(--ease);
 	}
 	.waste-buttons button.active {
 		background: var(--accent);
 		color: var(--accent-text);
 		border-color: var(--accent);
-		font-weight: 700;
-	}
-	.results-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 10px;
-		margin: 12px 0;
-	}
-	.result-item {
-		background: var(--surface-alt);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		padding: 12px;
-		text-align: center;
-	}
-	.result-label {
-		font-size: 0.7rem;
-		color: var(--text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.4px;
-		margin-bottom: 4px;
-	}
-	.result-value {
-		font-size: 1.3rem;
-		font-weight: 700;
-		color: var(--text);
-	}
-	@media (max-width: 460px) {
-		.results-grid {
-			grid-template-columns: 1fr;
-		}
+		font-weight: var(--fw-bold);
 	}
 </style>

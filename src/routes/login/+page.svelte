@@ -239,7 +239,7 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		color: #f4f6f7;
+		color: var(--text);
 		font-weight: 700;
 		font-size: 1.05rem;
 		letter-spacing: 0.2px;
@@ -270,10 +270,22 @@
 		max-width: 420px;
 		padding: 40px 34px 30px;
 		border-radius: 22px;
-		background: rgba(24, 31, 37, 0.72);
-		border: 1px solid rgba(159, 176, 189, 0.18);
 		backdrop-filter: blur(18px) saturate(120%);
 		-webkit-backdrop-filter: blur(18px) saturate(120%);
+	}
+
+	[data-theme='light'] .auth-card {
+		background: rgba(255, 255, 255, 0.95);
+		border: 1px solid rgba(0, 0, 0, 0.12);
+		box-shadow:
+			0 28px 70px -28px rgba(0, 0, 0, 0.8),
+			inset 0 1px 0 rgba(255, 255, 255, 0.6);
+	}
+
+	[data-theme='dark'] .auth-card,
+	[data-theme='sunlight'] .auth-card {
+		background: rgba(24, 31, 37, 0.72);
+		border: 1px solid rgba(159, 176, 189, 0.18);
 		box-shadow:
 			0 28px 70px -28px rgba(0, 0, 0, 0.8),
 			inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -297,12 +309,12 @@
 		font-size: 1.85rem;
 		font-weight: 800;
 		letter-spacing: 0.2px;
-		color: #f4f6f7;
+		color: var(--text);
 	}
 
 	.auth-logo p {
 		margin: 0;
-		color: #9fb0bd;
+		color: var(--text-muted);
 		font-size: 0.95rem;
 		line-height: 1.4;
 	}
@@ -316,17 +328,17 @@
 		font-size: 0.85rem;
 		font-weight: 600;
 		margin-bottom: 8px;
-		color: #cdd8e0;
+		color: var(--text);
 	}
 
 	.form-field input {
 		width: 100%;
 		min-height: var(--touch);
 		padding: 0 16px;
-		background: rgba(15, 20, 24, 0.55);
-		border: 1px solid rgba(159, 176, 189, 0.22);
+		background: var(--bg);
+		border: 1px solid var(--border);
 		border-radius: var(--radius);
-		color: #f4f6f7;
+		color: var(--text);
 		font-size: 1rem;
 		transition:
 			border-color 0.18s,
@@ -335,32 +347,33 @@
 	}
 
 	.form-field input::placeholder {
-		color: #7e8f9c;
+		color: var(--text-muted);
+		opacity: 0.6;
 	}
 
 	.form-field input:focus {
 		outline: none;
-		background: rgba(15, 20, 24, 0.75);
-		border-color: #f2c037;
-		box-shadow: 0 0 0 3px rgba(242, 192, 55, 0.22);
+		background: var(--surface);
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 	}
 
 	.error-message {
 		padding: 12px 16px;
-		background: rgba(216, 88, 79, 0.18);
-		border: 1px solid #d8584f;
+		background: rgba(var(--bad-rgb), 0.18);
+		border: 1px solid var(--bad);
 		border-radius: var(--radius);
-		color: #f3b3ae;
+		color: var(--bad);
 		font-size: 0.9rem;
 		margin-bottom: 20px;
 	}
 
 	.success-message {
 		padding: 12px 16px;
-		background: rgba(77, 184, 142, 0.18);
-		border: 1px solid #4db88e;
+		background: color-mix(in srgb, var(--good) 18%, transparent);
+		border: 1px solid var(--good);
 		border-radius: var(--radius);
-		color: #b3f3dd;
+		color: var(--good);
 		font-size: 0.9rem;
 		margin-bottom: 20px;
 	}
@@ -369,14 +382,14 @@
 		width: 100%;
 		min-height: var(--touch);
 		margin-top: 4px;
-		background: #f2c037;
-		color: #1b2228;
+		background: var(--accent);
+		color: var(--accent-text);
 		border: none;
 		border-radius: var(--radius);
 		font-size: 1.05rem;
 		font-weight: 700;
 		cursor: pointer;
-		box-shadow: 0 8px 20px -8px rgba(242, 192, 55, 0.6);
+		box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--accent) 60%, transparent);
 		transition:
 			transform 0.15s,
 			box-shadow 0.15s,
@@ -385,7 +398,7 @@
 
 	.submit-btn:hover:not(:disabled) {
 		transform: translateY(-1px);
-		box-shadow: 0 12px 26px -8px rgba(242, 192, 55, 0.7);
+		box-shadow: 0 12px 26px -8px color-mix(in srgb, var(--accent) 70%, transparent);
 	}
 
 	.submit-btn:active:not(:disabled) {
@@ -403,14 +416,14 @@
 	}
 
 	.link-subtle {
-		color: #9fb0bd;
+		color: var(--text-muted);
 		font-size: 0.88rem;
 		text-decoration: none;
 		transition: color 0.18s;
 	}
 
 	.link-subtle:hover {
-		color: #cdd8e0;
+		color: var(--text);
 		text-decoration: underline;
 	}
 
@@ -419,8 +432,8 @@
 		min-height: var(--touch);
 		margin-top: 14px;
 		background: transparent;
-		color: #cdd8e0;
-		border: 1px dashed rgba(159, 176, 189, 0.4);
+		color: var(--text);
+		border: 1px dashed var(--border);
 		border-radius: var(--radius);
 		font-size: 0.9rem;
 		font-weight: 600;
@@ -432,9 +445,9 @@
 	}
 
 	.dev-btn:hover:not(:disabled) {
-		color: #f4f6f7;
-		border-color: rgba(159, 176, 189, 0.7);
-		background: rgba(159, 176, 189, 0.08);
+		color: var(--text);
+		border-color: var(--border);
+		background: var(--surface-hover);
 	}
 
 	.dev-btn:disabled {
@@ -446,11 +459,11 @@
 		margin-top: 24px;
 		text-align: center;
 		font-size: 0.9rem;
-		color: #9fb0bd;
+		color: var(--text-muted);
 	}
 
 	.link {
-		color: #f2c037;
+		color: var(--accent);
 		font-weight: 600;
 		text-decoration: none;
 	}
@@ -463,7 +476,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 7px;
-		color: #cdd8e0;
+		color: rgba(255, 255, 255, 0.9);
 		font-size: 0.88rem;
 		text-decoration: none;
 		padding: 9px 16px;
@@ -478,7 +491,7 @@
 			border-color 0.18s;
 	}
 	.back-link:hover {
-		color: #f4f6f7;
+		color: rgba(255, 255, 255, 1);
 		background: rgba(24, 31, 37, 0.9);
 		border-color: rgba(159, 176, 189, 0.35);
 	}

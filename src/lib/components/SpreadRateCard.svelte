@@ -6,6 +6,7 @@
 	import SourceBadge from './SourceBadge.svelte';
 	import SpreadRateGauge from './SpreadRateGauge.svelte';
 	import DotTable from './DotTable.svelte';
+	import SpecAlert from './SpecAlert.svelte';
 	import { constantMeta, placementCheck, rainCheck, spreadSpecCheck, spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -226,6 +227,7 @@
 				label="Tons placed"
 				unit={UNIT_LABELS.tons[unitsStore.system]}
 				bind:value={tonsInput}
+				hint="Enter actual weight from load ticket"
 			/>
 			<NumberField
 				label="Distance covered"
@@ -243,17 +245,15 @@
 	{#if placedRate != null && targetRate != null}
 		<SpreadRateGauge actual={placedRate} target={targetRate} toleranceLbsSy={tolerance.toleranceLbsSy} />
 		{#if spec}
-			<div class="spec-note {spec.status}">
-				<p class="spec-message">{spec.message}</p>
-				{#if (spec.status === 'warn' || spec.status === 'bad') && distanceFt && job.widthFt}
-					<button type="button" class="snap-btn" onclick={snapToTarget}>
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-						</svg>
-						Snap to spec
-					</button>
-				{/if}
-			</div>
+			<SpecAlert status={spec.status} message={spec.message} clause={spec.clause} clauseTitle={spec.clauseTitle} />
+			{#if (spec.status === 'warn' || spec.status === 'bad') && distanceFt && job.widthFt}
+				<button type="button" class="snap-btn" onclick={snapToTarget}>
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+					</svg>
+					Snap to spec
+				</button>
+			{/if}
 		{/if}
 	{/if}
 
@@ -276,56 +276,38 @@
 </CalcCard>
 
 <style>
-	.btn-clear {
-		width: 100%;
-		min-height: 3rem;
-		padding: 0.75rem;
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text-muted);
-		font-size: 0.9rem;
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-	.btn-clear:hover {
-		background: var(--surface-alt);
-		color: var(--text);
-	}
-
-
 	.two-up {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 14px;
+		gap: var(--sp-4);
 	}
 	.col-head {
-		font-size: 0.78rem;
-		font-weight: 700;
+		font-size: var(--fs-2xs);
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.4px;
 		color: var(--text-muted);
-		margin-bottom: 8px;
+		margin-bottom: var(--sp-2);
 	}
 	.col-note {
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 		color: var(--text-muted);
-		margin: 6px 0 0;
+		margin: var(--sp-2) 0 0;
 	}
 	.override-toggle {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		min-height: 48px;
+		gap: var(--sp-2);
+		min-height: var(--touch);
 		width: 100%;
-		padding: 12px;
-		margin-bottom: 8px;
+		padding: var(--sp-3);
+		margin-bottom: var(--sp-2);
 		background: transparent;
 		border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
-		border-radius: 8px;
+		border-radius: var(--radius-sm);
 		color: var(--text-muted);
-		font-size: 0.875rem;
-		font-weight: 500;
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-medium);
 		cursor: pointer;
 		transition: all 0.15s ease;
 	}
@@ -344,49 +326,49 @@
 		transform: rotate(180deg);
 	}
 	.override-section {
-		margin-bottom: 12px;
+		margin-bottom: var(--sp-3);
 	}
 	.warning-banner {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 12px;
-		margin: 8px 0 0;
-		padding: 12px;
+		gap: var(--sp-3);
+		margin: var(--sp-2) 0 0;
+		padding: var(--sp-3);
 		background: color-mix(in srgb, var(--warn) 16%, transparent);
 		border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
-		border-radius: 8px;
+		border-radius: var(--radius-sm);
 	}
 	.warning-content {
 		display: flex;
 		align-items: flex-start;
-		gap: 8px;
+		gap: var(--sp-2);
 		flex: 1;
 	}
 	.warning-icon {
-		color: #f2c037;
+		color: var(--accent);
 		flex-shrink: 0;
 		margin-top: 2px;
 	}
 	.warning-text {
-		font-size: 0.75rem;
+		font-size: var(--fs-xs);
 		line-height: 1.4;
 		color: var(--warn);
-		font-weight: 500;
+		font-weight: var(--fw-medium);
 	}
 	.clear-button {
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		min-height: 48px;
-		min-width: 48px;
-		padding: 10px 14px;
+		gap: var(--sp-2);
+		min-height: var(--touch);
+		min-width: var(--touch);
+		padding: var(--sp-3) var(--sp-4);
 		background: color-mix(in srgb, var(--surface-2) 80%, transparent);
 		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
-		border-radius: 6px;
+		border-radius: var(--radius-sm);
 		color: var(--warn);
-		font-size: 0.8125rem;
-		font-weight: 600;
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
 		cursor: pointer;
 		transition: all 0.15s ease;
 		flex-shrink: 0;
@@ -401,61 +383,34 @@
 	.clear-button svg {
 		flex-shrink: 0;
 	}
-	.spec-note {
-		margin: 10px 0 0;
-		padding: 10px 12px;
-		border-radius: 8px;
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		justify-content: space-between;
-		flex-wrap: wrap;
-	}
-	.spec-note.good {
-		background: color-mix(in srgb, var(--good) 16%, transparent);
-		color: var(--good);
-	}
-	.spec-note.warn {
-		background: color-mix(in srgb, var(--warn) 16%, transparent);
-		color: var(--warn);
-	}
-	.spec-note.bad {
-		background: color-mix(in srgb, var(--bad) 16%, transparent);
-		color: var(--bad);
-	}
-	.spec-message {
-		font-size: 0.78rem;
-		line-height: 1.35;
-		margin: 0;
-		flex: 1;
-		min-width: 150px;
-	}
 	.snap-btn {
+		margin-top: var(--sp-2);
+		width: 100%;
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		padding: 6px 12px;
-		min-height: 36px;
-		background: currentColor;
-		color: var(--surface);
-		border: none;
-		border-radius: 6px;
-		font-size: 0.75rem;
-		font-weight: 700;
+		justify-content: center;
+		gap: var(--sp-2);
+		padding: var(--sp-3);
+		min-height: var(--touch);
+		background: var(--surface-alt);
+		color: var(--text);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
 		cursor: pointer;
 		white-space: nowrap;
-		transition: opacity 0.2s, transform 0.15s;
-		flex-shrink: 0;
+		transition: all 0.15s;
 	}
 	.snap-btn:hover {
-		opacity: 0.9;
+		background: var(--surface-hover);
 	}
 	.snap-btn:active {
-		transform: scale(0.97);
+		transform: scale(0.98);
 	}
 	.snap-btn svg {
-		width: 14px;
-		height: 14px;
+		width: 16px;
+		height: 16px;
 	}
 	@media (max-width: 460px) {
 		.two-up {

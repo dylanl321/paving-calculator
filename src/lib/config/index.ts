@@ -109,6 +109,7 @@ export interface WeatherConfig {
 	rainBlockIn: number;
 	tempWarnMarginF: number;
 	ogfcMinAirTempF: number;
+	tackMinAirTempF: number;
 	wetSurfaceBlocked: boolean;
 }
 
@@ -152,6 +153,7 @@ export interface ThemeTokens {
 export interface ThemeSet {
 	dark: ThemeTokens;
 	light: ThemeTokens;
+	sunlight: ThemeTokens;
 }
 
 export interface RefTable2Row {
@@ -312,6 +314,8 @@ export interface SpreadSpecCheck {
 	label: string;
 	courseLabel: string;
 	message: string;
+	clause: string;
+	clauseTitle: string;
 }
 
 /**
@@ -338,7 +342,9 @@ export function spreadSpecCheck(
 			deltaLbsSy: delta,
 			label: 'In spec',
 			courseLabel: tol.label,
-			message: `Within ±${tol.toleranceLbsSy} lbs/SY (Table 12, ${tol.label})`
+			message: `Within ±${tol.toleranceLbsSy} lbs/SY (Table 12, ${tol.label})`,
+			clause: '§400.4.A.2.b Table 12',
+			clauseTitle: 'Spread Rate Tolerance'
 		};
 	}
 	if (absDelta <= tol.toleranceLbsSy * 1.5) {
@@ -348,7 +354,9 @@ export function spreadSpecCheck(
 			deltaLbsSy: delta,
 			label: `Marginal — ${off}`,
 			courseLabel: tol.label,
-			message: `${off}; tolerance is ±${tol.toleranceLbsSy} lbs/SY (Table 12, ${tol.label})`
+			message: `${off}; tolerance is ±${tol.toleranceLbsSy} lbs/SY (Table 12, ${tol.label})`,
+			clause: '§400.4.A.2.b Table 12',
+			clauseTitle: 'Spread Rate Tolerance'
 		};
 	}
 	return {
@@ -357,7 +365,9 @@ export function spreadSpecCheck(
 		deltaLbsSy: delta,
 		label: `Out of spec — ${off}`,
 		courseLabel: tol.label,
-		message: `${off}; exceeds ±${tol.toleranceLbsSy} lbs/SY (Table 12, ${tol.label})`
+		message: `${off}; exceeds ±${tol.toleranceLbsSy} lbs/SY (Table 12, ${tol.label})`,
+		clause: '§400.4.A.2.b Table 12',
+		clauseTitle: 'Spread Rate Tolerance'
 	};
 }
 
@@ -367,6 +377,8 @@ export interface PlacementCheck {
 	status: PlacementStatus;
 	minTempF: number;
 	message: string;
+	clause: string;
+	clauseTitle: string;
 }
 
 /** Compare live air temp against GDOT Table 4 minimum for the job lift thickness. */
@@ -378,20 +390,26 @@ export function placementCheck(airTempF: number | null, thicknessIn: number): Pl
 		return {
 			status: 'pass',
 			minTempF: entry.minAirTempF,
-			message: `Air temp OK for ${thicknessIn}" lift (min ${entry.minAirTempF}°F per Table 4)`
+			message: `Air temp OK for ${thicknessIn}" lift (min ${entry.minAirTempF}°F per Table 4)`,
+			clause: '§400.3.05.E Table 4',
+			clauseTitle: 'HMA Lift Thickness — Weather Limitations'
 		};
 	}
 	if (airTempF >= entry.minAirTempF - margin) {
 		return {
 			status: 'warn',
 			minTempF: entry.minAirTempF,
-			message: `Borderline — ${airTempF}°F is within ${margin}°F of ${entry.minAirTempF}°F minimum for ${thicknessIn}" lift`
+			message: `Borderline — ${airTempF}°F is within ${margin}°F of ${entry.minAirTempF}°F minimum for ${thicknessIn}" lift`,
+			clause: '§400.3.05.E Table 4',
+			clauseTitle: 'HMA Lift Thickness — Weather Limitations'
 		};
 	}
 	return {
 		status: 'fail',
 		minTempF: entry.minAirTempF,
-		message: `Too cold — ${airTempF}°F is below ${entry.minAirTempF}°F minimum for ${thicknessIn}" lift`
+		message: `Too cold — ${airTempF}°F is below ${entry.minAirTempF}°F minimum for ${thicknessIn}" lift`,
+		clause: '§400.3.05.E Table 4',
+		clauseTitle: 'HMA Lift Thickness — Weather Limitations'
 	};
 }
 
@@ -399,6 +417,43 @@ export interface RainCheck {
 	status: PlacementStatus;
 	totalIn: number;
 	message: string;
+	clause: string;
+	clauseTitle: string;
+}
+
+export interface TackTempCheck {
+	status: PlacementStatus;
+	message: string;
+	clause: string;
+	clauseTitle: string;
+}
+
+/** Tack coat air temperature check — GDOT §413.3.05.A requires ≥40°F. */
+export function tackTempCheck(airTempF: number | null): TackTempCheck | null {
+	if (airTempF == null) return null;
+	const minTemp = weatherConfig.tackMinAirTempF;
+	if (airTempF < minTemp) {
+		return {
+			status: 'fail',
+			message: `Too cold for tack coat — §413.3.05.A requires air temp ≥ ${minTemp}°F in shade`,
+			clause: '§413.3.05.A',
+			clauseTitle: 'Tack Coat — Seasonal & Weather Limitation'
+		};
+	}
+	if (airTempF < minTemp + 5) {
+		return {
+			status: 'warn',
+			message: `Borderline for tack — air temp is near ${minTemp}°F minimum`,
+			clause: '§413.3.05.A',
+			clauseTitle: 'Tack Coat — Seasonal & Weather Limitation'
+		};
+	}
+	return {
+		status: 'pass',
+		message: `Air temp OK for tack coat (min ${minTemp}°F)`,
+		clause: '§413.3.05.A',
+		clauseTitle: 'Tack Coat — Seasonal & Weather Limitation'
+	};
 }
 
 /** Rain forecast check for paving / tack decisions. */
@@ -408,19 +463,25 @@ export function rainCheck(totalRainIn: number | null): RainCheck | null {
 		return {
 			status: 'fail',
 			totalIn: totalRainIn,
-			message: `${totalRainIn.toFixed(2)} in rain forecast — do not pave or tack on wet surfaces`
+			message: `${totalRainIn.toFixed(2)} in rain forecast — do not pave or tack on wet surfaces`,
+			clause: '§400.3.05.E',
+			clauseTitle: 'HMA Weather Limitations — Wet/Frozen Surface'
 		};
 	}
 	if (totalRainIn >= weatherConfig.rainWarnIn) {
 		return {
 			status: 'warn',
 			totalIn: totalRainIn,
-			message: `${totalRainIn.toFixed(2)} in rain forecast — watch tack timing and surface moisture`
+			message: `${totalRainIn.toFixed(2)} in rain forecast — watch tack timing and surface moisture`,
+			clause: '§400.3.05.E',
+			clauseTitle: 'HMA Weather Limitations — Wet/Frozen Surface'
 		};
 	}
 	return {
 		status: 'pass',
 		totalIn: totalRainIn,
-		message: `No significant rain in next 24 h (${totalRainIn.toFixed(2)} in)`
+		message: `No significant rain in next 24 h (${totalRainIn.toFixed(2)} in)`,
+		clause: '§400.3.05.E',
+		clauseTitle: 'HMA Weather Limitations — Wet/Frozen Surface'
 	};
 }

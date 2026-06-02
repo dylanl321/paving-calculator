@@ -455,7 +455,7 @@
 		display: inline-block;
 		width: 20px;
 		height: 5px;
-		background: #22c55e;
+		background: var(--good);
 		border-radius: 3px;
 		opacity: 0.85;
 	}
@@ -464,7 +464,7 @@
 		display: inline-block;
 		width: 20px;
 		height: 3px;
-		background: #64748b;
+		background: var(--text-muted);
 		border-radius: 3px;
 		opacity: 0.6;
 	}

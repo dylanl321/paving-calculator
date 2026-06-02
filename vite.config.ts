@@ -1,18 +1,26 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import yaml from '@rollup/plugin-yaml';
 import { defineConfig } from 'vite';
 
+const root = path.dirname(fileURLToPath(import.meta.url));
+
 export default defineConfig({
+	resolve: {
+		alias: {
+			'layerchart/dist/states/chart.svelte.js': path.resolve(
+				root,
+				'patches/layerchart-chart.svelte.js'
+			)
+		}
+	},
 	plugins: [
 		yaml(),
 		sveltekit(),
 		SvelteKitPWA({
 			registerType: 'autoUpdate',
-			workbox: {
-				globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
-				navigateFallback: '/'
-			},
 			manifest: {
 				name: 'Paverate',
 				short_name: 'Paverate',
