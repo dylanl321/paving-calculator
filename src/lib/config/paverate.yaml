@@ -185,7 +185,7 @@ jobSite:
           type: boolean
         - key: truckLoadTons
           label: Truck load size
-          hint: Typical load weight for feet-left and tonnage calculators. Default from fleet rule-of-thumb (CONST.TRUCK_LOAD).
+          hint: Typical load weight for feet-left and tonnage calculators. Default from your fleet rule-of-thumb truck load setting.
           unit: tons
           type: number
     - id: material
