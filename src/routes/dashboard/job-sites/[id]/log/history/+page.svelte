@@ -3,10 +3,12 @@
 	import { config } from '$lib/config';
 	import type { PageData } from './$types';
 	import DailySummaryReport from '$lib/components/DailySummaryReport.svelte';
+	import WeeklyMonthlyReport from '$lib/components/WeeklyMonthlyReport.svelte';
 	import ProductionLineChart from '$lib/components/charts/ProductionLineChart.svelte';
 
 	let { data }: { data: PageData } = $props();
 	let summaryLog = $state<any>(null);
+	let showReports = $state(false);
 
 	// Build chart data from logs, sorted by date ascending
 	const chartData = $derived(
@@ -113,21 +115,40 @@
 			<h2 class="page-title">Log History</h2>
 			<p class="page-subtitle">{data.logs.length} day{data.logs.length === 1 ? '' : 's'} logged</p>
 		</div>
-		<a href="/dashboard/job-sites/{data.jobSite.id}/log" class="btn-secondary">
-			<svg
-				width="18"
-				height="18"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-			>
-				<polyline points="15 18 9 12 15 6"></polyline>
-			</svg>
-			Back to Today
-		</a>
+		<div class="header-actions">
+			<button class="btn-primary" onclick={() => (showReports = true)}>
+				<svg
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+					<line x1="3" y1="9" x2="21" y2="9"></line>
+					<line x1="9" y1="21" x2="9" y2="9"></line>
+				</svg>
+				Reports
+			</button>
+			<a href="/dashboard/job-sites/{data.jobSite.id}/log" class="btn-secondary">
+				<svg
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<polyline points="15 18 9 12 15 6"></polyline>
+				</svg>
+				Back to Today
+			</a>
+		</div>
 	</div>
 
 	{#if data.logs.length === 0}
@@ -240,6 +261,13 @@
 	/>
 {/if}
 
+{#if showReports}
+	<WeeklyMonthlyReport
+		jobSiteId={data.jobSite.id}
+		onClose={() => (showReports = false)}
+	/>
+{/if}
+
 <style>
 	.dashboard {
 		width: 100%;
@@ -274,6 +302,12 @@
 		align-items: flex-start;
 		gap: 16px;
 		margin-bottom: 24px;
+	}
+
+	.header-actions {
+		display: flex;
+		gap: 10px;
+		flex-wrap: wrap;
 	}
 
 	.page-title {
