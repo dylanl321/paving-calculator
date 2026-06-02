@@ -4,6 +4,7 @@
 	import type { PageData } from './$types';
 	import GpsStationButton from '$lib/components/GpsStationButton.svelte';
 	import type { RouteWaypoint } from '$lib/services/gpsStation';
+	import TimeInput from '$lib/components/TimeInput.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -342,11 +343,11 @@
 				</div>
 				<div class="field-compact">
 					<label for="start">Start</label>
-					<input type="time" id="start" bind:value={currentLog.start_time} onblur={updateLog} />
+					<TimeInput bind:value={currentLog.start_time} id="start" onchange={updateLog} />
 				</div>
 				<div class="field-compact">
 					<label for="end">End</label>
-					<input type="time" id="end" bind:value={currentLog.end_time} onblur={updateLog} />
+					<TimeInput bind:value={currentLog.end_time} id="end" onchange={updateLog} />
 				</div>
 			</div>
 		</section>
@@ -463,7 +464,7 @@
 
 				<div class="field-compact">
 					<label for="entry-time">Time</label>
-					<input type="time" id="entry-time" bind:value={entryForm.timestamp} />
+					<TimeInput bind:value={entryForm.timestamp} id="entry-time" />
 				</div>
 
 				<div class="field-row">
