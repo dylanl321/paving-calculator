@@ -6,6 +6,7 @@
 	import type { PageData } from './$types';
 	import { MapPin } from 'lucide-svelte';
 	import LoadTracker from '$lib/components/LoadTracker.svelte';
+	import TruckQueue from '$lib/components/TruckQueue.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -900,6 +901,8 @@
 		</section>
 
 		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
+
+		<TruckQueue jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
 
 		<section class="panel">
 			<div class="panel-head">
