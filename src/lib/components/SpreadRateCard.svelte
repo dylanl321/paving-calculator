@@ -11,11 +11,38 @@
 	import { spreadRateFromThickness, spreadRatePlaced } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
+	import { unitsStore } from '$lib/stores/units.svelte';
+	import {
+		UNIT_LABELS,
+		toMeters,
+		fromMeters,
+		toMetricTonnes,
+		fromMetricTonnes,
+		toKgPerM2,
+		fromKgPerM2
+	} from '$lib/utils/unitConvert';
 
 	// Reality-check inputs (local to this calc; width/thickness/machine are shared).
-	let tons = $state<number | null>(null);
-	let distanceFt = $state<number | null>(null);
-	let customTargetRate = $state<number | null>(null);
+	let tonsInput = $state<number | null>(null);
+	let distanceInput = $state<number | null>(null);
+	let customTargetRateInput = $state<number | null>(null);
+
+	// Convert inputs to imperial for formula
+	const tons = $derived(
+		tonsInput != null && unitsStore.system === 'metric'
+			? fromMetricTonnes(tonsInput)
+			: tonsInput
+	);
+	const distanceFt = $derived(
+		distanceInput != null && unitsStore.system === 'metric'
+			? fromMeters(distanceInput)
+			: distanceInput
+	);
+	const customTargetRate = $derived(
+		customTargetRateInput != null && unitsStore.system === 'metric'
+			? fromKgPerM2(customTargetRateInput)
+			: customTargetRateInput
+	);
 
 	const targetRate = $derived(
 		customTargetRate != null && customTargetRate > 0
@@ -96,12 +123,16 @@
 			<div class="col-head">Target (from job thickness)</div>
 			<NumberField
 				label="Custom target (optional)"
-				unit="lbs/SY"
-				bind:value={customTargetRate}
+				unit={UNIT_LABELS.lbsSy[unitsStore.system]}
+				bind:value={customTargetRateInput}
 			/>
+			{@const displayTargetRate =
+				targetRate != null && unitsStore.system === 'metric'
+					? toKgPerM2(targetRate)
+					: targetRate}
 			<ResultStat
-				value={targetRate != null ? Math.round(targetRate) : null}
-				unit="lbs / SY"
+				value={displayTargetRate != null ? Math.round(displayTargetRate) : null}
+				unit={UNIT_LABELS.lbsSy[unitsStore.system]}
 				badge={targetBadge}
 			/>
 			<p class="col-note">
@@ -115,11 +146,23 @@
 
 		<div class="col">
 			<div class="col-head">Actual (from a real load)</div>
-			<NumberField label="Tons placed" unit="tons" bind:value={tons} />
-			<NumberField label="Distance covered" unit="ft" bind:value={distanceFt} />
+			<NumberField
+				label="Tons placed"
+				unit={UNIT_LABELS.tons[unitsStore.system]}
+				bind:value={tonsInput}
+			/>
+			<NumberField
+				label="Distance covered"
+				unit={UNIT_LABELS.ft[unitsStore.system]}
+				bind:value={distanceInput}
+			/>
+			{@const displayPlacedRate =
+				placedRate != null && unitsStore.system === 'metric'
+					? toKgPerM2(placedRate)
+					: placedRate}
 			<ResultStat
-				value={placedRate != null ? Math.round(placedRate) : null}
-				unit="lbs / SY"
+				value={displayPlacedRate != null ? Math.round(displayPlacedRate) : null}
+				unit={UNIT_LABELS.lbsSy[unitsStore.system]}
 				badge={badge}
 			/>
 		</div>

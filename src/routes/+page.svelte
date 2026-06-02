@@ -11,6 +11,7 @@
 	import TodayView from '$lib/components/workspace/TodayView.svelte';
 	import TodaySummary from '$lib/components/workspace/TodaySummary.svelte';
 	import LogToToday from '$lib/components/workspace/LogToToday.svelte';
+	import UnitToggle from '$lib/components/UnitToggle.svelte';
 
 	const isToday = $derived($page.url.searchParams.get('view') === 'today');
 	const activeTool = $derived(findTool($page.url.searchParams.get('tool')));
@@ -72,8 +73,13 @@
 		{:else}
 			<section class="stage">
 				<header class="stage-head">
-					<div class="eyebrow">Calculator</div>
-					<h1 class="stage-title">{activeTool.label}</h1>
+					<div class="stage-head-row">
+						<div>
+							<div class="eyebrow">Calculator</div>
+							<h1 class="stage-title">{activeTool.label}</h1>
+						</div>
+						<UnitToggle />
+					</div>
 				</header>
 
 				<div class="stage-body">
@@ -141,6 +147,12 @@
 
 	.stage-head {
 		margin-bottom: var(--sp-4);
+	}
+	.stage-head-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: var(--sp-3);
 	}
 	.stage-title {
 		margin: 2px 0 0;
