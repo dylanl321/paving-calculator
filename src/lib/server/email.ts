@@ -110,6 +110,113 @@ export function buildEmailTemplate(
 </html>`;
 }
 
+function buildInvitationEmailTemplate(
+	params: {
+		inviterName: string;
+		orgName: string;
+		inviteUrl: string;
+	},
+	branding?: OrgBranding
+): string {
+	const accentColor = branding?.accentColor ?? '#f2c037';
+	const buttonTextColor = getContrastColor(accentColor);
+	const displayOrgName = branding?.orgName ?? params.orgName;
+	const showPoweredBy = displayOrgName !== 'PaveRate';
+
+	const roadIconSvg = `<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="8" y="20" width="32" height="8" fill="${buttonTextColor}" opacity="0.9"/>
+  <rect x="16" y="22" width="3" height="4" fill="${accentColor}"/>
+  <rect x="24" y="22" width="3" height="4" fill="${accentColor}"/>
+  <rect x="32" y="22" width="3" height="4" fill="${accentColor}"/>
+  <path d="M8 20 L6 14 L10 14 Z" fill="${buttonTextColor}" opacity="0.7"/>
+  <path d="M40 20 L42 14 L38 14 Z" fill="${buttonTextColor}" opacity="0.7"/>
+</svg>`;
+
+	return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>You've been invited to ${displayOrgName}</title>
+  <style>
+    @media only screen and (max-width: 600px) {
+      .container { padding: 24px !important; }
+      .header { padding: 32px 24px !important; }
+      .org-name { font-size: 28px !important; }
+      .cta-button { padding: 16px 32px !important; width: 100% !important; box-sizing: border-box; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;background:#1b2228;">
+  <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#1b2228;padding:20px 10px;">
+    <tr>
+      <td align="center">
+        <table cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;background:#232c34;border:1px solid #37444f;border-radius:12px;overflow:hidden;">
+          <tr>
+            <td class="header" style="background:${accentColor};padding:40px 32px;text-align:center;">
+              ${roadIconSvg}
+              <h1 class="org-name" style="color:${buttonTextColor};margin:16px 0 0;font-size:32px;font-weight:700;line-height:1.2;">${displayOrgName}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td class="container" style="padding:32px;">
+              <h2 style="color:#f4f6f7;margin:0 0 24px;font-size:22px;font-weight:600;line-height:1.3;">
+                You have been invited to join ${displayOrgName}
+              </h2>
+
+              <div style="background:#1b2228;border:2px solid ${accentColor};border-radius:8px;padding:20px;margin:0 0 28px;">
+                <p style="color:#f4f6f7;font-size:16px;margin:0;line-height:1.5;">
+                  <strong style="color:${accentColor};">${params.inviterName}</strong> has invited you to <strong>${displayOrgName}</strong>
+                </p>
+              </div>
+
+              <p style="color:#cdd8e0;font-size:15px;line-height:1.6;margin:0 0 20px;">
+                Join the team and get access to:
+              </p>
+
+              <ul style="color:#cdd8e0;font-size:15px;line-height:1.8;margin:0 0 32px;padding-left:20px;">
+                <li style="margin-bottom:8px;">Track daily paving progress</li>
+                <li style="margin-bottom:8px;">Real-time spec compliance alerts</li>
+                <li>Crew coordination tools</li>
+              </ul>
+
+              <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td align="center">
+                    <a href="${params.inviteUrl}" class="cta-button" style="display:inline-block;padding:16px 48px;background:${accentColor};color:${buttonTextColor};text-decoration:none;border-radius:8px;font-weight:700;font-size:18px;text-align:center;">
+                      Accept Invitation
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="color:#7e8f9c;font-size:13px;line-height:1.5;margin:28px 0 0;text-align:center;">
+                This invitation expires in 7 days
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#141a1f;padding:24px 32px;border-top:1px solid #37444f;">
+              <p style="color:#7e8f9c;font-size:12px;line-height:1.6;margin:0 0 ${showPoweredBy ? '12px' : '0'};text-align:center;">
+                You received this because someone invited you to ${displayOrgName} on PaveRate
+              </p>${
+				showPoweredBy
+					? `
+              <p style="color:#7e8f9c;font-size:12px;margin:0;text-align:center;">
+                Powered by <a href="https://paverate.com" style="color:${accentColor};text-decoration:none;">PaveRate</a>
+              </p>`
+					: ''
+			}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
 export async function sendVerificationEmail(
 	apiKey: string | undefined,
 	to: string,
@@ -204,14 +311,11 @@ export async function sendInvitationEmail(
 	const fromName = branding?.emailFromName ?? 'PaveRate';
 	const displayOrgName = branding?.orgName ?? orgName;
 
-	const html = buildEmailTemplate(
+	const html = buildInvitationEmailTemplate(
 		{
-			title: "You've been invited",
-			greeting: `Hi there,`,
-			message: `${inviterName} has invited you to join <strong>${displayOrgName}</strong> on PaveRate. Click below to accept the invitation and get started.`,
-			ctaText: 'Accept Invitation',
-			ctaUrl: inviteUrl,
-			footer: 'This invitation will expire in 7 days.'
+			inviterName,
+			orgName,
+			inviteUrl
 		},
 		branding
 	);
