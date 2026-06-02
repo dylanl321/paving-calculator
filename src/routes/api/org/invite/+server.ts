@@ -2,7 +2,6 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireAuth } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
 import { recordAudit } from '$lib/server/audit';
-import { sendInvitationEmail, type OrgBranding } from '$lib/server/email';
 
 export async function POST(event: RequestEvent) {
 	try {
@@ -14,7 +13,7 @@ export async function POST(event: RequestEvent) {
 			return json({ error: 'Email and role are required' }, { status: 400 });
 		}
 
-		if (!['owner', 'admin', 'member', 'foreman', 'operator', 'inspector', 'office', 'laborer'].includes(role)) {
+		if (!['owner', 'admin', 'member', 'foreman', 'operator', 'inspector', 'office'].includes(role)) {
 			return json({ error: 'Invalid role' }, { status: 400 });
 		}
 
@@ -60,24 +59,9 @@ export async function POST(event: RequestEvent) {
 			userAgent: event.request.headers.get('user-agent') || undefined
 		});
 
-		// Send invitation email (fire-and-forget)
-		const settings = await db.getOrgSettings(org.id);
-		const branding: OrgBranding = {
-			orgName: org.name,
-			accentColor: settings?.accent_color ?? undefined,
-			emailFromName: settings?.email_from_name ?? undefined,
-			emailReplyTo: settings?.email_reply_to ?? undefined
-		};
-		const baseUrl = new URL(event.request.url).origin;
-		sendInvitationEmail(
-			event.platform!.env.RESEND_API_KEY,
-			email,
-			user.name,
-			org.name,
-			invitation.token,
-			baseUrl,
-			branding
-		).catch((err) => console.error('Failed to send invitation email:', err));
+		// TODO: Send email with invitation link
+		// For now, just return the token
+		console.log(`Invitation token for ${email}: ${invitation.token}`);
 
 		return json({
 			invitation: {

@@ -1,7 +1,6 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireAuth } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
-import { recordAudit } from '$lib/server/audit';
 
 export async function PATCH(event: RequestEvent) {
 	try {
@@ -10,7 +9,7 @@ export async function PATCH(event: RequestEvent) {
 		const body = await event.request.json();
 		const { role } = body;
 
-		if (!role || !['owner', 'admin', 'member', 'foreman', 'operator', 'inspector', 'office', 'laborer'].includes(role)) {
+		if (!role || !['owner', 'admin', 'member', 'foreman', 'operator', 'inspector', 'office'].includes(role)) {
 			return json({ error: 'Valid role is required' }, { status: 400 });
 		}
 
@@ -33,24 +32,8 @@ export async function PATCH(event: RequestEvent) {
 			return json({ error: 'Owner cannot change their own role' }, { status: 403 });
 		}
 
-		const oldRole = await db.getUserRole(userId, org.id);
-
 		// Update member role
 		await db.updateOrgMemberRole(userId, org.id, role);
-
-		const targetUser = await db.getUserById(userId);
-		await recordAudit(event.platform!.env.DB, {
-			actorUserId: user.id,
-			actorName: user.name || user.email,
-			orgId: org.id,
-			resourceType: 'member',
-			resourceId: userId,
-			action: 'role_changed',
-			oldValue: { role: oldRole },
-			newValue: { role },
-			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
-			userAgent: event.request.headers.get('user-agent')
-		});
 
 		return json({ success: true });
 	} catch (error) {
@@ -89,22 +72,8 @@ export async function DELETE(event: RequestEvent) {
 			return json({ error: 'Cannot remove yourself from the organization' }, { status: 400 });
 		}
 
-		const targetUser = await db.getUserById(userId);
-
 		// Remove member
 		await db.removeOrgMember(userId, org.id);
-
-		await recordAudit(event.platform!.env.DB, {
-			actorUserId: user.id,
-			actorName: user.name || user.email,
-			orgId: org.id,
-			resourceType: 'member',
-			resourceId: userId,
-			action: 'removed',
-			oldValue: { name: targetUser?.name, email: targetUser?.email },
-			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
-			userAgent: event.request.headers.get('user-agent')
-		});
 
 		return json({ success: true });
 	} catch (error) {

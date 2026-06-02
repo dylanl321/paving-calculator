@@ -26,60 +26,20 @@
 		created_at: number;
 	} | null;
 
-	type Crew = {
-		id: string;
-		name: string;
-		color: string;
-		member_count: number;
-		members: Array<{ user_id: string; user_name: string }>;
-		job_sites?: Array<{ id: string; name: string }>;
-	};
-
-	type JobSite = {
-		id: string;
-		name: string;
-		location?: string;
-	};
-
 	let members = $state<Member[]>([]);
 	let invitations = $state<Invitation[]>([]);
 	let memberActivity = $state<Record<string, MemberActivity>>({});
-	let crews = $state<Crew[]>([]);
-	let memberCrews = $state<Record<string, string | null>>({});
-	let allJobSites = $state<JobSite[]>([]);
-	let crewJobSiteMap = $state<Record<string, string[]>>({});
-	let crewFilter = $state<string>('all');
-	let showNewCrewForm = $state(false);
-	let newCrewForm = $state({ name: '', color: 'slate' });
-	let creatingCrew = $state(false);
 	let loading = $state(true);
 	let error = $state('');
 	let showInviteModal = $state(false);
 	let inviteForm = $state({ email: '', role: 'member' });
 	let inviting = $state(false);
-	let resending = $state(false);
-	let revokingId = $state<string | null>(null);
-	let resendingId = $state<string | null>(null);
 	let currentUserId = $state<string | null>(null);
 	let currentUserRole = $state<string | null>(null);
 	let searchQuery = $state('');
 	let roleFilter = $state<string>('all');
 	let sortOrder = $state<string>('name-asc');
 	let roleChangeConfirm = $state<{ member: Member; newRole: string } | null>(null);
-
-	const isAdmin = $derived(currentUserRole === 'owner' || currentUserRole === 'admin');
-
-	const CREW_COLORS: Record<string, string> = {
-		slate: '#64748b',
-		red: '#ef4444',
-		orange: '#f97316',
-		amber: '#f59e0b',
-		green: '#22c55e',
-		teal: '#14b8a6',
-		blue: '#3b82f6',
-		violet: '#a855f7',
-		pink: '#ec4899'
-	};
 
 	const filteredMembers = $derived.by(() => {
 		const q = searchQuery.toLowerCase();
@@ -89,10 +49,7 @@
 				m.user_name.toLowerCase().includes(q) ||
 				m.user_email.toLowerCase().includes(q);
 			const matchesRole = roleFilter === 'all' || m.role === roleFilter;
-			const matchesCrew =
-				crewFilter === 'all' ||
-				(crewFilter === 'none' ? !memberCrews[m.user_id] : memberCrews[m.user_id] === crewFilter);
-			return matchesSearch && matchesRole && matchesCrew;
+			return matchesSearch && matchesRole;
 		});
 
 		switch (sortOrder) {
@@ -113,12 +70,11 @@
 		return result;
 	});
 
-	const hasActiveFilters = $derived(searchQuery !== '' || roleFilter !== 'all' || crewFilter !== 'all');
+	const hasActiveFilters = $derived(searchQuery !== '' || roleFilter !== 'all');
 
 	function clearFilters() {
 		searchQuery = '';
 		roleFilter = 'all';
-		crewFilter = 'all';
 	}
 
 	const roleCounts = $derived(
@@ -150,12 +106,10 @@
 
 	async function loadTeam() {
 		try {
-			const [membersRes, invitesRes, activityRes, crewsRes, jobSitesRes] = await Promise.all([
+			const [membersRes, invitesRes, activityRes] = await Promise.all([
 				fetch('/api/org'),
 				fetch('/api/org/invite'),
-				fetch('/api/org/activity'),
-				fetch('/api/org/crews'),
-				fetch('/api/job-sites')
+				fetch('/api/org/activity')
 			]);
 
 			if (!membersRes.ok) {
@@ -179,42 +133,6 @@
 			if (activityRes.ok) {
 				const activityData = await activityRes.json();
 				memberActivity = activityData.activity || {};
-			}
-
-			if (jobSitesRes.ok) {
-				const jobSitesData = await jobSitesRes.json();
-				allJobSites = jobSitesData.job_sites || [];
-			}
-
-			if (crewsRes.ok) {
-				const crewsData = await crewsRes.json();
-				crews = crewsData.crews || [];
-
-				// Build memberCrews map
-				const newMemberCrews: Record<string, string | null> = {};
-				crews.forEach((crew) => {
-					crew.members.forEach((member) => {
-						newMemberCrews[member.user_id] = crew.id;
-					});
-				});
-				memberCrews = newMemberCrews;
-
-				// Fetch job sites for each crew
-				const crewJobSitesPromises = crews.map(async (crew) => {
-					const res = await fetch(`/api/org/crews/${crew.id}/job-sites`);
-					if (res.ok) {
-						const data = await res.json();
-						return { crewId: crew.id, jobSiteIds: data.job_sites || [] };
-					}
-					return { crewId: crew.id, jobSiteIds: [] };
-				});
-
-				const crewJobSitesResults = await Promise.all(crewJobSitesPromises);
-				const newCrewJobSiteMap: Record<string, string[]> = {};
-				crewJobSitesResults.forEach(({ crewId, jobSiteIds }) => {
-					newCrewJobSiteMap[crewId] = jobSiteIds;
-				});
-				crewJobSiteMap = newCrewJobSiteMap;
 			}
 		} catch (e) {
 			error = 'Failed to load team';
@@ -307,7 +225,8 @@
 	}
 
 	async function revokeInvitation(invite: Invitation) {
-		revokingId = invite.id;
+		if (!confirm(`Revoke invitation for ${invite.email}?`)) return;
+
 		try {
 			const res = await fetch(`/api/org/invite/${invite.id}`, {
 				method: 'DELETE'
@@ -315,42 +234,13 @@
 
 			if (!res.ok) {
 				const data = await res.json();
-				toastStore.error(data.error || 'Failed to revoke invitation');
+				alert(data.error || 'Failed to revoke invitation');
 				return;
 			}
 
 			await loadTeam();
-			toastStore.success(`Invitation for ${invite.email} revoked`);
 		} catch (e) {
-			toastStore.error('Failed to revoke invitation');
-		} finally {
-			revokingId = null;
-		}
-	}
-
-	async function resendInvitation(invite: Invitation) {
-		if (resending) return;
-
-		resendingId = invite.id;
-		resending = true;
-		try {
-			const res = await fetch(`/api/org/invite/${invite.id}`, {
-				method: 'POST'
-			});
-
-			if (!res.ok) {
-				const data = await res.json();
-				toastStore.error(data.error || 'Failed to resend invitation');
-				return;
-			}
-
-			await loadTeam();
-			toastStore.success(`Invitation resent to ${invite.email}`);
-		} catch (e) {
-			toastStore.error('Failed to resend invitation');
-		} finally {
-			resendingId = null;
-			resending = false;
+			alert('Failed to revoke invitation');
 		}
 	}
 
@@ -421,119 +311,6 @@
 
 		return `${action} ${resource_type}`;
 	}
-
-	async function createCrew() {
-		if (!newCrewForm.name.trim()) return;
-
-		creatingCrew = true;
-		try {
-			const res = await fetch('/api/org/crews', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					name: newCrewForm.name.trim(),
-					color: newCrewForm.color
-				})
-			});
-
-			if (!res.ok) {
-				const data = await res.json();
-				toastStore.error(data.error || 'Failed to create crew');
-				return;
-			}
-
-			await loadTeam();
-			showNewCrewForm = false;
-			newCrewForm = { name: '', color: 'slate' };
-			toastStore.success('Crew created successfully');
-		} catch (e) {
-			toastStore.error('Failed to create crew');
-		} finally {
-			creatingCrew = false;
-		}
-	}
-
-	async function deleteCrew(crewId: string) {
-		if (!confirm('Delete this crew? Members will be unassigned.')) return;
-
-		try {
-			const res = await fetch(`/api/org/crews/${crewId}`, {
-				method: 'DELETE'
-			});
-
-			if (!res.ok) {
-				const data = await res.json();
-				toastStore.error(data.error || 'Failed to delete crew');
-				return;
-			}
-
-			await loadTeam();
-			toastStore.success('Crew deleted successfully');
-		} catch (e) {
-			toastStore.error('Failed to delete crew');
-		}
-	}
-
-	async function setMemberCrew(userId: string, crewId: string | null) {
-		try {
-			const res = await fetch(`/api/org/members/${userId}/crew`, {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ crew_id: crewId })
-			});
-
-			if (!res.ok) {
-				const data = await res.json();
-				toastStore.error(data.error || 'Failed to update crew assignment');
-				return;
-			}
-
-			await loadTeam();
-			toastStore.success('Crew assignment updated');
-		} catch (e) {
-			toastStore.error('Failed to update crew assignment');
-		}
-	}
-
-	async function assignJobSiteToCrew(crewId: string, jobSiteId: string) {
-		try {
-			const res = await fetch(`/api/org/crews/${crewId}/job-sites`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ job_site_id: jobSiteId })
-			});
-
-			if (!res.ok) {
-				const data = await res.json();
-				toastStore.error(data.error || 'Failed to assign job site');
-				return;
-			}
-
-			await loadTeam();
-			toastStore.success('Job site assigned to crew');
-		} catch (e) {
-			toastStore.error('Failed to assign job site');
-		}
-	}
-
-	async function removeJobSiteFromCrew(crewId: string, jobSiteId: string) {
-		try {
-			const res = await fetch(`/api/org/crews/${crewId}/job-sites/${jobSiteId}`, {
-				method: 'DELETE'
-			});
-
-			if (!res.ok) {
-				const data = await res.json();
-				toastStore.error(data.error || 'Failed to remove job site');
-				return;
-			}
-
-			await loadTeam();
-			toastStore.success('Job site removed from crew');
-		} catch (e) {
-			toastStore.error('Failed to remove job site');
-		}
-	}
 </script>
 
 <div class="team-page">
@@ -550,153 +327,6 @@
 	{:else if error}
 		<div class="error">{error}</div>
 	{:else}
-		{#if isAdmin}
-			<section class="crews-section">
-				<div class="section-header">
-					<h2>Crews ({crews.length})</h2>
-					{#if !showNewCrewForm}
-						<button class="btn-create-crew" onclick={() => (showNewCrewForm = true)}>
-							Create Crew
-						</button>
-					{/if}
-				</div>
-
-				{#if showNewCrewForm}
-					<div class="new-crew-form">
-						<h3>New Crew</h3>
-						<div class="form-row">
-							<label>
-								<span class="form-label">Crew Name</span>
-								<input
-									type="text"
-									bind:value={newCrewForm.name}
-									placeholder="Enter crew name"
-									autofocus
-								/>
-							</label>
-							<label>
-								<span class="form-label">Color</span>
-								<div class="color-picker">
-									{#each Object.entries(CREW_COLORS) as [colorName, colorValue]}
-										<button
-											type="button"
-											class="color-option {newCrewForm.color === colorName ? 'color-option-active' : ''}"
-											style="background: {colorValue}"
-											onclick={() => (newCrewForm.color = colorName)}
-											aria-label={colorName}
-										></button>
-									{/each}
-								</div>
-							</label>
-						</div>
-						<div class="form-actions">
-							<button
-								type="button"
-								class="btn-secondary"
-								onclick={() => {
-									showNewCrewForm = false;
-									newCrewForm = { name: '', color: 'slate' };
-								}}
-							>
-								Cancel
-							</button>
-							<button
-								type="button"
-								class="btn-primary"
-								onclick={createCrew}
-								disabled={creatingCrew || !newCrewForm.name.trim()}
-							>
-								{creatingCrew ? 'Creating...' : 'Create Crew'}
-							</button>
-						</div>
-					</div>
-				{/if}
-
-				{#if crews.length === 0}
-					<p class="empty">No crews yet. Create one to organize your team.</p>
-				{:else}
-					<div class="crews-grid">
-						{#each crews as crew}
-							<div class="crew-card" style="--crew-color: {CREW_COLORS[crew.color]}">
-								<div class="crew-header">
-									<div class="crew-info">
-										<span class="crew-color-badge" style="background: {CREW_COLORS[crew.color]}"></span>
-										<h3>{crew.name}</h3>
-									</div>
-									<button
-										class="btn-delete-crew"
-										onclick={() => deleteCrew(crew.id)}
-										aria-label="Delete crew"
-									>
-										×
-									</button>
-								</div>
-
-								<div class="crew-body">
-									<div class="crew-section">
-										<h4>Members ({crew.members.length})</h4>
-										{#if crew.members.length === 0}
-											<p class="empty-small">No members assigned</p>
-										{:else}
-											<ul class="crew-members-list">
-												{#each crew.members as member}
-													<li>{member.user_name}</li>
-												{/each}
-											</ul>
-										{/if}
-									</div>
-
-									<div class="crew-section">
-										<div class="crew-section-header">
-											<h4>Job Sites ({crewJobSiteMap[crew.id]?.length || 0})</h4>
-											<select
-												class="job-site-select"
-												onchange={(e) => {
-													const jobSiteId = e.currentTarget.value;
-													if (jobSiteId) {
-														assignJobSiteToCrew(crew.id, jobSiteId);
-														e.currentTarget.value = '';
-													}
-												}}
-											>
-												<option value="">+ Add Site</option>
-												{#each allJobSites.filter(
-													(js) => !crewJobSiteMap[crew.id]?.includes(js.id)
-												) as jobSite}
-													<option value={jobSite.id}>{jobSite.name}</option>
-												{/each}
-											</select>
-										</div>
-										{#if !crewJobSiteMap[crew.id] || crewJobSiteMap[crew.id].length === 0}
-											<p class="empty-small">No job sites assigned</p>
-										{:else}
-											<ul class="crew-job-sites-list">
-												{#each crewJobSiteMap[crew.id] as jobSiteId}
-													{@const jobSite = allJobSites.find((js) => js.id === jobSiteId)}
-													{#if jobSite}
-														<li>
-															<span>{jobSite.name}</span>
-															<button
-																class="btn-remove-job-site"
-																onclick={() => removeJobSiteFromCrew(crew.id, jobSiteId)}
-																aria-label="Remove job site"
-															>
-																×
-															</button>
-														</li>
-													{/if}
-												{/each}
-											</ul>
-										{/if}
-									</div>
-								</div>
-							</div>
-						{/each}
-					</div>
-				{/if}
-			</section>
-		{/if}
-
 		<section class="members-section">
 			<div class="section-header">
 				<h2>Team Members ({members.length})</h2>
@@ -717,36 +347,6 @@
 							>
 								{role === 'all' ? 'All' : role.charAt(0).toUpperCase() + role.slice(1)}
 								<span class="pill-count">{roleCounts[role]}</span>
-							</button>
-						{/each}
-					</div>
-					<div class="crew-filter-pills">
-						<button
-							type="button"
-							class="pill {crewFilter === 'all' ? 'pill-active' : ''}"
-							onclick={() => (crewFilter = 'all')}
-							aria-pressed={crewFilter === 'all'}
-						>
-							All Crews
-						</button>
-						<button
-							type="button"
-							class="pill {crewFilter === 'none' ? 'pill-active' : ''}"
-							onclick={() => (crewFilter = 'none')}
-							aria-pressed={crewFilter === 'none'}
-						>
-							No Crew
-						</button>
-						{#each crews as crew}
-							<button
-								type="button"
-								class="pill {crewFilter === crew.id ? 'pill-active' : ''}"
-								onclick={() => (crewFilter = crew.id)}
-								aria-pressed={crewFilter === crew.id}
-								style="--crew-color: {CREW_COLORS[crew.color]}"
-							>
-								<span class="crew-color-dot" style="background: {CREW_COLORS[crew.color]}"></span>
-								{crew.name}
 							</button>
 						{/each}
 					</div>
@@ -777,12 +377,7 @@
 							<div class="card-header">
 								<div class="avatar">{getInitials(member.user_name)}</div>
 								<div class="member-info">
-									<div class="member-name">
-										{member.user_name}
-										{#if member.user_id === currentUserId}
-											<span class="you-badge">You</span>
-										{/if}
-									</div>
+									<div class="member-name">{member.user_name}</div>
 									<div class="member-email">{member.user_email}</div>
 								</div>
 							</div>
@@ -802,7 +397,6 @@
 											<option value="operator">Operator</option>
 											<option value="inspector">Inspector</option>
 											<option value="office">Office</option>
-											<option value="laborer">Laborer</option>
 										</select>
 									{:else}
 										<span class="role-badge {member.role}">{member.role}</span>
@@ -823,21 +417,6 @@
 									<span class="label">Joined</span>
 									<span>{formatDate(member.invited_at)}</span>
 								</div>
-								{#if isAdmin}
-									<div class="card-row">
-										<span class="label">Crew</span>
-										<select
-											class="crew-select"
-											value={memberCrews[member.user_id] || ''}
-											onchange={(e) => setMemberCrew(member.user_id, e.currentTarget.value || null)}
-										>
-											<option value="">No crew</option>
-											{#each crews as crew}
-												<option value={crew.id}>{crew.name}</option>
-											{/each}
-										</select>
-									</div>
-								{/if}
 							</div>
 							{#if canModifyMember(member)}
 								<div class="card-actions">
@@ -878,21 +457,10 @@
 								</div>
 							</div>
 							<div class="card-actions">
-											<button
-												class="btn-secondary"
-												onclick={() => resendInvitation(invite)}
-												disabled={resendingId === invite.id || revokingId === invite.id}
-											>
-												{resendingId === invite.id ? 'Resending...' : 'Resend'}
-											</button>
-											<button
-												class="btn-danger"
-												onclick={() => revokeInvitation(invite)}
-												disabled={resendingId === invite.id || revokingId === invite.id}
-											>
-												{revokingId === invite.id ? 'Revoking...' : 'Revoke'}
-											</button>
-										</div>
+								<button class="btn-danger" onclick={() => revokeInvitation(invite)}>
+									Revoke Invitation
+								</button>
+							</div>
 						</div>
 					{/each}
 				</div>
@@ -918,17 +486,16 @@
 			</label>
 			<label>
 				Role
-							<select bind:value={inviteForm.role}>
-								<option value="owner">Owner</option>
-								<option value="admin">Admin</option>
-								<option value="member">Member</option>
-								<option value="foreman">Foreman</option>
-								<option value="operator">Operator</option>
-								<option value="inspector">Inspector</option>
-								<option value="office">Office</option>
-								<option value="laborer">Laborer</option>
-							</select>
-						</label>
+				<select bind:value={inviteForm.role}>
+					<option value="owner">Owner</option>
+					<option value="admin">Admin</option>
+					<option value="member">Member</option>
+					<option value="foreman">Foreman</option>
+					<option value="operator">Operator</option>
+					<option value="inspector">Inspector</option>
+					<option value="office">Office</option>
+				</select>
+			</label>
 			<div class="modal-actions">
 				<button type="button" onclick={() => (showInviteModal = false)}>Cancel</button>
 				<button type="submit" disabled={inviting || !inviteForm.email.trim()}>
@@ -1206,15 +773,9 @@
 		color: rgb(20, 184, 166);
 	}
 
-	.role-badge.laborer {
-		background: color-mix(in srgb, #78716c 20%, transparent);
-		color: #78716c;
-		border: 1px solid color-mix(in srgb, #78716c 30%, transparent);
-	}
-
 	.role-select {
 		padding: var(--sp-2) var(--sp-3);
-		min-height: var(--touch);
+		min-height: 40px;
 		font-size: var(--fs-sm);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
@@ -1236,22 +797,6 @@
 	}
 
 	.btn-danger:hover {
-		opacity: 0.9;
-	}
-
-	.btn-secondary {
-		padding: var(--sp-2) var(--sp-4);
-		min-height: var(--touch);
-		background: var(--surface);
-		color: var(--text);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		cursor: pointer;
-		font-size: var(--fs-sm);
-		font-weight: var(--fw-semibold);
-	}
-
-	.btn-secondary:hover {
 		opacity: 0.9;
 	}
 
@@ -1335,21 +880,6 @@
 		font-size: var(--fs-md);
 		color: var(--text);
 		margin-bottom: var(--sp-1);
-		display: flex;
-		align-items: center;
-		gap: var(--sp-2);
-	}
-
-	.you-badge {
-		display: inline-block;
-		padding: var(--sp-1) var(--sp-2);
-		background: rgba(34, 197, 94, 0.2);
-		color: rgb(34, 197, 94);
-		border-radius: var(--radius-sm);
-		font-size: var(--fs-xs);
-		font-weight: var(--fw-semibold);
-		text-transform: uppercase;
-		letter-spacing: 0.025em;
 	}
 
 	.member-email {
@@ -1418,10 +948,6 @@
 	.card-actions {
 		display: flex;
 		justify-content: flex-end;
-	}
-
-	.card-actions button {
-		min-height: var(--touch);
 	}
 
 	.card-actions .btn-danger {
@@ -1522,335 +1048,6 @@
 	.modal-actions button:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
-	}
-
-	.crew-select {
-		padding: var(--sp-2) var(--sp-3);
-		min-height: var(--touch);
-		font-size: var(--fs-sm);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--bg);
-		color: var(--text);
-		cursor: pointer;
-		flex: 1;
-		max-width: 150px;
-	}
-
-	.crew-color-dot {
-		width: 10px;
-		height: 10px;
-		border-radius: 50%;
-		display: inline-block;
-	}
-
-	.crew-filter-pills {
-		display: flex;
-		gap: var(--sp-2);
-		flex-wrap: wrap;
-	}
-
-	/* Crews Section */
-	.crews-section {
-		margin-bottom: var(--sp-8);
-	}
-
-	.btn-create-crew {
-		padding: 0 var(--sp-5);
-		min-height: var(--touch);
-		background: var(--accent);
-		color: var(--accent-text);
-		border: none;
-		border-radius: var(--radius-sm);
-		font-size: var(--fs-md);
-		font-weight: var(--fw-semibold);
-		cursor: pointer;
-	}
-
-	.btn-create-crew:hover {
-		opacity: 0.9;
-	}
-
-	.new-crew-form {
-		background: var(--bg);
-		padding: var(--sp-6);
-		border-radius: var(--radius-md);
-		border: 2px solid var(--border);
-		margin-bottom: var(--sp-6);
-	}
-
-	.new-crew-form h3 {
-		margin: 0 0 var(--sp-4) 0;
-		font-size: var(--fs-lg);
-		color: var(--text);
-	}
-
-	.form-row {
-		display: flex;
-		flex-direction: column;
-		gap: var(--sp-4);
-		margin-bottom: var(--sp-4);
-	}
-
-	.form-label {
-		display: block;
-		font-weight: var(--fw-semibold);
-		font-size: var(--fs-sm);
-		color: var(--text-muted);
-		margin-bottom: var(--sp-2);
-	}
-
-	.new-crew-form input {
-		width: 100%;
-		padding: var(--sp-3);
-		font-size: var(--fs-md);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--surface);
-		color: var(--text);
-		min-height: var(--touch);
-	}
-
-	.color-picker {
-		display: flex;
-		gap: var(--sp-2);
-		flex-wrap: wrap;
-	}
-
-	.color-option {
-		width: 48px;
-		height: 48px;
-		border-radius: var(--radius-sm);
-		border: 2px solid transparent;
-		cursor: pointer;
-		transition: transform 0.1s, border-color 0.1s;
-	}
-
-	.color-option:hover {
-		transform: scale(1.1);
-	}
-
-	.color-option-active {
-		border-color: var(--text);
-		transform: scale(1.15);
-	}
-
-	.form-actions {
-		display: flex;
-		gap: var(--sp-3);
-		justify-content: flex-end;
-	}
-
-	.btn-primary {
-		padding: 0 var(--sp-6);
-		min-height: var(--touch);
-		background: var(--accent);
-		color: var(--accent-text);
-		border: none;
-		border-radius: var(--radius-sm);
-		font-size: var(--fs-md);
-		font-weight: var(--fw-semibold);
-		cursor: pointer;
-	}
-
-	.btn-primary:hover {
-		opacity: 0.9;
-	}
-
-	.btn-primary:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.crews-grid {
-		display: grid;
-		grid-template-columns: 1fr;
-		gap: var(--sp-4);
-	}
-
-	@media (min-width: 600px) {
-		.crews-grid {
-			grid-template-columns: repeat(2, 1fr);
-		}
-	}
-
-	@media (min-width: 900px) {
-		.crews-grid {
-			grid-template-columns: repeat(3, 1fr);
-		}
-	}
-
-	.crew-card {
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		padding: var(--sp-5);
-		box-shadow: var(--shadow-sm);
-		transition: box-shadow 0.15s var(--ease);
-	}
-
-	.crew-card:hover {
-		box-shadow: var(--shadow-md);
-	}
-
-	.crew-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		margin-bottom: var(--sp-4);
-		padding-bottom: var(--sp-4);
-		border-bottom: 1px solid var(--border);
-	}
-
-	.crew-info {
-		display: flex;
-		align-items: center;
-		gap: var(--sp-3);
-		flex: 1;
-		min-width: 0;
-	}
-
-	.crew-info h3 {
-		margin: 0;
-		font-size: var(--fs-md);
-		font-weight: var(--fw-semibold);
-		color: var(--text);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.crew-color-badge {
-		width: 24px;
-		height: 24px;
-		border-radius: 50%;
-		flex-shrink: 0;
-	}
-
-	.btn-delete-crew {
-		width: 32px;
-		height: 32px;
-		border-radius: var(--radius-sm);
-		border: 1px solid var(--border);
-		background: transparent;
-		color: var(--bad);
-		font-size: 1.5rem;
-		line-height: 1;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		flex-shrink: 0;
-	}
-
-	.btn-delete-crew:hover {
-		background: var(--bad);
-		color: white;
-		border-color: var(--bad);
-	}
-
-	.crew-body {
-		display: flex;
-		flex-direction: column;
-		gap: var(--sp-4);
-	}
-
-	.crew-section h4 {
-		margin: 0 0 var(--sp-2) 0;
-		font-size: var(--fs-sm);
-		font-weight: var(--fw-semibold);
-		color: var(--text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-	}
-
-	.crew-section-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: var(--sp-2);
-		margin-bottom: var(--sp-2);
-	}
-
-	.crew-section-header h4 {
-		margin: 0;
-	}
-
-	.job-site-select {
-		padding: var(--sp-1) var(--sp-2);
-		min-height: 32px;
-		font-size: var(--fs-xs);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		background: var(--bg);
-		color: var(--text);
-		cursor: pointer;
-	}
-
-	.crew-members-list,
-	.crew-job-sites-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		display: flex;
-		flex-direction: column;
-		gap: var(--sp-2);
-	}
-
-	.crew-members-list li {
-		padding: var(--sp-2) var(--sp-3);
-		background: var(--bg);
-		border-radius: var(--radius-sm);
-		font-size: var(--fs-sm);
-		color: var(--text);
-	}
-
-	.crew-job-sites-list li {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: var(--sp-2) var(--sp-3);
-		background: var(--bg);
-		border-radius: var(--radius-sm);
-		font-size: var(--fs-sm);
-		color: var(--text);
-		gap: var(--sp-2);
-	}
-
-	.crew-job-sites-list li span {
-		flex: 1;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.btn-remove-job-site {
-		width: 24px;
-		height: 24px;
-		border-radius: var(--radius-sm);
-		border: 1px solid var(--border);
-		background: transparent;
-		color: var(--bad);
-		font-size: 1.25rem;
-		line-height: 1;
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		flex-shrink: 0;
-	}
-
-	.btn-remove-job-site:hover {
-		background: var(--bad);
-		color: white;
-		border-color: var(--bad);
-	}
-
-	.empty-small {
-		font-size: var(--fs-sm);
-		color: var(--text-muted);
-		font-style: italic;
-		margin: 0;
 	}
 
 	/* Responsive breakpoint */
