@@ -20,8 +20,15 @@
 		expires_at: number;
 	};
 
+	type MemberActivity = {
+		action: string;
+		resource_type: string;
+		created_at: number;
+	} | null;
+
 	let members = $state<Member[]>([]);
 	let invitations = $state<Invitation[]>([]);
+	let memberActivity = $state<Record<string, MemberActivity>>({});
 	let loading = $state(true);
 	let error = $state('');
 	let showInviteModal = $state(false);
@@ -99,9 +106,10 @@
 
 	async function loadTeam() {
 		try {
-			const [membersRes, invitesRes] = await Promise.all([
+			const [membersRes, invitesRes, activityRes] = await Promise.all([
 				fetch('/api/org'),
-				fetch('/api/org/invite')
+				fetch('/api/org/invite'),
+				fetch('/api/org/activity')
 			]);
 
 			if (!membersRes.ok) {
@@ -120,6 +128,11 @@
 			if (invitesRes.ok) {
 				const invitesData = await invitesRes.json();
 				invitations = invitesData.invitations || [];
+			}
+
+			if (activityRes.ok) {
+				const activityData = await activityRes.json();
+				memberActivity = activityData.activity || {};
 			}
 		} catch (e) {
 			error = 'Failed to load team';
@@ -251,6 +264,53 @@
 			.toUpperCase()
 			.slice(0, 2);
 	}
+
+	function formatRelativeTime(timestamp: number): string {
+		const now = Math.floor(Date.now() / 1000);
+		const diff = now - timestamp;
+
+		if (diff < 60) return 'just now';
+		if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+		if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+		if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+		if (diff < 2592000) return `${Math.floor(diff / 604800)}w ago`;
+		return formatDate(timestamp);
+	}
+
+	function formatActivityLabel(activity: MemberActivity): string {
+		if (!activity) return '';
+
+		const { action, resource_type } = activity;
+
+		if (action === 'ran calc') {
+			const calcLabels: Record<string, string> = {
+				spread_rate: 'spread rate calc',
+				feet_left: 'feet left calc',
+				tonnage: 'tonnage calc',
+				tack_rate: 'tack rate calc',
+				stick_check: 'stick check calc'
+			};
+			return `ran ${calcLabels[resource_type] || resource_type}`;
+		}
+
+		if (action === 'logged day') {
+			return 'logged a day';
+		}
+
+		if (action === 'created' || action === 'updated' || action === 'deleted') {
+			const resourceLabels: Record<string, string> = {
+				job_site: 'job site',
+				calculation: 'calculation',
+				daily_log: 'daily log',
+				org_member: 'team member',
+				org_settings: 'org settings',
+				user: 'profile'
+			};
+			return `${action} ${resourceLabels[resource_type] || resource_type}`;
+		}
+
+		return `${action} ${resource_type}`;
+	}
 </script>
 
 <div class="team-page">
@@ -340,6 +400,17 @@
 										</select>
 									{:else}
 										<span class="role-badge {member.role}">{member.role}</span>
+									{/if}
+								</div>
+								<div class="card-row">
+									<span class="label">Last Active</span>
+									{#if memberActivity[member.user_id]}
+										<div class="activity-info">
+											<span class="activity-label">{formatActivityLabel(memberActivity[member.user_id])}</span>
+											<span class="activity-time">{formatRelativeTime(memberActivity[member.user_id]!.created_at)}</span>
+										</div>
+									{:else}
+										<span class="activity-none">No activity yet</span>
 									{/if}
 								</div>
 								<div class="card-row">
@@ -849,6 +920,29 @@
 	.card-row select {
 		flex: 1;
 		max-width: 150px;
+	}
+
+	.activity-info {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: var(--sp-1);
+	}
+
+	.activity-label {
+		font-size: var(--fs-sm);
+		color: var(--text);
+	}
+
+	.activity-time {
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+	}
+
+	.activity-none {
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+		font-style: italic;
 	}
 
 	.card-actions {
