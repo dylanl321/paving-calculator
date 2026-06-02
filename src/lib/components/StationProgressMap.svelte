@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { browser } from '$app/environment';
+	import L from 'leaflet';
+	import 'leaflet/dist/leaflet.css';
 
 	interface Waypoint {
 		lat: number;
@@ -42,13 +45,13 @@
 	}: Props = $props();
 
 	let mapEl: HTMLDivElement;
-	let mapInstance: any = null;
+	let mapInstance: L.Map | null = null;
 	let progressEntries = $state<ProgressEntry[]>([]);
 	let totalPavedFt = $state(0);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
-	let progressPolylines: any[] = [];
-	let routePolyline: any = null;
+	let progressPolylines: L.Polyline[] = [];
+	let routePolyline: L.Polyline | null = null;
 
 	const hasRoute = $derived(waypoints.length >= 2);
 	const hasPinned = $derived(site.latitude != null && site.longitude != null);
@@ -116,7 +119,8 @@
 		}
 	}
 
-	function drawProgress(L: any) {
+	function drawProgress() {
+		if (!mapInstance) return;
 		// Remove old progress layers
 		for (const pl of progressPolylines) {
 			mapInstance.removeLayer(pl);
@@ -178,27 +182,8 @@
 		}
 	}
 
-	async function initMap() {
-		if (!mapEl || (!hasRoute && !hasPinned)) return;
-
-		if (!document.querySelector('link[href*="leaflet"]')) {
-			const link = document.createElement('link');
-			link.rel = 'stylesheet';
-			link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-			document.head.appendChild(link);
-		}
-
-		if (!(window as any).L) {
-			await new Promise<void>((resolve, reject) => {
-				const script = document.createElement('script');
-				script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-				script.onload = () => resolve();
-				script.onerror = () => reject(new Error('Failed to load Leaflet'));
-				document.head.appendChild(script);
-			});
-		}
-
-		const L = (window as any).L;
+	function initMap() {
+		if (!browser || !mapEl || (!hasRoute && !hasPinned)) return;
 
 		if (mapInstance) {
 			mapInstance.remove();
@@ -246,7 +231,7 @@
 		}
 
 		// Draw progress on top
-		drawProgress(L);
+		drawProgress();
 	}
 
 	function computeBufferPolygon(wps: Waypoint[], widthMeters: number): [number, number][] {
@@ -297,16 +282,15 @@
 
 	onMount(async () => {
 		await loadProgress();
-		if (hasRoute || hasPinned) {
-			await initMap();
+		if (browser && (hasRoute || hasPinned)) {
+			initMap();
 		}
 	});
 
 	// Re-draw progress when data loads
 	$effect(() => {
 		if (!loading && mapInstance) {
-			const L = (window as any).L;
-			if (L) drawProgress(L);
+			drawProgress();
 		}
 	});
 

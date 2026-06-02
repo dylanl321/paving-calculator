@@ -58,6 +58,18 @@ export interface DbCalculation {
 	created_at: number;
 }
 
+export interface DbLoad {
+	id: string;
+	job_site_id: string;
+	user_id: string;
+	ticket_number: string | null;
+	tons: number;
+	timestamp: number;
+	spread_rate: number | null;
+	notes: string | null;
+	created_at: number;
+}
+
 export interface DbSession {
 	id: string;
 	user_id: string;
@@ -180,10 +192,13 @@ export interface DbLoad {
 	timestamp: number;
 	spread_rate: number | null;
 	notes: string | null;
+	lane_number: number | null;
+	pass_number: number | null;
 	created_at: number;
 	rejected: number;
 	rejection_reason: string | null;
 	rejection_notes: string | null;
+	ticket_photo_id: string | null;
 }
 
 export class DbHelper {

@@ -12,12 +12,7 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 	const db = new DbHelper(platform!.env.DB);
 	const logDb = new DbLogHelper(platform!.env.DB);
 
-	const log = await logDb.getDailyLogById(params.logId);
-	if (!log) {
-		throw error(404, 'Daily log not found');
-	}
-
-	const jobSite = await db.getJobSiteById(log.job_site_id);
+	const jobSite = await db.getJobSiteById(params.id);
 	if (!jobSite) {
 		throw error(404, 'Job site not found');
 	}
@@ -27,28 +22,35 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		throw error(403, 'Access denied');
 	}
 
-	// Check if log is locked
-	if (log.closed_at) {
-		const userRole = await db.getUserRole(locals.user.id, org.id);
-		const isAdmin = userRole === 'owner' || userRole === 'admin' || locals.user.isGlobalAdmin;
-		if (!isAdmin) {
-			throw error(423, 'Log is locked after close-out. Contact an admin to unlock.');
-		}
+	const log = await logDb.getDailyLogById(params.logId);
+	if (!log) {
+		throw error(404, 'Daily log not found');
 	}
 
-	const body = await request.json();
+	if (log.job_site_id !== params.id) {
+		throw error(403, 'Log does not belong to this job site');
+	}
 
-	const entry = await logDb.createLogEntry(params.logId, body);
+	const body = (await request.json()) as { foreman_name?: string };
+	const foremanName = body.foreman_name?.trim();
+
+	if (!foremanName) {
+		throw error(400, 'Foreman name is required');
+	}
+
+	await logDb.closeDailyLog(params.logId, foremanName);
 
 	await recordAudit(platform!.env.DB, {
 		actorUserId: locals.user.id,
 		actorName: locals.user.name,
 		orgId: org.id,
-		resourceType: 'log_entry',
-		resourceId: entry.id,
-		action: 'created',
-		newValue: body
+		resourceType: 'daily_log',
+		resourceId: log.id,
+		action: 'closed',
+		newValue: { foreman_name: foremanName, closed_at: Math.floor(Date.now() / 1000) }
 	});
 
-	return json({ entry }, { status: 201 });
+	const updatedLog = await logDb.getDailyLogById(params.logId);
+
+	return json({ log: updatedLog });
 };

@@ -1,0 +1,4 @@
+-- Migration: 0023_data_lock
+-- Data lock enforcement after EOD close-out
+-- Schema: closed_at column already exists on daily_logs (added in 0022_closeout.sql)
+-- This migration maintains sequential numbering; no schema changes needed.
