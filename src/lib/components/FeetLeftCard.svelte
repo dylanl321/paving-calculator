@@ -96,7 +96,7 @@
 		label="Tons ordered today"
 		unit={UNIT_LABELS.tons[unitsStore.system]}
 		bind:value={orderedInput}
-		hint="Include asphalt still in the plant silo (not the paver hopper)"
+		hint="Use total from plant tickets for accuracy"
 	/>
 	<NumberField
 		label="Tons placed so far"

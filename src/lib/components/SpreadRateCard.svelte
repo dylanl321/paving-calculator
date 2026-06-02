@@ -227,6 +227,7 @@
 				label="Tons placed"
 				unit={UNIT_LABELS.tons[unitsStore.system]}
 				bind:value={tonsInput}
+				hint="Enter actual weight from load ticket"
 			/>
 			<NumberField
 				label="Distance covered"
