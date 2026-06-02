@@ -14,6 +14,11 @@
 	let target = $state<number | null>(1.5);
 	const factorMeta = constantMeta('CONST.STICK_FACTOR');
 
+	function clearInputs() {
+		target = 1.5;
+		logDraft.clearFor('stick-check');
+	}
+
 	const loose = $derived(target && target > 0 ? stickCheck(target) : null);
 
 	$effect(() => {
@@ -53,4 +58,25 @@
 		<code>loose = compacted × {factorMeta.value}</code>
 		<div class="src-row">Compaction factor: <SourceBadge status={factorMeta.status} tier={factorMeta.tier} /></div>
 	</ShowWork>
+
+	<button class="btn-clear" onclick={clearInputs}>Clear</button>
 </CalcCard>
+
+<style>
+	.btn-clear {
+		width: 100%;
+		min-height: 3rem;
+		padding: 0.75rem;
+		background: transparent;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text-muted);
+		font-size: 0.9rem;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+	.btn-clear:hover {
+		background: var(--surface-alt);
+		color: var(--text);
+	}
+</style>

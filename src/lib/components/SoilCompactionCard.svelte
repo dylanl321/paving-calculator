@@ -13,6 +13,15 @@
 	let moisturePct = $state<number | null>(null);
 	let proctorMaxDryPcf = $state<number | null>(null);
 
+	function clearInputs() {
+		wetWeightLbs = null;
+		dryWeightLbs = null;
+		volumeFt3 = null;
+		moisturePct = null;
+		proctorMaxDryPcf = null;
+		logDraft.clearFor('soil-compaction');
+	}
+
 	const result = $derived.by(() => {
 		if (
 			wetWeightLbs == null ||
@@ -99,9 +108,29 @@
 		>
 		<p>Typical spec: ≥95% for subgrade, 92-95% marginal, &lt;92% fail.</p>
 	</ShowWork>
+
+	<button class="btn-clear" onclick={clearInputs}>Clear</button>
 </CalcCard>
 
 <style>
+	.btn-clear {
+		width: 100%;
+		min-height: 3rem;
+		padding: 0.75rem;
+		background: transparent;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text-muted);
+		font-size: 0.9rem;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+	.btn-clear:hover {
+		background: var(--surface-alt);
+		color: var(--text);
+	}
+
+
 	.results-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
