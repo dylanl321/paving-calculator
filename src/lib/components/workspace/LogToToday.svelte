@@ -67,6 +67,18 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 	}
+	@media (max-width: 767px) {
+		.log-bar {
+			position: sticky;
+			bottom: 0;
+			bottom: env(safe-area-inset-bottom, 0);
+			margin-top: var(--sp-4);
+			border-radius: var(--radius-md) var(--radius-md) 0 0;
+			border-bottom: none;
+			box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.2);
+			z-index: 10;
+		}
+	}
 	.log-info {
 		min-width: 0;
 		display: flex;

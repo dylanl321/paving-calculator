@@ -148,7 +148,8 @@
 	}
 	.material-select select {
 		width: 100%;
-		padding: 12px;
+		min-height: var(--touch);
+		padding: 0 12px;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius);

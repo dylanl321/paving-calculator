@@ -590,18 +590,19 @@
 
 	.check-row {
 		display: flex;
-		align-items: flex-start;
+		align-items: center;
 		gap: 10px;
 		font-size: 0.85rem;
 		color: var(--text);
-		margin-bottom: 12px;
+		margin-bottom: 4px;
 		cursor: pointer;
+		min-height: 44px;
+		padding: 0 4px;
 	}
 
 	.check-row input {
-		width: 18px;
-		height: 18px;
-		margin-top: 2px;
+		width: 20px;
+		height: 20px;
 		accent-color: var(--accent);
 		flex-shrink: 0;
 	}

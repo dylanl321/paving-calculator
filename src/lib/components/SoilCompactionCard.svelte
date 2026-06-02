@@ -137,6 +137,11 @@
 		gap: 10px;
 		margin: 12px 0;
 	}
+	@media (max-width: 560px) {
+		.results-grid {
+			grid-template-columns: 1fr;
+		}
+	}
 	.result-item {
 		background: var(--surface-alt);
 		border: 1px solid var(--border);
