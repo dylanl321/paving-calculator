@@ -44,6 +44,9 @@
 
 	<div class="panes">
 		<aside class="tools" aria-label="Tool picker">
+			<div class="tools-header">
+				<div class="eyebrow">Calculators</div>
+			</div>
 			<ToolList
 				activeId={isToday ? '' : activeTool.id}
 				todayActive={isToday}
@@ -64,7 +67,9 @@
 			</section>
 
 			<aside class="rates" aria-label="Day totals">
-				<div class="eyebrow">Day Totals</div>
+				<div class="rates-header">
+					<div class="eyebrow">Day Totals</div>
+				</div>
 				<div class="pane-summary">
 					<TodaySummary variant="compact" />
 				</div>
@@ -83,7 +88,9 @@
 			</section>
 
 			<aside class="rates" aria-label="Live rates">
-				<div class="eyebrow">Live Rates</div>
+				<div class="rates-header">
+					<div class="eyebrow">Live Rates</div>
+				</div>
 				<div class="rate-stats">
 					<div class="rate-stat">
 						<span class="rv">{targetRate}</span>
@@ -137,6 +144,14 @@
 			padding: var(--sp-2) var(--sp-4);
 			border-bottom: 1px solid var(--border);
 		}
+	}
+
+	.tools-header {
+		display: none;
+	}
+
+	.rates-header {
+		display: none;
 	}
 
 	.stage-head {
@@ -203,14 +218,32 @@
 			position: sticky;
 			top: var(--sp-4);
 		}
+		.tools-header {
+			display: block;
+			margin-bottom: var(--sp-3);
+		}
 		.stage {
 			order: 1;
 			min-width: 0;
+			max-width: 720px;
+		}
+		.stage-head {
+			position: sticky;
+			top: 0;
+			background: var(--bg);
+			z-index: 2;
+			padding-bottom: var(--sp-3);
 		}
 		.rates {
 			order: 2;
 			position: sticky;
 			top: var(--sp-4);
+		}
+		.rates-header {
+			display: block;
+			padding-bottom: var(--sp-3);
+			margin-bottom: var(--sp-3);
+			border-bottom: 1px solid var(--border);
 		}
 	}
 
