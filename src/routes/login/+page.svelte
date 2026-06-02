@@ -270,10 +270,13 @@
 		max-width: 420px;
 		padding: 40px 34px 30px;
 		border-radius: 22px;
-		background: rgba(255, 255, 255, 0.95);
-		border: 1px solid rgba(0, 0, 0, 0.12);
 		backdrop-filter: blur(18px) saturate(120%);
 		-webkit-backdrop-filter: blur(18px) saturate(120%);
+	}
+
+	[data-theme='light'] .auth-card {
+		background: rgba(255, 255, 255, 0.95);
+		border: 1px solid rgba(0, 0, 0, 0.12);
 		box-shadow:
 			0 28px 70px -28px rgba(0, 0, 0, 0.8),
 			inset 0 1px 0 rgba(255, 255, 255, 0.6);
