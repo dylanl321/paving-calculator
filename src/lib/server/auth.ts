@@ -118,6 +118,23 @@ export async function getAuthUser(event: RequestEvent): Promise<AuthUser | null>
 		return null;
 	}
 
+	// Auto-promote super admin from env allowlist
+	const superEmails = event.platform.env.SUPER_ADMIN_EMAILS;
+	if (superEmails && !user.is_global_admin) {
+		const allowed = superEmails.split(',').map((e) => e.trim().toLowerCase());
+		if (allowed.includes(user.email.toLowerCase())) {
+			await db.updateUser(user.id, { is_global_admin: true });
+			// reflect in this response
+			return {
+				id: user.id,
+				email: user.email,
+				name: user.name,
+				isGlobalAdmin: true,
+				disabled: user.disabled
+			};
+		}
+	}
+
 	return {
 		id: user.id,
 		email: user.email,

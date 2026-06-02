@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	let stats = $state<{
+	interface AdminStats {
 		totalOrgs: number;
 		totalUsers: number;
 		activeUsers: number;
-	}>({ totalOrgs: 0, totalUsers: 0, activeUsers: 0 });
+	}
+
+	let stats = $state<AdminStats>({ totalOrgs: 0, totalUsers: 0, activeUsers: 0 });
 	let loading = $state(true);
 	let error = $state('');
 
@@ -32,7 +34,7 @@
 			stats = {
 				totalOrgs: orgsData.orgs.length,
 				totalUsers: usersData.users.length,
-				activeUsers: usersData.users.filter((u: any) => !u.disabled).length
+				activeUsers: usersData.users.filter((u: { disabled: boolean }) => !u.disabled).length
 			};
 		} catch (e) {
 			error = 'Failed to load admin data';
@@ -58,16 +60,14 @@
 		<div class="error">{error}</div>
 	{:else}
 		<div class="stats-grid">
-			<div class="stat-card">
+			<a href="/admin/orgs" class="stat-card">
 				<h2>{stats.totalOrgs}</h2>
 				<p>Organizations</p>
-				<a href="/admin/orgs">Manage</a>
-			</div>
-			<div class="stat-card">
+			</a>
+			<a href="/admin/users" class="stat-card">
 				<h2>{stats.totalUsers}</h2>
 				<p>Total Users</p>
-				<a href="/admin/users">Manage</a>
-			</div>
+			</a>
 			<div class="stat-card">
 				<h2>{stats.activeUsers}</h2>
 				<p>Active Users</p>
@@ -85,14 +85,14 @@
 
 	header {
 		margin-bottom: 2rem;
-		border-bottom: 2px solid var(--color-border);
+		border-bottom: 2px solid var(--border);
 		padding-bottom: 1rem;
 	}
 
 	h1 {
 		font-size: 1.75rem;
 		margin: 0 0 1rem 0;
-		color: var(--color-text);
+		color: var(--text);
 	}
 
 	nav {
@@ -103,17 +103,18 @@
 
 	nav a {
 		padding: 0.5rem 1rem;
-		background: var(--color-bg-secondary);
-		color: var(--color-text);
+		background: var(--surface);
+		color: var(--text);
 		text-decoration: none;
-		border-radius: 4px;
-		min-height: 48px;
+		border-radius: var(--radius);
+		min-height: var(--touch);
 		display: flex;
 		align-items: center;
+		border: 1px solid var(--border);
 	}
 
 	nav a:hover {
-		background: var(--color-bg-hover);
+		background: var(--surface-hover);
 	}
 
 	.loading,
@@ -121,12 +122,14 @@
 		text-align: center;
 		padding: 2rem;
 		font-size: 1.125rem;
+		color: var(--text);
 	}
 
 	.error {
-		color: var(--color-error);
-		background: var(--color-bg-secondary);
-		border-radius: 8px;
+		color: var(--bad);
+		background: var(--surface);
+		border-radius: var(--radius);
+		border: 1px solid var(--bad);
 	}
 
 	.stats-grid {
@@ -136,38 +139,30 @@
 	}
 
 	.stat-card {
-		background: var(--color-bg-secondary);
+		background: var(--surface);
 		padding: 2rem;
-		border-radius: 8px;
+		border-radius: var(--radius);
 		text-align: center;
+		border: 1px solid var(--border);
+		text-decoration: none;
+		display: block;
+		transition: background 0.15s ease;
+	}
+
+	a.stat-card:hover {
+		background: var(--surface-hover);
+		cursor: pointer;
 	}
 
 	.stat-card h2 {
 		font-size: 3rem;
 		margin: 0 0 0.5rem 0;
-		color: var(--color-primary);
+		color: var(--accent);
 	}
 
 	.stat-card p {
 		font-size: 1.125rem;
-		margin: 0 0 1rem 0;
-		color: var(--color-text-secondary);
-	}
-
-	.stat-card a {
-		display: inline-block;
-		padding: 0.5rem 1.5rem;
-		background: var(--color-primary);
-		color: white;
-		text-decoration: none;
-		border-radius: 4px;
-		min-height: 48px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.stat-card a:hover {
-		opacity: 0.9;
+		margin: 0;
+		color: var(--text-muted);
 	}
 </style>

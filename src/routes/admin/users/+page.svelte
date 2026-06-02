@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	type User = {
+	interface User {
 		id: string;
 		email: string;
 		name: string;
@@ -12,17 +12,23 @@
 		disabled: boolean;
 		phone: string | null;
 		created_at: number;
-	};
+	}
 
 	let users = $state<User[]>([]);
 	let filteredUsers = $state<User[]>([]);
 	let searchQuery = $state('');
-	let filterOrg = $state('all');
 	let filterStatus = $state('all');
 	let loading = $state(true);
 	let error = $state('');
+	let statusMessage = $state('');
 	let editingUser = $state<User | null>(null);
-	let editForm = $state({ name: '', email: '', phone: '', is_global_admin: false, disabled: false });
+	let editForm = $state({
+		name: '',
+		email: '',
+		phone: '',
+		is_global_admin: false,
+		disabled: false
+	});
 
 	onMount(async () => {
 		await loadUsers();
@@ -78,6 +84,7 @@
 			is_global_admin: user.is_global_admin,
 			disabled: user.disabled
 		};
+		statusMessage = '';
 	}
 
 	async function saveEdit() {
@@ -98,14 +105,71 @@
 
 			if (!res.ok) {
 				const data = await res.json();
-				alert(data.error || 'Failed to update user');
+				statusMessage = data.error || 'Failed to update user';
 				return;
 			}
 
 			await loadUsers();
 			editingUser = null;
+			statusMessage = '';
 		} catch (e) {
-			alert('Failed to update user');
+			statusMessage = 'Failed to update user';
+		}
+	}
+
+	async function toggleDisabled(user: User) {
+		const newDisabledState = !user.disabled;
+		const action = newDisabledState ? 'disable' : 'enable';
+
+		if (!confirm(`Are you sure you want to ${action} ${user.name}?${newDisabledState ? ' This will log them out immediately.' : ''}`)) {
+			return;
+		}
+
+		try {
+			const res = await fetch(`/api/admin/users/${user.id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ disabled: newDisabledState })
+			});
+
+			if (!res.ok) {
+				const data = await res.json();
+				statusMessage = data.error || `Failed to ${action} user`;
+				return;
+			}
+
+			await loadUsers();
+			statusMessage = '';
+		} catch (e) {
+			statusMessage = `Failed to ${action} user`;
+		}
+	}
+
+	async function toggleGlobalAdmin(user: User) {
+		const newAdminState = !user.is_global_admin;
+		const action = newAdminState ? 'grant global admin to' : 'revoke global admin from';
+
+		if (!confirm(`Are you sure you want to ${action} ${user.name}?`)) {
+			return;
+		}
+
+		try {
+			const res = await fetch(`/api/admin/users/${user.id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ is_global_admin: newAdminState })
+			});
+
+			if (!res.ok) {
+				const data = await res.json();
+				statusMessage = data.error || `Failed to update admin status`;
+				return;
+			}
+
+			await loadUsers();
+			statusMessage = '';
+		} catch (e) {
+			statusMessage = `Failed to update admin status`;
 		}
 	}
 
@@ -119,6 +183,10 @@
 		<h1>Users</h1>
 		<a href="/admin">Back to Admin</a>
 	</header>
+
+	{#if statusMessage}
+		<div class="status-message error">{statusMessage}</div>
+	{/if}
 
 	<div class="filters">
 		<input
@@ -155,23 +223,34 @@
 				</thead>
 				<tbody>
 					{#each filteredUsers as user}
-						<tr class:disabled={user.disabled}>
+						<tr class:disabled-row={user.disabled}>
 							<td data-label="Name">
 								{user.name}
 								{#if user.is_global_admin}
-									<span class="badge">Admin</span>
+									<span class="badge admin">Global Admin</span>
 								{/if}
 							</td>
 							<td data-label="Email">{user.email}</td>
 							<td data-label="Organization">{user.org_name || '—'}</td>
 							<td data-label="Role">{user.role || '—'}</td>
 							<td data-label="Status">
-								<span class="status" class:active={!user.disabled}>
+								<span class="status-badge" class:active={!user.disabled} class:disabled={user.disabled}>
 									{user.disabled ? 'Disabled' : 'Active'}
 								</span>
 							</td>
-							<td data-label="Actions">
-								<button onclick={() => startEdit(user)}>Edit</button>
+							<td data-label="Actions" class="actions-cell">
+								<button class="action-btn" onclick={() => toggleGlobalAdmin(user)}>
+									{user.is_global_admin ? 'Remove Admin' : 'Make Admin'}
+								</button>
+								<button
+									class="action-btn"
+									class:danger={!user.disabled}
+									class:success={user.disabled}
+									onclick={() => toggleDisabled(user)}
+								>
+									{user.disabled ? 'Enable' : 'Disable'}
+								</button>
+								<button class="action-btn" onclick={() => startEdit(user)}>Edit</button>
 							</td>
 						</tr>
 					{/each}
@@ -182,7 +261,7 @@
 </div>
 
 {#if editingUser}
-	<div class="modal-overlay" onclick={() => (editingUser = null)}></div>
+	<div class="modal-overlay" onclick={() => { editingUser = null; statusMessage = ''; }}></div>
 	<div class="modal">
 		<h2>Edit User</h2>
 		<form onsubmit={(e) => { e.preventDefault(); saveEdit(); }}>
@@ -200,14 +279,14 @@
 			</label>
 			<label class="checkbox">
 				<input type="checkbox" bind:checked={editForm.is_global_admin} />
-				Global Admin
+				<span>Global Admin</span>
 			</label>
 			<label class="checkbox">
 				<input type="checkbox" bind:checked={editForm.disabled} />
-				Disabled
+				<span>Disabled</span>
 			</label>
 			<div class="modal-actions">
-				<button type="button" onclick={() => (editingUser = null)}>Cancel</button>
+				<button type="button" onclick={() => { editingUser = null; statusMessage = ''; }}>Cancel</button>
 				<button type="submit">Save</button>
 			</div>
 		</form>
@@ -228,29 +307,43 @@
 		flex-wrap: wrap;
 		gap: 1rem;
 		margin-bottom: 1.5rem;
-		border-bottom: 2px solid var(--color-border);
+		border-bottom: 2px solid var(--border);
 		padding-bottom: 1rem;
 	}
 
 	h1 {
 		font-size: 1.75rem;
 		margin: 0;
-		color: var(--color-text);
+		color: var(--text);
 	}
 
 	header a {
 		padding: 0.5rem 1rem;
-		min-height: 48px;
+		min-height: var(--touch);
 		display: flex;
 		align-items: center;
-		background: var(--color-bg-secondary);
-		color: var(--color-text);
+		background: var(--surface);
+		color: var(--text);
 		text-decoration: none;
-		border-radius: 4px;
+		border-radius: var(--radius);
+		border: 1px solid var(--border);
 	}
 
 	header a:hover {
-		background: var(--color-bg-hover);
+		background: var(--surface-hover);
+	}
+
+	.status-message {
+		padding: 0.75rem;
+		margin-bottom: 1rem;
+		border-radius: var(--radius);
+		font-size: 0.875rem;
+	}
+
+	.status-message.error {
+		background: rgba(var(--bad-rgb), 0.1);
+		color: var(--bad);
+		border: 1px solid var(--bad);
 	}
 
 	.filters {
@@ -266,10 +359,10 @@
 		min-width: 200px;
 		padding: 0.75rem;
 		font-size: 1rem;
-		border: 1px solid var(--color-border);
-		border-radius: 4px;
-		background: var(--color-bg);
-		color: var(--color-text);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--surface);
+		color: var(--text);
 	}
 
 	.loading,
@@ -278,12 +371,14 @@
 		text-align: center;
 		padding: 2rem;
 		font-size: 1.125rem;
+		color: var(--text-muted);
 	}
 
 	.error {
-		color: var(--color-error);
-		background: var(--color-bg-secondary);
-		border-radius: 8px;
+		color: var(--bad);
+		background: var(--surface);
+		border-radius: var(--radius);
+		border: 1px solid var(--bad);
 	}
 
 	.users-table-wrapper {
@@ -293,77 +388,113 @@
 	.users-table {
 		width: 100%;
 		border-collapse: collapse;
-		background: var(--color-bg-secondary);
-		border-radius: 8px;
+		background: var(--surface);
+		border-radius: var(--radius);
 		overflow: hidden;
+		border: 1px solid var(--border);
 	}
 
 	.users-table thead {
-		background: var(--color-bg-tertiary);
+		background: var(--surface-alt);
 	}
 
 	.users-table th {
 		text-align: left;
 		padding: 1rem;
 		font-weight: 600;
-		color: var(--color-text);
+		color: var(--text);
 	}
 
 	.users-table td {
 		padding: 1rem;
-		border-top: 1px solid var(--color-border);
+		border-top: 1px solid var(--border);
+		color: var(--text);
 	}
 
 	.users-table tr:hover {
-		background: var(--color-bg-hover);
+		background: var(--surface-hover);
 	}
 
-	.users-table tr.disabled {
+	.users-table tr.disabled-row {
 		opacity: 0.6;
 	}
 
 	.badge {
 		display: inline-block;
-		padding: 0.125rem 0.5rem;
-		background: var(--color-primary);
-		color: white;
+		padding: 0.25rem 0.75rem;
 		font-size: 0.75rem;
-		border-radius: 4px;
+		border-radius: var(--radius);
 		margin-left: 0.5rem;
 	}
 
-	.status {
+	.badge.admin {
+		background: var(--accent);
+		color: var(--accent-text);
+		font-weight: 600;
+	}
+
+	.status-badge {
 		display: inline-block;
 		padding: 0.25rem 0.75rem;
-		border-radius: 4px;
+		border-radius: var(--radius);
 		font-size: 0.875rem;
-		background: var(--color-bg-tertiary);
-		color: var(--color-text-secondary);
 	}
 
-	.status.active {
-		background: rgba(34, 197, 94, 0.2);
-		color: rgb(34, 197, 94);
+	.status-badge.active {
+		background: var(--good);
+		color: var(--bg);
 	}
 
-	.users-table button {
+	.status-badge.disabled {
+		background: var(--bad);
+		color: var(--text);
+	}
+
+	.actions-cell {
+		white-space: nowrap;
+	}
+
+	.action-btn {
 		padding: 0.25rem 0.75rem;
-		background: var(--color-primary);
-		color: white;
-		border: none;
-		border-radius: 4px;
+		background: var(--surface-alt);
+		color: var(--text);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
 		cursor: pointer;
-		min-height: 48px;
+		font-size: 0.875rem;
+		min-height: var(--touch);
+		margin-right: 0.5rem;
+		margin-bottom: 0.25rem;
 	}
 
-	.users-table button:hover {
-		opacity: 0.9;
+	.action-btn:hover {
+		background: var(--surface-hover);
+	}
+
+	.action-btn.danger {
+		background: rgba(var(--bad-rgb), 0.1);
+		color: var(--bad);
+		border-color: var(--bad);
+	}
+
+	.action-btn.danger:hover {
+		background: rgba(var(--bad-rgb), 0.2);
+	}
+
+	.action-btn.success {
+		background: rgba(63, 178, 127, 0.1);
+		color: var(--good);
+		border-color: var(--good);
+	}
+
+	.action-btn.success:hover {
+		background: rgba(63, 178, 127, 0.2);
 	}
 
 	.modal-overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
+		background: rgba(0, 0, 0, 0.7);
 		z-index: 100;
 	}
 
@@ -372,9 +503,10 @@
 		top: 50%;
 		left: 50%;
 		transform: translate(-50%, -50%);
-		background: var(--color-bg);
+		background: var(--surface);
 		padding: 2rem;
-		border-radius: 8px;
+		border-radius: var(--radius);
+		border: 1px solid var(--border);
 		z-index: 101;
 		min-width: 300px;
 		max-width: 500px;
@@ -385,24 +517,28 @@
 
 	.modal h2 {
 		margin: 0 0 1.5rem 0;
-		color: var(--color-text);
+		color: var(--text);
 	}
 
 	.modal label {
 		display: block;
 		margin-bottom: 1rem;
-		color: var(--color-text);
+		color: var(--text);
+		font-size: 0.875rem;
+		font-weight: 600;
 	}
 
 	.modal label.checkbox {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
+		font-weight: normal;
 	}
 
 	.modal label.checkbox input {
 		width: auto;
 		margin: 0;
+		min-height: var(--touch);
 	}
 
 	.modal input[type='text'],
@@ -413,10 +549,10 @@
 		margin-top: 0.5rem;
 		padding: 0.75rem;
 		font-size: 1rem;
-		border: 1px solid var(--color-border);
-		border-radius: 4px;
-		background: var(--color-bg-secondary);
-		color: var(--color-text);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--bg);
+		color: var(--text);
 	}
 
 	.modal-actions {
@@ -428,21 +564,22 @@
 
 	.modal-actions button {
 		padding: 0.5rem 1.5rem;
-		min-height: 48px;
-		border: none;
-		border-radius: 4px;
+		min-height: var(--touch);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
 		font-size: 1rem;
 		cursor: pointer;
 	}
 
 	.modal-actions button[type='button'] {
-		background: var(--color-bg-secondary);
-		color: var(--color-text);
+		background: var(--surface-alt);
+		color: var(--text);
 	}
 
 	.modal-actions button[type='submit'] {
-		background: var(--color-primary);
-		color: white;
+		background: var(--accent);
+		color: var(--accent-text);
+		border-color: var(--accent);
 	}
 
 	@media (max-width: 768px) {
@@ -473,8 +610,12 @@
 		.users-table tr {
 			display: block;
 			margin-bottom: 1rem;
-			border: 1px solid var(--color-border);
-			border-radius: 8px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+		}
+
+		.actions-cell {
+			white-space: normal;
 		}
 	}
 </style>

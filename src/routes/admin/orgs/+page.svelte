@@ -16,7 +16,9 @@
 	let error = $state('');
 	let showCreateModal = $state(false);
 	let newOrgName = $state('');
+	let newOrgOwnerEmail = $state('');
 	let creating = $state(false);
+	let createStatus = $state('');
 
 	onMount(async () => {
 		await loadOrgs();
@@ -56,24 +58,32 @@
 		if (!newOrgName.trim()) return;
 
 		creating = true;
+		createStatus = '';
 		try {
+			const payload: { name: string; ownerEmail?: string } = { name: newOrgName.trim() };
+			if (newOrgOwnerEmail.trim()) {
+				payload.ownerEmail = newOrgOwnerEmail.trim();
+			}
+
 			const res = await fetch('/api/admin/orgs', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name: newOrgName.trim() })
+				body: JSON.stringify(payload)
 			});
 
 			if (!res.ok) {
 				const data = await res.json();
-				alert(data.error || 'Failed to create organization');
+				createStatus = data.error || 'Failed to create organization';
 				return;
 			}
 
 			await loadOrgs();
 			showCreateModal = false;
 			newOrgName = '';
+			newOrgOwnerEmail = '';
+			createStatus = '';
 		} catch (e) {
-			alert('Failed to create organization');
+			createStatus = 'Failed to create organization';
 		} finally {
 			creating = false;
 		}
@@ -142,6 +152,9 @@
 	<div class="modal-overlay" onclick={() => (showCreateModal = false)}></div>
 	<div class="modal">
 		<h2>Create Organization</h2>
+		{#if createStatus}
+			<div class="status-message error">{createStatus}</div>
+		{/if}
 		<form onsubmit={(e) => { e.preventDefault(); createOrg(); }}>
 			<label>
 				Organization Name
@@ -151,6 +164,14 @@
 					placeholder="Acme Paving Co."
 					required
 					autofocus
+				/>
+			</label>
+			<label>
+				Owner Email (optional)
+				<input
+					type="email"
+					bind:value={newOrgOwnerEmail}
+					placeholder="owner@example.com"
 				/>
 			</label>
 			<div class="modal-actions">
@@ -177,14 +198,14 @@
 		flex-wrap: wrap;
 		gap: 1rem;
 		margin-bottom: 1.5rem;
-		border-bottom: 2px solid var(--color-border);
+		border-bottom: 2px solid var(--border);
 		padding-bottom: 1rem;
 	}
 
 	h1 {
 		font-size: 1.75rem;
 		margin: 0;
-		color: var(--color-text);
+		color: var(--text);
 	}
 
 	.actions {
@@ -195,27 +216,31 @@
 	.actions a,
 	.actions button {
 		padding: 0.5rem 1rem;
-		min-height: 48px;
+		min-height: var(--touch);
 		display: flex;
 		align-items: center;
 		text-decoration: none;
-		border-radius: 4px;
-		border: none;
+		border-radius: var(--radius);
+		border: 1px solid var(--border);
 		font-size: 1rem;
 		cursor: pointer;
 	}
 
 	.actions a {
-		background: var(--color-bg-secondary);
-		color: var(--color-text);
+		background: var(--surface);
+		color: var(--text);
 	}
 
 	.actions button {
-		background: var(--color-primary);
-		color: white;
+		background: var(--accent);
+		color: var(--accent-text);
+		border-color: var(--accent);
 	}
 
-	.actions a:hover,
+	.actions a:hover {
+		background: var(--surface-hover);
+	}
+
 	.actions button:hover {
 		opacity: 0.9;
 	}
@@ -228,10 +253,10 @@
 		width: 100%;
 		padding: 0.75rem;
 		font-size: 1rem;
-		border: 1px solid var(--color-border);
-		border-radius: 4px;
-		background: var(--color-bg);
-		color: var(--color-text);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--surface);
+		color: var(--text);
 	}
 
 	.loading,
@@ -240,12 +265,14 @@
 		text-align: center;
 		padding: 2rem;
 		font-size: 1.125rem;
+		color: var(--text-muted);
 	}
 
 	.error {
-		color: var(--color-error);
-		background: var(--color-bg-secondary);
-		border-radius: 8px;
+		color: var(--bad);
+		background: var(--surface);
+		border-radius: var(--radius);
+		border: 1px solid var(--bad);
 	}
 
 	.orgs-table-wrapper {
@@ -255,33 +282,35 @@
 	.orgs-table {
 		width: 100%;
 		border-collapse: collapse;
-		background: var(--color-bg-secondary);
-		border-radius: 8px;
+		background: var(--surface);
+		border-radius: var(--radius);
 		overflow: hidden;
+		border: 1px solid var(--border);
 	}
 
 	.orgs-table thead {
-		background: var(--color-bg-tertiary);
+		background: var(--surface-alt);
 	}
 
 	.orgs-table th {
 		text-align: left;
 		padding: 1rem;
 		font-weight: 600;
-		color: var(--color-text);
+		color: var(--text);
 	}
 
 	.orgs-table td {
 		padding: 1rem;
-		border-top: 1px solid var(--color-border);
+		border-top: 1px solid var(--border);
+		color: var(--text);
 	}
 
 	.orgs-table tr:hover {
-		background: var(--color-bg-hover);
+		background: var(--surface-hover);
 	}
 
 	.orgs-table a {
-		color: var(--color-primary);
+		color: var(--accent);
 		text-decoration: none;
 		padding: 0.25rem 0.5rem;
 	}
@@ -293,7 +322,7 @@
 	.modal-overlay {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.5);
+		background: rgba(0, 0, 0, 0.7);
 		z-index: 100;
 	}
 
@@ -302,9 +331,10 @@
 		top: 50%;
 		left: 50%;
 		transform: translate(-50%, -50%);
-		background: var(--color-bg);
+		background: var(--surface);
 		padding: 2rem;
-		border-radius: 8px;
+		border-radius: var(--radius);
+		border: 1px solid var(--border);
 		z-index: 101;
 		min-width: 300px;
 		max-width: 500px;
@@ -313,13 +343,28 @@
 
 	.modal h2 {
 		margin: 0 0 1.5rem 0;
-		color: var(--color-text);
+		color: var(--text);
+	}
+
+	.status-message {
+		padding: 0.75rem;
+		margin-bottom: 1rem;
+		border-radius: var(--radius);
+		font-size: 0.875rem;
+	}
+
+	.status-message.error {
+		background: rgba(var(--bad-rgb), 0.1);
+		color: var(--bad);
+		border: 1px solid var(--bad);
 	}
 
 	.modal label {
 		display: block;
 		margin-bottom: 1.5rem;
-		color: var(--color-text);
+		color: var(--text);
+		font-size: 0.875rem;
+		font-weight: 600;
 	}
 
 	.modal input {
@@ -328,10 +373,10 @@
 		margin-top: 0.5rem;
 		padding: 0.75rem;
 		font-size: 1rem;
-		border: 1px solid var(--color-border);
-		border-radius: 4px;
-		background: var(--color-bg-secondary);
-		color: var(--color-text);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--bg);
+		color: var(--text);
 	}
 
 	.modal-actions {
@@ -342,21 +387,22 @@
 
 	.modal-actions button {
 		padding: 0.5rem 1.5rem;
-		min-height: 48px;
-		border: none;
-		border-radius: 4px;
+		min-height: var(--touch);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
 		font-size: 1rem;
 		cursor: pointer;
 	}
 
 	.modal-actions button[type='button'] {
-		background: var(--color-bg-secondary);
-		color: var(--color-text);
+		background: var(--surface);
+		color: var(--text);
 	}
 
 	.modal-actions button[type='submit'] {
-		background: var(--color-primary);
-		color: white;
+		background: var(--accent);
+		color: var(--accent-text);
+		border-color: var(--accent);
 	}
 
 	.modal-actions button:disabled {
@@ -392,8 +438,8 @@
 		.orgs-table tr {
 			display: block;
 			margin-bottom: 1rem;
-			border: 1px solid var(--color-border);
-			border-radius: 8px;
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
 		}
 	}
 </style>

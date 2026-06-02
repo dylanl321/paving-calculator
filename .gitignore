@@ -27,3 +27,4 @@ vite.config.ts.timestamp-*
 
 # Cursor local agent state
 .cursor/hooks/state/
+.dev.vars

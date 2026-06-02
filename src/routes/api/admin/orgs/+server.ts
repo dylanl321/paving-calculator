@@ -20,7 +20,7 @@ export async function POST(event: RequestEvent) {
 	try {
 		await requireGlobalAdmin(event);
 		const body = await event.request.json();
-		const { name } = body;
+		const { name, ownerEmail } = body;
 
 		if (!name || typeof name !== 'string' || name.trim().length === 0) {
 			return json({ error: 'Organization name is required' }, { status: 400 });
@@ -30,6 +30,15 @@ export async function POST(event: RequestEvent) {
 		const db = new DbHelper(event.platform!.env.DB);
 
 		const org = await db.createOrganization(name.trim(), slug);
+
+		// If ownerEmail provided, add the user as owner
+		if (ownerEmail && typeof ownerEmail === 'string') {
+			const user = await db.getUserByEmail(ownerEmail.trim());
+			if (user) {
+				await db.addOrgMember(user.id, org.id, 'owner');
+			}
+		}
+
 		return json({ org }, { status: 201 });
 	} catch (error) {
 		if (error instanceof Response) throw error;

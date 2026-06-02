@@ -30,6 +30,11 @@ export async function PATCH(event: RequestEvent) {
 		const db = new DbHelper(event.platform!.env.DB);
 		await db.updateUser(id, updates);
 
+		// If user was disabled, purge all their sessions
+		if (updates.disabled === true) {
+			await db.deleteSessionsByUserId(id);
+		}
+
 		const user = await db.getUserById(id);
 		if (!user) {
 			return json({ error: 'User not found' }, { status: 404 });

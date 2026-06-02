@@ -27,8 +27,30 @@ export async function PATCH(event: RequestEvent) {
 		await requireGlobalAdmin(event);
 		const { id } = event.params;
 		const body = await event.request.json();
-		const { name, slug } = body;
+		const { name, slug, action, userId, role } = body;
 
+		const db = new DbHelper(event.platform!.env.DB);
+
+		// Handle member management actions
+		if (action) {
+			if (action === 'updateRole') {
+				if (!userId || !role) {
+					return json({ error: 'userId and role are required for updateRole' }, { status: 400 });
+				}
+				await db.updateOrgMemberRole(userId, id, role);
+				return json({ success: true });
+			} else if (action === 'removeMember') {
+				if (!userId) {
+					return json({ error: 'userId is required for removeMember' }, { status: 400 });
+				}
+				await db.removeOrgMember(userId, id);
+				return json({ success: true });
+			} else {
+				return json({ error: 'Invalid action' }, { status: 400 });
+			}
+		}
+
+		// Handle org property updates
 		const updates: { name?: string; slug?: string } = {};
 		if (name && typeof name === 'string') updates.name = name.trim();
 		if (slug && typeof slug === 'string') updates.slug = slug.trim();
@@ -37,7 +59,6 @@ export async function PATCH(event: RequestEvent) {
 			return json({ error: 'No valid updates provided' }, { status: 400 });
 		}
 
-		const db = new DbHelper(event.platform!.env.DB);
 		await db.updateOrganization(id, updates);
 
 		const org = await db.getOrganizationById(id);

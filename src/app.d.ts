@@ -11,6 +11,7 @@ declare global {
 			env: {
 				DB: D1Database;
 				ASSETS_BUCKET: R2Bucket;
+				SUPER_ADMIN_EMAILS?: string;
 			};
 			ctx: ExecutionContext;
 			caches: CacheStorage;

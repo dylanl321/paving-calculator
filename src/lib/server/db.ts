@@ -451,6 +451,10 @@ export class DbHelper {
 		await this.db.prepare('DELETE FROM sessions WHERE id = ?').bind(token).run();
 	}
 
+	async deleteSessionsByUserId(userId: string): Promise<void> {
+		await this.db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run();
+	}
+
 	async cleanExpiredSessions(): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		await this.db.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now).run();

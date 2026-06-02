@@ -4,6 +4,9 @@
 	"compatibility_date": "2026-06-01",
 	"compatibility_flags": ["nodejs_compat"],
 	"pages_build_output_dir": ".svelte-kit/cloudflare",
+	"vars": {
+		"SUPER_ADMIN_EMAILS": "dylan@paverate.com"
+	},
 	"d1_databases": [
 		{
 			"binding": "DB",
