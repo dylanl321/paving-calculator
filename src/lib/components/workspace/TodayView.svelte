@@ -274,29 +274,6 @@
 		</div>
 	</div>
 
-	<TodaySummary variant="full" />
-
-	{#if authStore.isAuthenticated}
-		<section class="sync">
-			<div class="sync-row">
-				<label class="f sync-site">
-					<span>Cloud job site</span>
-					<select bind:value={selectedSiteId}>
-						<option value="">Not linked (local only)</option>
-						{#each jobSites as site (site.id)}
-							<option value={site.id}>{site.name}</option>
-						{/each}
-					</select>
-				</label>
-				<button class="btn btn-primary btn-sm" disabled={syncing || !selectedSiteId} onclick={syncNow}>
-					{syncing ? 'Syncing…' : 'Sync to cloud'}
-				</button>
-			</div>
-			{#if syncMsg}<p class="sync-ok">{syncMsg}</p>{/if}
-			{#if syncErr}<p class="sync-bad">{syncErr}</p>{/if}
-		</section>
-	{/if}
-
 	<section class="conditions">
 		<div class="cond-head">
 			<span class="eyebrow">Day Conditions</span>
@@ -338,6 +315,29 @@
 			</label>
 		</div>
 	</section>
+
+	<TodaySummary variant="full" />
+
+	{#if authStore.isAuthenticated}
+		<section class="sync">
+			<div class="sync-row">
+				<label class="f sync-site">
+					<span>Cloud job site</span>
+					<select bind:value={selectedSiteId}>
+						<option value="">Not linked (local only)</option>
+						{#each jobSites as site (site.id)}
+							<option value={site.id}>{site.name}</option>
+						{/each}
+					</select>
+				</label>
+				<button class="btn btn-primary btn-sm" disabled={syncing || !selectedSiteId} onclick={syncNow}>
+					{syncing ? 'Syncing…' : 'Sync to cloud'}
+				</button>
+			</div>
+			{#if syncMsg}<p class="sync-ok">{syncMsg}</p>{/if}
+			{#if syncErr}<p class="sync-bad">{syncErr}</p>{/if}
+		</section>
+	{/if}
 
 	<section class="timeline-wrap">
 		<span class="eyebrow">Timeline</span>
