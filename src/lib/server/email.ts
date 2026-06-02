@@ -57,7 +57,7 @@ function getContrastColor(hexColor: string): string {
 	return luma > 186 ? '#1b2228' : '#f4f6f7';
 }
 
-function buildEmailTemplate(
+export function buildEmailTemplate(
 	content: {
 		title: string;
 		greeting: string;
@@ -260,4 +260,69 @@ export async function sendWelcomeEmail(
 		html,
 		replyTo: branding?.emailReplyTo
 	});
+}
+
+export function buildPreviewEmail(
+	type: 'invitation' | 'verification' | 'password-reset',
+	branding?: OrgBranding
+): { html: string; subject: string; from: string } {
+	const fromName = branding?.emailFromName ?? 'PaveRate';
+	const orgName = branding?.orgName ?? 'PaveRate';
+	const from = `${fromName} <noreply@paverate.com>`;
+
+	if (type === 'invitation') {
+		const html = buildEmailTemplate(
+			{
+				title: "You've been invited",
+				greeting: 'Hi there,',
+				message: `Jane Smith has invited you to join <strong>${orgName}</strong> on PaveRate. Click below to accept the invitation and get started.`,
+				ctaText: 'Accept Invitation',
+				ctaUrl: 'https://paverate.com/accept-invite?token=preview',
+				footer: 'This invitation will expire in 7 days.'
+			},
+			branding
+		);
+		return {
+			html,
+			subject: `Jane Smith invited you to ${orgName} on PaveRate`,
+			from
+		};
+	}
+
+	if (type === 'verification') {
+		const html = buildEmailTemplate(
+			{
+				title: 'Verify your email',
+				greeting: 'Hi John,',
+				message: `Thanks for signing up for ${orgName}! Click the button below to verify your email address and get full access to your account.`,
+				ctaText: 'Verify Email',
+				ctaUrl: 'https://paverate.com/api/auth/verify-email?token=preview',
+				footer: `If you didn't create a ${orgName} account, you can safely ignore this email. This link will expire in 24 hours.`
+			},
+			branding
+		);
+		return {
+			html,
+			subject: `Verify your ${orgName} account`,
+			from
+		};
+	}
+
+	// password-reset
+	const html = buildEmailTemplate(
+		{
+			title: 'Reset your password',
+			greeting: 'Hi John,',
+			message: 'We received a request to reset your password. Click the button below to choose a new password. If you didn\'t request this, you can ignore this email.',
+			ctaText: 'Reset Password',
+			ctaUrl: 'https://paverate.com/reset-password?token=preview',
+			footer: 'For security, this link will expire in 1 hour. If you didn\'t request a password reset, please ignore this email.'
+		},
+		branding
+	);
+	return {
+		html,
+		subject: `Reset your ${orgName} password`,
+		from
+	};
 }
