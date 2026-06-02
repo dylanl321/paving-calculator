@@ -224,7 +224,7 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		color: #f4f6f7;
+		color: var(--text);
 		font-weight: 700;
 		font-size: 1.05rem;
 		letter-spacing: 0.2px;
@@ -254,22 +254,25 @@
 		max-width: 420px;
 		padding: 40px 34px 30px;
 		border-radius: 22px;
-		background: color-mix(in srgb, var(--surface) 72%, transparent);
-		border: 1px solid var(--border);
 		backdrop-filter: blur(18px) saturate(120%);
 		-webkit-backdrop-filter: blur(18px) saturate(120%);
+	}
+
+	[data-theme='light'] .auth-card {
+		background: rgba(255, 255, 255, 0.95);
+		border: 1px solid rgba(0, 0, 0, 0.12);
+		box-shadow:
+			0 28px 70px -28px rgba(0, 0, 0, 0.8),
+			inset 0 1px 0 rgba(255, 255, 255, 0.6);
+	}
+
+	[data-theme='dark'] .auth-card,
+	[data-theme='sunlight'] .auth-card {
+		background: rgba(24, 31, 37, 0.72);
+		border: 1px solid rgba(159, 176, 189, 0.18);
 		box-shadow:
 			0 28px 70px -28px rgba(0, 0, 0, 0.8),
 			inset 0 1px 0 rgba(255, 255, 255, 0.06);
-	}
-
-	:global([data-theme='light']) .auth-card,
-	:global([data-theme='sunlight']) .auth-card {
-		background: rgba(255, 255, 255, 0.92);
-		border: 1px solid rgba(0, 0, 0, 0.12);
-		box-shadow:
-			0 28px 70px -28px rgba(0, 0, 0, 0.25),
-			inset 0 1px 0 rgba(255, 255, 255, 0.5);
 	}
 
 	.auth-logo {
@@ -308,7 +311,7 @@
 		width: 100%;
 		min-height: var(--touch);
 		padding: 0 16px;
-		background: color-mix(in srgb, var(--surface-alt) 55%, transparent);
+		background: var(--bg);
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		color: var(--text);
@@ -319,27 +322,21 @@
 			background 0.18s;
 	}
 
-	:global([data-theme='light']) .form-field input,
-	:global([data-theme='sunlight']) .form-field input {
-		background: rgba(255, 255, 255, 0.8);
-		border: 1px solid rgba(0, 0, 0, 0.2);
-		color: #1a1614;
-	}
-
 	.form-field input::placeholder {
 		color: var(--text-muted);
+		opacity: 0.6;
 	}
 
 	.form-field input:focus {
 		outline: none;
-		background: color-mix(in srgb, var(--surface-alt) 75%, transparent);
+		background: var(--surface);
 		border-color: var(--accent);
 		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 	}
 
 	.error-message {
 		padding: 12px 16px;
-		background: color-mix(in srgb, var(--bad) 18%, transparent);
+		background: rgba(var(--bad-rgb), 0.18);
 		border: 1px solid var(--bad);
 		border-radius: var(--radius);
 		color: var(--bad);
@@ -400,13 +397,13 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 7px;
-		color: var(--text);
+		color: rgba(255, 255, 255, 0.9);
 		font-size: 0.88rem;
 		text-decoration: none;
 		padding: 9px 16px;
 		border-radius: var(--radius-pill);
-		background: color-mix(in srgb, var(--surface) 72%, transparent);
-		border: 1px solid var(--border);
+		background: rgba(24, 31, 37, 0.72);
+		border: 1px solid rgba(159, 176, 189, 0.18);
 		backdrop-filter: blur(10px);
 		-webkit-backdrop-filter: blur(10px);
 		transition:
@@ -415,23 +412,9 @@
 			border-color 0.18s;
 	}
 	.back-link:hover {
-		color: var(--text);
-		background: color-mix(in srgb, var(--surface) 90%, transparent);
-		border-color: var(--border);
-	}
-
-	:global([data-theme='light']) .back-link,
-	:global([data-theme='sunlight']) .back-link {
-		background: rgba(255, 255, 255, 0.92);
-		border: 1px solid rgba(0, 0, 0, 0.12);
-		color: #1a1614;
-	}
-
-	:global([data-theme='light']) .back-link:hover,
-	:global([data-theme='sunlight']) .back-link:hover {
-		background: rgba(255, 255, 255, 1);
-		border-color: rgba(0, 0, 0, 0.2);
-		color: #000;
+		color: rgba(255, 255, 255, 1);
+		background: rgba(24, 31, 37, 0.9);
+		border-color: rgba(159, 176, 189, 0.35);
 	}
 
 	@media (max-width: 480px) {

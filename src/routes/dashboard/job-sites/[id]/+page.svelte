@@ -2736,15 +2736,15 @@
 	}
 
 	.milestone-status-badge.status-pending .status-dot {
-		background: #808080;
+		background: var(--text-muted);
 	}
 
 	.milestone-status-badge.status-in_progress .status-dot {
-		background: #3b82f6;
+		background: var(--warn);
 	}
 
 	.milestone-status-badge.status-completed .status-dot {
-		background: #22c55e;
+		background: var(--good);
 	}
 
 	.milestone-info {
