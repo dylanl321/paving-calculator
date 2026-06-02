@@ -210,6 +210,14 @@ export class DbLogHelper {
 			.run();
 	}
 
+	async reopenDailyLog(id: string): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare('UPDATE daily_logs SET closed_at = NULL, foreman_name = NULL, updated_at = ? WHERE id = ?')
+			.bind(now, id)
+			.run();
+	}
+
 	async listDailyLogs(jobSiteId: string, limit = 50, offset = 0): Promise<DbDailyLog[]> {
 		return await this.db
 			.prepare(
