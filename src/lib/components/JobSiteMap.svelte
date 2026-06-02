@@ -1,8 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
-	import { browser } from '$app/environment';
-	import L from 'leaflet';
-	import 'leaflet/dist/leaflet.css';
+	import { MapContainer, MapMarker } from '$lib/components/map';
 
 	interface SitePin {
 		id: string;
@@ -20,9 +17,6 @@
 
 	let { sites, height = '320px' }: Props = $props();
 
-	let mapEl: HTMLDivElement;
-	let mapInstance: L.Map | null = null;
-
 	const STATUS_COLORS: Record<string, string> = {
 		active: '#22c55e',
 		completed: '#94a3b8',
@@ -31,78 +25,29 @@
 
 	const pinned = $derived(sites.filter((s) => s.latitude != null && s.longitude != null));
 
-	function initMap() {
-		if (!browser || !mapEl || pinned.length === 0) return;
+	const center = $derived<[number, number] | undefined>(
+		pinned.length === 1 ? [pinned[0].latitude as number, pinned[0].longitude as number] : undefined
+	);
 
-		// Destroy any existing instance
-		if (mapInstance) {
-			mapInstance.remove();
-			mapInstance = null;
-		}
+	const bounds = $derived.by<[[number, number], [number, number]] | undefined>(() => {
+		if (pinned.length < 2) return undefined;
+		const lats = pinned.map((s) => s.latitude as number);
+		const lngs = pinned.map((s) => s.longitude as number);
+		return [
+			[Math.min(...lats), Math.min(...lngs)],
+			[Math.max(...lats), Math.max(...lngs)]
+		];
+	});
 
-		mapInstance = L.map(mapEl, {
-			zoomControl: true,
-			attributionControl: true
-		});
-
-		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-			attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-			maxZoom: 19
-		}).addTo(mapInstance);
-
-		const bounds: [number, number][] = [];
-
-		for (const site of pinned) {
-			const lat = site.latitude as number;
-			const lng = site.longitude as number;
-			bounds.push([lat, lng]);
-
-			const color = STATUS_COLORS[site.status] ?? STATUS_COLORS.active;
-			const icon = L.divIcon({
-				html: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
-					<path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="${color}" stroke="#fff" stroke-width="2"/>
-					<circle cx="14" cy="14" r="5" fill="#fff"/>
-				</svg>`,
-				className: '',
-				iconSize: [28, 36],
-				iconAnchor: [14, 36],
-				popupAnchor: [0, -36]
-			});
-
-			const statusLabel = site.status.charAt(0).toUpperCase() + site.status.slice(1);
-			const popup = L.popup().setContent(
-				`<div style="min-width:160px;font-family:system-ui,sans-serif">
-					<strong style="font-size:0.95rem">${site.name}</strong><br>
-					<span style="display:inline-block;margin:4px 0;padding:2px 8px;border-radius:999px;background:${color};color:#fff;font-size:0.7rem;font-weight:700;text-transform:uppercase">${statusLabel}</span>
-					${site.location_description ? `<br><span style="font-size:0.8rem;color:#666">${site.location_description}</span>` : ''}
-					<br><a href="/dashboard/job-sites/${site.id}" style="display:inline-block;margin-top:8px;font-size:0.82rem;color:#2563eb;text-decoration:underline">Open job site</a>
-				</div>`
-			);
-
-			L.marker([lat, lng], { icon }).bindPopup(popup).addTo(mapInstance);
-		}
-
-		if (bounds.length === 1) {
-			mapInstance.setView(bounds[0], 13);
-		} else if (bounds.length > 1) {
-			mapInstance.fitBounds(bounds, { padding: [32, 32] });
-		} else {
-			mapInstance.setView([39.5, -98.35], 4);
-		}
+	function popupFor(site: SitePin, color: string): string {
+		const statusLabel = site.status.charAt(0).toUpperCase() + site.status.slice(1);
+		return `<div style="min-width:160px;font-family:system-ui,sans-serif">
+				<strong style="font-size:0.95rem">${site.name}</strong><br>
+				<span style="display:inline-block;margin:4px 0;padding:2px 8px;border-radius:999px;background:${color};color:#fff;font-size:0.7rem;font-weight:700;text-transform:uppercase">${statusLabel}</span>
+				${site.location_description ? `<br><span style="font-size:0.8rem;color:#666">${site.location_description}</span>` : ''}
+				<br><a href="/dashboard/job-sites/${site.id}" style="display:inline-block;margin-top:8px;font-size:0.82rem;color:#2563eb;text-decoration:underline">Open job site</a>
+			</div>`;
 	}
-
-	onMount(() => {
-		if (browser && pinned.length > 0) {
-			initMap();
-		}
-	});
-
-	onDestroy(() => {
-		if (mapInstance) {
-			mapInstance.remove();
-			mapInstance = null;
-		}
-	});
 </script>
 
 {#if pinned.length === 0}
@@ -115,7 +60,26 @@
 	</div>
 {:else}
 	<div class="map-wrap" style="height:{height}">
-		<div bind:this={mapEl} class="map-el"></div>
+		<MapContainer
+			class="job-site-map"
+			{height}
+			center={center}
+			zoom={13}
+			bounds={bounds}
+			boundsPadding={32}
+		>
+			{#each pinned as site (site.id)}
+				{@const color = STATUS_COLORS[site.status] ?? STATUS_COLORS.active}
+				<MapMarker
+					lat={site.latitude as number}
+					lng={site.longitude as number}
+					title={site.name}
+					{color}
+					popupHtml={popupFor(site, color)}
+					popupMinWidth={160}
+				/>
+			{/each}
+		</MapContainer>
 	</div>
 {/if}
 
@@ -127,18 +91,9 @@
 		border: 1px solid var(--border);
 	}
 
-	.map-el {
-		width: 100%;
+	.map-wrap :global(.job-site-map) {
 		height: 100%;
-	}
-
-	/* Prevent Leaflet z-index from bleeding over modals */
-	.map-el :global(.leaflet-pane) {
-		z-index: 1;
-	}
-	.map-el :global(.leaflet-top),
-	.map-el :global(.leaflet-bottom) {
-		z-index: 2;
+		border-radius: 0;
 	}
 
 	.empty-map {
