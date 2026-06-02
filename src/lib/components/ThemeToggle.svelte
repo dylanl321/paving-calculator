@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { themeStore } from '$lib/stores/theme.svelte';
+	import { fade } from 'svelte/transition';
 
 	const modeLabel = $derived(
 		themeStore.mode === 'dark' ? 'Dark' : themeStore.mode === 'light' ? 'Light' : 'Sun'
@@ -95,14 +96,20 @@
 		border-radius: 12px;
 		color: var(--text);
 		cursor: pointer;
-		transition: background 0.2s;
+		transition:
+			background var(--dur-normal) var(--ease),
+			transform var(--dur-fast) var(--ease);
 		padding: 4px 8px;
 	}
+
 	.theme-toggle:hover {
 		background: var(--surface-alt);
 	}
-	.theme-toggle:active {
-		transform: scale(0.96);
+
+	@media (prefers-reduced-motion: no-preference) {
+		.theme-toggle:active {
+			transform: scale(0.96);
+		}
 	}
 	.icon-wrapper {
 		display: flex;

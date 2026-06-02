@@ -88,8 +88,15 @@
 		color: var(--text);
 		cursor: pointer;
 		transition:
-			background var(--dur) var(--ease),
-			border-color var(--dur) var(--ease);
+			background var(--dur-normal) var(--ease),
+			border-color var(--dur-normal) var(--ease),
+			transform var(--dur-fast) var(--ease);
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.tool:active {
+			transform: scale(0.98);
+		}
 	}
 
 	.tool:hover {

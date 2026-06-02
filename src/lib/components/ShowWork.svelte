@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { slide } from 'svelte/transition';
 	interface Props {
 		children: Snippet;
 	}
@@ -8,11 +9,11 @@
 </script>
 
 <div class="show-work">
-	<button class="toggle-link" onclick={() => (open = !open)} aria-expanded={open}>
+	<button class="toggle-link tap-scale" onclick={() => (open = !open)} aria-expanded={open}>
 		{open ? '▾' : '▸'} How this is figured
 	</button>
 	{#if open}
-		<div class="work-body">
+		<div class="work-body" transition:slide={{ duration: 280 }}>
 			{@render children()}
 		</div>
 	{/if}
@@ -29,6 +30,14 @@
 		font-size: 0.85rem;
 		padding: 4px 0;
 		cursor: pointer;
+		transition: color var(--dur-normal) var(--ease);
+		min-height: var(--touch);
+		display: flex;
+		align-items: center;
+	}
+
+	.toggle-link:hover {
+		color: var(--text);
 	}
 	.work-body {
 		margin-top: 8px;

@@ -16,8 +16,8 @@
 				class="toast toast-{toast.type}"
 				role={toast.type === 'error' ? 'alert' : 'status'}
 				aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
-				in:fly={{ y: 20, duration: 300 }}
-				out:fade={{ duration: 200 }}
+				in:fly={{ y: 20, duration: 280 }}
+				out:fade={{ duration: 160 }}
 			>
 				<div class="toast-icon" aria-hidden="true">
 					{#if toast.type === 'success'}

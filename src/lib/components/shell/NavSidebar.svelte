@@ -5,6 +5,7 @@
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import UserMenu from '$lib/components/UserMenu.svelte';
+	import { fade } from 'svelte/transition';
 
 	let drawerOpen = $state(false);
 
@@ -61,7 +62,12 @@
 
 <!-- Drawer scrim (mobile) -->
 {#if drawerOpen}
-	<button class="scrim" onclick={closeDrawer} aria-label="Close navigation"></button>
+	<button
+		class="scrim"
+		onclick={closeDrawer}
+		aria-label="Close navigation"
+		transition:fade={{ duration: 280 }}
+	></button>
 {/if}
 
 <!-- Sidebar / drawer -->
@@ -140,6 +146,19 @@
 		color: var(--text);
 		cursor: pointer;
 		border-radius: 10px;
+		transition:
+			background var(--dur-normal) var(--ease),
+			transform var(--dur-fast) var(--ease);
+	}
+
+	.hamburger:hover {
+		background: var(--surface-hover);
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.hamburger:active {
+			transform: scale(0.95);
+		}
 	}
 
 	.mobile-brand {
@@ -186,7 +205,7 @@
 		display: flex;
 		flex-direction: column;
 		transform: translateX(-100%);
-		transition: transform 0.22s ease;
+		transition: transform var(--dur-slow) var(--ease);
 		z-index: 40;
 	}
 
@@ -247,7 +266,16 @@
 		color: var(--text-muted);
 		font-weight: 600;
 		font-size: 0.95rem;
-		transition: background 0.15s, color 0.15s;
+		transition:
+			background var(--dur-normal) var(--ease),
+			color var(--dur-normal) var(--ease),
+			transform var(--dur-fast) var(--ease);
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.nav-link:active {
+			transform: scale(0.98);
+		}
 	}
 
 	.nav-link:hover {
@@ -295,7 +323,7 @@
 		font-weight: 600;
 		letter-spacing: 0.2px;
 		text-decoration: none;
-		transition: color 0.15s;
+		transition: color var(--dur-normal) var(--ease);
 	}
 
 	.powered-by:hover {

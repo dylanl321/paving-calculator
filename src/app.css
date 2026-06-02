@@ -51,7 +51,13 @@
 
 	/* Motion */
 	--ease: cubic-bezier(0.2, 0, 0, 1);
-	--dur: 0.16s;
+	--ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+	--ease-out: cubic-bezier(0, 0, 0.2, 1);
+	--dur-fast: 0.1s;
+	--dur-normal: 0.16s;
+	--dur: var(--dur-normal); /* legacy alias */
+	--dur-slow: 0.28s;
+	--dur-slower: 0.45s;
 
 	/* Eyebrow / section label (used widely) */
 	--eyebrow-size: var(--fs-xs);
@@ -92,9 +98,6 @@
 		transform var(--dur) var(--ease);
 }
 
-.btn:active {
-	transform: translateY(1px);
-}
 
 .btn-primary {
 	background: var(--accent);
@@ -353,6 +356,15 @@ input[type='time'] {
 	color: var(--text);
 	font-size: var(--fs-md);
 	cursor: pointer;
+	transition:
+		background var(--dur-normal) var(--ease),
+		color var(--dur-normal) var(--ease),
+		border-color var(--dur-normal) var(--ease),
+		transform var(--dur-fast) var(--ease);
+}
+
+.chip:hover {
+	background: var(--surface-hover);
 }
 
 .chip.active {
@@ -360,6 +372,12 @@ input[type='time'] {
 	color: var(--accent-text);
 	border-color: var(--accent);
 	font-weight: var(--fw-bold);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.chip:active {
+		transform: scale(0.96);
+	}
 }
 
 /* Home footer */
@@ -584,4 +602,108 @@ textarea.input-field {
 .btn-clear:hover {
 	background: var(--surface-alt);
 	color: var(--text);
+}
+
+/* ---- Animation System ---- */
+
+/* Keyframe animations (wrapped in prefers-reduced-motion) */
+@media (prefers-reduced-motion: no-preference) {
+	@keyframes fadeSlideUp {
+		from {
+			opacity: 0;
+			transform: translateY(12px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	@keyframes scaleIn {
+		from {
+			opacity: 0;
+			transform: scale(0.95);
+		}
+		to {
+			opacity: 1;
+			transform: scale(1);
+		}
+	}
+
+	@keyframes shimmer {
+		0% {
+			background-position: -200% 0;
+		}
+		100% {
+			background-position: 200% 0;
+		}
+	}
+
+	@keyframes ripple {
+		0% {
+			transform: scale(0);
+			opacity: 0.6;
+		}
+		100% {
+			transform: scale(2.5);
+			opacity: 0;
+		}
+	}
+
+	/* Card entrance animation */
+	.calc-card-animate {
+		animation: fadeSlideUp var(--dur-slow) var(--ease-out) backwards;
+	}
+
+	/* Stagger entrance for multiple cards */
+	.calc-card-animate:nth-child(1) { animation-delay: 0ms; }
+	.calc-card-animate:nth-child(2) { animation-delay: 50ms; }
+	.calc-card-animate:nth-child(3) { animation-delay: 100ms; }
+	.calc-card-animate:nth-child(4) { animation-delay: 150ms; }
+	.calc-card-animate:nth-child(5) { animation-delay: 200ms; }
+
+	/* Skeleton loading shimmer effect */
+	.skeleton {
+		background: linear-gradient(
+			90deg,
+			var(--surface) 0%,
+			var(--surface-hover) 50%,
+			var(--surface) 100%
+		);
+		background-size: 200% 100%;
+		animation: shimmer 1.5s ease-in-out infinite;
+		border-radius: var(--radius-sm);
+	}
+
+	/* Interactive element tap feedback */
+	.tap-scale:active {
+		transform: scale(0.97);
+		transition: transform var(--dur-fast) var(--ease);
+	}
+
+	/* Spring-like bounce for buttons */
+	.btn:active {
+		transform: scale(0.96);
+		transition: transform var(--dur-fast) var(--ease-spring);
+	}
+
+	/* Result number counter animation */
+	.result-animate {
+		transition: opacity var(--dur-normal) var(--ease);
+	}
+
+	.result-animate.changing {
+		opacity: 0.5;
+	}
+}
+
+/* Reduced motion: instant changes, no animations */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
 }
