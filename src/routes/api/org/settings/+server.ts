@@ -2,6 +2,7 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { requireAuth, requireOrgRole } from '$lib/server/auth';
 import { validateOverrides, type OrgOverrides } from '$lib/config/overrides';
+import { recordAudit } from '$lib/server/audit';
 
 const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
@@ -130,6 +131,18 @@ export async function PUT(event: RequestEvent) {
 		}
 
 		await db.upsertOrgSettings(org.id, update);
+
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name || user.email,
+			orgId: org.id,
+			resourceType: 'settings',
+			resourceId: org.id,
+			action: 'updated',
+			newValue: update,
+			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
+			userAgent: event.request.headers.get('user-agent')
+		});
 
 		const settings = await db.getOrgSettings(org.id);
 		const updatedOrg = await db.getOrganizationById(org.id);
