@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireAuth } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
+import { recordAudit } from '$lib/server/audit';
 
 export async function POST(event: RequestEvent) {
 	try {
@@ -42,6 +43,21 @@ export async function POST(event: RequestEvent) {
 
 		// Create invitation
 		const invitation = await db.createInvitation(org.id, email, role, user.id);
+
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'org_member',
+			resourceId: invitation.id,
+			action: 'invited',
+			newValue: { email, role },
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		// TODO: Send email with invitation link
 		// For now, just return the token

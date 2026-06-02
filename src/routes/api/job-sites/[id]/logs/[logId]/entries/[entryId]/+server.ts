@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbLogHelper } from '$lib/server/db-logs';
+import { recordAudit } from '$lib/server/audit';
 import type { RequestHandler } from './$types';
 
 export const PATCH: RequestHandler = async ({ params, locals, platform, request }) => {
@@ -37,6 +38,17 @@ export const PATCH: RequestHandler = async ({ params, locals, platform, request 
 
 	const updatedEntry = await logDb.getLogEntryById(params.entryId);
 
+	await recordAudit(platform!.env.DB, {
+		actorUserId: locals.user.id,
+		actorName: locals.user.name,
+		orgId: org.id,
+		resourceType: 'log_entry',
+		resourceId: params.entryId,
+		action: 'updated',
+		oldValue: entry,
+		newValue: updatedEntry
+	});
+
 	return json({ entry: updatedEntry });
 };
 
@@ -69,6 +81,16 @@ export const DELETE: RequestHandler = async ({ params, locals, platform }) => {
 	}
 
 	await logDb.deleteLogEntry(params.entryId);
+
+	await recordAudit(platform!.env.DB, {
+		actorUserId: locals.user.id,
+		actorName: locals.user.name,
+		orgId: org.id,
+		resourceType: 'log_entry',
+		resourceId: params.entryId,
+		action: 'deleted',
+		oldValue: entry
+	});
 
 	return json({ success: true });
 };

@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbLogHelper } from '$lib/server/db-logs';
+import { recordAudit } from '$lib/server/audit';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, locals, platform, url }) => {
@@ -55,6 +56,16 @@ export const POST: RequestHandler = async ({ params, locals, platform }) => {
 	}
 
 	const log = await logDb.createDailyLog(params.id, today, locals.user.id);
+
+	await recordAudit(platform!.env.DB, {
+		actorUserId: locals.user.id,
+		actorName: locals.user.name,
+		orgId: org.id,
+		resourceType: 'daily_log',
+		resourceId: log.id,
+		action: 'created',
+		newValue: { log_date: log.log_date, job_site_id: log.job_site_id }
+	});
 
 	return json({ log }, { status: 201 });
 };

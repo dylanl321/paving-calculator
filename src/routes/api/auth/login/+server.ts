@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { verifyPassword, createSession, setSessionCookie } from '$lib/server/auth';
+import { recordAudit } from '$lib/server/audit';
 
 interface LoginRequest {
 	email: string;
@@ -33,6 +34,23 @@ export async function POST(event: RequestEvent) {
 
 		const sessionToken = await createSession(db, user.id);
 		setSessionCookie(event.cookies, sessionToken);
+
+		const org = await db.getOrgByUserId(user.id);
+		if (org) {
+			await recordAudit(event.platform.env.DB, {
+				actorUserId: user.id,
+				actorName: user.name,
+				orgId: org.id,
+				resourceType: 'user',
+				resourceId: user.id,
+				action: 'logged_in',
+				ipAddress:
+					event.request.headers.get('cf-connecting-ip') ||
+					event.request.headers.get('x-forwarded-for') ||
+					undefined,
+				userAgent: event.request.headers.get('user-agent') || undefined
+			});
+		}
 
 		return json({
 			user: {

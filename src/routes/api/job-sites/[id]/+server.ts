@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper, type DbJobSite } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
+import { recordAudit } from '$lib/server/audit';
 
 export async function GET(event: RequestEvent) {
 	try {
@@ -83,6 +84,30 @@ export async function PATCH(event: RequestEvent) {
 		await db.updateJobSite(jobSiteId, updates);
 
 		const updatedJobSite = await db.getJobSiteById(jobSiteId);
+
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'job_site',
+			resourceId: jobSiteId,
+			action: 'updated',
+			oldValue: {
+				name: jobSite.name,
+				location_description: jobSite.location_description,
+				status: jobSite.status
+			},
+			newValue: {
+				name: updatedJobSite!.name,
+				location_description: updatedJobSite!.location_description,
+				status: updatedJobSite!.status
+			},
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		return json({
 			id: updatedJobSite!.id,
