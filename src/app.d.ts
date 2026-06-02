@@ -4,6 +4,7 @@
 /// <reference types="vite-plugin-pwa/client" />
 
 import type { D1Database, R2Bucket } from './cloudflare';
+import type { AuthUser } from '$lib/server/auth';
 
 declare global {
 	namespace App {
@@ -20,7 +21,9 @@ declare global {
 		}
 
 		// interface Error {}
-		// interface Locals {}
+		interface Locals {
+			user?: AuthUser;
+		}
 		// interface PageData {}
 		// interface PageState {}
 	}
