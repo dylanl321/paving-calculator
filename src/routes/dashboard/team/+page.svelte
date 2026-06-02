@@ -32,7 +32,8 @@
 	let loading = $state(true);
 	let error = $state('');
 	let showInviteModal = $state(false);
-	let inviteForm = $state({ email: '', role: 'member' });
+	let inviteForm = $state({ emails: [] as string[], role: 'member' });
+	let emailInput = $state('');
 	let inviting = $state(false);
 	let resending = $state(false);
 	let currentUserId = $state<string | null>(null);
@@ -142,32 +143,83 @@
 		}
 	}
 
+	function addEmail() {
+		const email = emailInput.trim();
+		if (!email) return;
+
+		// Basic email validation
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+			toastStore.error('Invalid email address');
+			return;
+		}
+
+		// Check for duplicates
+		if (inviteForm.emails.includes(email)) {
+			toastStore.error('Email already added');
+			return;
+		}
+
+		inviteForm.emails = [...inviteForm.emails, email];
+		emailInput = '';
+	}
+
+	function removeEmail(email: string) {
+		inviteForm.emails = inviteForm.emails.filter(e => e !== email);
+	}
+
+	function handleEmailKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' || e.key === ',') {
+			e.preventDefault();
+			addEmail();
+		}
+	}
+
 	async function sendInvite() {
-		if (!inviteForm.email.trim()) return;
+		// Add pending email if valid
+		if (emailInput.trim()) {
+			addEmail();
+		}
+
+		if (inviteForm.emails.length === 0) return;
 
 		inviting = true;
-		try {
-			const res = await fetch('/api/org/invite', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					email: inviteForm.email.trim(),
-					role: inviteForm.role
-				})
-			});
+		let successCount = 0;
+		let failCount = 0;
 
-			if (!res.ok) {
-				const data = await res.json();
-				toastStore.error(data.error || 'Failed to send invitation');
-				return;
+		try {
+			// Send one POST per email
+			for (const email of inviteForm.emails) {
+				try {
+					const res = await fetch('/api/org/invite', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							email: email,
+							role: inviteForm.role
+						})
+					});
+
+					if (res.ok) {
+						successCount++;
+					} else {
+						failCount++;
+						const data = await res.json();
+						toastStore.error(`Failed to invite ${email}: ${data.error || 'Unknown error'}`);
+					}
+				} catch (e) {
+					failCount++;
+					toastStore.error(`Failed to invite ${email}`);
+				}
 			}
 
 			await loadTeam();
 			showInviteModal = false;
-			inviteForm = { email: '', role: 'member' };
-			toastStore.success('Invitation sent successfully');
-		} catch (e) {
-			toastStore.error('Failed to send invitation');
+			inviteForm = { emails: [], role: 'member' };
+			emailInput = '';
+
+			if (successCount > 0) {
+				toastStore.success(`${successCount} invitation${successCount > 1 ? 's' : ''} sent successfully`);
+			}
 		} finally {
 			inviting = false;
 		}
@@ -504,35 +556,71 @@
 
 {#if showInviteModal}
 	<div class="modal-overlay" onclick={() => (showInviteModal = false)}></div>
-	<div class="modal">
-		<h2>Invite Team Member</h2>
+	<div class="modal invite-modal">
+		<div class="modal-header">
+			<h2>Invite Team Members</h2>
+			<button type="button" class="modal-close" onclick={() => (showInviteModal = false)} aria-label="Close modal">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M18 6L6 18M6 6l12 12"/>
+				</svg>
+			</button>
+		</div>
 		<form onsubmit={(e) => { e.preventDefault(); sendInvite(); }}>
-			<label>
-				Email
-				<input
-					type="email"
-					bind:value={inviteForm.email}
-					placeholder="member@example.com"
-					required
-					autofocus
-				/>
-			</label>
-			<label>
-				Role
-				<select bind:value={inviteForm.role}>
-					<option value="owner">Owner</option>
-					<option value="admin">Admin</option>
-					<option value="member">Member</option>
-					<option value="foreman">Foreman</option>
-					<option value="operator">Operator</option>
-					<option value="inspector">Inspector</option>
-					<option value="office">Office</option>
-				</select>
-			</label>
-			<div class="modal-actions">
-				<button type="button" onclick={() => (showInviteModal = false)}>Cancel</button>
-				<button type="submit" disabled={inviting || !inviteForm.email.trim()}>
-					{inviting ? 'Sending...' : 'Send Invite'}
+			<div class="modal-body">
+				<label class="form-label">
+					<span class="label-text">Email Addresses</span>
+					<div class="email-chips-container">
+						{#if inviteForm.emails.length > 0}
+							<div class="email-chips">
+								{#each inviteForm.emails as email}
+									<span class="email-chip">
+										<span>{email}</span>
+										<button
+											type="button"
+											class="chip-remove"
+											onclick={() => removeEmail(email)}
+											aria-label="Remove {email}"
+										>
+											×
+										</button>
+									</span>
+								{/each}
+							</div>
+						{/if}
+						<input
+							type="text"
+							class="email-input"
+							bind:value={emailInput}
+							onkeydown={handleEmailKeydown}
+							placeholder="Type email and press Enter"
+							autofocus
+						/>
+					</div>
+					{#if inviteForm.emails.length > 0}
+						<div class="invite-count">
+							{inviteForm.emails.length} invitation{inviteForm.emails.length > 1 ? 's' : ''} will be sent
+						</div>
+					{/if}
+				</label>
+				<label class="form-label">
+					<span class="label-text">Role</span>
+					<select class="role-input" bind:value={inviteForm.role}>
+						<option value="owner">Owner</option>
+						<option value="admin">Admin</option>
+						<option value="member">Member</option>
+						<option value="foreman">Foreman</option>
+						<option value="operator">Operator</option>
+						<option value="inspector">Inspector</option>
+						<option value="office">Office</option>
+					</select>
+				</label>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn-secondary" onclick={() => (showInviteModal = false)}>
+					Cancel
+				</button>
+				<button type="submit" class="btn-primary" disabled={inviting || (inviteForm.emails.length === 0 && !emailInput.trim())}>
+					{inviting ? 'Sending...' : `Send ${inviteForm.emails.length > 0 ? inviteForm.emails.length + ' ' : ''}Invite${inviteForm.emails.length !== 1 ? 's' : ''}`}
 				</button>
 			</div>
 		</form>
@@ -1020,6 +1108,17 @@
 	}
 
 	/* Modal styles */
+	@keyframes modal-in {
+		from {
+			opacity: 0;
+			transform: translate(-50%, -50%) scale(0.95);
+		}
+		to {
+			opacity: 1;
+			transform: translate(-50%, -50%) scale(1);
+		}
+	}
+
 	.modal-overlay {
 		position: fixed;
 		inset: 0;
@@ -1032,41 +1131,206 @@
 		top: 50%;
 		left: 50%;
 		transform: translate(-50%, -50%);
-		background: var(--bg);
-		padding: var(--sp-8);
+		background: var(--surface);
 		border-radius: var(--radius-md);
 		z-index: 101;
 		min-width: 300px;
 		max-width: 500px;
 		width: 90%;
 		border: 1px solid var(--border);
+		box-shadow: var(--shadow-lg);
+		border-top: 3px solid var(--accent);
+		animation: modal-in 150ms ease;
+		padding: var(--sp-8);
 	}
 
-	.modal h2 {
-		margin: 0 0 var(--sp-6) 0;
+	/* Invite modal overrides base padding — it manages its own internal spacing */
+	.invite-modal {
+		padding: 0;
+		max-width: 520px;
+	}
+
+	.modal-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: var(--sp-6) var(--sp-6) var(--sp-4) var(--sp-6);
+		border-bottom: 1px solid var(--border);
+	}
+
+	.modal-header h2 {
+		margin: 0;
 		color: var(--text);
 		font-size: var(--fs-xl);
 	}
 
-	.modal label {
-		display: block;
-		margin-bottom: var(--sp-4);
-		color: var(--text);
-		font-weight: var(--fw-medium);
+	.modal-close {
+		width: 44px;
+		height: 44px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		border: none;
+		border-radius: var(--radius-sm);
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: background 0.1s, color 0.1s;
 	}
 
-	.modal input,
-	.modal select {
+	.modal-close:hover {
+		background: var(--surface-hover, var(--surface-alt));
+		color: var(--text);
+	}
+
+	.modal-body {
+		padding: var(--sp-6) var(--sp-6) var(--sp-5) var(--sp-6);
+	}
+
+	.form-label {
+		display: block;
+		margin-bottom: var(--sp-5);
+	}
+
+	.label-text {
+		display: block;
+		font-size: var(--fs-xs);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-muted);
+		font-weight: var(--fw-semibold);
+		margin-bottom: var(--sp-2);
+	}
+
+	.email-chips-container {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--sp-2);
+		padding: var(--sp-3);
+		min-height: var(--touch);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--bg);
+	}
+
+	.email-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--sp-2);
+		width: 100%;
+	}
+
+	.email-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--sp-2);
+		padding: var(--sp-1) var(--sp-3);
+		background: var(--surface-hover, var(--surface-alt));
+		border-radius: var(--radius-pill, 999px);
+		font-size: var(--fs-sm);
+		color: var(--text);
+	}
+
+	.chip-remove {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		background: transparent;
+		border: none;
+		border-radius: 50%;
+		color: var(--text-muted);
+		cursor: pointer;
+		font-size: 1.25rem;
+		line-height: 1;
+		transition: background 0.1s, color 0.1s;
+	}
+
+	.chip-remove:hover {
+		background: rgba(0, 0, 0, 0.2);
+		color: var(--text);
+	}
+
+	.email-input {
+		flex: 1;
+		min-width: 200px;
+		background: transparent;
+		border: none;
+		outline: none;
+		padding: var(--sp-1);
+		font-size: var(--fs-md);
+		color: var(--text);
+	}
+
+	.email-input::placeholder {
+		color: var(--text-muted);
+	}
+
+	.invite-count {
+		margin-top: var(--sp-2);
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+	}
+
+	.role-input {
 		display: block;
 		width: 100%;
-		margin-top: var(--sp-2);
 		padding: var(--sp-3);
 		font-size: var(--fs-md);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
-		background: var(--surface);
+		background: var(--bg);
 		color: var(--text);
 		min-height: var(--touch);
+		cursor: pointer;
+	}
+
+	.modal-footer {
+		display: flex;
+		justify-content: flex-end;
+		gap: var(--sp-3);
+		padding: var(--sp-5) var(--sp-6) var(--sp-6) var(--sp-6);
+		border-top: 1px solid var(--border);
+	}
+
+	.btn-secondary {
+		padding: 0 var(--sp-6);
+		min-height: var(--touch);
+		background: transparent;
+		color: var(--text);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-md);
+		font-weight: var(--fw-semibold);
+		cursor: pointer;
+		transition: background 0.1s;
+	}
+
+	.btn-secondary:hover {
+		background: var(--surface-alt);
+	}
+
+	.btn-primary {
+		padding: 0 var(--sp-6);
+		min-height: var(--touch);
+		background: var(--accent);
+		color: var(--accent-text);
+		border: none;
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-md);
+		font-weight: var(--fw-semibold);
+		cursor: pointer;
+		transition: opacity 0.1s;
+	}
+
+	.btn-primary:hover:not(:disabled) {
+		opacity: 0.9;
+	}
+
+	.btn-primary:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	.confirm-message {
