@@ -138,63 +138,45 @@
 </CalcCard>
 
 <style>
-	.btn-clear {
-		width: 100%;
-		min-height: 3rem;
-		padding: 0.75rem;
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text-muted);
-		font-size: 0.9rem;
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-	.btn-clear:hover {
-		background: var(--surface-alt);
-		color: var(--text);
-	}
-
-
 	.apps {
-		margin-bottom: 16px;
+		margin-bottom: var(--sp-4);
 	}
 	.apps-label {
 		display: block;
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		color: var(--text-muted);
-		margin-bottom: 8px;
+		margin-bottom: var(--sp-2);
 	}
 	.apps .chips {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 6px;
+		gap: var(--sp-2);
 	}
 	.rate-display {
-		margin-top: 10px;
-		padding: 10px 12px;
+		margin-top: var(--sp-3);
+		padding: var(--sp-3);
 		background: var(--surface-alt);
-		border-radius: 8px;
-		font-size: 0.9rem;
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-md);
 		color: var(--text-muted);
 	}
 	.rate-display strong {
 		color: var(--accent);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 	.width-note {
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		color: var(--text-muted);
-		margin-bottom: 12px;
+		margin-bottom: var(--sp-3);
 	}
 	.width-note strong {
 		color: var(--text);
 	}
 	.weather-warn {
-		font-size: 0.85rem;
-		padding: 10px 12px;
-		border-radius: 10px;
-		margin-bottom: 12px;
+		font-size: var(--fs-sm);
+		padding: var(--sp-3);
+		border-radius: var(--radius-sm);
+		margin-bottom: var(--sp-3);
 		line-height: 1.35;
 	}
 	.weather-warn.warn {
@@ -207,22 +189,22 @@
 		font-weight: 600;
 	}
 	.width-confirm {
-		font-size: 0.85rem;
-		padding: 8px 12px;
+		font-size: var(--fs-sm);
+		padding: var(--sp-2) var(--sp-3);
 		background: var(--surface-alt);
-		border-radius: 8px;
+		border-radius: var(--radius-sm);
 		color: var(--text-muted);
-		margin-bottom: 12px;
+		margin-bottom: var(--sp-3);
 	}
 	.width-confirm strong {
 		color: var(--accent);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 	.width-warn {
-		font-size: 0.85rem;
-		padding: 8px 12px;
-		border-radius: 8px;
-		margin-bottom: 12px;
+		font-size: var(--fs-sm);
+		padding: var(--sp-2) var(--sp-3);
+		border-radius: var(--radius-sm);
+		margin-bottom: var(--sp-3);
 		background: color-mix(in srgb, var(--warn) 14%, transparent);
 		color: var(--warn);
 	}

@@ -81,24 +81,24 @@
 
 <style>
 	.forecast-container {
-		margin: 12px 0;
+		margin: var(--sp-3) 0;
 	}
 
 	.forecast-title {
-		font-size: 0.72rem;
-		font-weight: 700;
+		font-size: var(--fs-2xs);
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.4px;
 		color: var(--text-muted);
 		display: block;
-		margin-bottom: 8px;
+		margin-bottom: var(--sp-2);
 	}
 
 	.forecast-row {
 		display: flex;
-		gap: 8px;
+		gap: var(--sp-2);
 		overflow-x: auto;
-		padding-bottom: 4px;
+		padding-bottom: var(--sp-1);
 		-webkit-overflow-scrolling: touch;
 	}
 
@@ -106,20 +106,20 @@
 		flex: 0 0 auto;
 		background: var(--surface-alt, #2e3b46);
 		border: 1px solid var(--border);
-		border-radius: 8px;
-		padding: 10px 8px;
+		border-radius: var(--radius-sm);
+		padding: var(--sp-3) var(--sp-2);
 		min-width: 72px;
-		min-height: 48px;
+		min-height: var(--touch);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 4px;
+		gap: var(--sp-1);
 		text-align: center;
 	}
 
 	.day-weekday {
-		font-size: 0.7rem;
-		font-weight: 700;
+		font-size: var(--fs-2xs);
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		color: var(--text-muted);
 		letter-spacing: 0.3px;
@@ -131,17 +131,17 @@
 	}
 
 	.day-temp {
-		font-size: 0.75rem;
-		font-weight: 600;
+		font-size: var(--fs-xs);
+		font-weight: var(--fw-semibold);
 		color: var(--text);
 		white-space: nowrap;
 	}
 
 	.day-precip {
-		font-size: 0.68rem;
-		font-weight: 700;
+		font-size: var(--fs-2xs);
+		font-weight: var(--fw-bold);
 		color: var(--text-muted);
-		margin-top: 2px;
+		margin-top: var(--sp-1);
 	}
 
 	.day-precip.warn {
@@ -149,16 +149,16 @@
 	}
 
 	.forecast-row::-webkit-scrollbar {
-		height: 6px;
+		height: var(--sp-2);
 	}
 
 	.forecast-row::-webkit-scrollbar-track {
 		background: var(--surface);
-		border-radius: 3px;
+		border-radius: var(--sp-1);
 	}
 
 	.forecast-row::-webkit-scrollbar-thumb {
 		background: var(--border);
-		border-radius: 3px;
+		border-radius: var(--sp-1);
 	}
 </style>
