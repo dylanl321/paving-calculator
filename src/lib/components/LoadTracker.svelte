@@ -14,9 +14,10 @@
 		jobSiteId: string;
 		isAuthenticated?: boolean;
 		numLanes?: number | null;
+		targetTonnage?: number | null;
 	}
 
-	let { jobSiteId, isAuthenticated = false, numLanes = null }: Props = $props();
+	let { jobSiteId, isAuthenticated = false, numLanes = null, targetTonnage = null }: Props = $props();
 
 	let loads = $state<DbLoad[]>([]);
 	let showNewLoadForm = $state(false);
@@ -245,6 +246,27 @@
 		unitsStore.system === 'metric' ? toMetricTonnes(tonsPerHour) : tonsPerHour
 	);
 
+	const completionPct = $derived(
+		targetTonnage && targetTonnage > 0 && totalTons > 0
+			? Math.min(100, (totalTons / targetTonnage) * 100)
+			: null
+	);
+	const remainingTons = $derived(
+		targetTonnage && targetTonnage > 0
+			? Math.max(0, targetTonnage - totalTons)
+			: null
+	);
+	const displayTargetTonnage = $derived(
+		targetTonnage
+			? (unitsStore.system === 'metric' ? toMetricTonnes(targetTonnage) : targetTonnage)
+			: null
+	);
+	const displayRemainingTons = $derived(
+		remainingTons != null
+			? (unitsStore.system === 'metric' ? toMetricTonnes(remainingTons) : remainingTons)
+			: null
+	);
+
 	function formatTime(timestamp: number): string {
 		const date = new Date(timestamp * 1000);
 		return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -444,6 +466,32 @@
 					</div>
 				{/if}
 			</div>
+
+			{#if completionPct != null}
+				<div class="completion-section">
+					<div class="completion-header">
+						<span class="completion-label">Job Completion</span>
+						<span class="completion-pct" class:completion-done={completionPct >= 100}>
+							{completionPct.toFixed(1)}%
+						</span>
+					</div>
+					<div class="completion-bar-track">
+						<div
+							class="completion-bar-fill"
+							class:completion-bar-fill--done={completionPct >= 100}
+							style="width: {Math.min(100, completionPct).toFixed(1)}%"
+						></div>
+					</div>
+					<div class="completion-sub">
+						{displayTotalTons.toFixed(1)} / {displayTargetTonnage!.toFixed(1)} {UNIT_LABELS.tons[unitsStore.system]}
+						{#if displayRemainingTons != null && displayRemainingTons > 0}
+							<span class="completion-remaining">&nbsp;&mdash;&nbsp;{displayRemainingTons.toFixed(1)} {UNIT_LABELS.tons[unitsStore.system]} remaining</span>
+						{:else if completionPct >= 100}
+							<span class="completion-remaining completion-remaining--done">&nbsp;&mdash;&nbsp;Goal reached!</span>
+						{/if}
+					</div>
+				</div>
+			{/if}
 
 			{#if targetRate != null}
 				<div class="yield-efficiency-section">
@@ -1215,5 +1263,70 @@
 		.tally-grid {
 			grid-template-columns: repeat(2, 1fr);
 		}
+	}
+
+	.completion-section {
+		margin-top: 1rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--border);
+	}
+
+	.completion-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 0.5rem;
+	}
+
+	.completion-label {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		font-weight: 600;
+	}
+
+	.completion-pct {
+		font-size: 1.125rem;
+		font-weight: 700;
+		color: var(--accent);
+	}
+
+	.completion-pct.completion-done {
+		color: #22c55e;
+	}
+
+	.completion-bar-track {
+		width: 100%;
+		height: 10px;
+		background: var(--surface-2, rgba(255,255,255,0.08));
+		border-radius: 5px;
+		overflow: hidden;
+		margin-bottom: 0.4rem;
+	}
+
+	.completion-bar-fill {
+		height: 100%;
+		background: var(--accent);
+		border-radius: 5px;
+		transition: width 0.4s ease;
+	}
+
+	.completion-bar-fill--done {
+		background: #22c55e;
+	}
+
+	.completion-sub {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+
+	.completion-remaining {
+		opacity: 0.75;
+	}
+
+	.completion-remaining--done {
+		color: #22c55e;
+		opacity: 1;
 	}
 </style>
