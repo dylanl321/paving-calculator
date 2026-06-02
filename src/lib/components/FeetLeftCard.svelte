@@ -55,7 +55,7 @@
 		label="Tons ordered today"
 		unit="tons"
 		bind:value={ordered}
-		hint="Include asphalt sitting in silo"
+		hint="Include asphalt still in the plant silo (not the paver hopper)"
 	/>
 	<NumberField label="Tons placed so far" unit="tons" bind:value={placed} />
 

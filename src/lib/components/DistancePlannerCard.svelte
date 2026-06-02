@@ -55,7 +55,7 @@
 	hideTitle
 	purpose="Figure out how much asphalt to order to reach a specific stopping point. Shows how far available material will cover and how much is needed for a desired distance."
 >
-	<NumberField label="Tons in silo" unit="tons" bind:value={tonsInSilo} />
+	<NumberField label="Tons in plant silo" unit="tons" bind:value={tonsInSilo} hint="Asphalt held at the plant, not yet loaded onto trucks" />
 	<NumberField label="Tons in trucks headed to job" unit="tons" bind:value={tonsInTrucks} />
 
 	<ResultStat
@@ -80,7 +80,7 @@
 
 	<ShowWork>
 		<p>Available distance uses the tons → feet formula:</p>
-		<code>feet = (silo + trucks) × 2000 × 9 ÷ (width × rate)</code>
+		<code>feet = (plant silo + trucks) × 2000 × 9 ÷ (width × rate)</code>
 		<p>Tonnage needed reverses it:</p>
 		<code>tons = desired feet × width × rate ÷ (2000 × 9)</code>
 		<p>Uses job width ({job.widthFt} ft) and target rate ({Math.round(rate)} lbs/SY).</p>
