@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { page } from '$app/stores';
 	import { config, machines, placementCheck, rainCheck } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -11,7 +13,20 @@
 	}
 	let { startOpen = false }: Props = $props();
 
-	let open = $state(startOpen);
+	// untrack avoids the "state_referenced_locally" lint warning while still
+	// reading the prop value as the initial state.
+	let open = $state(untrack(() => startOpen));
+
+	// Collapse the Job Setup panel whenever the user switches to a different
+	// calculator or view (URL search params change).
+	let prevSearch = '';
+	$effect(() => {
+		const search = $page.url.search;
+		if (prevSearch && search !== prevSearch) {
+			open = false;
+		}
+		prevSearch = search;
+	});
 
 	const machineLabel = $derived(machines.find((m) => m.id === job.machineId)?.label ?? 'None');
 	const targetRate = $derived(
