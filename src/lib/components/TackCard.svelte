@@ -95,6 +95,12 @@
 		</div>
 	</div>
 
+	{#if job.widthFt}
+		<div class="width-confirm">Using <strong>{job.widthFt} ft</strong> width</div>
+	{:else}
+		<div class="width-warn">Set road width in job settings to calculate tack gallons.</div>
+	{/if}
+
 	<ResultStat
 		value={gallons != null && !tackBlocked ? Math.round(gallons.mid).toLocaleString() : null}
 		unit="gal (suggested mid-rate)"
@@ -108,6 +114,7 @@
 
 	<ShowWork>
 		<code>gallons = (length × width ÷ 9) × shot rate (gal/SY)</code>
+		<p>Width in use: <strong>{job.widthFt} ft</strong> (from job settings).</p>
 		<p>{selected.label}: {selected.min}–{selected.max} gal/SY.</p>
 		<div class="src-row">Tack range source: <SourceBadge status={selected.status} tier={selected.tier} /></div>
 	</ShowWork>
@@ -175,5 +182,25 @@
 		background: color-mix(in srgb, var(--bad) 18%, transparent);
 		color: var(--bad);
 		font-weight: 600;
+	}
+	.width-confirm {
+		font-size: 0.85rem;
+		padding: 8px 12px;
+		background: var(--surface-alt);
+		border-radius: 8px;
+		color: var(--text-muted);
+		margin-bottom: 12px;
+	}
+	.width-confirm strong {
+		color: var(--accent);
+		font-weight: 700;
+	}
+	.width-warn {
+		font-size: 0.85rem;
+		padding: 8px 12px;
+		border-radius: 8px;
+		margin-bottom: 12px;
+		background: color-mix(in srgb, var(--warn) 14%, transparent);
+		color: var(--warn);
 	}
 </style>
