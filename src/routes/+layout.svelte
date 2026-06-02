@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
 	import { config } from '$lib/config';
 	import { themeStore } from '$lib/stores/theme.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
@@ -7,6 +8,11 @@
 	import '../app.css';
 
 	let { children } = $props();
+
+	// Auth pages (login/register) render full-bleed without the app shell chrome.
+	const isStandalone = $derived(
+		$page.url.pathname === '/login' || $page.url.pathname === '/register'
+	);
 
 	const themeTokens = $derived(config.theme[themeStore.mode]);
 
@@ -44,5 +50,9 @@
 </script>
 
 <div class="app-root" style={themeStyle}>
-	<AppShell {children} />
+	{#if isStandalone}
+		{@render children()}
+	{:else}
+		<AppShell {children} />
+	{/if}
 </div>

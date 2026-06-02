@@ -7,12 +7,30 @@
 	import CrossSectionDiagram from './CrossSectionDiagram.svelte';
 	import { constantMeta } from '$lib/config';
 	import { stickCheck } from '$lib/config/formulas';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { onDestroy } from 'svelte';
 
 	// Stick check is self-contained: target compacted thickness in, loose out.
 	let target = $state<number | null>(1.5);
 	const factorMeta = constantMeta('CONST.STICK_FACTOR');
 
 	const loose = $derived(target && target > 0 ? stickCheck(target) : null);
+
+	$effect(() => {
+		if (loose != null && target) {
+			logDraft.set({
+				toolId: 'stick-check',
+				entryType: 'note',
+				summary: `Stick check: ${loose.toFixed(2)}" loose for ${target}" compacted`,
+				fields: {
+					notes: `Stick check: ${loose.toFixed(2)}" loose behind screed for ${target}" compacted`
+				}
+			});
+		} else {
+			logDraft.clearFor('stick-check');
+		}
+	});
+	onDestroy(() => logDraft.clearFor('stick-check'));
 </script>
 
 <CalcCard

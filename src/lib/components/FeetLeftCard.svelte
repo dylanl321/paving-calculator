@@ -6,6 +6,8 @@
 	import RoadProgressBar from './RoadProgressBar.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { feetFromOrderedMinusPlaced, spreadRateFromThickness } from '$lib/config/formulas';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { onDestroy } from 'svelte';
 
 	let ordered = $state<number | null>(null);
 	let placed = $state<number | null>(null);
@@ -28,6 +30,20 @@
 		if (totalJobFeet == null || feet == null) return 0;
 		return Math.max(0, totalJobFeet - feet);
 	});
+
+	$effect(() => {
+		if (placed != null && placed > 0) {
+			logDraft.set({
+				toolId: 'feet-left',
+				entryType: 'paving',
+				summary: `${placed} t placed so far today`,
+				fields: { tons_placed: placed }
+			});
+		} else {
+			logDraft.clearFor('feet-left');
+		}
+	});
+	onDestroy(() => logDraft.clearFor('feet-left'));
 </script>
 
 <CalcCard

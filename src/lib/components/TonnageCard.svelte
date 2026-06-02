@@ -5,6 +5,8 @@
 	import ShowWork from './ShowWork.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { spreadRateFromThickness, tonnageToOrder } from '$lib/config/formulas';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { onDestroy } from 'svelte';
 
 	let lengthFt = $state<number | null>(null);
 
@@ -20,6 +22,24 @@
 				})
 			: null
 	);
+
+	$effect(() => {
+		if (tons != null && lengthFt) {
+			logDraft.set({
+				toolId: 'tonnage',
+				entryType: 'paving',
+				summary: `${Math.round(tons)} t ordered for ${lengthFt} ft`,
+				fields: {
+					tons_placed: Math.round(tons),
+					distance_ft: lengthFt,
+					notes: `Ordered (${job.wastePct}% waste)`
+				}
+			});
+		} else {
+			logDraft.clearFor('tonnage');
+		}
+	});
+	onDestroy(() => logDraft.clearFor('tonnage'));
 </script>
 
 <CalcCard

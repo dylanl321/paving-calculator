@@ -8,13 +8,24 @@
 	import JobBar from '$lib/components/workspace/JobBar.svelte';
 	import ToolList from '$lib/components/workspace/ToolList.svelte';
 	import SpreadRateChart from '$lib/components/charts/SpreadRateChart.svelte';
+	import TodayView from '$lib/components/workspace/TodayView.svelte';
+	import TodaySummary from '$lib/components/workspace/TodaySummary.svelte';
+	import LogToToday from '$lib/components/workspace/LogToToday.svelte';
 
+	const isToday = $derived($page.url.searchParams.get('view') === 'today');
 	const activeTool = $derived(findTool($page.url.searchParams.get('tool')));
 	const ActiveComponent = $derived(activeTool.component);
 
 	function selectTool(id: string) {
 		const url = new URL($page.url);
 		url.searchParams.set('tool', id);
+		url.searchParams.delete('view');
+		goto(url, { replaceState: false, keepFocus: true, noScroll: true });
+	}
+
+	function selectToday() {
+		const url = new URL($page.url);
+		url.searchParams.set('view', 'today');
 		goto(url, { replaceState: false, keepFocus: true, noScroll: true });
 	}
 
@@ -33,40 +44,65 @@
 
 	<div class="panes">
 		<aside class="tools" aria-label="Tool picker">
-			<ToolList activeId={activeTool.id} onselect={selectTool} />
+			<ToolList
+				activeId={isToday ? '' : activeTool.id}
+				todayActive={isToday}
+				onselect={selectTool}
+				onselecttoday={selectToday}
+			/>
 		</aside>
 
-		<section class="stage">
-			<header class="stage-head">
-				<div class="eyebrow">Calculator</div>
-				<h1 class="stage-title">{activeTool.label}</h1>
-			</header>
-
-			<div class="stage-body">
-				<ActiveComponent />
-			</div>
-		</section>
-
-		<aside class="rates" aria-label="Live rates">
-			<div class="eyebrow">Live Rates</div>
-			<div class="rate-stats">
-				<div class="rate-stat">
-					<span class="rv">{targetRate}</span>
-					<span class="ru">lbs/SY</span>
-					<span class="rl">Target spread</span>
+		{#if isToday}
+			<section class="stage">
+				<header class="stage-head">
+					<div class="eyebrow">Daily Record</div>
+					<h1 class="stage-title">Today</h1>
+				</header>
+				<div class="stage-body">
+					<TodayView />
 				</div>
-				<div class="rate-stat">
-					<span class="rv">{looseHeight.toFixed(2)}</span>
-					<span class="ru">in</span>
-					<span class="rl">Loose behind screed</span>
-				</div>
-			</div>
+			</section>
 
-			<div class="chart-block">
-				<div class="eyebrow">Spread Rate vs Target</div>
-				<SpreadRateChart {targetRate} />
-			</div>
-		</aside>
+			<aside class="rates" aria-label="Day totals">
+				<div class="eyebrow">Day Totals</div>
+				<div class="pane-summary">
+					<TodaySummary variant="compact" />
+				</div>
+			</aside>
+		{:else}
+			<section class="stage">
+				<header class="stage-head">
+					<div class="eyebrow">Calculator</div>
+					<h1 class="stage-title">{activeTool.label}</h1>
+				</header>
+
+				<div class="stage-body">
+					<ActiveComponent />
+					<LogToToday tool={activeTool} ongoToToday={selectToday} />
+				</div>
+			</section>
+
+			<aside class="rates" aria-label="Live rates">
+				<div class="eyebrow">Live Rates</div>
+				<div class="rate-stats">
+					<div class="rate-stat">
+						<span class="rv">{targetRate}</span>
+						<span class="ru">lbs/SY</span>
+						<span class="rl">Target spread</span>
+					</div>
+					<div class="rate-stat">
+						<span class="rv">{looseHeight.toFixed(2)}</span>
+						<span class="ru">in</span>
+						<span class="rl">Loose behind screed</span>
+					</div>
+				</div>
+
+				<div class="chart-block">
+					<div class="eyebrow">Spread Rate vs Target</div>
+					<SpreadRateChart {targetRate} />
+				</div>
+			</aside>
+		{/if}
 	</div>
 </div>
 
@@ -84,18 +120,24 @@
 	}
 
 	.tools {
-		order: 1;
+		order: 0;
 	}
 	.stage {
-		order: 0;
+		order: 1;
 	}
 	.rates {
 		order: 2;
 	}
 
-	/* Mobile: tool list becomes a horizontal scroller is too cramped; keep it
-	   stacked but visually grouped. Stage shows first so the active calc is
-	   immediately usable, tools + rates below. */
+	/* Mobile: tool picker sits at the top as a horizontal chip menu (see ToolList),
+	   then the active calculator, then live rates below. */
+	@media (max-width: 767px) {
+		.tools {
+			margin: 0 calc(-1 * var(--sp-4));
+			padding: var(--sp-2) var(--sp-4);
+			border-bottom: 1px solid var(--border);
+		}
+	}
 
 	.stage-head {
 		margin-bottom: var(--sp-4);
@@ -143,6 +185,9 @@
 	.chart-block .eyebrow {
 		display: block;
 		margin-bottom: var(--sp-2);
+	}
+	.pane-summary {
+		margin-top: var(--sp-2);
 	}
 
 	/* Desktop: three columns — tool list | stage | live rates */

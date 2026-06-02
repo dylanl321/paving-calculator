@@ -4,6 +4,8 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import { slopeGrade } from '$lib/config/formulas';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { onDestroy } from 'svelte';
 
 	let riseFt = $state<number | null>(null);
 	let runFt = $state<number | null>(null);
@@ -17,6 +19,22 @@
 		if (riseInFeet == null || runFt == null || runFt <= 0) return null;
 		return slopeGrade(riseInFeet, runFt);
 	});
+
+	$effect(() => {
+		if (result) {
+			logDraft.set({
+				toolId: 'slope-grade',
+				entryType: 'note',
+				summary: `Grade ${result.gradePct.toFixed(2)}% (1:${result.ratio.toFixed(1)})`,
+				fields: {
+					notes: `Slope/grade: ${result.gradePct.toFixed(2)}% — 1:${result.ratio.toFixed(1)} ratio, ${result.angleDeg.toFixed(1)}°`
+				}
+			});
+		} else {
+			logDraft.clearFor('slope-grade');
+		}
+	});
+	onDestroy(() => logDraft.clearFor('slope-grade'));
 </script>
 
 <CalcCard

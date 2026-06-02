@@ -184,6 +184,44 @@
 	function handleNewCalculation() {
 		goto(`/?job_site_id=${data.jobSite.id}`);
 	}
+
+	const roadTypeLabel = $derived(
+		configForm.road_type ? roadTypeLabels[configForm.road_type] : null
+	);
+	const scopeLabel = $derived(
+		configForm.scope_of_work ? scopeOfWorkLabels[configForm.scope_of_work] : null
+	);
+	const tackLabel = $derived(configForm.tack_type ? tackTypeLabels[configForm.tack_type] : null);
+
+	const totalAreaSqYd = $derived.by(() => {
+		const len = configForm.total_length_ft;
+		const lanes = configForm.num_lanes;
+		const width = configForm.lane_width_ft;
+		if (!len || !lanes || !width) return null;
+		return (len * lanes * width) / 9;
+	});
+
+	const estTonnage = $derived.by(() => {
+		if (!totalAreaSqYd || !configForm.target_spread_rate) return null;
+		return (totalAreaSqYd * configForm.target_spread_rate) / 2000;
+	});
+
+	const configComplete = $derived(
+		Boolean(
+			configForm.road_type &&
+				configForm.total_length_ft &&
+				configForm.num_lanes &&
+				configForm.mix_type &&
+				configForm.target_spread_rate
+		)
+	);
+
+	function fmt(n: number, digits = 0): string {
+		return n.toLocaleString('en-US', {
+			minimumFractionDigits: digits,
+			maximumFractionDigits: digits
+		});
+	}
 </script>
 
 <svelte:head>
@@ -209,15 +247,40 @@
 	</div>
 
 	<div class="page-header">
-		<div>
+		<div class="page-header-main">
 			<h2 class="page-title">{data.jobSite.name}</h2>
-			{#if data.jobSite.location_description}
-				<p class="page-subtitle">{data.jobSite.location_description}</p>
-			{/if}
+			<div class="page-meta">
+				<span class="status-badge status-{data.jobSite.status.toLowerCase()}">
+					{data.jobSite.status}
+				</span>
+				{#if data.jobSite.location_description}
+					<span class="meta-location">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+							<circle cx="12" cy="10" r="3"></circle>
+						</svg>
+						{data.jobSite.location_description}
+					</span>
+				{/if}
+			</div>
 		</div>
-		<span class="status-badge status-{data.jobSite.status.toLowerCase()}"
-			>{data.jobSite.status}</span
-		>
+		<div class="page-actions">
+			<a class="btn-ghost-action" href="/dashboard/job-sites/{data.jobSite.id}/log">
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+					<polyline points="14 2 14 8 20 8"></polyline>
+				</svg>
+				Today's Log
+			</a>
+			<button class="btn-primary" onclick={handleNewCalculation}>
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<rect x="4" y="2" width="16" height="20" rx="2"></rect>
+					<line x1="8" y1="6" x2="16" y2="6"></line>
+					<line x1="8" y1="10" x2="16" y2="10"></line>
+				</svg>
+				Open Calculator
+			</button>
+		</div>
 	</div>
 
 	<nav class="tabs">
@@ -236,14 +299,14 @@
 			class:active={activeTab === 'equipment'}
 			onclick={() => (activeTab = 'equipment')}
 		>
-			Equipment
+			Equipment{#if equipmentList.length}<span class="tab-count">{equipmentList.length}</span>{/if}
 		</button>
 		<button
 			class="tab"
 			class:active={activeTab === 'calculations'}
 			onclick={() => (activeTab = 'calculations')}
 		>
-			Calculations
+			Calculations{#if data.calculations.length}<span class="tab-count">{data.calculations.length}</span>{/if}
 		</button>
 		<button
 			class="tab"
@@ -255,34 +318,109 @@
 	</nav>
 
 	{#if activeTab === 'overview'}
-		<section class="section">
-			<h3>Key Information</h3>
-			<div class="stats-grid">
-				<div class="stat-card">
-					<div class="stat-label">Total Length</div>
-					<div class="stat-value">
-						{configForm.total_length_ft ? `${configForm.total_length_ft.toLocaleString()} ft` : '—'}
-					</div>
+		{#if !configComplete}
+			<div class="setup-banner">
+				<div class="setup-banner-text">
+					<strong>Finish setting up this job</strong>
+					<span>Add road geometry and paving targets so calculators and daily logs can check yield against spec.</span>
 				</div>
-				<div class="stat-card">
-					<div class="stat-label">Lanes</div>
-					<div class="stat-value">{configForm.num_lanes || '—'}</div>
-				</div>
-				<div class="stat-card">
-					<div class="stat-label">Mix Type</div>
-					<div class="stat-value">{configForm.mix_type || '—'}</div>
-				</div>
-				<div class="stat-card">
-					<div class="stat-label">Target Spread Rate</div>
-					<div class="stat-value">
-						{configForm.target_spread_rate ? `${configForm.target_spread_rate} lbs/yd²` : '—'}
-					</div>
-				</div>
+				<button class="btn-primary" onclick={() => (activeTab = 'configuration')}>
+					Complete Configuration
+				</button>
 			</div>
-		</section>
+		{/if}
 
-		<section class="section">
-			<h3>Assigned Crew</h3>
+		<div class="overview-grid">
+			<section class="panel panel-span">
+				<div class="panel-head">
+					<h3>Paving Targets</h3>
+					<button class="link-btn" onclick={() => (activeTab = 'configuration')}>Edit</button>
+				</div>
+				<dl class="spec-list">
+					<div class="spec-item">
+						<dt>Mix Type</dt>
+						<dd>{configForm.mix_type || '—'}</dd>
+					</div>
+					<div class="spec-item">
+						<dt>Scope</dt>
+						<dd>{scopeLabel || '—'}</dd>
+					</div>
+					<div class="spec-item">
+						<dt>Target Thickness</dt>
+						<dd>{configForm.target_thickness_in ? `${configForm.target_thickness_in} in` : '—'}</dd>
+					</div>
+					<div class="spec-item">
+						<dt>Target Spread</dt>
+						<dd>{configForm.target_spread_rate ? `${configForm.target_spread_rate} lbs/yd²` : '—'}</dd>
+					</div>
+					<div class="spec-item">
+						<dt>Tack Coat</dt>
+						<dd>{tackLabel || '—'}</dd>
+					</div>
+					<div class="spec-item">
+						<dt>Target Tack</dt>
+						<dd>{configForm.target_tack_rate ? `${configForm.target_tack_rate} gal/yd²` : '—'}</dd>
+					</div>
+				</dl>
+			</section>
+
+			<section class="panel">
+				<div class="panel-head">
+					<h3>Roadway</h3>
+					<button class="link-btn" onclick={() => (activeTab = 'configuration')}>Edit</button>
+				</div>
+				<dl class="spec-list">
+					<div class="spec-item">
+						<dt>Road Type</dt>
+						<dd>{roadTypeLabel || '—'}</dd>
+					</div>
+					<div class="spec-item">
+						<dt>Length</dt>
+						<dd>{configForm.total_length_ft ? `${fmt(configForm.total_length_ft)} ft` : '—'}</dd>
+					</div>
+					<div class="spec-item">
+						<dt>Lanes × Width</dt>
+						<dd>
+							{configForm.num_lanes ?? '—'} × {configForm.lane_width_ft ? `${configForm.lane_width_ft} ft` : '—'}
+						</dd>
+					</div>
+				</dl>
+				<div class="derived-row">
+					<div class="derived">
+						<span class="derived-label">Total Area</span>
+						<span class="derived-value">{totalAreaSqYd ? `${fmt(totalAreaSqYd)} yd²` : '—'}</span>
+					</div>
+					<div class="derived">
+						<span class="derived-label">Est. Tonnage at Target</span>
+						<span class="derived-value">{estTonnage ? `${fmt(estTonnage, 1)} t` : '—'}</span>
+					</div>
+				</div>
+			</section>
+		</div>
+
+		<div class="link-tiles">
+			<button class="link-tile" onclick={() => (activeTab = 'equipment')}>
+				<span class="link-tile-count">{equipmentList.length}</span>
+				<span class="link-tile-label">Equipment</span>
+			</button>
+			<button class="link-tile" onclick={() => (activeTab = 'calculations')}>
+				<span class="link-tile-count">{data.calculations.length}</span>
+				<span class="link-tile-label">Saved Calcs</span>
+			</button>
+			<button class="link-tile" onclick={() => (activeTab = 'overview')}>
+				<span class="link-tile-count">{data.assignments.length}</span>
+				<span class="link-tile-label">Crew</span>
+			</button>
+			<a class="link-tile" href="/dashboard/job-sites/{data.jobSite.id}/log/history">
+				<span class="link-tile-count link-tile-arrow">→</span>
+				<span class="link-tile-label">Log History</span>
+			</a>
+		</div>
+
+		<section class="panel">
+			<div class="panel-head">
+				<h3>Assigned Crew</h3>
+			</div>
 			{#if data.assignments.length === 0}
 				<div class="empty-state-mini">
 					<p>No crew members assigned yet</p>
@@ -660,8 +798,12 @@
 					<line x1="16" y1="17" x2="8" y2="17"></line>
 					<polyline points="10 9 9 9 8 9"></polyline>
 				</svg>
-				<h4>Coming Soon</h4>
-				<p>Daily production logs will be available here</p>
+				<h4>Daily Production Log</h4>
+				<p>Track tonnage, stations, conditions, and crew for each work day.</p>
+				<div class="log-cta">
+					<a class="btn-primary" href="/dashboard/job-sites/{data.jobSite.id}/log">Open today's log</a>
+					<a class="btn btn-ghost" href="/dashboard/job-sites/{data.jobSite.id}/log/history">View history</a>
+				</div>
 			</div>
 		</section>
 	{/if}
@@ -701,17 +843,59 @@
 		align-items: flex-start;
 		gap: 16px;
 		margin-bottom: 20px;
+		flex-wrap: wrap;
+	}
+
+	.page-header-main {
+		min-width: 0;
 	}
 
 	.page-title {
 		font-size: 1.75rem;
-		margin: 0 0 4px;
+		margin: 0 0 8px;
 	}
 
-	.page-subtitle {
-		margin: 0;
+	.page-meta {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		flex-wrap: wrap;
+	}
+
+	.meta-location {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
 		font-size: 0.9rem;
 		color: var(--text-muted);
+	}
+
+	.page-actions {
+		display: flex;
+		gap: 10px;
+		flex-wrap: wrap;
+	}
+
+	.btn-ghost-action {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 48px;
+		padding: 0 16px;
+		background: var(--surface);
+		color: var(--text);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		font-size: 0.9rem;
+		font-weight: 600;
+		cursor: pointer;
+		text-decoration: none;
+		transition: border-color 0.2s, color 0.2s;
+	}
+
+	.btn-ghost-action:hover {
+		border-color: var(--accent);
+		color: var(--accent);
 	}
 
 	.status-badge {
@@ -767,6 +951,23 @@
 		border-bottom-color: var(--accent);
 	}
 
+	.tab-count {
+		display: inline-block;
+		margin-left: 6px;
+		padding: 1px 7px;
+		border-radius: 999px;
+		background: var(--surface-alt);
+		color: var(--text-muted);
+		font-size: 0.72rem;
+		font-weight: 700;
+		vertical-align: middle;
+	}
+
+	.tab.active .tab-count {
+		background: var(--accent);
+		color: var(--accent-text);
+	}
+
 	.section {
 		margin-bottom: 32px;
 	}
@@ -776,30 +977,181 @@
 		font-size: 1.2rem;
 	}
 
-	.stats-grid {
+	.setup-banner {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		flex-wrap: wrap;
+		background: var(--surface);
+		border: 1px solid var(--accent);
+		border-left-width: 4px;
+		border-radius: var(--radius);
+		padding: 16px 20px;
+		margin-bottom: 24px;
+	}
+
+	.setup-banner-text {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.setup-banner-text strong {
+		font-size: 0.95rem;
+	}
+
+	.setup-banner-text span {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.overview-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+		grid-template-columns: repeat(2, 1fr);
+		gap: 16px;
+		margin-bottom: 16px;
+	}
+
+	.panel {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 20px;
+		margin-bottom: 16px;
+	}
+
+	.panel-span {
+		grid-column: 1 / -1;
+	}
+
+	.panel-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 16px;
+	}
+
+	.panel-head h3 {
+		margin: 0;
+		font-size: 1.05rem;
+	}
+
+	.link-btn {
+		background: transparent;
+		border: none;
+		color: var(--accent);
+		font-size: 0.85rem;
+		font-weight: 600;
+		cursor: pointer;
+		padding: 4px 8px;
+		border-radius: 6px;
+	}
+
+	.link-btn:hover {
+		background: var(--surface-alt);
+	}
+
+	.spec-list {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+		gap: 16px 20px;
+		margin: 0;
+	}
+
+	.spec-item {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-width: 0;
+	}
+
+	.spec-item dt {
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--text-muted);
+	}
+
+	.spec-item dd {
+		margin: 0;
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--text);
+		overflow-wrap: anywhere;
+	}
+
+	.derived-row {
+		display: flex;
+		gap: 12px;
+		flex-wrap: wrap;
+		margin-top: 18px;
+		padding-top: 16px;
+		border-top: 1px solid var(--border);
+	}
+
+	.derived {
+		flex: 1;
+		min-width: 120px;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.derived-label {
+		font-size: 0.72rem;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--text-muted);
+	}
+
+	.derived-value {
+		font-size: 1.25rem;
+		font-weight: 700;
+		color: var(--accent);
+	}
+
+	.link-tiles {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
 		gap: 12px;
 		margin-bottom: 24px;
 	}
 
-	.stat-card {
+	.link-tile {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 4px;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		padding: 16px;
+		cursor: pointer;
+		text-decoration: none;
+		transition: border-color 0.2s, transform 0.1s;
+		text-align: left;
 	}
 
-	.stat-label {
-		font-size: 0.8rem;
-		color: var(--text-muted);
-		margin-bottom: 6px;
+	.link-tile:hover {
+		border-color: var(--accent);
+		transform: translateY(-1px);
 	}
 
-	.stat-value {
-		font-size: 1.3rem;
+	.link-tile-count {
+		font-size: 1.6rem;
 		font-weight: 700;
+		color: var(--text);
+		line-height: 1;
+	}
+
+	.link-tile-arrow {
 		color: var(--accent);
+	}
+
+	.link-tile-label {
+		font-size: 0.85rem;
+		color: var(--text-muted);
 	}
 
 	.crew-list {
@@ -1068,6 +1420,17 @@
 		font-size: 0.9rem;
 	}
 
+	.log-cta {
+		display: flex;
+		gap: 12px;
+		justify-content: center;
+		margin-top: 20px;
+		flex-wrap: wrap;
+	}
+	.log-cta a {
+		text-decoration: none;
+	}
+
 	.empty-state-mini {
 		padding: 24px;
 		text-align: center;
@@ -1149,8 +1512,22 @@
 			grid-template-columns: 1fr;
 		}
 
-		.stats-grid {
+		.overview-grid {
+			grid-template-columns: 1fr;
+		}
+
+		.link-tiles {
 			grid-template-columns: repeat(2, 1fr);
+		}
+
+		.page-actions {
+			width: 100%;
+		}
+
+		.page-actions .btn-primary,
+		.page-actions .btn-ghost-action {
+			flex: 1;
+			justify-content: center;
 		}
 	}
 </style>

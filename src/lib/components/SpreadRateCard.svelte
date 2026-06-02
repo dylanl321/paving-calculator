@@ -9,6 +9,8 @@
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
 	import { spreadRateFromThickness, spreadRatePlaced } from '$lib/config/formulas';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { onDestroy } from 'svelte';
 
 	// Reality-check inputs (local to this calc; width/thickness/machine are shared).
 	let tons = $state<number | null>(null);
@@ -66,6 +68,24 @@
 		}
 		return null;
 	});
+
+	$effect(() => {
+		if (placedRate != null && tons && distanceFt) {
+			logDraft.set({
+				toolId: 'spread-rate',
+				entryType: 'paving',
+				summary: `${tons} t over ${distanceFt} ft @ ${Math.round(placedRate)} lbs/SY`,
+				fields: {
+					tons_placed: tons,
+					distance_ft: distanceFt,
+					spread_rate_actual: Math.round(placedRate)
+				}
+			});
+		} else {
+			logDraft.clearFor('spread-rate');
+		}
+	});
+	onDestroy(() => logDraft.clearFor('spread-rate'));
 </script>
 
 <CalcCard

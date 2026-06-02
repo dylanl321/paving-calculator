@@ -8,6 +8,8 @@
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
 	import { tackGallons } from '$lib/config/formulas';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { onDestroy } from 'svelte';
 
 	let lengthFt = $state<number | null>(null);
 
@@ -31,7 +33,25 @@
 		weatherConfig.wetSurfaceBlocked &&
 			(rain?.status === 'fail' || weather.isRaining)
 	);
-</script>
+
+	$effect(() => {
+		if (gallons != null && !tackBlocked && lengthFt) {
+			const mid = Math.round(gallons.mid);
+			logDraft.set({
+				toolId: 'tack',
+				entryType: 'tack',
+				summary: `${mid} gal over ${lengthFt} ft (${selected.label})`,
+				fields: {
+					tack_gallons: mid,
+					distance_ft: lengthFt,
+					notes: `${selected.label} tack`
+				}
+			});
+		} else {
+			logDraft.clearFor('tack');
+		}
+	});
+	onDestroy(() => logDraft.clearFor('tack'));</script>
 
 <CalcCard
 	title="Tack Rate"

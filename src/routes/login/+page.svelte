@@ -26,211 +26,268 @@
 </script>
 
 <svelte:head>
-	<title>Login — {config.app.name}</title>
+	<title>Sign in — {config.app.name}</title>
 </svelte:head>
 
 <div class="auth-page">
-	<header class="auth-header">
-		<a href="/" class="back-link">
-			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<path d="M19 12H5M12 19l-7-7 7-7"/>
+	<!-- Full-bleed road hero: asphalt receding to a clean vanishing point -->
+	<div class="road" aria-hidden="true">
+		<svg class="road-svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice">
+			<defs>
+				<!-- Sky / atmosphere above the horizon -->
+				<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0%" stop-color="#1a232b" />
+					<stop offset="100%" stop-color="#33424e" />
+				</linearGradient>
+				<!-- Road surface: lighter near the horizon (haze), darker up close -->
+				<linearGradient id="roadFace" x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0%" stop-color="#3a4956" />
+					<stop offset="18%" stop-color="#2e3b46" />
+					<stop offset="100%" stop-color="#1b232a" />
+				</linearGradient>
+				<!-- Lane / edge paint: faint at the horizon, solid up close -->
+				<linearGradient id="paintFade" x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0%" stop-color="#f2c037" stop-opacity="0" />
+					<stop offset="14%" stop-color="#f2c037" stop-opacity="0.85" />
+					<stop offset="100%" stop-color="#f2c037" stop-opacity="1" />
+				</linearGradient>
+				<linearGradient id="edgeFade" x1="0" y1="0" x2="0" y2="1">
+					<stop offset="0%" stop-color="#cdd8e0" stop-opacity="0" />
+					<stop offset="16%" stop-color="#cdd8e0" stop-opacity="0.5" />
+					<stop offset="100%" stop-color="#cdd8e0" stop-opacity="0.78" />
+				</linearGradient>
+				<!-- Warm glow sitting on the vanishing point -->
+				<radialGradient id="horizonGlow" cx="50%" cy="30%" r="42%">
+					<stop offset="0%" stop-color="#5a6f7e" stop-opacity="0.55" />
+					<stop offset="100%" stop-color="#5a6f7e" stop-opacity="0" />
+				</radialGradient>
+			</defs>
+
+			<!-- Sky fills everything; the road is painted on top from the horizon down -->
+			<rect width="1000" height="1000" fill="url(#sky)" />
+			<rect width="1000" height="1000" fill="url(#horizonGlow)" />
+
+			<!-- Road surface: edges + centre lane all converge to the vanishing point (500,300) -->
+			<polygon points="500,300 910,1000 90,1000" fill="url(#roadFace)" />
+
+			<!-- Solid edge lines, hugging the very edge of the roadway -->
+			<polygon points="500,300 104,1000 86,1000" fill="url(#edgeFade)" />
+			<polygon points="500,300 914,1000 896,1000" fill="url(#edgeFade)" />
+
+			<!-- Centre lane dashes: all centered on x=500, converging at (500,300).
+			     Each dash's half-width = depth * 18, so they taper perfectly. -->
+			<g fill="url(#paintFade)">
+				<polygon points="497.7,346 502.3,346 502.8,378 497.2,378" />
+				<polygon points="496.6,408 503.4,408 504.1,452 495.9,452" />
+				<polygon points="494.9,498 505.1,498 506.2,562 493.8,562" />
+				<polygon points="492.4,628 507.6,628 509.3,720 490.7,720" />
+				<polygon points="488.7,816 511.3,816 514.0,952 486.0,952" />
+			</g>
+
+			<!-- Subtle ground fade at the very bottom for depth -->
+			<rect x="0" y="860" width="1000" height="140" fill="#11171c" opacity="0.35" />
+		</svg>
+		<div class="road-vignette"></div>
+	</div>
+
+	<header class="topbar">
+		<a href="/" class="brand">
+			<svg class="brand-mark" viewBox="0 0 120 120" aria-hidden="true">
+				<rect x="6" y="6" width="108" height="108" rx="24" fill="#2e3b46" stroke="#f2c037" stroke-width="3" />
+				<path d="M44 104 L60 104 L54 40 L50 40 Z" fill="#5a6b78" />
+				<rect x="51" y="44" width="3.6" height="9" rx="1.8" fill="#f2c037" />
+				<rect x="50.4" y="60" width="4" height="10" rx="2" fill="#f2c037" />
+				<rect x="49.6" y="78" width="4.8" height="12" rx="2.4" fill="#f2c037" />
+				<g fill="none" stroke="#9fb0bd" stroke-width="2.4" stroke-linejoin="round" opacity="0.85">
+					<polygon points="68,52 76,47 84,52 84,62 76,67 68,62" />
+					<polygon points="86,52 94,47 102,52 102,62 94,67 86,62" />
+					<polygon points="77,70 85,65 93,70 93,80 85,85 77,80" />
+				</g>
 			</svg>
-			Back to Calculator
+			<span>{config.app.name}</span>
 		</a>
 		<ThemeToggle />
 	</header>
 
-	<div class="auth-container">
+	<main class="auth-container">
 		<div class="auth-card">
-			<!-- Road scene baked into the card: asphalt with a straight dashed centre lane -->
-			<svg class="card-scene" viewBox="0 0 400 560" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
-				<!-- Asphalt fills the whole card -->
-				<rect width="400" height="560" fill="#2e3b46" />
-				<!-- Trapezoid road receding to a vanishing point at top centre -->
-				<polygon class="road-surface" points="150,0 250,0 360,560 40,560" />
-				<!-- Single straight centre lane, dashes evenly spaced + tapering with perspective -->
-				<g class="lane">
-					<polygon points="196,30 204,30 205,60 195,60" />
-					<polygon points="194,100 206,100 208,140 192,140" />
-					<polygon points="191,190 209,190 212,242 188,242" />
-					<polygon points="187,300 213,300 217,366 183,366" />
-					<polygon points="182,432 218,432 223,512 177,512" />
-				</g>
-				<!-- Hex pavers tucked into the bottom-left shoulder -->
-				<g class="pavers">
-					<polygon points="34,470 48,462 62,470 62,486 48,494 34,486" />
-					<polygon points="68,470 82,462 96,470 96,486 82,494 68,486" />
-					<polygon points="51,500 65,492 79,500 79,516 65,524 51,516" />
-					<polygon points="85,500 99,492 113,500 113,516 99,524 85,516" />
-					<polygon points="34,530 48,522 62,530 62,546 48,554 34,546" />
-				</g>
-			</svg>
+			<div class="auth-logo">
+				<div class="logo-mark">
+					<svg viewBox="0 0 120 120" role="img" aria-label="{config.app.name}">
+						<!-- Brand badge background (slate, transparent corners) -->
+						<rect x="6" y="6" width="108" height="108" rx="24" fill="#2e3b46" stroke="#f2c037" stroke-width="3" />
+						<!-- Road receding with a dashed yellow lane -->
+						<path d="M44 104 L60 104 L54 40 L50 40 Z" fill="#5a6b78" />
+						<rect x="51" y="44" width="3.6" height="9" rx="1.8" fill="#f2c037" />
+						<rect x="50.4" y="60" width="4" height="10" rx="2" fill="#f2c037" />
+						<rect x="49.6" y="78" width="4.8" height="12" rx="2.4" fill="#f2c037" />
+						<!-- Hex paver cluster on the shoulder -->
+						<g fill="none" stroke="#9fb0bd" stroke-width="2.4" stroke-linejoin="round" opacity="0.85">
+							<polygon points="68,52 76,47 84,52 84,62 76,67 68,62" />
+							<polygon points="86,52 94,47 102,52 102,62 94,67 86,62" />
+							<polygon points="77,70 85,65 93,70 93,80 85,85 77,80" />
+						</g>
+					</svg>
+				</div>
+				<h1>Welcome back</h1>
+				<p>Sign in to manage your job sites and daily logs.</p>
+			</div>
 
-			<div class="auth-content">
-				<div class="auth-logo">
-					<div class="logo-badge">
-						<img src="/icons/icon-192.png" alt="Paverate" />
-					</div>
-					<h1>Welcome back</h1>
-					<p>Sign in to access your job sites</p>
+			<form onsubmit={handleSubmit}>
+				<div class="form-field">
+					<label for="email">Email</label>
+					<input
+						type="email"
+						id="email"
+						bind:value={email}
+						required
+						autocomplete="email"
+						placeholder="you@company.com"
+					/>
 				</div>
 
-				<form onsubmit={handleSubmit}>
-					<div class="form-field">
-						<label for="email">Email</label>
-						<input
-							type="email"
-							id="email"
-							bind:value={email}
-							required
-							autocomplete="email"
-							placeholder="your@email.com"
-						/>
-					</div>
-
-					<div class="form-field">
-						<label for="password">Password</label>
-						<input
-							type="password"
-							id="password"
-							bind:value={password}
-							required
-							autocomplete="current-password"
-							placeholder="••••••••"
-						/>
-					</div>
-
-					{#if error}
-						<div class="error-message">{error}</div>
-					{/if}
-
-					<button type="submit" class="submit-btn" disabled={loading}>
-						{loading ? 'Signing in...' : 'Sign In'}
-					</button>
-				</form>
-
-				<div class="auth-footer">
-					Don't have an account? <a href="/register" class="link">Register</a>
+				<div class="form-field">
+					<label for="password">Password</label>
+					<input
+						type="password"
+						id="password"
+						bind:value={password}
+						required
+						autocomplete="current-password"
+						placeholder="••••••••"
+					/>
 				</div>
+
+				{#if error}
+					<div class="error-message">{error}</div>
+				{/if}
+
+				<button type="submit" class="submit-btn" disabled={loading}>
+					{loading ? 'Signing in…' : 'Sign In'}
+				</button>
+			</form>
+
+			<div class="auth-footer">
+				Don't have an account? <a href="/register" class="link">Create one</a>
 			</div>
 		</div>
-	</div>
+
+		<a href="/" class="back-link">
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M19 12H5M12 19l-7-7 7-7" />
+			</svg>
+			Continue without signing in
+		</a>
+	</main>
 </div>
 
 <style>
 	.auth-page {
+		position: relative;
 		min-height: 100vh;
+		min-height: 100dvh;
 		display: flex;
 		flex-direction: column;
-	}
-
-	.auth-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 16px;
-		max-width: var(--maxw);
-		width: 100%;
-		margin: 0 auto;
-	}
-
-	.back-link {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		color: var(--text-muted);
-		font-size: 0.9rem;
-		transition: color 0.2s;
-	}
-
-	.back-link:hover {
-		color: var(--text);
-	}
-
-	.auth-container {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 20px 16px 48px;
-	}
-
-	.auth-card {
-		position: relative;
-		width: 100%;
-		max-width: 480px;
-		border-radius: 20px;
 		overflow: hidden;
-		border: 1px solid #37444f;
-		box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.65);
-		isolation: isolate;
 	}
 
-	/* Road scene baked into the card background */
-	.card-scene {
+	/* ---- Road hero background ---- */
+	.road {
+		position: fixed;
+		inset: 0;
+		z-index: 0;
+	}
+	.road-svg {
 		position: absolute;
 		inset: 0;
 		width: 100%;
 		height: 100%;
-		z-index: 0;
+		display: block;
+	}
+	/* Darkens the edges so the floating card reads clearly */
+	.road-vignette {
+		position: absolute;
+		inset: 0;
+		background:
+			radial-gradient(120% 90% at 50% 58%, rgba(15, 20, 24, 0) 38%, rgba(15, 20, 24, 0.72) 100%),
+			linear-gradient(180deg, rgba(15, 20, 24, 0.35) 0%, rgba(15, 20, 24, 0) 26%);
 	}
 
-	.card-scene .road-surface {
-		fill: color-mix(in srgb, #2e3b46 80%, #000);
-	}
-
-	.card-scene .lane polygon {
-		fill: #f2c037;
-	}
-
-	.card-scene .pavers polygon {
-		fill: none;
-		stroke: rgba(159, 176, 189, 0.45);
-		stroke-width: 3;
-		stroke-linejoin: round;
-	}
-
-	/* Light readability scrim — keeps asphalt + bright lane visible */
-	.auth-content {
+	/* ---- Top bar ---- */
+	.topbar {
 		position: relative;
-		z-index: 1;
-		padding: 44px 32px 36px;
-		background: radial-gradient(
-			140% 80% at 50% 42%,
-			rgba(27, 34, 40, 0.74) 0%,
-			rgba(27, 34, 40, 0.32) 100%
-		);
+		z-index: 2;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 12px;
+		padding: 18px 22px;
+	}
+	.brand {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		color: #f4f6f7;
+		font-weight: 700;
+		font-size: 1.05rem;
+		letter-spacing: 0.2px;
+		text-decoration: none;
+	}
+	.brand-mark {
+		width: 30px;
+		height: 30px;
+		display: block;
+	}
+
+	/* ---- Card ---- */
+	.auth-container {
+		position: relative;
+		z-index: 2;
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 18px;
+		padding: 24px 16px 56px;
+	}
+
+	.auth-card {
+		width: 100%;
+		max-width: 420px;
+		padding: 40px 34px 30px;
+		border-radius: 22px;
+		background: rgba(24, 31, 37, 0.72);
+		border: 1px solid rgba(159, 176, 189, 0.18);
+		backdrop-filter: blur(18px) saturate(120%);
+		-webkit-backdrop-filter: blur(18px) saturate(120%);
+		box-shadow:
+			0 28px 70px -28px rgba(0, 0, 0, 0.8),
+			inset 0 1px 0 rgba(255, 255, 255, 0.06);
 	}
 
 	.auth-logo {
 		text-align: center;
-		margin-bottom: 32px;
+		margin-bottom: 30px;
 	}
 
-	.logo-badge {
-		width: 88px;
-		height: 88px;
+	.logo-mark {
+		width: 76px;
+		height: 76px;
 		margin: 0 auto 18px;
-		border-radius: 20px;
-		background: #1b2228;
-		border: 3px solid #f2c037;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		overflow: hidden;
-		box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.6);
+		filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45));
 	}
-
-	.logo-badge img {
+	.logo-mark svg {
 		width: 100%;
 		height: 100%;
-		object-fit: cover;
+		display: block;
 	}
 
 	.auth-logo h1 {
 		margin: 0 0 8px;
-		font-size: 1.7rem;
-		letter-spacing: 0.3px;
+		font-size: 1.85rem;
+		font-weight: 800;
+		letter-spacing: 0.2px;
 		color: #f4f6f7;
 	}
 
@@ -238,42 +295,45 @@
 		margin: 0;
 		color: #9fb0bd;
 		font-size: 0.95rem;
+		line-height: 1.4;
 	}
 
 	.form-field {
-		margin-bottom: 22px;
+		margin-bottom: 20px;
 	}
 
 	.form-field label {
 		display: block;
-		font-size: 0.9rem;
+		font-size: 0.85rem;
 		font-weight: 600;
 		margin-bottom: 8px;
-		color: #f4f6f7;
+		color: #cdd8e0;
 	}
 
 	.form-field input {
 		width: 100%;
 		min-height: var(--touch);
 		padding: 0 16px;
-		background: rgba(27, 34, 40, 0.7);
-		border: 1px solid #37444f;
+		background: rgba(15, 20, 24, 0.55);
+		border: 1px solid rgba(159, 176, 189, 0.22);
 		border-radius: var(--radius);
 		color: #f4f6f7;
 		font-size: 1rem;
 		transition:
-			border-color 0.2s,
-			box-shadow 0.2s;
+			border-color 0.18s,
+			box-shadow 0.18s,
+			background 0.18s;
 	}
 
 	.form-field input::placeholder {
-		color: #9fb0bd;
+		color: #7e8f9c;
 	}
 
 	.form-field input:focus {
 		outline: none;
+		background: rgba(15, 20, 24, 0.75);
 		border-color: #f2c037;
-		box-shadow: 0 0 0 3px rgba(242, 192, 55, 0.25);
+		box-shadow: 0 0 0 3px rgba(242, 192, 55, 0.22);
 	}
 
 	.error-message {
@@ -289,6 +349,7 @@
 	.submit-btn {
 		width: 100%;
 		min-height: var(--touch);
+		margin-top: 4px;
 		background: #f2c037;
 		color: #1b2228;
 		border: none;
@@ -296,15 +357,20 @@
 		font-size: 1.05rem;
 		font-weight: 700;
 		cursor: pointer;
-		transition: opacity 0.2s;
+		box-shadow: 0 8px 20px -8px rgba(242, 192, 55, 0.6);
+		transition:
+			transform 0.15s,
+			box-shadow 0.15s,
+			opacity 0.15s;
 	}
 
 	.submit-btn:hover:not(:disabled) {
-		opacity: 0.9;
+		transform: translateY(-1px);
+		box-shadow: 0 12px 26px -8px rgba(242, 192, 55, 0.7);
 	}
 
 	.submit-btn:active:not(:disabled) {
-		transform: scale(0.98);
+		transform: translateY(0);
 	}
 
 	.submit-btn:disabled {
@@ -322,9 +388,43 @@
 	.link {
 		color: #f2c037;
 		font-weight: 600;
+		text-decoration: none;
 	}
 
 	.link:hover {
 		text-decoration: underline;
+	}
+
+	.back-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		color: #cdd8e0;
+		font-size: 0.88rem;
+		text-decoration: none;
+		padding: 9px 16px;
+		border-radius: var(--radius-pill);
+		background: rgba(24, 31, 37, 0.72);
+		border: 1px solid rgba(159, 176, 189, 0.18);
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+		transition:
+			color 0.18s,
+			background 0.18s,
+			border-color 0.18s;
+	}
+	.back-link:hover {
+		color: #f4f6f7;
+		background: rgba(24, 31, 37, 0.9);
+		border-color: rgba(159, 176, 189, 0.35);
+	}
+
+	@media (max-width: 480px) {
+		.auth-card {
+			padding: 32px 22px 26px;
+		}
+		.auth-logo h1 {
+			font-size: 1.6rem;
+		}
 	}
 </style>

@@ -87,14 +87,12 @@
 
 	{#if open}
 		<div class="expanded">
-			<div class="form-col">
-				<JobSiteSettingsForm variant="inline" />
-			</div>
-			<div class="action-col">
+			<JobSiteSettingsForm variant="inline" />
+			<div class="action-row">
+				<p class="foot-note">{config.app.name} · all figures computed on-device</p>
 				<button class="btn btn-primary proof" onclick={handleExport} disabled={exporting}>
 					{exporting ? 'Generating…' : 'Generate Proof PDF'}
 				</button>
-				<p class="foot-note">{config.app.name} · all figures computed on-device</p>
 			</div>
 		</div>
 	{/if}
@@ -199,35 +197,42 @@
 	}
 
 	.expanded {
-		display: grid;
-		grid-template-columns: 1fr;
-		gap: var(--sp-5);
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-4);
 		padding: 0 var(--sp-4) var(--sp-4);
 		border-top: 1px solid var(--border);
 		padding-top: var(--sp-4);
 	}
 
-	.action-col {
+	.action-row {
 		display: flex;
-		flex-direction: column;
+		align-items: center;
+		justify-content: space-between;
 		gap: var(--sp-3);
+		flex-wrap: wrap;
+		padding-top: var(--sp-3);
+		border-top: 1px solid var(--border);
 	}
 	.proof {
-		width: 100%;
+		flex-shrink: 0;
 	}
 	.foot-note {
 		margin: 0;
 		font-size: var(--fs-xs);
 		color: var(--text-muted);
-		text-align: center;
 	}
 
-	@media (min-width: 768px) {
-		.expanded {
-			grid-template-columns: 1fr var(--context-w);
+	@media (max-width: 600px) {
+		.action-row {
+			flex-direction: column;
+			align-items: stretch;
 		}
-		.action-col {
-			justify-content: flex-start;
+		.action-row .proof {
+			width: 100%;
+		}
+		.foot-note {
+			text-align: center;
 		}
 	}
 
@@ -238,6 +243,29 @@
 		}
 		.summary {
 			gap: var(--sp-3);
+		}
+	}
+
+	@media (max-width: 480px) {
+		.summary {
+			flex-wrap: wrap;
+			row-gap: var(--sp-2);
+			padding: var(--sp-3);
+		}
+		.site {
+			flex: 1 1 auto;
+		}
+		.site-name {
+			max-width: none;
+		}
+		.live {
+			flex: 1 1 100%;
+			margin-left: 0;
+			justify-content: space-between;
+		}
+		.chevron {
+			order: 1;
+			margin-left: auto;
 		}
 	}
 </style>

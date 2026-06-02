@@ -4,6 +4,8 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import { concreteVolume } from '$lib/config/formulas';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { onDestroy } from 'svelte';
 
 	let lengthFt = $state<number | null>(null);
 	let widthFt = $state<number | null>(null);
@@ -22,6 +24,22 @@
 			truckLoads: base.truckLoads * wasteMultiplier
 		};
 	});
+
+	$effect(() => {
+		if (result) {
+			logDraft.set({
+				toolId: 'concrete-volume',
+				entryType: 'note',
+				summary: `${result.volumeYd3.toFixed(2)} yd³ concrete`,
+				fields: {
+					notes: `Concrete: ${result.volumeYd3.toFixed(2)} yd³ (${result.truckLoads.toFixed(1)} truck loads${wasteFactor > 0 ? `, +${wasteFactor}% waste` : ''})`
+				}
+			});
+		} else {
+			logDraft.clearFor('concrete-volume');
+		}
+	});
+	onDestroy(() => logDraft.clearFor('concrete-volume'));
 </script>
 
 <CalcCard

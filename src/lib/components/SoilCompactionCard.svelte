@@ -4,6 +4,8 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import { soilCompaction } from '$lib/config/formulas';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { onDestroy } from 'svelte';
 
 	let wetWeightLbs = $state<number | null>(null);
 	let dryWeightLbs = $state<number | null>(null);
@@ -31,6 +33,22 @@
 		if (result.status === 'marginal') return { kind: 'warn' as const, text: 'MARGINAL 92-95%' };
 		return { kind: 'bad' as const, text: 'FAIL <92%' };
 	});
+
+	$effect(() => {
+		if (result) {
+			logDraft.set({
+				toolId: 'soil-compaction',
+				entryType: 'note',
+				summary: `Compaction ${result.compactionPct.toFixed(1)}% (${result.status})`,
+				fields: {
+					notes: `Soil compaction ${result.compactionPct.toFixed(1)}% — ${result.status} (dry density ${result.dryDensity.toFixed(1)} pcf)`
+				}
+			});
+		} else {
+			logDraft.clearFor('soil-compaction');
+		}
+	});
+	onDestroy(() => logDraft.clearFor('soil-compaction'));
 </script>
 
 <CalcCard

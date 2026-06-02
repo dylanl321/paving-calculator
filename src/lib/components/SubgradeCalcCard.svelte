@@ -5,6 +5,8 @@
 	import ShowWork from './ShowWork.svelte';
 	import { config } from '$lib/config';
 	import { subgradeTonnage } from '$lib/config/formulas';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { onDestroy } from 'svelte';
 
 	const materials = config.materials ?? [];
 
@@ -34,6 +36,22 @@
 			densityTonsPerYd3: selectedMaterial.densityTonsPerYd3
 		});
 	});
+
+	$effect(() => {
+		if (result && selectedMaterial) {
+			logDraft.set({
+				toolId: 'subgrade',
+				entryType: 'note',
+				summary: `${result.tons.toFixed(1)} t ${selectedMaterial.label}`,
+				fields: {
+					notes: `${selectedMaterial.label}: ${result.tons.toFixed(1)} tons (${result.truckLoads.toFixed(1)} loads, ${result.cubicYards.toFixed(1)} yd³)`
+				}
+			});
+		} else {
+			logDraft.clearFor('subgrade');
+		}
+	});
+	onDestroy(() => logDraft.clearFor('subgrade'));
 </script>
 
 <CalcCard

@@ -55,8 +55,10 @@
 <div class="settings-form" class:panel={variant === 'panel'} class:inline={variant === 'inline'}>
 	{#each jobSite.sections as section (section.id)}
 		<section class="settings-section">
-			<h3 class="section-title">{section.title}</h3>
-			<p class="section-desc">{section.description}</p>
+			<div class="section-head">
+				<h3 class="section-title">{section.title}</h3>
+				<p class="section-desc">{section.description}</p>
+			</div>
 
 			{#each section.fields as field (field.key)}
 				{#if field.type === 'text'}
@@ -329,6 +331,40 @@
 		border-bottom: 0;
 	}
 
+	.section-head {
+		margin-bottom: 14px;
+	}
+
+	/* Inline variant (calculator Job Setup accordion): grouped cards in a grid */
+	.settings-form.inline {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+		gap: 12px;
+		align-items: start;
+	}
+
+	.settings-form.inline .settings-section {
+		background: var(--surface-alt, var(--surface));
+		border: 1px solid var(--border);
+		border-radius: 12px;
+		padding: 16px;
+	}
+
+	.settings-form.inline .section-head {
+		margin-bottom: 12px;
+		padding-bottom: 10px;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.settings-form.inline .field:last-child,
+	.settings-form.inline .weather-panel:last-child {
+		margin-bottom: 0;
+	}
+
+	.settings-form.inline .reset {
+		grid-column: 1 / -1;
+	}
+
 	.section-title {
 		margin: 0 0 6px;
 		font-size: 0.78rem;
@@ -338,7 +374,7 @@
 	}
 
 	.section-desc {
-		margin: 0 0 14px;
+		margin: 0;
 		font-size: 0.8rem;
 		color: var(--text-muted);
 		line-height: 1.4;

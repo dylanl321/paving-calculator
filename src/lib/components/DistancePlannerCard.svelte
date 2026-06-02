@@ -6,6 +6,8 @@
 	import { job } from '$lib/stores/job.svelte';
 	import { feetFromTons, spreadRateFromThickness } from '$lib/config/formulas';
 	import { constant } from '$lib/config';
+	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { onDestroy } from 'svelte';
 
 	let tonsInSilo = $state<number | null>(null);
 	let tonsInTrucks = $state<number | null>(null);
@@ -28,6 +30,24 @@
 		if (desiredDistanceFt == null || rate <= 0 || job.widthFt <= 0) return null;
 		return (desiredDistanceFt * job.widthFt * rate) / (constant('CONST.LB_PER_TON') * constant('CONST.SF_PER_SY'));
 	});
+
+	$effect(() => {
+		if (desiredDistanceFt != null && tonnageNeeded != null && desiredDistanceFt > 0) {
+			logDraft.set({
+				toolId: 'distance-planner',
+				entryType: 'paving',
+				summary: `${Math.round(tonnageNeeded)} t to cover ${Math.round(desiredDistanceFt)} ft`,
+				fields: {
+					tons_placed: Math.round(tonnageNeeded),
+					distance_ft: Math.round(desiredDistanceFt),
+					notes: 'Planned from Distance Planner'
+				}
+			});
+		} else {
+			logDraft.clearFor('distance-planner');
+		}
+	});
+	onDestroy(() => logDraft.clearFor('distance-planner'));
 </script>
 
 <CalcCard
