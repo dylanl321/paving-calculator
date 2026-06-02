@@ -321,7 +321,6 @@
 					lane: e.lane,
 					notes: e.notes
 				})),
-				loads,
 				totals: {
 					totalTons: r.total_tons,
 					totalDistanceFt: r.total_distance_ft,

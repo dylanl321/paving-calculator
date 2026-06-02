@@ -1,7 +1,17 @@
 /**
  * Shared map utilities for PaveRate
- * Coordinate conversions, distance calculations, station notation
+ * Coordinate conversions, distance calculations, station notation.
+ * All physical constants come from paverate.yaml via constant().
  */
+import { constant } from '$lib/config';
+
+const FT_PER_M = () => constant('CONST.FT_PER_M');
+const FT_PER_STATION = () => constant('CONST.FT_PER_STATION');
+
+/** Meters -> feet using the config conversion factor. */
+export function metersToFeet(meters: number): number {
+	return meters * FT_PER_M();
+}
 
 /**
  * Convert array of coordinates to Leaflet bounds
@@ -24,7 +34,7 @@ export function coordinatesToBounds(
 }
 
 /**
- * Haversine distance between two lat/lng points
+ * Haversine distance between two lat/lng points (meters).
  */
 export function haversineMeters(
 	lat1: number,
@@ -32,7 +42,7 @@ export function haversineMeters(
 	lat2: number,
 	lng2: number
 ): number {
-	const R = 6371000; // Earth radius in meters
+	const R = constant('CONST.EARTH_RADIUS_M');
 	const phi1 = (lat1 * Math.PI) / 180;
 	const phi2 = (lat2 * Math.PI) / 180;
 	const dphi = ((lat2 - lat1) * Math.PI) / 180;
@@ -41,6 +51,11 @@ export function haversineMeters(
 		Math.sin(dphi / 2) * Math.sin(dphi / 2) +
 		Math.cos(phi1) * Math.cos(phi2) * Math.sin(dlambda / 2) * Math.sin(dlambda / 2);
 	return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Haversine distance between two lat/lng points (feet). */
+export function haversineFeet(lat1: number, lng1: number, lat2: number, lng2: number): number {
+	return metersToFeet(haversineMeters(lat1, lng1, lat2, lng2));
 }
 
 /**
@@ -53,7 +68,7 @@ export function distanceBetween(
 	const meters = haversineMeters(a.lat, a.lng, b.lat, b.lng);
 	return {
 		meters,
-		feet: meters * 3.28084
+		feet: metersToFeet(meters)
 	};
 }
 
@@ -61,14 +76,14 @@ export function distanceBetween(
  * Station notation to feet: station 1.5 = 150 feet
  */
 export function stationToFeet(station: number): number {
-	return station * 100;
+	return station * FT_PER_STATION();
 }
 
 /**
  * Feet to station notation: 150 feet = station 1.5
  */
 export function feetToStation(feet: number): number {
-	return feet / 100;
+	return feet / FT_PER_STATION();
 }
 
 /**
@@ -95,7 +110,7 @@ export function coordinateToStation(
 			waypoints[i + 1].lat,
 			waypoints[i + 1].lng
 		);
-		const segFt = segMeters * 3.28084;
+		const segFt = metersToFeet(segMeters);
 
 		// Check distance to this segment
 		for (let fraction = 0; fraction <= 1; fraction += 0.01) {
@@ -125,7 +140,7 @@ export function coordinateToStation(
 			waypoints[i + 1].lat,
 			waypoints[i + 1].lng
 		);
-		feetToClosest += segMeters * 3.28084;
+		feetToClosest += metersToFeet(segMeters);
 	}
 	const segMeters = haversineMeters(
 		waypoints[closestSegmentIdx].lat,
@@ -133,7 +148,7 @@ export function coordinateToStation(
 		waypoints[closestSegmentIdx + 1].lat,
 		waypoints[closestSegmentIdx + 1].lng
 	);
-	feetToClosest += segMeters * 3.28084 * closestFraction;
+	feetToClosest += metersToFeet(segMeters) * closestFraction;
 
 	return feetToStation(feetToClosest);
 }
@@ -159,7 +174,7 @@ export function stationToCoordinate(
 			waypoints[i + 1].lat,
 			waypoints[i + 1].lng
 		);
-		const segFt = segMeters * 3.28084;
+		const segFt = metersToFeet(segMeters);
 		if (accumulated + segFt >= targetFt) {
 			const fraction = (targetFt - accumulated) / segFt;
 			const lat = waypoints[i].lat + fraction * (waypoints[i + 1].lat - waypoints[i].lat);
@@ -171,6 +186,17 @@ export function stationToCoordinate(
 
 	// Past end — return last waypoint
 	return [waypoints[waypoints.length - 1].lat, waypoints[waypoints.length - 1].lng];
+}
+
+/**
+ * Convert a cumulative distance in FEET along the waypoint polyline to a
+ * [lat, lng] coordinate. Equivalent to the per-component `feetToLatLng` copies.
+ */
+export function feetToCoordinate(
+	targetFt: number,
+	waypoints: { lat: number; lng: number }[]
+): [number, number] | null {
+	return stationToCoordinate(feetToStation(targetFt), waypoints);
 }
 
 /**

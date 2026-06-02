@@ -1,4 +1,4 @@
--- Migration 0013: Per-user notification preferences
+-- Per-user notification preferences
 CREATE TABLE IF NOT EXISTS user_notification_prefs (
   user_id   TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   pref_key  TEXT    NOT NULL,

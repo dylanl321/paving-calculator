@@ -1,15 +1,11 @@
 // PDF proof sheet generator for PaveRate calculations.
 // Captures job setup parameters and provides templates for calculator sections.
+import type { jsPDF as JsPDFInstance } from 'jspdf';
 import type { JobState } from '$lib/stores/job.svelte';
 
 async function getJsPDF() {
-	try {
-		const module = await import('jspdf');
-		return module.jsPDF;
-	} catch {
-		const stub = await import('./jspdf-stub');
-		return stub.jsPDF;
-	}
+	const module = await import('jspdf');
+	return module.jsPDF;
 }
 
 export async function generateProofPDF(jobState: JobState): Promise<void> {
@@ -202,7 +198,7 @@ export async function generateProofPDF(jobState: JobState): Promise<void> {
 }
 
 function addSection(
-	doc: jsPDF,
+	doc: JsPDFInstance,
 	title: string,
 	yPos: number,
 	pageWidth: number,
@@ -289,14 +285,6 @@ export interface DailyReportData {
 		targetRate: number | null;
 		diffPct: number | null;
 	};
-	loads?: Array<{
-		id: string;
-		ticket_number: string | null;
-		tons: number;
-		timestamp: number;
-		spread_rate: number | null;
-		notes: string | null;
-	}>;
 }
 
 function fmtFeet(ft: number | null): string {
