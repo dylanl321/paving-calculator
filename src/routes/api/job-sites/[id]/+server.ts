@@ -28,6 +28,8 @@ export async function GET(event: RequestEvent) {
 			org_id: jobSite.org_id,
 			name: jobSite.name,
 			location_description: jobSite.location_description,
+			latitude: jobSite.latitude,
+			longitude: jobSite.longitude,
 			status: jobSite.status,
 			created_at: jobSite.created_at,
 			updated_at: jobSite.updated_at
@@ -42,6 +44,8 @@ export async function GET(event: RequestEvent) {
 interface UpdateJobSiteRequest {
 	name?: string;
 	location_description?: string;
+	latitude?: number | null;
+	longitude?: number | null;
 	status?: 'active' | 'completed' | 'archived';
 }
 
@@ -68,11 +72,13 @@ export async function PATCH(event: RequestEvent) {
 
 		const body: UpdateJobSiteRequest = await event.request.json();
 
-		const updates: Partial<Pick<DbJobSite, 'name' | 'location_description' | 'status'>> = {};
+		const updates: Partial<Pick<DbJobSite, 'name' | 'location_description' | 'latitude' | 'longitude' | 'status'>> = {};
 
 		if (body.name !== undefined) updates.name = body.name;
 		if (body.location_description !== undefined)
 			updates.location_description = body.location_description;
+		if (body.latitude !== undefined) updates.latitude = body.latitude;
+		if (body.longitude !== undefined) updates.longitude = body.longitude;
 		if (body.status !== undefined) {
 			if (!['active', 'completed', 'archived'].includes(body.status)) {
 				return json({ error: 'Invalid status' }, { status: 400 });
@@ -89,6 +95,8 @@ export async function PATCH(event: RequestEvent) {
 			org_id: updatedJobSite!.org_id,
 			name: updatedJobSite!.name,
 			location_description: updatedJobSite!.location_description,
+			latitude: updatedJobSite!.latitude,
+			longitude: updatedJobSite!.longitude,
 			status: updatedJobSite!.status,
 			created_at: updatedJobSite!.created_at,
 			updated_at: updatedJobSite!.updated_at

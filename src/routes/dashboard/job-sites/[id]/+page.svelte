@@ -2,11 +2,69 @@
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
+	import { searchPlaces, type GeoResult } from '$lib/services/weather';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	let activeTab = $state('overview');
+
+	// Location / coordinates state
+	let locationQuery = $state('');
+	let locationResults = $state<GeoResult[]>([]);
+	let locationSearching = $state(false);
+	let locationSaving = $state(false);
+	let locationSearchTimer: ReturnType<typeof setTimeout> | undefined;
+	let showLocationSearch = $state(false);
+
+	function onLocationInput() {
+		clearTimeout(locationSearchTimer);
+		if (locationQuery.trim().length < 2) {
+			locationResults = [];
+			return;
+		}
+		locationSearchTimer = setTimeout(async () => {
+			locationSearching = true;
+			try {
+				locationResults = await searchPlaces(locationQuery);
+			} catch {
+				locationResults = [];
+			} finally {
+				locationSearching = false;
+			}
+		}, 300);
+	}
+
+	async function saveCoordinates(place: GeoResult) {
+		locationSaving = true;
+		locationResults = [];
+		locationQuery = '';
+		showLocationSearch = false;
+		try {
+			await fetch(`/api/job-sites/${data.jobSite.id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ latitude: place.latitude, longitude: place.longitude }),
+				credentials: 'include'
+			});
+			// Reload to get updated data
+			goto(`/dashboard/job-sites/${data.jobSite.id}`);
+		} catch {
+			// ignore
+		} finally {
+			locationSaving = false;
+		}
+	}
+
+	async function clearCoordinates() {
+		await fetch(`/api/job-sites/${data.jobSite.id}`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ latitude: null, longitude: null }),
+			credentials: 'include'
+		});
+		goto(`/dashboard/job-sites/${data.jobSite.id}`);
+	}
 	let configForm = $state({
 		road_type: data.config?.road_type || null,
 		num_lanes: data.config?.num_lanes || null,
@@ -418,6 +476,75 @@
 				<span class="link-tile-label">Log History</span>
 			</a>
 		</div>
+
+		<section class="panel location-panel">
+			<div class="panel-head">
+				<h3>Location</h3>
+				{#if data.jobSite.latitude != null}
+					<button class="link-btn" onclick={() => (showLocationSearch = !showLocationSearch)}>
+						{showLocationSearch ? 'Cancel' : 'Change'}
+					</button>
+				{/if}
+			</div>
+
+			{#if data.jobSite.latitude != null && !showLocationSearch}
+				{#await import('$lib/components/JobSiteMap.svelte')}
+					<div class="map-mini-loading">Loading map&hellip;</div>
+				{:then { default: JobSiteMap }}
+					<JobSiteMap
+						sites={[{
+							id: data.jobSite.id,
+							name: data.jobSite.name,
+							status: data.jobSite.status,
+							latitude: data.jobSite.latitude,
+							longitude: data.jobSite.longitude,
+							location_description: data.jobSite.location_description
+						}]}
+						height="220px"
+					/>
+				{/await}
+				<p class="location-coords">
+					{data.jobSite.latitude.toFixed(5)}, {data.jobSite.longitude?.toFixed(5)}
+					<button class="link-btn-sm" onclick={clearCoordinates}>Clear</button>
+				</p>
+			{:else}
+				{#if showLocationSearch || data.jobSite.latitude == null}
+					<div class="location-search">
+						<input
+							type="search"
+							class="location-input"
+							placeholder="Search city or address&hellip;"
+							bind:value={locationQuery}
+							oninput={onLocationInput}
+							autocomplete="off"
+						/>
+						{#if locationSearching}
+							<p class="location-hint">Searching&hellip;</p>
+						{:else if locationResults.length > 0}
+							<ul class="location-results">
+								{#each locationResults as place (place.latitude + ',' + place.longitude)}
+									<li>
+										<button
+											type="button"
+											class="location-result-btn"
+											onclick={() => saveCoordinates(place)}
+											disabled={locationSaving}
+										>
+											{place.name}{#if place.admin1}, {place.admin1}{/if}
+											{#if place.country && place.country !== 'United States'}, {place.country}{/if}
+										</button>
+									</li>
+								{/each}
+							</ul>
+						{:else if locationQuery.length >= 2}
+							<p class="location-hint">No results found.</p>
+						{:else if data.jobSite.latitude == null}
+							<p class="location-hint">Set a map pin to show this site on the dashboard map.</p>
+						{/if}
+					</div>
+				{/if}
+			{/if}
+		</section>
 
 		<section class="panel">
 			<div class="panel-head">
@@ -1531,5 +1658,99 @@
 			flex: 1;
 			justify-content: center;
 		}
+	}
+
+	/* Location panel */
+	.location-panel {
+		margin-top: 16px;
+	}
+
+	.location-coords {
+		margin: 8px 0 0;
+		font-size: 0.78rem;
+		color: var(--text-muted);
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+
+	.link-btn-sm {
+		background: none;
+		border: 0;
+		color: var(--accent);
+		font-size: 0.75rem;
+		text-decoration: underline;
+		cursor: pointer;
+		padding: 0;
+		min-height: 32px;
+	}
+
+	.location-search {
+		margin-top: 8px;
+	}
+
+	.location-input {
+		width: 100%;
+		min-height: 48px;
+		padding: 0 14px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md, 12px);
+		color: var(--text);
+		font-size: 0.95rem;
+		box-sizing: border-box;
+	}
+
+	.location-input:focus {
+		outline: 2px solid var(--accent);
+		outline-offset: 1px;
+	}
+
+	.location-hint {
+		margin: 8px 0 0;
+		font-size: 0.8rem;
+		color: var(--text-muted);
+	}
+
+	.location-results {
+		list-style: none;
+		margin: 8px 0 0;
+		padding: 0;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md, 12px);
+		overflow: hidden;
+	}
+
+	.location-result-btn {
+		width: 100%;
+		text-align: left;
+		padding: 12px 14px;
+		min-height: 48px;
+		background: var(--surface);
+		border: 0;
+		border-bottom: 1px solid var(--border);
+		color: var(--text);
+		font-size: 0.875rem;
+		cursor: pointer;
+	}
+
+	.location-results li:last-child .location-result-btn {
+		border-bottom: 0;
+	}
+
+	.location-result-btn:hover:not(:disabled) {
+		background: var(--surface-hover, var(--surface-alt));
+	}
+
+	.location-result-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.map-mini-loading {
+		padding: 20px;
+		text-align: center;
+		color: var(--text-muted);
+		font-size: 0.875rem;
 	}
 </style>
