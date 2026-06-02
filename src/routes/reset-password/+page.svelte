@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { config } from '$lib/config';
+	import { toastStore } from '$lib/stores/toast';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	const token = $page.url.searchParams.get('token') || '';
@@ -17,11 +18,13 @@
 
 		if (password !== confirmPassword) {
 			error = 'Passwords do not match';
+			toastStore.error(error);
 			return;
 		}
 
 		if (password.length < 8) {
 			error = 'Password must be at least 8 characters';
+			toastStore.error(error);
 			return;
 		}
 
@@ -38,13 +41,16 @@
 
 			if (!response.ok) {
 				error = data.error || 'Something went wrong';
+				toastStore.error(error);
 				loading = false;
 				return;
 			}
 
+			toastStore.success('Password reset successfully');
 			goto('/login?reset=success');
 		} catch (err) {
 			error = 'Network error. Please try again.';
+			toastStore.error(error);
 			loading = false;
 		}
 	}

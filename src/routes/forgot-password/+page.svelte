@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { config } from '$lib/config';
+	import { toastStore } from '$lib/stores/toast';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	let email = $state('');
@@ -22,13 +23,16 @@
 			if (!response.ok) {
 				const data = await response.json();
 				error = data.error || 'Something went wrong';
+				toastStore.error(error);
 				loading = false;
 				return;
 			}
 
 			success = true;
+			toastStore.success('Password reset link sent to your email');
 		} catch (err) {
 			error = 'Network error. Please try again.';
+			toastStore.error(error);
 			loading = false;
 		}
 	}

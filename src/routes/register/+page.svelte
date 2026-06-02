@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { config } from '$lib/config';
+	import { toastStore } from '$lib/stores/toast';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	let name = $state('');
@@ -17,6 +18,7 @@
 
 		if (password.length < 8) {
 			error = 'Password must be at least 8 characters';
+			toastStore.error(error);
 			return;
 		}
 
@@ -26,8 +28,10 @@
 
 		if (result.error) {
 			error = result.error;
+			toastStore.error(result.error);
 			loading = false;
 		} else {
+			toastStore.success('Account created successfully');
 			goto('/dashboard');
 		}
 	}

@@ -6,6 +6,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import AppShell from '$lib/components/shell/AppShell.svelte';
+	import Toast from '$lib/components/ui/Toast.svelte';
 	import '../app.css';
 
 	let { children } = $props();
@@ -79,4 +80,5 @@
 	{:else}
 		<AppShell {children} />
 	{/if}
+	<Toast />
 </div>

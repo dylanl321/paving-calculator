@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { toastStore } from '$lib/stores/toast';
 
 	type Org = {
 		id: string;
@@ -74,6 +75,7 @@
 			if (!res.ok) {
 				const data = await res.json();
 				createStatus = data.error || 'Failed to create organization';
+				toastStore.error(createStatus);
 				return;
 			}
 
@@ -82,8 +84,10 @@
 			newOrgName = '';
 			newOrgOwnerEmail = '';
 			createStatus = '';
+			toastStore.success('Organization created successfully');
 		} catch (e) {
 			createStatus = 'Failed to create organization';
+			toastStore.error(createStatus);
 		} finally {
 			creating = false;
 		}

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { page } from '$app/stores';
 	import { config, machines, placementCheck, rainCheck } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -11,7 +13,19 @@
 	}
 	let { startOpen = false }: Props = $props();
 
-	let open = $state(startOpen);
+	// Use untrack so the initial value comes from the prop without reactive tracking
+	// (open is locally controlled after mount, not bound to the prop)
+	let open = $state(untrack(() => startOpen));
+
+	// Collapse whenever the user navigates to a different calculator or view
+	let prevSearch = '';
+	$effect(() => {
+		const search = $page.url.search;
+		if (prevSearch && search !== prevSearch) {
+			open = false;
+		}
+		prevSearch = search;
+	});
 
 	const machineLabel = $derived(machines.find((m) => m.id === job.machineId)?.label ?? 'None');
 	const targetRate = $derived(
@@ -82,7 +96,11 @@
 			<span class="wstat {weatherStatus.kind}">{weatherStatus.text}</span>
 		</span>
 
-		<span class="chevron" aria-hidden="true">{open ? '▴' : '▾'}</span>
+		<span class="chevron" aria-hidden="true">
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+				<polyline points="6 9 12 15 18 9" />
+			</svg>
+		</span>
 	</button>
 
 	{#if open}
@@ -192,8 +210,22 @@
 	}
 
 	.chevron {
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		color: var(--text-muted);
-		font-size: var(--fs-sm);
+		width: 24px;
+		height: 24px;
+		transition: transform 0.25s ease;
+	}
+
+	.open .chevron {
+		transform: rotate(180deg);
+	}
+
+	.chevron svg {
+		width: 100%;
+		height: 100%;
 	}
 
 	.expanded {

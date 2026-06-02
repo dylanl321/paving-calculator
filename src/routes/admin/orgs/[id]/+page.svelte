@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
+	import { toastStore } from '$lib/stores/toast';
 
 	interface Org {
 		id: string;
@@ -77,14 +78,17 @@
 			if (!res.ok) {
 				const data = await res.json();
 				statusMessage = data.error || 'Failed to update organization';
+				toastStore.error(statusMessage);
 				return;
 			}
 
 			await loadOrg();
 			editingOrg = false;
 			statusMessage = '';
+			toastStore.success('Organization updated successfully');
 		} catch (e) {
 			statusMessage = 'Failed to update organization';
+			toastStore.error(statusMessage);
 		}
 	}
 
@@ -109,14 +113,17 @@
 			if (!res.ok) {
 				const data = await res.json();
 				statusMessage = data.error || 'Failed to update member role';
+				toastStore.error(statusMessage);
 				return;
 			}
 
 			await loadOrg();
 			editingMember = null;
 			statusMessage = '';
+			toastStore.success('Member role updated successfully');
 		} catch (e) {
 			statusMessage = 'Failed to update member role';
+			toastStore.error(statusMessage);
 		}
 	}
 
@@ -136,13 +143,16 @@
 			if (!res.ok) {
 				const data = await res.json();
 				statusMessage = data.error || 'Failed to remove member';
+				toastStore.error(statusMessage);
 				return;
 			}
 
 			await loadOrg();
 			statusMessage = '';
+			toastStore.success('Member removed successfully');
 		} catch (e) {
 			statusMessage = 'Failed to remove member';
+			toastStore.error(statusMessage);
 		}
 	}
 

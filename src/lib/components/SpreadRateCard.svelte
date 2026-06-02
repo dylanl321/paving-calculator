@@ -16,6 +16,14 @@
 	let tons = $state<number | null>(null);
 	let distanceFt = $state<number | null>(null);
 	let customTargetRate = $state<number | null>(null);
+	let overrideExpanded = $state(false);
+
+	// Guard: if override section is collapsed, clear custom rate
+	$effect(() => {
+		if (!overrideExpanded) {
+			customTargetRate = null;
+		}
+	});
 
 	const targetRate = $derived(
 		customTargetRate != null && customTargetRate > 0
@@ -84,6 +92,14 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('spread-rate'));
+
+	function snapToTarget() {
+		if (targetRate != null && distanceFt && job.widthFt) {
+			const areaYards = (distanceFt * job.widthFt) / 9;
+			const adjustedTons = (targetRate * areaYards) / 2000;
+			tons = Math.round(adjustedTons * 100) / 100;
+		}
+	}
 </script>
 
 <CalcCard
@@ -94,23 +110,73 @@
 	<div class="two-up">
 		<div class="col">
 			<div class="col-head">Target (from job thickness)</div>
-			<NumberField
-				label="Custom target (optional)"
-				unit="lbs/SY"
-				bind:value={customTargetRate}
-			/>
+
+			<button
+				type="button"
+				class="override-toggle"
+				onclick={() => { overrideExpanded = !overrideExpanded; }}
+				aria-expanded={overrideExpanded}
+			>
+				<svg
+					class="chevron"
+					class:expanded={overrideExpanded}
+					width="16"
+					height="16"
+					viewBox="0 0 16 16"
+					fill="none"
+					xmlns="http://www.w3.org/2000/svg"
+				>
+					<path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+				</svg>
+				Override target rate
+			</button>
+
+			{#if overrideExpanded}
+				<div class="override-section">
+					<NumberField
+						label="Custom target"
+						unit="lbs/SY"
+						bind:value={customTargetRate}
+					/>
+				</div>
+			{/if}
+
 			<ResultStat
 				value={targetRate != null ? Math.round(targetRate) : null}
 				unit="lbs / SY"
 				badge={targetBadge}
 			/>
-			<p class="col-note">
-				{#if customTargetRate != null && customTargetRate > 0}
-					Using custom target. Clear to use thickness-based rate.
-				{:else}
+
+			{#if customTargetRate != null && customTargetRate > 0}
+				<div class="warning-banner">
+					<div class="warning-content">
+						<svg class="warning-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+							<path d="M8 1L15 14H1L8 1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+							<path d="M8 6V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+							<circle cx="8" cy="11.5" r="0.75" fill="currentColor"/>
+						</svg>
+						<span class="warning-text">Custom target active — thickness-based rate is overridden.</span>
+					</div>
+					<button
+						type="button"
+						class="clear-button"
+						onclick={() => {
+							customTargetRate = null;
+							overrideExpanded = false;
+						}}
+						aria-label="Clear custom target"
+					>
+						<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+							<path d="M4 4L12 12M12 4L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+						</svg>
+						Clear
+					</button>
+				</div>
+			{:else}
+				<p class="col-note">
 					Set thickness in Job Setup. Weather bar sets air temp for Table 4.
-				{/if}
-			</p>
+				</p>
+			{/if}
 		</div>
 
 		<div class="col">
@@ -128,7 +194,17 @@
 	{#if placedRate != null && targetRate != null}
 		<SpreadRateGauge actual={placedRate} target={targetRate} toleranceLbsSy={tolerance.toleranceLbsSy} />
 		{#if spec}
-			<p class="spec-note {spec.status}">{spec.message}</p>
+			<div class="spec-note {spec.status}">
+				<p class="spec-message">{spec.message}</p>
+				{#if (spec.status === 'warn' || spec.status === 'bad') && distanceFt && job.widthFt}
+					<button type="button" class="snap-btn" onclick={snapToTarget}>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+						</svg>
+						Snap to spec
+					</button>
+				{/if}
+			</div>
 		{/if}
 	{/if}
 
@@ -166,12 +242,104 @@
 		color: var(--text-muted);
 		margin: 6px 0 0;
 	}
-	.spec-note {
-		font-size: 0.78rem;
-		margin: 10px 0 0;
-		padding: 8px 10px;
+	.override-toggle {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-height: 48px;
+		width: 100%;
+		padding: 12px;
+		margin-bottom: 8px;
+		background: transparent;
+		border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
 		border-radius: 8px;
-		line-height: 1.35;
+		color: var(--text-muted);
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+	.override-toggle:hover {
+		background: color-mix(in srgb, var(--surface-2) 50%, transparent);
+		border-color: var(--text-muted);
+	}
+	.override-toggle:active {
+		transform: scale(0.98);
+	}
+	.chevron {
+		transition: transform 0.2s ease;
+		flex-shrink: 0;
+	}
+	.chevron.expanded {
+		transform: rotate(180deg);
+	}
+	.override-section {
+		margin-bottom: 12px;
+	}
+	.warning-banner {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		margin: 8px 0 0;
+		padding: 12px;
+		background: color-mix(in srgb, var(--warn) 16%, transparent);
+		border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+		border-radius: 8px;
+	}
+	.warning-content {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		flex: 1;
+	}
+	.warning-icon {
+		color: #f2c037;
+		flex-shrink: 0;
+		margin-top: 2px;
+	}
+	.warning-text {
+		font-size: 0.75rem;
+		line-height: 1.4;
+		color: var(--warn);
+		font-weight: 500;
+	}
+	.clear-button {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 48px;
+		min-width: 48px;
+		padding: 10px 14px;
+		background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+		border-radius: 6px;
+		color: var(--warn);
+		font-size: 0.8125rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		flex-shrink: 0;
+	}
+	.clear-button:hover {
+		background: color-mix(in srgb, var(--surface-2) 100%, transparent);
+		border-color: var(--warn);
+	}
+	.clear-button:active {
+		transform: scale(0.96);
+	}
+	.clear-button svg {
+		flex-shrink: 0;
+	}
+	.spec-note {
+		margin: 10px 0 0;
+		padding: 10px 12px;
+		border-radius: 8px;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		justify-content: space-between;
+		flex-wrap: wrap;
 	}
 	.spec-note.good {
 		background: color-mix(in srgb, var(--good) 16%, transparent);
@@ -184,6 +352,40 @@
 	.spec-note.bad {
 		background: color-mix(in srgb, var(--bad) 16%, transparent);
 		color: var(--bad);
+	}
+	.spec-message {
+		font-size: 0.78rem;
+		line-height: 1.35;
+		margin: 0;
+		flex: 1;
+		min-width: 150px;
+	}
+	.snap-btn {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 6px 12px;
+		min-height: 36px;
+		background: currentColor;
+		color: var(--surface);
+		border: none;
+		border-radius: 6px;
+		font-size: 0.75rem;
+		font-weight: 700;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: opacity 0.2s, transform 0.15s;
+		flex-shrink: 0;
+	}
+	.snap-btn:hover {
+		opacity: 0.9;
+	}
+	.snap-btn:active {
+		transform: scale(0.97);
+	}
+	.snap-btn svg {
+		width: 14px;
+		height: 14px;
 	}
 	@media (max-width: 460px) {
 		.two-up {
