@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, setContext } from 'svelte';
 	import { browser } from '$app/environment';
 	import L from 'leaflet';
 	import 'leaflet/dist/leaflet.css';
-	import { setContext } from 'svelte';
+	import { MAP_CONTEXT_KEY, type MapContext } from './mapContext';
 
 	interface Props {
 		center?: [number, number];
@@ -13,6 +13,12 @@
 		style?: string;
 		height?: string;
 		map?: L.Map;
+		/** Rendered inside the map container (use MapMarker, MapPolyline, etc.). */
+		children?: import('svelte').Snippet;
+		/** Called once the Leaflet map instance has been created. */
+		onready?: (map: L.Map) => void;
+		/** Padding (in px) applied when fitting to `bounds`. */
+		boundsPadding?: number;
 	}
 
 	let {
@@ -22,7 +28,10 @@
 		class: className = '',
 		style = '',
 		height = '320px',
-		map = $bindable()
+		map = $bindable(),
+		children,
+		onready,
+		boundsPadding = 30
 	}: Props = $props();
 
 	let mapEl: HTMLDivElement;
@@ -30,6 +39,10 @@
 	let resizeObserver: ResizeObserver | null = null;
 	let themeObserver: MutationObserver | null = null;
 	let isDark = $state(false);
+
+	// Reactive context holder so children can react once the map exists.
+	const mapCtx = $state<MapContext>({ map: null });
+	setContext(MAP_CONTEXT_KEY, mapCtx);
 
 	const TILE_LAYERS = {
 		dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
@@ -67,7 +80,7 @@
 
 		// Set initial view
 		if (bounds) {
-			map.fitBounds(bounds, { padding: [30, 30] });
+			map.fitBounds(bounds, { padding: [boundsPadding, boundsPadding] });
 		} else if (center) {
 			map.setView(center, zoom);
 		} else {
@@ -101,10 +114,10 @@
 
 		// Enable scroll zoom on focus (mobile UX)
 		map.on('focus', () => {
-			map.scrollWheelZoom.enable();
+			map?.scrollWheelZoom.enable();
 		});
 		map.on('blur', () => {
-			map.scrollWheelZoom.disable();
+			map?.scrollWheelZoom.disable();
 		});
 
 		// Ensure touch targets are large enough
@@ -134,8 +147,17 @@
 		});
 		resizeObserver.observe(mapEl);
 
-		// Set context for child components
-		setContext('leafletMap', map);
+		// Publish the map to children via reactive context, then notify caller.
+		mapCtx.map = map;
+		onready?.(map);
+	});
+
+	// Reactive re-fit when `bounds` change after the map is created.
+	$effect(() => {
+		const b = bounds;
+		if (map && b) {
+			map.fitBounds(b, { padding: [boundsPadding, boundsPadding] });
+		}
 	});
 
 	onDestroy(() => {
@@ -145,6 +167,7 @@
 		if (resizeObserver) {
 			resizeObserver.disconnect();
 		}
+		mapCtx.map = null;
 		if (map) {
 			map.remove();
 			map = undefined as any;
@@ -160,7 +183,7 @@
 	role="application"
 	aria-label="Interactive map"
 >
-	<slot />
+	{@render children?.()}
 </div>
 
 <style>
