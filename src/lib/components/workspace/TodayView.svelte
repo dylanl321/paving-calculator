@@ -7,6 +7,7 @@
 	import TodaySummary from './TodaySummary.svelte';
 	import TimeInput from '$lib/components/TimeInput.svelte';
 	import DailyTarget from './DailyTarget.svelte';
+	import { formatFeet } from '$lib/utils/format';
 
 	const entries = $derived(today.entries);
 
@@ -252,12 +253,6 @@
 		note: '📝'
 	};
 
-	function fmtFeet(ft: number | null): string {
-		if (ft == null) return '';
-		if (ft >= 5280) return `${(ft / 5280).toFixed(2)} mi`;
-		return `${Math.round(ft).toLocaleString()} ft`;
-	}
-
 	const dateLabel = $derived(
 		new Date(today.date + 'T00:00:00').toLocaleDateString('en-US', {
 			weekday: 'long',
@@ -482,7 +477,7 @@
 								{:else if e.loads_count != null && e.loads_count > 0}
 									<span class="est-tons">{(e.loads_count * job.truckLoadTons).toFixed(1)}T est.</span>
 								{/if}
-								{#if e.distance_ft != null}<span>{fmtFeet(e.distance_ft)}</span>{/if}
+								{#if e.distance_ft != null}<span>{formatFeet(e.distance_ft)}</span>{/if}
 								{#if e.station_start != null && e.station_end != null}
 									<span>{e.station_start}+00 → {e.station_end}+00</span>
 								{/if}

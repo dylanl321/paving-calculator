@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { formatFeet } from '$lib/utils/format';
+
 	interface Props {
 		jobSiteId: string;
 		currentLogDate: string;
@@ -28,13 +30,6 @@
 		const [y, m, d] = dateStr.split('-').map(Number);
 		const date = new Date(y, m - 1, d);
 		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-	}
-
-	function formatDistance(ft: number): string {
-		if (ft >= 5280) {
-			return `${(ft / 5280).toFixed(2)} mi`;
-		}
-		return `${Math.round(ft).toLocaleString()} ft`;
 	}
 
 	function formatTons(tons: number): string {
@@ -287,7 +282,7 @@
 							<!-- Secondary stats -->
 							<div class="stats-grid">
 								<div class="stat-item">
-									<span class="stat-val">{formatDistance(day.total_distance_ft)}</span>
+									<span class="stat-val">{formatFeet(day.total_distance_ft)}</span>
 									<span class="stat-key">distance</span>
 								</div>
 								<div class="stat-item">

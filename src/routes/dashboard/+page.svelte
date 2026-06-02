@@ -3,6 +3,7 @@
 	import { config } from '$lib/config';
 	import GeofenceMonitor from '$lib/components/GeofenceMonitor.svelte';
 	import type { PageData } from './$types';
+	import { formatDate } from '$lib/utils/format';
 
 	let { data }: { data: PageData } = $props();
 
@@ -61,14 +62,6 @@
 		newSiteName = '';
 		newSiteLocation = '';
 		createError = '';
-	}
-
-	function formatDate(timestamp: number): string {
-		return new Date(timestamp * 1000).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
 	}
 </script>
 

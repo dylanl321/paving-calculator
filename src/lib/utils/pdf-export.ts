@@ -2,6 +2,7 @@
 // Captures job setup parameters and provides templates for calculator sections.
 import type { jsPDF as JsPDFInstance } from 'jspdf';
 import type { JobState } from '$lib/stores/job.svelte';
+import { formatFeet } from '$lib/utils/format';
 
 async function getJsPDF() {
 	const module = await import('jspdf');
@@ -287,12 +288,6 @@ export interface DailyReportData {
 	};
 }
 
-function fmtFeet(ft: number | null): string {
-	if (ft == null) return '—';
-	if (ft >= 5280) return `${(ft / 5280).toFixed(2)} mi`;
-	return `${Math.round(ft).toLocaleString()} ft`;
-}
-
 async function loadImageAsDataUrl(url: string): Promise<string | null> {
 	try {
 		const response = await fetch(url);
@@ -423,7 +418,7 @@ export async function generateDailyReportPDF(
 	const t = day.totals;
 	const totalsLine = [
 		`Tons placed: ${t.totalTons.toLocaleString(undefined, { maximumFractionDigits: 1 })}`,
-		`Paved: ${fmtFeet(t.totalDistanceFt)}`,
+		`Paved: ${formatFeet(t.totalDistanceFt)}`,
 		`Loads: ${t.totalLoads}`,
 		`Tack: ${Math.round(t.totalTackGallons)} gal`
 	];
@@ -509,7 +504,7 @@ export async function generateDailyReportPDF(
 		doc.text(e.entry_type, cols[1].x, yPos);
 		doc.text(station, cols[2].x, yPos);
 		doc.text(e.tons_placed != null ? String(e.tons_placed) : '—', cols[3].x, yPos);
-		doc.text(e.distance_ft != null ? fmtFeet(e.distance_ft) : '—', cols[4].x, yPos);
+		doc.text(e.distance_ft != null ? formatFeet(e.distance_ft) : '—', cols[4].x, yPos);
 		doc.text(e.spread_rate_actual != null ? String(Math.round(e.spread_rate_actual)) : '—', cols[5].x, yPos);
 		const detailLines = doc.splitTextToSize(detail || '—', pageWidth - margin - cols[6].x);
 		doc.text(detailLines, cols[6].x, yPos);

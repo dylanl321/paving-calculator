@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import TimeInput from './TimeInput.svelte';
+	import { formatFeet } from '$lib/utils/format';
+	import { actualSpreadRate } from '$lib/config/formulas';
 
 	interface Props {
 		jobSiteId: string;
@@ -39,13 +41,6 @@
 		const [endH, endM] = endTime.split(':').map(Number);
 		return Math.max(0, (endH * 60 + endM - (startH * 60 + startM)) / 60);
 	});
-
-	function formatDistance(ft: number): string {
-		if (ft >= 5280) {
-			return `${(ft / 5280).toFixed(2)} mi`;
-		}
-		return `${ft.toLocaleString()} ft`;
-	}
 
 	async function closeOutWithoutPDF() {
 		await closeOut(false);
@@ -108,7 +103,11 @@
 
 				const actualRate =
 					entrySummary.total_distance_ft > 0 && entrySummary.total_tons > 0
-						? (entrySummary.total_tons * 2000 * 9) / entrySummary.total_distance_ft
+						? actualSpreadRate({
+								tons: entrySummary.total_tons,
+								distanceFt: entrySummary.total_distance_ft,
+								widthFt: 1
+							})
 						: null;
 				const targetRate = siteConfig?.config?.target_spread_rate || null;
 				const diffPct =
@@ -217,7 +216,7 @@
 						<div class="summary-item">
 							<span class="summary-label">Distance</span>
 							<span class="summary-value"
-								>{formatDistance(entrySummary.total_distance_ft || 0)}</span
+								>{formatFeet(entrySummary.total_distance_ft || 0)}</span
 							>
 						</div>
 						<div class="summary-item">

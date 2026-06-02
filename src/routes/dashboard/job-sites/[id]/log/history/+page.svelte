@@ -4,6 +4,7 @@
 	import type { PageData } from './$types';
 	import DailySummaryReport from '$lib/components/DailySummaryReport.svelte';
 	import ProductionLineChart from '$lib/components/charts/ProductionLineChart.svelte';
+	import { formatFeet } from '$lib/utils/format';
 
 	let { data }: { data: PageData } = $props();
 	let summaryLog = $state<any>(null);
@@ -31,13 +32,6 @@
 			day: 'numeric',
 			year: 'numeric'
 		});
-	}
-
-	function formatDistance(ft: number): string {
-		if (ft >= 5280) {
-			return `${(ft / 5280).toFixed(2)} mi`;
-		}
-		return `${ft.toLocaleString()} ft`;
 	}
 
 	function getWeatherIcon(condition: string | null): string {
@@ -194,7 +188,7 @@
 							{#if log.summary.total_distance_ft > 0}
 								<div class="summary-stat-compact">
 									<span class="stat-label">Distance</span>
-									<span class="stat-value">{formatDistance(log.summary.total_distance_ft)}</span>
+									<span class="stat-value">{formatFeet(log.summary.total_distance_ft)}</span>
 								</div>
 							{/if}
 							{#if log.summary.total_tons > 0}

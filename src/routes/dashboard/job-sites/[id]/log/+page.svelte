@@ -10,6 +10,8 @@
 	import ComplianceGauge from '$lib/components/ComplianceGauge.svelte';
 	import NuclearGaugeLog from '$lib/components/NuclearGaugeLog.svelte';
 	import StationProgressLogger from '$lib/components/StationProgressLogger.svelte';
+	import { formatFeet } from '$lib/utils/format';
+	import { actualSpreadRate } from '$lib/config/formulas';
 	import CloseOutModal from '$lib/components/CloseOutModal.svelte';
 	import DailySummaryReport from '$lib/components/DailySummaryReport.svelte';
 	import ComparativeDayView from '$lib/components/ComparativeDayView.svelte';
@@ -224,13 +226,6 @@
 		}
 	}
 
-	function formatDistance(ft: number): string {
-		if (ft >= 5280) {
-			return `${(ft / 5280).toFixed(2)} mi`;
-		}
-		return `${ft.toLocaleString()} ft`;
-	}
-
 	function navigateToPrevDay() {
 		if (data.prevLogId) {
 			goto(`/dashboard/job-sites/${data.jobSite.id}/log?date=${data.prevLogId}`);
@@ -373,7 +368,11 @@
 				: 0;
 
 			const actualRate = entrySummary.total_distance_ft > 0 && entrySummary.total_tons > 0
-				? (entrySummary.total_tons * 2000 * 9) / entrySummary.total_distance_ft
+				? actualSpreadRate({
+						tons: entrySummary.total_tons,
+						distanceFt: entrySummary.total_distance_ft,
+						widthFt: 1
+					})
 				: null;
 			const targetRate = (data.siteConfig as any)?.config?.target_spread_rate || null;
 			const diffPct = actualRate && targetRate ? ((actualRate - targetRate) / targetRate) * 100 : null;
@@ -682,7 +681,7 @@
 		<div class="project-summary">
 			<h3>Project to Date</h3>
 			<div class="summary-stat">
-				<span class="stat-value">{formatDistance(data.summary.total_distance_ft)}</span>
+				<span class="stat-value">{formatFeet(data.summary.total_distance_ft)}</span>
 				<span class="stat-label">Distance</span>
 			</div>
 			<div class="summary-stat">
@@ -751,9 +750,9 @@
 
 			<div class="eta-stats">
 				<div>
-					<span>{formatDistance(todayPavingFt)}</span>
+					<span>{formatFeet(todayPavingFt)}</span>
 					{#if targetFt}
-						<span style="color: var(--text-muted)"> / {formatDistance(targetFt)}</span>
+						<span style="color: var(--text-muted)"> / {formatFeet(targetFt)}</span>
 					{/if}
 				</div>
 				{#if pavingRateFtPerHr > 0}
@@ -814,7 +813,7 @@
 				<div class="summary-item">
 					<span class="summary-label">Today</span>
 					<span class="summary-value"
-						>{formatDistance(entrySummary.total_distance_ft)} | {entrySummary.total_tons.toFixed(
+						>{formatFeet(entrySummary.total_distance_ft)} | {entrySummary.total_tons.toFixed(
 							1
 						)} tons | {entrySummary.total_loads} loads</span
 					>
@@ -880,7 +879,7 @@
 										>
 									{/if}
 									{#if entry.distance_ft}
-										<span>{formatDistance(entry.distance_ft)}</span>
+										<span>{formatFeet(entry.distance_ft)}</span>
 									{/if}
 									{#if entry.tons_placed}
 										<span>{entry.tons_placed.toFixed(1)} tons</span>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { DbDailyLog } from '$lib/server/db-logs';
+	import { formatFeet } from '$lib/utils/format';
 
 	interface Props {
 		jobSiteId: string;
@@ -108,8 +109,7 @@
 
 	function fmtFeet(ft: number | null): string {
 		if (ft == null || ft === 0) return '—';
-		if (ft >= 5280) return `${(ft / 5280).toFixed(2)} mi`;
-		return `${Math.round(ft).toLocaleString()} ft`;
+		return formatFeet(ft);
 	}
 
 	function fmtTons(t: number): string {

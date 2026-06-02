@@ -2,6 +2,7 @@
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import GpsStationButton from '$lib/components/GpsStationButton.svelte';
 	import { formatStation, type RouteWaypoint } from '$lib/services/gpsStation';
+	import { formatFeet } from '$lib/utils/format';
 
 	interface Props {
 		jobSiteId: string;
@@ -121,13 +122,6 @@
 			isSubmitting = false;
 		}
 	}
-
-	function formatDistance(ft: number): string {
-		if (ft >= 5280) {
-			return `${(ft / 5280).toFixed(2)} mi`;
-		}
-		return `${ft.toLocaleString()} ft`;
-	}
 </script>
 
 <div class="station-logger-card">
@@ -180,7 +174,7 @@
 	</div>
 
 	{#if distanceFt != null && distanceFt > 0}
-		<div class="distance-preview">= {formatDistance(distanceFt)}</div>
+		<div class="distance-preview">= {formatFeet(distanceFt)}</div>
 	{/if}
 
 	<div class="form-row">
