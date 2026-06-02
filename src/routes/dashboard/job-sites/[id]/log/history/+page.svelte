@@ -5,6 +5,7 @@
 	import DailySummaryReport from '$lib/components/DailySummaryReport.svelte';
 	import WeeklyMonthlyReport from '$lib/components/WeeklyMonthlyReport.svelte';
 	import ProductionLineChart from '$lib/components/charts/ProductionLineChart.svelte';
+	import ProductionRateTrendChart from '$lib/components/charts/ProductionRateTrendChart.svelte';
 
 	let { data }: { data: PageData } = $props();
 	let summaryLog = $state<any>(null);
@@ -18,6 +19,29 @@
 				date: log.log_date,
 				tons: log.summary?.total_tons ?? 0
 			}))
+	);
+
+	// Build rate chart data (only logs with hours)
+	const rateChartData = $derived(
+		[...data.logs]
+			.sort((a, b) => a.log_date.localeCompare(b.log_date))
+			.map((log) => ({
+				date: log.log_date,
+				tons: log.summary?.total_tons ?? 0,
+				hours: log.summary?.hours_worked ?? 0
+			}))
+	);
+
+	// Check if we have any rate data
+	const hasRateData = $derived(rateChartData.some((d) => d.hours > 0));
+
+	// Avg rate across days with hours > 0
+	const avgRate = $derived(
+		(() => {
+			const valid = rateChartData.filter((d) => d.hours > 0);
+			if (valid.length === 0) return 0;
+			return valid.reduce((sum, d) => sum + d.tons / d.hours, 0) / valid.length;
+		})()
 	);
 
 	// Calculate total tons across all days
@@ -184,6 +208,18 @@
 			</div>
 			<ProductionLineChart data={chartData} />
 		</div>
+
+		{#if hasRateData}
+			<div class="chart-section">
+				<div class="section-header">
+					<h3>Production Rate Trend</h3>
+					<p class="section-subtitle">
+						{avgRate.toFixed(1)} T/hr avg &mdash; 3-day rolling average
+					</p>
+				</div>
+				<ProductionRateTrendChart data={rateChartData} />
+			</div>
+		{/if}
 
 		<div class="log-list">
 			{#each data.logs as log}
