@@ -11,9 +11,10 @@
 	interface Props {
 		jobSiteId: string;
 		isAuthenticated?: boolean;
+		numLanes?: number | null;
 	}
 
-	let { jobSiteId, isAuthenticated = false }: Props = $props();
+	let { jobSiteId, isAuthenticated = false, numLanes = null }: Props = $props();
 
 	let loads = $state<DbLoad[]>([]);
 	let showNewLoadForm = $state(false);
@@ -24,6 +25,8 @@
 	let ticketNumberInput = $state('');
 	let tonsInput = $state<number | null>(null);
 	let notesInput = $state('');
+	let laneNumberInput = $state<number | null>(null);
+	let passNumberInput = $state<number | null>(null);
 
 	// Rejection state
 	let rejectingLoadId = $state<string | null>(null);
@@ -99,7 +102,9 @@
 			ticket_number: ticketNumberInput || null,
 			tons,
 			timestamp,
-			notes: notesInput || null
+			notes: notesInput || null,
+			lane_number: laneNumberInput || null,
+			pass_number: passNumberInput || null
 		};
 
 		if (isAuthenticated) {
@@ -121,6 +126,8 @@
 					job_site_id: jobSiteId,
 					user_id: 'local',
 					...newLoad as Required<typeof newLoad>,
+					lane_number: newLoad.lane_number || null,
+					pass_number: newLoad.pass_number || null,
 					rejected: 0,
 					rejection_reason: null,
 					rejection_notes: null
@@ -138,6 +145,8 @@
 				timestamp: newLoad.timestamp!,
 				spread_rate: null,
 				notes: newLoad.notes || null,
+				lane_number: newLoad.lane_number || null,
+				pass_number: newLoad.pass_number || null,
 				created_at: timestamp,
 				rejected: 0,
 				rejection_reason: null,
@@ -151,6 +160,8 @@
 		ticketNumberInput = '';
 		tonsInput = null;
 		notesInput = '';
+		laneNumberInput = null;
+		passNumberInput = null;
 		showNewLoadForm = false;
 		saving = false;
 	}
@@ -290,6 +301,40 @@
 					/>
 				</div>
 
+				{#if (numLanes && numLanes > 1) || loads.some(l => l.lane_number)}
+					<div class="field">
+						<label for="lane-number">Lane</label>
+						<div class="lane-btns">
+							{#each Array.from({length: numLanes || 4}, (_, i) => i + 1) as lane}
+								<button
+									type="button"
+									class="lane-btn"
+									class:active={laneNumberInput === lane}
+									onclick={() => { laneNumberInput = laneNumberInput === lane ? null : lane; }}
+								>
+									{lane}
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				<div class="field">
+					<label for="pass-number">Pass</label>
+					<div class="lane-btns">
+						{#each [1, 2, 3, 4] as pass}
+							<button
+								type="button"
+								class="lane-btn"
+								class:active={passNumberInput === pass}
+								onclick={() => { passNumberInput = passNumberInput === pass ? null : pass; }}
+							>
+								{pass === 1 ? '1st' : pass === 2 ? '2nd' : pass === 3 ? '3rd' : `${pass}th`}
+							</button>
+						{/each}
+					</div>
+				</div>
+
 				<NumberField
 					label="Tons"
 					unit={UNIT_LABELS.tons[unitsStore.system]}
@@ -370,6 +415,58 @@
 			/>
 		</div>
 
+		{@const laneBreakdown = (() => {
+			const map = new Map<number, {count: number, tons: number}>();
+			for (const load of loads) {
+				if (load.lane_number) {
+					const existing = map.get(load.lane_number) || {count: 0, tons: 0};
+					map.set(load.lane_number, {count: existing.count + 1, tons: existing.tons + load.tons});
+				}
+			}
+			return [...map.entries()].sort((a, b) => a[0] - b[0]);
+		})()}
+
+		{@const passBreakdown = (() => {
+			const map = new Map<number, {count: number, tons: number}>();
+			for (const load of loads) {
+				if (load.pass_number) {
+					const existing = map.get(load.pass_number) || {count: 0, tons: 0};
+					map.set(load.pass_number, {count: existing.count + 1, tons: existing.tons + load.tons});
+				}
+			}
+			return [...map.entries()].sort((a, b) => a[0] - b[0]);
+		})()}
+
+		{#if laneBreakdown.length > 1}
+			<div class="breakdown-section">
+				<h4 class="breakdown-title">By Lane</h4>
+				<div class="breakdown-grid">
+					{#each laneBreakdown as [lane, stats]}
+						<div class="breakdown-item">
+							<div class="breakdown-label">Lane {lane}</div>
+							<div class="breakdown-value">{(unitsStore.system === 'metric' ? toMetricTonnes(stats.tons) : stats.tons).toFixed(1)}</div>
+							<div class="breakdown-sub">{stats.count} loads</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
+		{#if passBreakdown.length > 1}
+			<div class="breakdown-section">
+				<h4 class="breakdown-title">By Pass</h4>
+				<div class="breakdown-grid">
+					{#each passBreakdown as [pass, stats]}
+						<div class="breakdown-item">
+							<div class="breakdown-label">Pass {pass}</div>
+							<div class="breakdown-value">{(unitsStore.system === 'metric' ? toMetricTonnes(stats.tons) : stats.tons).toFixed(1)}</div>
+							<div class="breakdown-sub">{stats.count} loads</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
 		<div class="load-history">
 			<div class="history-header">
 				<h4>Today's Loads</h4>
@@ -404,6 +501,16 @@
 								{/if}
 							</div>
 						</div>
+						{#if load.lane_number || load.pass_number}
+							<div class="load-badges">
+								{#if load.lane_number}
+									<span class="badge badge-lane">L{load.lane_number}</span>
+								{/if}
+								{#if load.pass_number}
+									<span class="badge badge-pass">P{load.pass_number}</span>
+								{/if}
+							</div>
+						{/if}
 						{#if load.notes}
 							<div class="load-notes">{load.notes}</div>
 						{/if}
@@ -939,6 +1046,111 @@
 		padding: var(--sp-4);
 		text-align: center;
 		color: var(--text-muted);
+	}
+
+	.lane-btns {
+		display: flex;
+		gap: var(--sp-2);
+		flex-wrap: wrap;
+	}
+
+	.lane-btn {
+		min-height: 48px;
+		min-width: 56px;
+		padding: var(--sp-2) var(--sp-3);
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		color: var(--text-muted);
+		font-size: var(--fs-md);
+		font-weight: var(--fw-medium);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.lane-btn:hover {
+		border-color: var(--accent);
+		color: var(--text);
+	}
+
+	.lane-btn.active {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--text);
+		font-weight: var(--fw-bold);
+	}
+
+	.breakdown-section {
+		margin-top: var(--sp-4);
+		background: var(--surface-alt);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		padding: var(--sp-3) var(--sp-4);
+	}
+
+	.breakdown-title {
+		margin: 0 0 var(--sp-3);
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.breakdown-grid {
+		display: flex;
+		gap: var(--sp-4);
+		flex-wrap: wrap;
+	}
+
+	.breakdown-item {
+		text-align: center;
+		min-width: 60px;
+	}
+
+	.breakdown-label {
+		font-size: var(--fs-xs);
+		color: var(--text-muted);
+		margin-bottom: var(--sp-1);
+	}
+
+	.breakdown-value {
+		font-size: var(--fs-lg);
+		font-weight: var(--fw-bold);
+		color: var(--text);
+	}
+
+	.breakdown-sub {
+		font-size: var(--fs-xs);
+		color: var(--text-muted);
+		margin-top: 2px;
+	}
+
+	.load-badges {
+		display: flex;
+		gap: var(--sp-1);
+		margin-top: var(--sp-1);
+	}
+
+	.badge {
+		display: inline-flex;
+		align-items: center;
+		padding: 2px 8px;
+		border-radius: 999px;
+		font-size: var(--fs-xs);
+		font-weight: var(--fw-semibold);
+	}
+
+	.badge-lane {
+		background: color-mix(in srgb, var(--accent) 20%, transparent);
+		color: var(--accent);
+		border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+	}
+
+	.badge-pass {
+		background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+		color: var(--text-muted);
+		border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
 	}
 
 	@media (max-width: 460px) {

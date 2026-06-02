@@ -180,6 +180,8 @@ export interface DbLoad {
 	timestamp: number;
 	spread_rate: number | null;
 	notes: string | null;
+	lane_number: number | null;
+	pass_number: number | null;
 	created_at: number;
 	rejected: number;
 	rejection_reason: string | null;

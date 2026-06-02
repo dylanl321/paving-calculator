@@ -900,7 +900,7 @@
 			{/if}
 		</section>
 
-		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
+		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} numLanes={data.config?.num_lanes} />
 
 		<TruckQueue jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
 
