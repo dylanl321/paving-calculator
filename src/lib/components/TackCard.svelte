@@ -66,6 +66,8 @@
 >
 	<NumberField label="Length to shoot" unit="ft" bind:value={lengthFt} />
 
+	<div class="width-note">Using job width: <strong>{job.widthFt} ft</strong></div>
+
 	{#if tackBlocked}
 		<div class="weather-warn fail">
 			{#if weather.isRaining}
@@ -114,6 +116,7 @@
 	/>
 
 	<ShowWork>
+		<p>Using job width: <strong>{job.widthFt} ft</strong></p>
 		<code>gallons = (length × width ÷ 9) × shot rate (gal/SY)</code>
 		<p>Width in use: <strong>{job.widthFt} ft</strong> (from job settings).</p>
 		<p>{selected.label}: {selected.min}–{selected.max} gal/SY.</p>
@@ -168,6 +171,14 @@
 	.rate-display strong {
 		color: var(--accent);
 		font-weight: 700;
+	}
+	.width-note {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+		margin-bottom: 12px;
+	}
+	.width-note strong {
+		color: var(--text);
 	}
 	.weather-warn {
 		font-size: 0.85rem;
