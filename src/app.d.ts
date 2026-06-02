@@ -12,6 +12,7 @@ declare global {
 				DB: D1Database;
 				ASSETS_BUCKET: R2Bucket;
 				SUPER_ADMIN_EMAILS?: string;
+				RESEND_API_KEY?: string;
 			};
 			ctx: ExecutionContext;
 			caches: CacheStorage;
