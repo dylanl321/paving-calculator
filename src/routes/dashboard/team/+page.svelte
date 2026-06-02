@@ -20,23 +20,70 @@
 		expires_at: number;
 	};
 
+	type MemberActivity = {
+		action: string;
+		resource_type: string;
+		created_at: number;
+	} | null;
+
 	let members = $state<Member[]>([]);
 	let invitations = $state<Invitation[]>([]);
+	let memberActivity = $state<Record<string, MemberActivity>>({});
 	let loading = $state(true);
 	let error = $state('');
 	let showInviteModal = $state(false);
 	let inviteForm = $state({ email: '', role: 'member' });
 	let inviting = $state(false);
+	let resending = $state(false);
 	let currentUserId = $state<string | null>(null);
 	let currentUserRole = $state<string | null>(null);
 	let searchQuery = $state('');
+	let roleFilter = $state<string>('all');
+	let sortOrder = $state<string>('name-asc');
 	let roleChangeConfirm = $state<{ member: Member; newRole: string } | null>(null);
 
-	const filteredMembers = $derived(
-		members.filter(
-			(m) =>
-				m.user_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				m.user_email.toLowerCase().includes(searchQuery.toLowerCase())
+	const filteredMembers = $derived.by(() => {
+		const q = searchQuery.toLowerCase();
+		let result = members.filter((m) => {
+			const matchesSearch =
+				!q ||
+				m.user_name.toLowerCase().includes(q) ||
+				m.user_email.toLowerCase().includes(q);
+			const matchesRole = roleFilter === 'all' || m.role === roleFilter;
+			return matchesSearch && matchesRole;
+		});
+
+		switch (sortOrder) {
+			case 'name-asc':
+				result = result.slice().sort((a, b) => a.user_name.localeCompare(b.user_name));
+				break;
+			case 'name-desc':
+				result = result.slice().sort((a, b) => b.user_name.localeCompare(a.user_name));
+				break;
+			case 'newest':
+				result = result.slice().sort((a, b) => b.invited_at - a.invited_at);
+				break;
+			case 'oldest':
+				result = result.slice().sort((a, b) => a.invited_at - b.invited_at);
+				break;
+		}
+
+		return result;
+	});
+
+	const hasActiveFilters = $derived(searchQuery !== '' || roleFilter !== 'all');
+
+	function clearFilters() {
+		searchQuery = '';
+		roleFilter = 'all';
+	}
+
+	const roleCounts = $derived(
+		Object.fromEntries(
+			['all', 'owner', 'admin', 'member'].map((r) => [
+				r,
+				r === 'all' ? members.length : members.filter((m) => m.role === r).length
+			])
 		)
 	);
 
@@ -60,9 +107,10 @@
 
 	async function loadTeam() {
 		try {
-			const [membersRes, invitesRes] = await Promise.all([
+			const [membersRes, invitesRes, activityRes] = await Promise.all([
 				fetch('/api/org'),
-				fetch('/api/org/invite')
+				fetch('/api/org/invite'),
+				fetch('/api/org/activity')
 			]);
 
 			if (!membersRes.ok) {
@@ -81,6 +129,11 @@
 			if (invitesRes.ok) {
 				const invitesData = await invitesRes.json();
 				invitations = invitesData.invitations || [];
+			}
+
+			if (activityRes.ok) {
+				const activityData = await activityRes.json();
+				memberActivity = activityData.activity || {};
 			}
 		} catch (e) {
 			error = 'Failed to load team';
@@ -182,13 +235,38 @@
 
 			if (!res.ok) {
 				const data = await res.json();
-				alert(data.error || 'Failed to revoke invitation');
+				toastStore.error(data.error || 'Failed to revoke invitation');
 				return;
 			}
 
 			await loadTeam();
+			toastStore.success('Invitation revoked successfully');
 		} catch (e) {
-			alert('Failed to revoke invitation');
+			toastStore.error('Failed to revoke invitation');
+		}
+	}
+
+	async function resendInvitation(invite: Invitation) {
+		if (resending) return;
+
+		resending = true;
+		try {
+			const res = await fetch(`/api/org/invite/${invite.id}`, {
+				method: 'POST'
+			});
+
+			if (!res.ok) {
+				const data = await res.json();
+				toastStore.error(data.error || 'Failed to resend invitation');
+				return;
+			}
+
+			await loadTeam();
+			toastStore.success('Invitation resent successfully');
+		} catch (e) {
+			toastStore.error('Failed to resend invitation');
+		} finally {
+			resending = false;
 		}
 	}
 
@@ -212,6 +290,53 @@
 			.toUpperCase()
 			.slice(0, 2);
 	}
+
+	function formatRelativeTime(timestamp: number): string {
+		const now = Math.floor(Date.now() / 1000);
+		const diff = now - timestamp;
+
+		if (diff < 60) return 'just now';
+		if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+		if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+		if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+		if (diff < 2592000) return `${Math.floor(diff / 604800)}w ago`;
+		return formatDate(timestamp);
+	}
+
+	function formatActivityLabel(activity: MemberActivity): string {
+		if (!activity) return '';
+
+		const { action, resource_type } = activity;
+
+		if (action === 'ran calc') {
+			const calcLabels: Record<string, string> = {
+				spread_rate: 'spread rate calc',
+				feet_left: 'feet left calc',
+				tonnage: 'tonnage calc',
+				tack_rate: 'tack rate calc',
+				stick_check: 'stick check calc'
+			};
+			return `ran ${calcLabels[resource_type] || resource_type}`;
+		}
+
+		if (action === 'logged day') {
+			return 'logged a day';
+		}
+
+		if (action === 'created' || action === 'updated' || action === 'deleted') {
+			const resourceLabels: Record<string, string> = {
+				job_site: 'job site',
+				calculation: 'calculation',
+				daily_log: 'daily log',
+				org_member: 'team member',
+				org_settings: 'org settings',
+				user: 'profile'
+			};
+			return `${action} ${resourceLabels[resource_type] || resource_type}`;
+		}
+
+		return `${action} ${resource_type}`;
+	}
 </script>
 
 <div class="team-page">
@@ -231,15 +356,46 @@
 		<section class="members-section">
 			<div class="section-header">
 				<h2>Team Members ({members.length})</h2>
-				<input
-					type="search"
-					class="search-input"
-					placeholder="Search by name or email..."
-					bind:value={searchQuery}
-				/>
+				<div class="filter-bar">
+					<input
+						type="search"
+						class="search-input"
+						placeholder="Search by name or email..."
+						bind:value={searchQuery}
+					/>
+					<div class="role-filter-pills">
+						{#each ['all', 'owner', 'admin', 'member'] as role}
+							<button
+								type="button"
+								class="pill {roleFilter === role ? 'pill-active' : ''}"
+								onclick={() => (roleFilter = role)}
+								aria-pressed={roleFilter === role}
+							>
+								{role === 'all' ? 'All' : role.charAt(0).toUpperCase() + role.slice(1)}
+								<span class="pill-count">{roleCounts[role]}</span>
+							</button>
+						{/each}
+					</div>
+					<select class="sort-select" bind:value={sortOrder} aria-label="Sort members">
+						<option value="name-asc">Name A-Z</option>
+						<option value="name-desc">Name Z-A</option>
+						<option value="newest">Newest first</option>
+						<option value="oldest">Oldest first</option>
+					</select>
+				</div>
 			</div>
+			{#if hasActiveFilters}
+				<div class="filter-status">
+					<span class="filter-count">
+						{filteredMembers.length} of {members.length} member{members.length !== 1 ? 's' : ''}
+					</span>
+					<button type="button" class="btn-clear-filters" onclick={clearFilters}>
+						Clear filters
+					</button>
+				</div>
+			{/if}
 			{#if filteredMembers.length === 0}
-				<p class="empty">{searchQuery ? 'No members found' : 'No team members yet'}</p>
+				<p class="empty">{hasActiveFilters ? 'No members match your filters' : 'No team members yet'}</p>
 			{:else}
 				<div class="members-cards">
 					{#each filteredMembers as member}
@@ -260,12 +416,27 @@
 											value={member.role}
 											onchange={(e) => requestRoleChange(member, e.currentTarget.value)}
 										>
-											<option value="member">Member</option>
-											<option value="admin">Admin</option>
 											<option value="owner">Owner</option>
+											<option value="admin">Admin</option>
+											<option value="member">Member</option>
+											<option value="foreman">Foreman</option>
+											<option value="operator">Operator</option>
+											<option value="inspector">Inspector</option>
+											<option value="office">Office</option>
 										</select>
 									{:else}
-										<span class="role-badge owner">{member.role}</span>
+										<span class="role-badge {member.role}">{member.role}</span>
+									{/if}
+								</div>
+								<div class="card-row">
+									<span class="label">Last Active</span>
+									{#if memberActivity[member.user_id]}
+										<div class="activity-info">
+											<span class="activity-label">{formatActivityLabel(memberActivity[member.user_id])}</span>
+											<span class="activity-time">{formatRelativeTime(memberActivity[member.user_id]!.created_at)}</span>
+										</div>
+									{:else}
+										<span class="activity-none">No activity yet</span>
 									{/if}
 								</div>
 								<div class="card-row">
@@ -295,7 +466,7 @@
 						<div class="invitation-card">
 							<div class="card-header">
 								<div class="invitation-email">{invite.email}</div>
-								<span class="role-badge">{invite.role}</span>
+								<span class="role-badge {invite.role}">{invite.role}</span>
 							</div>
 							<div class="card-body">
 								<div class="card-row">
@@ -312,8 +483,15 @@
 								</div>
 							</div>
 							<div class="card-actions">
+								<button
+									class="btn-secondary"
+									onclick={() => resendInvitation(invite)}
+									disabled={resending}
+								>
+									{resending ? 'Resending...' : 'Resend'}
+								</button>
 								<button class="btn-danger" onclick={() => revokeInvitation(invite)}>
-									Revoke Invitation
+									Revoke
 								</button>
 							</div>
 						</div>
@@ -342,9 +520,13 @@
 			<label>
 				Role
 				<select bind:value={inviteForm.role}>
-					<option value="member">Member</option>
-					<option value="admin">Admin</option>
 					<option value="owner">Owner</option>
+					<option value="admin">Admin</option>
+					<option value="member">Member</option>
+					<option value="foreman">Foreman</option>
+					<option value="operator">Operator</option>
+					<option value="inspector">Inspector</option>
+					<option value="office">Office</option>
 				</select>
 			</label>
 			<div class="modal-actions">
@@ -363,8 +545,8 @@
 		<h2>Confirm Role Change</h2>
 		<p class="confirm-message">
 			Change <strong>{roleChangeConfirm.member.user_name}</strong>'s role from
-			<strong>{roleChangeConfirm.member.role}</strong> to
-			<strong>{roleChangeConfirm.newRole}</strong>?
+			<strong>{roleChangeConfirm.member.role.charAt(0).toUpperCase() + roleChangeConfirm.member.role.slice(1)}</strong> to
+			<strong>{roleChangeConfirm.newRole.charAt(0).toUpperCase() + roleChangeConfirm.newRole.slice(1)}</strong>?
 		</p>
 		<div class="modal-actions">
 			<button type="button" onclick={() => (roleChangeConfirm = null)}>Cancel</button>
@@ -481,6 +663,109 @@
 		color: var(--text-muted);
 	}
 
+	.filter-bar {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-3);
+		width: 100%;
+	}
+
+	.role-filter-pills {
+		display: flex;
+		gap: var(--sp-2);
+		flex-wrap: wrap;
+	}
+
+	.pill {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--sp-2);
+		padding: var(--sp-2) var(--sp-3);
+		min-height: 36px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-full, 999px);
+		background: var(--surface);
+		color: var(--text-muted);
+		font-size: var(--fs-sm);
+		cursor: pointer;
+		transition:
+			background 0.1s,
+			color 0.1s,
+			border-color 0.1s;
+	}
+
+	.pill:hover {
+		background: var(--surface-alt);
+		color: var(--text);
+	}
+
+	.pill-active {
+		background: var(--accent);
+		color: var(--accent-text);
+		border-color: var(--accent);
+	}
+
+	.pill-count {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 18px;
+		height: 18px;
+		padding: 0 var(--sp-1);
+		background: rgba(0, 0, 0, 0.15);
+		border-radius: var(--radius-full, 999px);
+		font-size: 0.7rem;
+		font-weight: var(--fw-bold);
+	}
+
+	.pill-active .pill-count {
+		background: rgba(0, 0, 0, 0.2);
+	}
+
+	.sort-select {
+		padding: var(--sp-2) var(--sp-3);
+		min-height: 40px;
+		font-size: var(--fs-sm);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface);
+		color: var(--text);
+		cursor: pointer;
+		align-self: flex-start;
+	}
+
+	.filter-status {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+		margin-bottom: var(--sp-4);
+		padding: var(--sp-2) var(--sp-3);
+		background: var(--surface-alt);
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-sm);
+	}
+
+	.filter-count {
+		color: var(--text-muted);
+		flex: 1;
+	}
+
+	.btn-clear-filters {
+		padding: var(--sp-1) var(--sp-3);
+		min-height: 32px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: transparent;
+		color: var(--text);
+		font-size: var(--fs-sm);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.btn-clear-filters:hover {
+		background: var(--surface);
+	}
+
 	.role-badge {
 		display: inline-block;
 		padding: var(--sp-1) var(--sp-3);
@@ -494,6 +779,31 @@
 	.role-badge.owner {
 		background: rgba(249, 115, 22, 0.2);
 		color: rgb(249, 115, 22);
+	}
+
+	.role-badge.admin {
+		background: rgba(59, 130, 246, 0.2);
+		color: rgb(59, 130, 246);
+	}
+
+	.role-badge.foreman {
+		background: rgba(245, 158, 11, 0.2);
+		color: rgb(245, 158, 11);
+	}
+
+	.role-badge.operator {
+		background: rgba(34, 197, 94, 0.2);
+		color: rgb(34, 197, 94);
+	}
+
+	.role-badge.inspector {
+		background: rgba(168, 85, 247, 0.2);
+		color: rgb(168, 85, 247);
+	}
+
+	.role-badge.office {
+		background: rgba(20, 184, 166, 0.2);
+		color: rgb(20, 184, 166);
 	}
 
 	.role-select {
@@ -645,13 +955,68 @@
 		max-width: 150px;
 	}
 
+	.activity-info {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: var(--sp-1);
+	}
+
+	.activity-label {
+		font-size: var(--fs-sm);
+		color: var(--text);
+	}
+
+	.activity-time {
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+	}
+
+	.activity-none {
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+		font-style: italic;
+	}
+
 	.card-actions {
 		display: flex;
+		gap: var(--sp-2);
 		justify-content: flex-end;
 	}
 
+	.card-actions button {
+		padding: var(--sp-2) var(--sp-4);
+		min-height: var(--touch);
+		border: none;
+		border-radius: var(--radius-sm);
+		cursor: pointer;
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
+		flex: 1;
+	}
+
+	.card-actions button:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.card-actions .btn-secondary {
+		background: var(--surface-alt);
+		color: var(--text);
+		border: 1px solid var(--border);
+	}
+
+	.card-actions .btn-secondary:hover:not(:disabled) {
+		background: var(--surface);
+	}
+
 	.card-actions .btn-danger {
-		width: 100%;
+		background: var(--bad);
+		color: white;
+	}
+
+	.card-actions .btn-danger:hover:not(:disabled) {
+		opacity: 0.9;
 	}
 
 	/* Modal styles */
@@ -768,8 +1133,18 @@
 	@media (min-width: 768px) {
 		.section-header {
 			flex-direction: row;
-			align-items: center;
+			align-items: flex-start;
 			justify-content: space-between;
+			gap: var(--sp-4);
+		}
+
+		.section-header h2 {
+			white-space: nowrap;
+			padding-top: var(--sp-2);
+		}
+
+		.filter-bar {
+			max-width: 480px;
 		}
 
 		.search-input {
