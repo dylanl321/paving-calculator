@@ -21,17 +21,25 @@ export const GET: RequestHandler = async ({ params, locals, platform, url }) => 
 
 	const limit = parseInt(url.searchParams.get('limit') || '100');
 	const startDate = url.searchParams.get('start_date');
+	const endDate = url.searchParams.get('end_date');
 
 	let query = 'SELECT * FROM loads WHERE job_site_id = ?';
 	const bindings: unknown[] = [params.id];
 
 	if (startDate) {
-		const startTs = Math.floor(new Date(startDate).getTime() / 1000);
+		const startTs = Math.floor(new Date(startDate + 'T00:00:00').getTime() / 1000);
 		query += ' AND timestamp >= ?';
 		bindings.push(startTs);
 	}
 
-	query += ' ORDER BY timestamp DESC LIMIT ?';
+	if (endDate) {
+		// end of day: next day midnight minus 1
+		const endTs = Math.floor(new Date(endDate + 'T00:00:00').getTime() / 1000) + 86400 - 1;
+		query += ' AND timestamp <= ?';
+		bindings.push(endTs);
+	}
+
+	query += ' ORDER BY timestamp ASC LIMIT ?';
 	bindings.push(limit);
 
 	const loads = await platform!.env.DB

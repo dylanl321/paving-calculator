@@ -11,6 +11,7 @@
 	import NuclearGaugeLog from '$lib/components/NuclearGaugeLog.svelte';
 	import StationProgressLogger from '$lib/components/StationProgressLogger.svelte';
 	import CloseOutModal from '$lib/components/CloseOutModal.svelte';
+	import DailySummaryReport from '$lib/components/DailySummaryReport.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -23,6 +24,7 @@
 	let editingEntry = $state<any>(null);
 	let showCloseOut = $state(false);
 	let unlocking = $state(false);
+	let showSummary = $state(false);
 
 	let isAdmin = $derived(
 		data.userRole === 'owner' || data.userRole === 'admin' || data.isGlobalAdmin
@@ -610,6 +612,23 @@
 					</svg>
 					PDF
 				</button>
+			<button class="btn-secondary" onclick={() => (showSummary = true)}>
+				<svg
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+					<line x1="9" y1="9" x2="15" y2="9"></line>
+					<line x1="9" y1="15" x2="15" y2="15"></line>
+				</svg>
+				Day Summary
+			</button>
 			{/if}
 			<a href="/dashboard/job-sites/{data.jobSite.id}/log/history" class="btn-secondary">
 				<svg
@@ -1012,6 +1031,15 @@
 		siteName={data.jobSite.name}
 		onClose={() => (showCloseOut = false)}
 		onComplete={handleCloseOutComplete}
+	/>
+{/if}
+
+{#if showSummary && currentLog}
+	<DailySummaryReport
+		jobSiteId={data.jobSite.id}
+		log={currentLog}
+		onClose={() => (showSummary = false)}
+		onGeneratePDF={exportDailyPDF}
 	/>
 {/if}
 
