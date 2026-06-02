@@ -917,6 +917,8 @@
 			jobSiteId={data.jobSite.id}
 			targetTonnage={configForm.total_tonnage || estTonnage || null}
 			isAuthenticated={!!data.user}
+			latitude={data.jobSite.latitude}
+			longitude={data.jobSite.longitude}
 		/>
 
 		<TruckQueue jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
