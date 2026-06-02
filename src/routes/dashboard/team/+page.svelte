@@ -28,10 +28,26 @@
 	let inviting = $state(false);
 	let editingMember = $state<Member | null>(null);
 	let editRole = $state('member');
+	let currentUserId = $state<string | null>(null);
+	let currentUserRole = $state<string | null>(null);
 
 	onMount(async () => {
+		await loadCurrentUser();
 		await loadTeam();
 	});
+
+	async function loadCurrentUser() {
+		try {
+			const res = await fetch('/api/auth/me');
+			if (res.ok) {
+				const data = await res.json();
+				currentUserId = data.user.id;
+				currentUserRole = data.org.role;
+			}
+		} catch (e) {
+			console.error('Failed to load current user:', e);
+		}
+	}
 
 	async function loadTeam() {
 		try {
@@ -145,6 +161,14 @@
 	function formatDate(timestamp: number): string {
 		return new Date(timestamp * 1000).toLocaleDateString();
 	}
+
+	function canModifyMember(member: Member): boolean {
+		// Hide actions if this is the current user AND they are the owner
+		if (member.user_id === currentUserId && currentUserRole === 'owner') {
+			return false;
+		}
+		return true;
+	}
 </script>
 
 <div class="team-page">
@@ -189,12 +213,16 @@
 									</td>
 									<td data-label="Joined">{formatDate(member.invited_at)}</td>
 									<td data-label="Actions">
-										<div class="action-buttons">
-											<button onclick={() => startEditRole(member)}>Change Role</button>
-											<button class="danger" onclick={() => removeMember(member)}>
-												Remove
-											</button>
-										</div>
+										{#if canModifyMember(member)}
+											<div class="action-buttons">
+												<button onclick={() => startEditRole(member)}>Change Role</button>
+												<button class="danger" onclick={() => removeMember(member)}>
+													Remove
+												</button>
+											</div>
+										{:else}
+											<span class="no-actions">—</span>
+										{/if}
 									</td>
 								</tr>
 							{/each}
@@ -444,6 +472,11 @@
 
 	.action-buttons button:hover {
 		opacity: 0.9;
+	}
+
+	.no-actions {
+		color: var(--color-text-secondary);
+		font-size: 1.25rem;
 	}
 
 	.modal-overlay {

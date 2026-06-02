@@ -27,6 +27,11 @@ export async function PATCH(event: RequestEvent) {
 			return json({ error: 'Insufficient permissions' }, { status: 403 });
 		}
 
+		// Prevent owner from changing their own role
+		if (userId === user.id && userRole === 'owner') {
+			return json({ error: 'Owner cannot change their own role' }, { status: 403 });
+		}
+
 		// Update member role
 		await db.updateOrgMemberRole(userId, org.id, role);
 
@@ -57,7 +62,12 @@ export async function DELETE(event: RequestEvent) {
 			return json({ error: 'Insufficient permissions' }, { status: 403 });
 		}
 
-		// Don't allow removing self
+		// Prevent owner from removing themselves
+		if (userId === user.id && userRole === 'owner') {
+			return json({ error: 'Owner cannot remove themselves from the organization' }, { status: 403 });
+		}
+
+		// Don't allow removing self (for non-owners)
 		if (userId === user.id) {
 			return json({ error: 'Cannot remove yourself from the organization' }, { status: 400 });
 		}
