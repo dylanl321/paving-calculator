@@ -30,13 +30,52 @@
 	let currentUserId = $state<string | null>(null);
 	let currentUserRole = $state<string | null>(null);
 	let searchQuery = $state('');
+	let roleFilter = $state<string>('all');
+	let sortOrder = $state<string>('name-asc');
 	let roleChangeConfirm = $state<{ member: Member; newRole: string } | null>(null);
 
-	const filteredMembers = $derived(
-		members.filter(
-			(m) =>
-				m.user_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				m.user_email.toLowerCase().includes(searchQuery.toLowerCase())
+	const filteredMembers = $derived.by(() => {
+		const q = searchQuery.toLowerCase();
+		let result = members.filter((m) => {
+			const matchesSearch =
+				!q ||
+				m.user_name.toLowerCase().includes(q) ||
+				m.user_email.toLowerCase().includes(q);
+			const matchesRole = roleFilter === 'all' || m.role === roleFilter;
+			return matchesSearch && matchesRole;
+		});
+
+		switch (sortOrder) {
+			case 'name-asc':
+				result = result.slice().sort((a, b) => a.user_name.localeCompare(b.user_name));
+				break;
+			case 'name-desc':
+				result = result.slice().sort((a, b) => b.user_name.localeCompare(a.user_name));
+				break;
+			case 'newest':
+				result = result.slice().sort((a, b) => b.invited_at - a.invited_at);
+				break;
+			case 'oldest':
+				result = result.slice().sort((a, b) => a.invited_at - b.invited_at);
+				break;
+		}
+
+		return result;
+	});
+
+	const hasActiveFilters = $derived(searchQuery !== '' || roleFilter !== 'all');
+
+	function clearFilters() {
+		searchQuery = '';
+		roleFilter = 'all';
+	}
+
+	const roleCounts = $derived(
+		Object.fromEntries(
+			['all', 'owner', 'admin', 'member'].map((r) => [
+				r,
+				r === 'all' ? members.length : members.filter((m) => m.role === r).length
+			])
 		)
 	);
 
@@ -231,15 +270,46 @@
 		<section class="members-section">
 			<div class="section-header">
 				<h2>Team Members ({members.length})</h2>
-				<input
-					type="search"
-					class="search-input"
-					placeholder="Search by name or email..."
-					bind:value={searchQuery}
-				/>
+				<div class="filter-bar">
+					<input
+						type="search"
+						class="search-input"
+						placeholder="Search by name or email..."
+						bind:value={searchQuery}
+					/>
+					<div class="role-filter-pills">
+						{#each ['all', 'owner', 'admin', 'member'] as role}
+							<button
+								type="button"
+								class="pill {roleFilter === role ? 'pill-active' : ''}"
+								onclick={() => (roleFilter = role)}
+								aria-pressed={roleFilter === role}
+							>
+								{role === 'all' ? 'All' : role.charAt(0).toUpperCase() + role.slice(1)}
+								<span class="pill-count">{roleCounts[role]}</span>
+							</button>
+						{/each}
+					</div>
+					<select class="sort-select" bind:value={sortOrder} aria-label="Sort members">
+						<option value="name-asc">Name A-Z</option>
+						<option value="name-desc">Name Z-A</option>
+						<option value="newest">Newest first</option>
+						<option value="oldest">Oldest first</option>
+					</select>
+				</div>
 			</div>
+			{#if hasActiveFilters}
+				<div class="filter-status">
+					<span class="filter-count">
+						{filteredMembers.length} of {members.length} member{members.length !== 1 ? 's' : ''}
+					</span>
+					<button type="button" class="btn-clear-filters" onclick={clearFilters}>
+						Clear filters
+					</button>
+				</div>
+			{/if}
 			{#if filteredMembers.length === 0}
-				<p class="empty">{searchQuery ? 'No members found' : 'No team members yet'}</p>
+				<p class="empty">{hasActiveFilters ? 'No members match your filters' : 'No team members yet'}</p>
 			{:else}
 				<div class="members-cards">
 					{#each filteredMembers as member}
@@ -479,6 +549,109 @@
 
 	.search-input::placeholder {
 		color: var(--text-muted);
+	}
+
+	.filter-bar {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-3);
+		width: 100%;
+	}
+
+	.role-filter-pills {
+		display: flex;
+		gap: var(--sp-2);
+		flex-wrap: wrap;
+	}
+
+	.pill {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--sp-2);
+		padding: var(--sp-2) var(--sp-3);
+		min-height: 36px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-full, 999px);
+		background: var(--surface);
+		color: var(--text-muted);
+		font-size: var(--fs-sm);
+		cursor: pointer;
+		transition:
+			background 0.1s,
+			color 0.1s,
+			border-color 0.1s;
+	}
+
+	.pill:hover {
+		background: var(--surface-alt);
+		color: var(--text);
+	}
+
+	.pill-active {
+		background: var(--accent);
+		color: var(--accent-text);
+		border-color: var(--accent);
+	}
+
+	.pill-count {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 18px;
+		height: 18px;
+		padding: 0 var(--sp-1);
+		background: rgba(0, 0, 0, 0.15);
+		border-radius: var(--radius-full, 999px);
+		font-size: 0.7rem;
+		font-weight: var(--fw-bold);
+	}
+
+	.pill-active .pill-count {
+		background: rgba(0, 0, 0, 0.2);
+	}
+
+	.sort-select {
+		padding: var(--sp-2) var(--sp-3);
+		min-height: 40px;
+		font-size: var(--fs-sm);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface);
+		color: var(--text);
+		cursor: pointer;
+		align-self: flex-start;
+	}
+
+	.filter-status {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+		margin-bottom: var(--sp-4);
+		padding: var(--sp-2) var(--sp-3);
+		background: var(--surface-alt);
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-sm);
+	}
+
+	.filter-count {
+		color: var(--text-muted);
+		flex: 1;
+	}
+
+	.btn-clear-filters {
+		padding: var(--sp-1) var(--sp-3);
+		min-height: 32px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: transparent;
+		color: var(--text);
+		font-size: var(--fs-sm);
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.btn-clear-filters:hover {
+		background: var(--surface);
 	}
 
 	.role-badge {
@@ -768,8 +941,18 @@
 	@media (min-width: 768px) {
 		.section-header {
 			flex-direction: row;
-			align-items: center;
+			align-items: flex-start;
 			justify-content: space-between;
+			gap: var(--sp-4);
+		}
+
+		.section-header h2 {
+			white-space: nowrap;
+			padding-top: var(--sp-2);
+		}
+
+		.filter-bar {
+			max-width: 480px;
 		}
 
 		.search-input {
