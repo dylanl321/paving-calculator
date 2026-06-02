@@ -278,12 +278,36 @@ export interface DailyReportData {
 		targetRate: number | null;
 		diffPct: number | null;
 	};
+	loads?: Array<{
+		id: string;
+		ticket_number: string | null;
+		tons: number;
+		timestamp: number;
+		spread_rate: number | null;
+		notes: string | null;
+	}>;
 }
 
 function fmtFeet(ft: number | null): string {
 	if (ft == null) return '—';
 	if (ft >= 5280) return `${(ft / 5280).toFixed(2)} mi`;
 	return `${Math.round(ft).toLocaleString()} ft`;
+}
+
+async function loadImageAsDataUrl(url: string): Promise<string | null> {
+	try {
+		const response = await fetch(url);
+		if (!response.ok) return null;
+		const blob = await response.blob();
+		return new Promise((resolve) => {
+			const reader = new FileReader();
+			reader.onload = () => resolve(reader.result as string);
+			reader.onerror = () => resolve(null);
+			reader.readAsDataURL(blob);
+		});
+	} catch {
+		return null;
+	}
 }
 
 export async function generateDailyReportPDF(
@@ -305,12 +329,26 @@ export async function generateDailyReportPDF(
 		day: 'numeric'
 	});
 
-	// Header
-	doc.setFontSize(20);
-	doc.setFont('helvetica', 'bold');
-	doc.setTextColor(0);
-	doc.text('PaveRate — Daily Production Report', margin, yPos);
-	yPos += 26;
+	// Header with branding
+	const logoData = await loadImageAsDataUrl('/static/logo-wordmark.png');
+	if (logoData) {
+		try {
+			doc.addImage(logoData, 'PNG', margin, yPos, 120, 36);
+			yPos += 46;
+		} catch {
+			doc.setFontSize(20);
+			doc.setFont('helvetica', 'bold');
+			doc.setTextColor(0);
+			doc.text('PaveRate — Daily Production Report', margin, yPos);
+			yPos += 26;
+		}
+	} else {
+		doc.setFontSize(20);
+		doc.setFont('helvetica', 'bold');
+		doc.setTextColor(0);
+		doc.text('PaveRate — Daily Production Report', margin, yPos);
+		yPos += 26;
+	}
 
 	doc.setFontSize(11);
 	doc.setFont('helvetica', 'normal');
@@ -445,6 +483,77 @@ export async function generateDailyReportPDF(
 		const detailLines = doc.splitTextToSize(detail || '—', pageWidth - margin - cols[6].x);
 		doc.text(detailLines, cols[6].x, yPos);
 		yPos += Math.max(14, detailLines.length * 10);
+	}
+
+	// Per-Load Tickets section
+	if (day.loads && day.loads.length > 0) {
+		yPos += 10;
+		if (yPos > pageHeight - 80) {
+			doc.addPage();
+			yPos = margin;
+		}
+		doc.setFontSize(13);
+		doc.setFont('helvetica', 'bold');
+		doc.setTextColor(0);
+		doc.text('Per-Load Tickets', margin, yPos);
+		yPos += 6;
+		doc.setDrawColor(242, 192, 55);
+		doc.setLineWidth(2);
+		doc.line(margin, yPos, margin + 150, yPos);
+		yPos += 18;
+
+		// Column headers
+		const loadCols = [
+			{ label: 'Time', x: margin },
+			{ label: 'Ticket #', x: margin + 60 },
+			{ label: 'Tons', x: margin + 140 },
+			{ label: 'Spread Rate', x: margin + 185 },
+			{ label: 'Notes', x: margin + 250 }
+		];
+		doc.setFontSize(8);
+		doc.setFont('helvetica', 'bold');
+		doc.setTextColor(100);
+		loadCols.forEach((c) => doc.text(c.label, c.x, yPos));
+		yPos += 12;
+		doc.setTextColor(0);
+		doc.setFont('helvetica', 'normal');
+
+		const sortedLoads = [...day.loads].sort((a, b) => a.timestamp - b.timestamp);
+		let totalTons = 0;
+
+		for (const load of sortedLoads) {
+			if (yPos > pageHeight - 80) {
+				doc.addPage();
+				yPos = margin;
+			}
+			const timeStr = new Date(load.timestamp * 1000).toLocaleTimeString('en-US', {
+				hour: 'numeric',
+				minute: '2-digit',
+				hour12: true
+			});
+			const ticketStr = load.ticket_number || '—';
+			const tonsStr = load.tons.toFixed(1);
+			const rateStr = load.spread_rate != null ? `${Math.round(load.spread_rate)} lbs/SY` : '—';
+			const notesStr = load.notes || '—';
+
+			doc.setFontSize(8);
+			doc.text(timeStr, loadCols[0].x, yPos);
+			doc.text(ticketStr, loadCols[1].x, yPos);
+			doc.text(tonsStr, loadCols[2].x, yPos);
+			doc.text(rateStr, loadCols[3].x, yPos);
+			const notesLines = doc.splitTextToSize(notesStr, pageWidth - margin - loadCols[4].x);
+			doc.text(notesLines, loadCols[4].x, yPos);
+			yPos += Math.max(12, notesLines.length * 10);
+			totalTons += load.tons;
+		}
+
+		yPos += 4;
+		const avgTonsPerLoad = totalTons / sortedLoads.length;
+		const summaryStr = `${sortedLoads.length} loads | ${totalTons.toFixed(1)} total tons | avg ${avgTonsPerLoad.toFixed(1)} T/load`;
+		doc.setFont('helvetica', 'bold');
+		doc.setFontSize(9);
+		doc.text(summaryStr, margin, yPos);
+		yPos += 14;
 	}
 
 	if (day.notes) {

@@ -25,6 +25,25 @@
 	let tonsInput = $state<number | null>(null);
 	let notesInput = $state('');
 
+	// Rejection state
+	let rejectingLoadId = $state<string | null>(null);
+	let rejectionReason = $state<string>('');
+	let rejectionNotesInput = $state('');
+	let rejecting = $state(false);
+
+	const REJECTION_REASON_LABELS: Record<string, string> = {
+		temp_too_low: 'Temp Too Low',
+		temp_too_high: 'Temp Too High',
+		wrong_mix: 'Wrong Mix',
+		contaminated: 'Contaminated',
+		overloaded: 'Overloaded',
+		underweight: 'Underweight',
+		damaged_in_transit: 'Damaged in Transit',
+		other: 'Other'
+	};
+
+	const REJECTION_REASONS = Object.keys(REJECTION_REASON_LABELS);
+
 	const STORAGE_KEY = `loads_${jobSiteId}`;
 
 	// Load data
@@ -101,7 +120,10 @@
 					id: crypto.randomUUID(),
 					job_site_id: jobSiteId,
 					user_id: 'local',
-					...newLoad as Required<typeof newLoad>
+					...newLoad as Required<typeof newLoad>,
+					rejected: 0,
+					rejection_reason: null,
+					rejection_notes: null
 				};
 				loads = [load, ...loads];
 				saveToLocalStorage();
@@ -116,7 +138,10 @@
 				timestamp: newLoad.timestamp!,
 				spread_rate: null,
 				notes: newLoad.notes || null,
-				created_at: timestamp
+				created_at: timestamp,
+				rejected: 0,
+				rejection_reason: null,
+				rejection_notes: null
 			};
 			loads = [load, ...loads];
 			saveToLocalStorage();
@@ -139,8 +164,53 @@
 		}
 	}
 
-	const totalTons = $derived(loads.reduce((sum, load) => sum + load.tons, 0));
-	const loadCount = $derived(loads.length);
+	async function handleRejectLoad(loadId: string) {
+		if (!rejectionReason) return;
+		rejecting = true;
+		try {
+			const res = await fetch(`/api/job-sites/${jobSiteId}/loads/${loadId}/reject`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ reason: rejectionReason, notes: rejectionNotesInput || null }),
+				credentials: 'include'
+			});
+			if (res.ok) {
+				const data = await res.json();
+				loads = loads.map(l => l.id === loadId ? data.load : l);
+			}
+		} catch {
+			// For unauthenticated: update locally
+			loads = loads.map(l => l.id === loadId ? { ...l, rejected: 1, rejection_reason: rejectionReason, rejection_notes: rejectionNotesInput || null } : l);
+		}
+		rejectingLoadId = null;
+		rejectionReason = '';
+		rejectionNotesInput = '';
+		rejecting = false;
+	}
+
+	async function handleUnrejectLoad(loadId: string) {
+		if (!isAuthenticated) {
+			loads = loads.map(l => l.id === loadId ? { ...l, rejected: 0, rejection_reason: null, rejection_notes: null } : l);
+			return;
+		}
+		try {
+			const res = await fetch(`/api/job-sites/${jobSiteId}/loads/${loadId}/reject`, {
+				method: 'DELETE',
+				credentials: 'include'
+			});
+			if (res.ok) {
+				const data = await res.json();
+				loads = loads.map(l => l.id === loadId ? data.load : l);
+			}
+		} catch {
+			loads = loads.map(l => l.id === loadId ? { ...l, rejected: 0, rejection_reason: null, rejection_notes: null } : l);
+		}
+	}
+
+	const totalTons = $derived(loads.filter(l => !l.rejected).reduce((sum, load) => sum + load.tons, 0));
+	const loadCount = $derived(loads.filter(l => !l.rejected).length);
+	const rejectedCount = $derived(loads.filter(l => l.rejected).length);
+	const acceptedTons = $derived(loads.filter(l => !l.rejected).reduce((sum, l) => sum + l.tons, 0));
 	const avgTonsPerLoad = $derived(loadCount > 0 ? totalTons / loadCount : 0);
 
 	const tonsPerHour = $derived.by(() => {
@@ -280,6 +350,14 @@
 						<div class="tally-unit">{UNIT_LABELS.tons[unitsStore.system]}/hr</div>
 					</div>
 				{/if}
+
+				{#if rejectedCount > 0}
+					<div class="tally-item tally-item--rejected">
+						<div class="tally-label">Rejected</div>
+						<div class="tally-value tally-value--rejected">{rejectedCount}</div>
+						<div class="tally-unit">loads</div>
+					</div>
+				{/if}
 			</div>
 		</div>
 
@@ -300,18 +378,64 @@
 
 			<div class="load-list">
 				{#each loads as load (load.id)}
-					<div class="load-item">
+					<div class="load-item {load.rejected ? 'load-item--rejected' : ''}">
 						<div class="load-main">
 							<div class="load-info">
 								{#if load.ticket_number}
 									<span class="load-ticket">#{load.ticket_number}</span>
 								{/if}
-								<span class="load-tons">{formatLoadTons(load.tons).toFixed(1)} {UNIT_LABELS.tons[unitsStore.system]}</span>
+								<span class="load-tons {load.rejected ? 'load-tons--rejected' : ''}">{formatLoadTons(load.tons).toFixed(1)} {UNIT_LABELS.tons[unitsStore.system]}</span>
+								{#if load.rejected}
+									<span class="rejection-badge">{REJECTION_REASON_LABELS[load.rejection_reason ?? ''] ?? load.rejection_reason}</span>
+								{/if}
 							</div>
-							<span class="load-time">{formatTime(load.timestamp)}</span>
+							<div class="load-actions">
+								<span class="load-time">{formatTime(load.timestamp)}</span>
+								{#if isAuthenticated}
+									{#if load.rejected}
+										<button class="btn-unreject" onclick={() => handleUnrejectLoad(load.id)} aria-label="Mark as accepted">
+											Undo
+										</button>
+									{:else}
+										<button class="btn-reject" onclick={() => { rejectingLoadId = load.id; rejectionReason = ''; rejectionNotesInput = ''; }} aria-label="Reject load">
+											Reject
+										</button>
+									{/if}
+								{/if}
+							</div>
 						</div>
 						{#if load.notes}
 							<div class="load-notes">{load.notes}</div>
+						{/if}
+						{#if load.rejection_notes}
+							<div class="load-notes load-notes--rejection">Rejection notes: {load.rejection_notes}</div>
+						{/if}
+						{#if rejectingLoadId === load.id}
+							<div class="reject-form">
+								<div class="reject-form-header">Select rejection reason:</div>
+								<div class="reason-grid">
+									{#each REJECTION_REASONS as reason}
+										<button
+											class="reason-btn {rejectionReason === reason ? 'reason-btn--selected' : ''}"
+											onclick={() => { rejectionReason = reason; }}
+										>
+											{REJECTION_REASON_LABELS[reason]}
+										</button>
+									{/each}
+								</div>
+								<div class="field" style="margin-top: var(--sp-3);">
+									<label for="rejection-notes-{load.id}">Notes (optional)</label>
+									<input id="rejection-notes-{load.id}" type="text" bind:value={rejectionNotesInput} placeholder="e.g., temp was 240F, spec requires 280F+" style="min-height:48px;padding:var(--sp-3);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:var(--fs-md);" />
+								</div>
+								<div class="reject-form-actions">
+									<button class="btn-cancel-reject" onclick={() => { rejectingLoadId = null; rejectionReason = ''; rejectionNotesInput = ''; }}>
+										Cancel
+									</button>
+									<button class="btn-confirm-reject" onclick={() => handleRejectLoad(load.id)} disabled={!rejectionReason || rejecting}>
+										{rejecting ? 'Saving...' : 'Confirm Reject'}
+									</button>
+								</div>
+							</div>
 						{/if}
 					</div>
 				{/each}
@@ -627,6 +751,173 @@
 		margin-top: var(--sp-2);
 		padding-top: var(--sp-2);
 		border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+	}
+
+	.load-item--rejected {
+		opacity: 0.7;
+		border-color: color-mix(in srgb, var(--error, #ef4444) 40%, transparent);
+		background: color-mix(in srgb, var(--error, #ef4444) 5%, var(--surface-alt));
+	}
+
+	.load-tons--rejected {
+		text-decoration: line-through;
+		color: var(--text-muted);
+	}
+
+	.rejection-badge {
+		display: inline-block;
+		background: color-mix(in srgb, var(--error, #ef4444) 15%, transparent);
+		color: var(--error, #ef4444);
+		border: 1px solid color-mix(in srgb, var(--error, #ef4444) 30%, transparent);
+		border-radius: 9999px;
+		padding: 2px 8px;
+		font-size: var(--fs-xs);
+		font-weight: var(--fw-medium);
+		white-space: nowrap;
+	}
+
+	.load-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		flex-shrink: 0;
+	}
+
+	.btn-reject {
+		min-height: 36px;
+		padding: var(--sp-1) var(--sp-3);
+		background: transparent;
+		border: 1px solid color-mix(in srgb, var(--error, #ef4444) 40%, transparent);
+		border-radius: var(--radius-sm);
+		color: var(--error, #ef4444);
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-medium);
+		cursor: pointer;
+		transition: all 0.15s ease;
+		white-space: nowrap;
+	}
+
+	.btn-reject:hover {
+		background: color-mix(in srgb, var(--error, #ef4444) 10%, transparent);
+	}
+
+	.btn-unreject {
+		min-height: 36px;
+		padding: var(--sp-1) var(--sp-3);
+		background: transparent;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		color: var(--text-muted);
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-medium);
+		cursor: pointer;
+		transition: all 0.15s ease;
+		white-space: nowrap;
+	}
+
+	.btn-unreject:hover {
+		background: var(--surface-hover);
+		color: var(--text);
+	}
+
+	.tally-item--rejected .tally-value {
+		color: var(--error, #ef4444);
+	}
+
+	.reject-form {
+		margin-top: var(--sp-3);
+		padding-top: var(--sp-3);
+		border-top: 1px solid var(--border);
+	}
+
+	.reject-form-header {
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+		margin-bottom: var(--sp-2);
+	}
+
+	.reason-grid {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: var(--sp-2);
+	}
+
+	.reason-btn {
+		min-height: 48px;
+		padding: var(--sp-2) var(--sp-3);
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		color: var(--text);
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-medium);
+		cursor: pointer;
+		transition: all 0.15s ease;
+		text-align: center;
+	}
+
+	.reason-btn:hover {
+		background: var(--surface-hover);
+		border-color: var(--text-muted);
+	}
+
+	.reason-btn--selected {
+		background: color-mix(in srgb, var(--error, #ef4444) 15%, transparent);
+		border-color: var(--error, #ef4444);
+		color: var(--error, #ef4444);
+	}
+
+	.reject-form-actions {
+		display: flex;
+		gap: var(--sp-3);
+		margin-top: var(--sp-3);
+	}
+
+	.btn-cancel-reject {
+		flex: 1;
+		min-height: 48px;
+		padding: var(--sp-3);
+		background: transparent;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		color: var(--text-muted);
+		font-size: var(--fs-md);
+		font-weight: var(--fw-medium);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.btn-cancel-reject:hover {
+		background: var(--surface-hover);
+		color: var(--text);
+	}
+
+	.btn-confirm-reject {
+		flex: 1;
+		min-height: 48px;
+		padding: var(--sp-3);
+		background: var(--error, #ef4444);
+		border: none;
+		border-radius: var(--radius-sm);
+		color: white;
+		font-size: var(--fs-md);
+		font-weight: var(--fw-semibold);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.btn-confirm-reject:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.btn-confirm-reject:not(:disabled):hover {
+		background: color-mix(in srgb, var(--error, #ef4444) 85%, black);
+	}
+
+	.load-notes--rejection {
+		color: var(--error, #ef4444);
+		font-style: italic;
 	}
 
 	.empty-state {

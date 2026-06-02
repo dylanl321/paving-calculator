@@ -235,6 +235,21 @@
 		const { generateDailyReportPDF } = await import('$lib/utils/pdf-export');
 		const r = today.rollup;
 		const y = today.yieldVsTarget(job.widthFt, job.thicknessIn);
+
+		let loads: any[] = [];
+		if (authStore.isAuthenticated && today.jobSiteId) {
+			try {
+				const todayDate = today.date;
+				const res = await fetch(`/api/job-sites/${today.jobSiteId}/loads?start_date=${todayDate}`, { credentials: 'include' });
+				if (res.ok) {
+					const data = await res.json();
+					loads = data.loads || [];
+				}
+			} catch {
+				// Non-fatal - continue without loads
+			}
+		}
+
 		await generateDailyReportPDF(
 			{
 				widthFt: job.widthFt,
@@ -282,7 +297,15 @@
 					actualRate: y.actualRate,
 					targetRate: y.targetRate,
 					diffPct: y.diffPct
-				}
+				},
+				loads: loads.map(l => ({
+					id: l.id,
+					ticket_number: l.ticket_number,
+					tons: l.tons,
+					timestamp: l.timestamp,
+					spread_rate: l.spread_rate,
+					notes: l.notes
+				}))
 			}
 		);
 	}

@@ -26,6 +26,7 @@ export class jsPDF {
 		return 1;
 	}
 	setPage(_page: number) {}
+	addImage(..._args: any[]) {}
 	save(_filename: string) {
 		alert(
 			'PDF export requires jsPDF to be installed. Please run: npm install jspdf'
