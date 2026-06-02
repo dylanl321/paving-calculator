@@ -1,0 +1,658 @@
+<script lang="ts">
+	import NumberField from './NumberField.svelte';
+	import { TruckIcon, Plus, X } from 'lucide-svelte';
+	import type { DbLoad } from '$lib/server/db';
+	import { unitsStore } from '$lib/stores/units.svelte';
+	import { UNIT_LABELS, toMetricTonnes, fromMetricTonnes } from '$lib/utils/unitConvert';
+	import SpreadRateHistogram from './charts/SpreadRateHistogram.svelte';
+	import { job } from '$lib/stores/job.svelte';
+	import { spreadToleranceFor } from '$lib/config';
+
+	interface Props {
+		jobSiteId: string;
+		isAuthenticated?: boolean;
+	}
+
+	let { jobSiteId, isAuthenticated = false }: Props = $props();
+
+	let loads = $state<DbLoad[]>([]);
+	let showNewLoadForm = $state(false);
+	let saving = $state(false);
+	let loading = $state(true);
+
+	// Form state
+	let ticketNumberInput = $state('');
+	let tonsInput = $state<number | null>(null);
+	let notesInput = $state('');
+
+	const STORAGE_KEY = `loads_${jobSiteId}`;
+
+	// Load data
+	$effect(() => {
+		loadData();
+	});
+
+	async function loadData() {
+		loading = true;
+		if (isAuthenticated) {
+			try {
+				const today = new Date().toISOString().split('T')[0];
+				const res = await fetch(`/api/job-sites/${jobSiteId}/loads?start_date=${today}`, {
+					credentials: 'include'
+				});
+				if (res.ok) {
+					const data = await res.json();
+					loads = data.loads;
+				}
+			} catch {
+				// Fall back to localStorage
+				loadFromLocalStorage();
+			}
+		} else {
+			loadFromLocalStorage();
+		}
+		loading = false;
+	}
+
+	function loadFromLocalStorage() {
+		const stored = localStorage.getItem(STORAGE_KEY);
+		if (stored) {
+			try {
+				loads = JSON.parse(stored);
+			} catch {
+				loads = [];
+			}
+		}
+	}
+
+	function saveToLocalStorage() {
+		localStorage.setItem(STORAGE_KEY, JSON.stringify(loads));
+	}
+
+	async function handleSaveLoad() {
+		if (!tonsInput || tonsInput <= 0) return;
+
+		saving = true;
+		const timestamp = Math.floor(Date.now() / 1000);
+		const tons = unitsStore.system === 'metric' ? fromMetricTonnes(tonsInput) : tonsInput;
+
+		const newLoad: Partial<DbLoad> = {
+			ticket_number: ticketNumberInput || null,
+			tons,
+			timestamp,
+			notes: notesInput || null
+		};
+
+		if (isAuthenticated) {
+			try {
+				const res = await fetch(`/api/job-sites/${jobSiteId}/loads`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(newLoad),
+					credentials: 'include'
+				});
+				if (res.ok) {
+					const data = await res.json();
+					loads = [data.load, ...loads];
+				}
+			} catch {
+				// Fall back to localStorage
+				const load: DbLoad = {
+					id: crypto.randomUUID(),
+					job_site_id: jobSiteId,
+					user_id: 'local',
+					...newLoad as Required<typeof newLoad>
+				};
+				loads = [load, ...loads];
+				saveToLocalStorage();
+			}
+		} else {
+			const load: DbLoad = {
+				id: crypto.randomUUID(),
+				job_site_id: jobSiteId,
+				user_id: 'local',
+				ticket_number: newLoad.ticket_number || null,
+				tons: newLoad.tons!,
+				timestamp: newLoad.timestamp!,
+				spread_rate: null,
+				notes: newLoad.notes || null,
+				created_at: timestamp
+			};
+			loads = [load, ...loads];
+			saveToLocalStorage();
+		}
+
+		// Reset form
+		ticketNumberInput = '';
+		tonsInput = null;
+		notesInput = '';
+		showNewLoadForm = false;
+		saving = false;
+	}
+
+	function clearAll() {
+		if (confirm('Clear all loads for today? This cannot be undone.')) {
+			loads = [];
+			if (!isAuthenticated) {
+				localStorage.removeItem(STORAGE_KEY);
+			}
+		}
+	}
+
+	const totalTons = $derived(loads.reduce((sum, load) => sum + load.tons, 0));
+	const loadCount = $derived(loads.length);
+	const avgTonsPerLoad = $derived(loadCount > 0 ? totalTons / loadCount : 0);
+
+	const tonsPerHour = $derived.by(() => {
+		if (loads.length < 2) return 0;
+		const sorted = [...loads].sort((a, b) => a.timestamp - b.timestamp);
+		const firstTs = sorted[0].timestamp;
+		const lastTs = sorted[sorted.length - 1].timestamp;
+		const hoursDiff = (lastTs - firstTs) / 3600;
+		return hoursDiff > 0 ? totalTons / hoursDiff : 0;
+	});
+
+	const displayTotalTons = $derived(
+		unitsStore.system === 'metric' ? toMetricTonnes(totalTons) : totalTons
+	);
+	const displayAvgTons = $derived(
+		unitsStore.system === 'metric' ? toMetricTonnes(avgTonsPerLoad) : avgTonsPerLoad
+	);
+	const displayTonsPerHour = $derived(
+		unitsStore.system === 'metric' ? toMetricTonnes(tonsPerHour) : tonsPerHour
+	);
+
+	function formatTime(timestamp: number): string {
+		const date = new Date(timestamp * 1000);
+		return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+	}
+
+	function formatLoadTons(tons: number): number {
+		return unitsStore.system === 'metric' ? toMetricTonnes(tons) : tons;
+	}
+
+	const tolerance = $derived(spreadToleranceFor(job.courseType));
+	const targetRate = $derived(
+		job.thicknessIn > 0 ? job.thicknessIn * 110 : null
+	);
+</script>
+
+<div class="load-tracker">
+	<div class="tracker-header">
+		<div class="header-title">
+			<TruckIcon size={24} />
+			<h3>Load Tracker</h3>
+		</div>
+		{#if !showNewLoadForm}
+			<button class="btn-new-load" onclick={() => { showNewLoadForm = true; }}>
+				<Plus size={20} />
+				New Load
+			</button>
+		{/if}
+	</div>
+
+	{#if showNewLoadForm}
+		<div class="new-load-form">
+			<div class="form-header">
+				<h4>Log New Load</h4>
+				<button
+					class="btn-close"
+					onclick={() => {
+						showNewLoadForm = false;
+						ticketNumberInput = '';
+						tonsInput = null;
+						notesInput = '';
+					}}
+					aria-label="Close"
+				>
+					<X size={20} />
+				</button>
+			</div>
+
+			<div class="form-fields">
+				<div class="field">
+					<label for="ticket-number">Ticket # (optional)</label>
+					<input
+						id="ticket-number"
+						type="text"
+						bind:value={ticketNumberInput}
+						placeholder="e.g., 12345"
+					/>
+				</div>
+
+				<NumberField
+					label="Tons"
+					unit={UNIT_LABELS.tons[unitsStore.system]}
+					bind:value={tonsInput}
+					hint="Weight from ticket"
+				/>
+
+				<div class="field">
+					<label for="notes">Notes (optional)</label>
+					<input
+						id="notes"
+						type="text"
+						bind:value={notesInput}
+						placeholder="e.g., Hot mix, on time"
+					/>
+				</div>
+			</div>
+
+			<div class="form-actions">
+				<button
+					class="btn-save"
+					onclick={handleSaveLoad}
+					disabled={!tonsInput || tonsInput <= 0 || saving}
+				>
+					{saving ? 'Saving...' : 'Save Load'}
+				</button>
+			</div>
+		</div>
+	{/if}
+
+	{#if loading}
+		<div class="loading">Loading...</div>
+	{:else if loads.length > 0}
+		<div class="tally-card">
+			<div class="tally-grid">
+				<div class="tally-item">
+					<div class="tally-label">Total Tons</div>
+					<div class="tally-value">{displayTotalTons.toFixed(1)}</div>
+					<div class="tally-unit">{UNIT_LABELS.tons[unitsStore.system]}</div>
+				</div>
+
+				<div class="tally-item">
+					<div class="tally-label">Load Count</div>
+					<div class="tally-value">{loadCount}</div>
+					<div class="tally-unit">loads</div>
+				</div>
+
+				<div class="tally-item">
+					<div class="tally-label">Avg/Load</div>
+					<div class="tally-value">{displayAvgTons.toFixed(1)}</div>
+					<div class="tally-unit">{UNIT_LABELS.tons[unitsStore.system]}</div>
+				</div>
+
+				{#if tonsPerHour > 0}
+					<div class="tally-item">
+						<div class="tally-label">Tons/Hour</div>
+						<div class="tally-value">{displayTonsPerHour.toFixed(1)}</div>
+						<div class="tally-unit">{UNIT_LABELS.tons[unitsStore.system]}/hr</div>
+					</div>
+				{/if}
+			</div>
+		</div>
+
+		<div class="histogram-section">
+			<h4>Spread Rate Distribution</h4>
+			<SpreadRateHistogram
+				loads={loads}
+				targetRate={targetRate}
+				toleranceLbsSy={tolerance.toleranceLbsSy}
+			/>
+		</div>
+
+		<div class="load-history">
+			<div class="history-header">
+				<h4>Today's Loads</h4>
+				<button class="btn-clear-all" onclick={clearAll}>Clear All</button>
+			</div>
+
+			<div class="load-list">
+				{#each loads as load (load.id)}
+					<div class="load-item">
+						<div class="load-main">
+							<div class="load-info">
+								{#if load.ticket_number}
+									<span class="load-ticket">#{load.ticket_number}</span>
+								{/if}
+								<span class="load-tons">{formatLoadTons(load.tons).toFixed(1)} {UNIT_LABELS.tons[unitsStore.system]}</span>
+							</div>
+							<span class="load-time">{formatTime(load.timestamp)}</span>
+						</div>
+						{#if load.notes}
+							<div class="load-notes">{load.notes}</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		</div>
+	{:else}
+		<div class="empty-state">
+			<TruckIcon size={48} strokeWidth={1.5} />
+			<p>No loads logged yet today</p>
+			<button class="btn-new-load-cta" onclick={() => { showNewLoadForm = true; }}>
+				<Plus size={20} />
+				Log First Load
+			</button>
+		</div>
+	{/if}
+</div>
+
+<style>
+	.load-tracker {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		padding: var(--sp-5);
+		margin-bottom: var(--sp-4);
+	}
+
+	.tracker-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: var(--sp-4);
+	}
+
+	.header-title {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+	}
+
+	.header-title h3 {
+		margin: 0;
+		font-size: var(--fs-lg);
+		font-weight: var(--fw-bold);
+	}
+
+	.btn-new-load,
+	.btn-new-load-cta {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		min-height: 56px;
+		padding: var(--sp-3) var(--sp-5);
+		background: var(--accent);
+		color: var(--text);
+		border: none;
+		border-radius: var(--radius-md);
+		font-size: var(--fs-md);
+		font-weight: var(--fw-semibold);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.btn-new-load-cta {
+		width: 100%;
+		justify-content: center;
+	}
+
+	.btn-new-load:hover,
+	.btn-new-load-cta:hover {
+		background: color-mix(in srgb, var(--accent) 90%, white);
+	}
+
+	.btn-new-load:active,
+	.btn-new-load-cta:active {
+		transform: scale(0.98);
+	}
+
+	.new-load-form {
+		background: var(--surface-alt);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		padding: var(--sp-4);
+		margin-bottom: var(--sp-4);
+	}
+
+	.form-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: var(--sp-4);
+	}
+
+	.form-header h4 {
+		margin: 0;
+		font-size: var(--fs-md);
+		font-weight: var(--fw-semibold);
+	}
+
+	.btn-close {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 48px;
+		min-width: 48px;
+		padding: var(--sp-3);
+		background: transparent;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		border-radius: var(--radius-sm);
+		transition: all 0.15s ease;
+	}
+
+	.btn-close:hover {
+		background: var(--surface-hover);
+		color: var(--text);
+	}
+
+	.form-fields {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-4);
+	}
+
+	.field {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-2);
+	}
+
+	.field label {
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-medium);
+		color: var(--text);
+	}
+
+	.field input[type='text'],
+	.field input[type='number'] {
+		min-height: 48px;
+		padding: var(--sp-3);
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		color: var(--text);
+		font-size: var(--fs-md);
+	}
+
+	.form-actions {
+		margin-top: var(--sp-4);
+	}
+
+	.btn-save {
+		width: 100%;
+		min-height: 56px;
+		padding: var(--sp-3) var(--sp-5);
+		background: var(--accent);
+		color: var(--text);
+		border: none;
+		border-radius: var(--radius-md);
+		font-size: var(--fs-md);
+		font-weight: var(--fw-semibold);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.btn-save:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.btn-save:not(:disabled):hover {
+		background: color-mix(in srgb, var(--accent) 90%, white);
+	}
+
+	.btn-save:not(:disabled):active {
+		transform: scale(0.98);
+	}
+
+	.tally-card {
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+		border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+		border-radius: var(--radius-md);
+		padding: var(--sp-4);
+		margin-bottom: var(--sp-4);
+	}
+
+	.tally-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+		gap: var(--sp-4);
+	}
+
+	.tally-item {
+		text-align: center;
+	}
+
+	.tally-label {
+		font-size: var(--fs-xs);
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		margin-bottom: var(--sp-1);
+	}
+
+	.tally-value {
+		font-size: var(--fs-2xl);
+		font-weight: var(--fw-bold);
+		color: var(--accent);
+		line-height: 1.2;
+	}
+
+	.tally-unit {
+		font-size: var(--fs-xs);
+		color: var(--text-muted);
+		margin-top: var(--sp-1);
+	}
+
+	.histogram-section {
+		margin-top: var(--sp-4);
+		padding: var(--sp-4);
+		background: var(--surface-alt);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+	}
+
+	.histogram-section h4 {
+		margin: 0 0 var(--sp-3) 0;
+		font-size: var(--fs-md);
+		font-weight: var(--fw-semibold);
+	}
+
+	.load-history {
+		margin-top: var(--sp-4);
+	}
+
+	.history-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: var(--sp-3);
+	}
+
+	.history-header h4 {
+		margin: 0;
+		font-size: var(--fs-md);
+		font-weight: var(--fw-semibold);
+	}
+
+	.btn-clear-all {
+		min-height: 48px;
+		padding: var(--sp-2) var(--sp-4);
+		background: transparent;
+		border: 1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);
+		border-radius: var(--radius-sm);
+		color: var(--text-muted);
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-medium);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.btn-clear-all:hover {
+		background: var(--surface-hover);
+		border-color: var(--text-muted);
+		color: var(--text);
+	}
+
+	.load-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-2);
+	}
+
+	.load-item {
+		background: var(--surface-alt);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		padding: var(--sp-3);
+	}
+
+	.load-main {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+
+	.load-info {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-3);
+	}
+
+	.load-ticket {
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+		font-weight: var(--fw-medium);
+	}
+
+	.load-tons {
+		font-size: var(--fs-md);
+		font-weight: var(--fw-semibold);
+		color: var(--text);
+	}
+
+	.load-time {
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+	}
+
+	.load-notes {
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+		margin-top: var(--sp-2);
+		padding-top: var(--sp-2);
+		border-top: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+	}
+
+	.empty-state {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--sp-3);
+		padding: var(--sp-6) var(--sp-4);
+		text-align: center;
+		color: var(--text-muted);
+	}
+
+	.empty-state p {
+		margin: 0;
+		font-size: var(--fs-md);
+	}
+
+	.loading {
+		padding: var(--sp-4);
+		text-align: center;
+		color: var(--text-muted);
+	}
+
+	@media (max-width: 460px) {
+		.tally-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+</style>

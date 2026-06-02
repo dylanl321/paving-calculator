@@ -4,6 +4,7 @@
 	import { spreadRateFromThickness } from '$lib/config/formulas';
 	import { machines } from '$lib/config';
 	import JobSiteSettingsForm from './JobSiteSettingsForm.svelte';
+	import { Settings } from 'lucide-svelte';
 
 	let open = $state(false);
 
@@ -18,7 +19,7 @@
 <!-- Mobile / narrow: collapsible bar in main content. Hidden on tablet+ where the side panel holds settings. -->
 <div class="job-site-mobile">
 	<button class="summary" onclick={() => (open = !open)} aria-expanded={open}>
-		<span class="icon" aria-hidden="true">⚙</span>
+		<span class="icon" aria-hidden="true"><Settings size={18} /></span>
 		<span class="text">
 			<b>{title}</b>
 			{#if weather.hasLocation}

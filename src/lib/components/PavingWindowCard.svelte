@@ -3,6 +3,7 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
+	import SpecAlert from './SpecAlert.svelte';
 	import { placementCheck, weatherConfig, temperature } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -97,9 +98,7 @@
 		/>
 
 		{#if check != null}
-			<div class="status-message" class:pass={check.status === 'pass'} class:warn={check.status === 'warn'} class:fail={check.status === 'fail'}>
-				{check.message}
-			</div>
+			<SpecAlert status={check.status} message={check.message} clause={check.clause} clauseTitle={check.clauseTitle} />
 		{/if}
 
 		{#if ogfcCheck != null}

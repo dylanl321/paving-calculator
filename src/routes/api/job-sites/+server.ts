@@ -2,6 +2,7 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
 import { recordAudit } from '$lib/server/audit';
+import { deliverWebhook } from '$lib/server/webhooks';
 
 export async function GET(event: RequestEvent) {
 	try {
@@ -13,7 +14,17 @@ export async function GET(event: RequestEvent) {
 			return json({ error: 'Organization not found' }, { status: 404 });
 		}
 
-		const jobSites = await db.getJobSitesByOrgId(org.id);
+		const role = await db.getUserRole(user.id, org.id);
+
+		// Foreman: only sees job sites assigned to their crew
+		// Laborer: only sees job sites assigned to their crew (same as foreman scope)
+		// Admin/Owner/others: sees all job sites
+		let jobSites;
+		if (role === 'foreman' || role === 'laborer') {
+			jobSites = await db.getJobSitesByForeman(user.id, org.id);
+		} else {
+			jobSites = await db.getJobSitesByOrgId(org.id);
+		}
 
 		return json({
 			job_sites: jobSites.map((site) => ({
@@ -83,6 +94,18 @@ export async function POST(event: RequestEvent) {
 				event.request.headers.get('x-forwarded-for') ||
 				undefined,
 			userAgent: event.request.headers.get('user-agent') || undefined
+		});
+
+		// Fire webhook event (fire and forget)
+		void deliverWebhook(event.platform!.env.DB, {
+			type: 'job_site.created',
+			orgId: org.id,
+			payload: {
+				job_site_id: jobSite.id,
+				name: jobSite.name,
+				org_id: org.id
+			},
+			occurredAt: jobSite.created_at
 		});
 
 		return json({

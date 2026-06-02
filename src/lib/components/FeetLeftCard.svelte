@@ -3,9 +3,12 @@
 	import NumberField from './NumberField.svelte';
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
+	import SourceBadge from './SourceBadge.svelte';
+	import DotTable from './DotTable.svelte';
 	import RoadProgressBar from './RoadProgressBar.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { feetFromOrderedMinusPlaced, spreadRateFromThickness } from '$lib/config/formulas';
+	import { constantMeta } from '$lib/config';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
 	import { unitsStore } from '$lib/stores/units.svelte';
@@ -80,6 +83,8 @@
 	const displayFeet = $derived(
 		feet != null && unitsStore.system === 'metric' ? toMeters(feet) : feet
 	);
+
+	const thickMultMeta = constantMeta('CONST.THICK_MULT');
 </script>
 
 <CalcCard
@@ -91,7 +96,7 @@
 		label="Tons ordered today"
 		unit={UNIT_LABELS.tons[unitsStore.system]}
 		bind:value={orderedInput}
-		hint="Include asphalt still in the plant silo (not the paver hopper)"
+		hint="Use total from plant tickets for accuracy"
 	/>
 	<NumberField
 		label="Tons placed so far"
@@ -120,26 +125,9 @@
 		<p>Tons → feet conversion:</p>
 		<code>feet = (ordered − placed) × 2000 × 9 ÷ (width × rate)</code>
 		<p>Ordered minus placed gives remaining tons available today.</p>
+		<p>Rate comes from THICK_MULT (§400 rule-of-thumb: <SourceBadge status={thickMultMeta.status} tier={thickMultMeta.tier} /> = {thickMultMeta.value} lbs/SY per inch). Actual rate shown from job settings.</p>
+		<DotTable tableId="table-12" />
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>
 </CalcCard>
-
-<style>
-	.btn-clear {
-		width: 100%;
-		min-height: 3rem;
-		padding: 0.75rem;
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text-muted);
-		font-size: 0.9rem;
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-	.btn-clear:hover {
-		background: var(--surface-alt);
-		color: var(--text);
-	}
-</style>

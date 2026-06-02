@@ -94,94 +94,49 @@
 			<li>2% cross-slope for drainage (1:50 ratio)</li>
 			<li>1-3% longitudinal for highways</li>
 		</ul>
+		<p class="src-note">2% cross-slope per GDOT Design Policy Manual §3.2; 1–3% longitudinal per AASHTO "Green Book" Table 3-1.</p>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>
 </CalcCard>
 
 <style>
-	.btn-clear {
-		width: 100%;
-		min-height: 3rem;
-		padding: 0.75rem;
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text-muted);
-		font-size: 0.9rem;
-		cursor: pointer;
-		transition: all 0.15s;
-	}
-	.btn-clear:hover {
-		background: var(--surface-alt);
-		color: var(--text);
-	}
-
-
 	.rise-input-group {
 		display: flex;
 		align-items: flex-end;
-		gap: 8px;
+		gap: var(--sp-2);
 	}
 	.rise-input-group :global(.field) {
 		flex: 1;
 	}
 	.unit-toggle {
 		display: flex;
-		gap: 4px;
-		padding-bottom: 8px;
+		gap: var(--sp-1);
+		padding-bottom: var(--sp-2);
 	}
 	.unit-toggle button {
-		padding: 8px 14px;
+		padding: var(--sp-2) var(--sp-4);
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		color: var(--text);
-		font-size: 0.85rem;
+		font-size: var(--fs-sm);
 		cursor: pointer;
-		transition: all 0.15s;
+		transition:
+			background var(--dur) var(--ease),
+			color var(--dur) var(--ease);
 	}
 	.unit-toggle button.active {
 		background: var(--accent);
 		color: var(--accent-text);
 		border-color: var(--accent);
-		font-weight: 700;
-	}
-	.results-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr 1fr;
-		gap: 10px;
-		margin: 12px 0;
-	}
-	.result-item {
-		background: var(--surface-alt);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		padding: 12px;
-		text-align: center;
-	}
-	.result-label {
-		font-size: 0.7rem;
-		color: var(--text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.4px;
-		margin-bottom: 4px;
-	}
-	.result-value {
-		font-size: 1.3rem;
-		font-weight: 700;
-		color: var(--text);
-	}
-	@media (max-width: 560px) {
-		.results-grid {
-			grid-template-columns: 1fr;
-		}
+		font-weight: var(--fw-bold);
 	}
 	:global(.work-body ul) {
-		margin: 6px 0;
-		padding-left: 20px;
+		margin: var(--sp-2) 0;
+		padding-left: var(--sp-5);
 	}
 	:global(.work-body li) {
-		margin: 4px 0;
+		margin: var(--sp-1) 0;
 	}
 </style>

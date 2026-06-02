@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
-	import { onMount } from 'svelte';
-	import { PieChart } from 'layerchart';
 	import GeofenceMonitor from '$lib/components/GeofenceMonitor.svelte';
 	import type { PageData } from './$types';
 
@@ -14,24 +12,12 @@
 	let createError = $state('');
 	let creating = $state(false);
 
-	let chartReady = $state(false);
-	onMount(() => {
-		chartReady = true;
-	});
-
 	const totalSites = $derived(data.jobSites.length);
 	const activeSites = $derived(
 		data.jobSites.filter((s: any) => s.status?.toLowerCase() === 'active').length
 	);
 	const totalCalcs = $derived(
 		data.jobSites.reduce((sum: number, s: any) => sum + (s.calculation_count || 0), 0)
-	);
-
-	const statusData = $derived(
-		[
-			{ status: 'Active', count: activeSites },
-			{ status: 'Inactive', count: totalSites - activeSites }
-		].filter((d) => d.count > 0)
 	);
 
 	const mapSites = $derived(
@@ -319,22 +305,6 @@
 		color: var(--text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
-	}
-
-	.chart-card {
-		grid-column: span 1;
-	}
-
-	.mini-chart {
-		height: 120px;
-		width: 100%;
-		margin-top: 8px;
-		--color-primary: var(--accent);
-	}
-
-	.mini-chart :global(text) {
-		fill: var(--text-muted);
-		font-size: 0.7rem;
 	}
 
 	.page-header {
