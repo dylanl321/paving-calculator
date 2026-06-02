@@ -76,7 +76,9 @@
 		target_spread_rate: data.config?.target_spread_rate || null,
 		tack_type: data.config?.tack_type || null,
 		target_tack_rate: data.config?.target_tack_rate || null,
-		notes: data.config?.notes || null
+		notes: data.config?.notes || null,
+		num_lifts: data.config?.num_lifts || null,
+		total_tonnage: data.config?.total_tonnage || null
 	});
 
 	let equipmentList = $state([...data.equipment]);
@@ -484,32 +486,40 @@
 					<button class="link-btn" onclick={() => (activeTab = 'configuration')}>Edit</button>
 				</div>
 				<dl class="spec-list">
-					<div class="spec-item">
-						<dt>Road Type</dt>
-						<dd>{roadTypeLabel || '—'}</dd>
+						<div class="spec-item">
+							<dt>Road Type</dt>
+							<dd>{roadTypeLabel || '—'}</dd>
+						</div>
+						<div class="spec-item">
+							<dt>Length</dt>
+							<dd>{configForm.total_length_ft ? `${fmt(configForm.total_length_ft)} ft` : '—'}</dd>
+						</div>
+						<div class="spec-item">
+							<dt>Lanes × Width</dt>
+							<dd>
+								{configForm.num_lanes ?? '—'} × {configForm.lane_width_ft ? `${configForm.lane_width_ft} ft` : '—'}
+							</dd>
+						</div>
+						<div class="spec-item">
+							<dt>Lifts</dt>
+							<dd>{configForm.num_lifts ?? '—'}</dd>
+						</div>
+						<div class="spec-item">
+							<dt>Total Tonnage</dt>
+							<dd>{configForm.total_tonnage ? `${fmt(configForm.total_tonnage, 1)} t` : (estTonnage ? `${fmt(estTonnage, 1)} t (est.)` : '—')}</dd>
+						</div>
+					</dl>
+					<div class="derived-row">
+						<div class="derived">
+							<span class="derived-label">Total Area</span>
+							<span class="derived-value">{totalAreaSqYd ? `${fmt(totalAreaSqYd)} yd²` : '—'}</span>
+						</div>
+						<div class="derived">
+							<span class="derived-label">Est. Tonnage at Target</span>
+							<span class="derived-value">{estTonnage ? `${fmt(estTonnage, 1)} t` : '—'}</span>
+						</div>
 					</div>
-					<div class="spec-item">
-						<dt>Length</dt>
-						<dd>{configForm.total_length_ft ? `${fmt(configForm.total_length_ft)} ft` : '—'}</dd>
-					</div>
-					<div class="spec-item">
-						<dt>Lanes × Width</dt>
-						<dd>
-							{configForm.num_lanes ?? '—'} × {configForm.lane_width_ft ? `${configForm.lane_width_ft} ft` : '—'}
-						</dd>
-					</div>
-				</dl>
-				<div class="derived-row">
-					<div class="derived">
-						<span class="derived-label">Total Area</span>
-						<span class="derived-value">{totalAreaSqYd ? `${fmt(totalAreaSqYd)} yd²` : '—'}</span>
-					</div>
-					<div class="derived">
-						<span class="derived-label">Est. Tonnage at Target</span>
-						<span class="derived-value">{estTonnage ? `${fmt(estTonnage, 1)} t` : '—'}</span>
-					</div>
-				</div>
-			</section>
+				</section>
 		</div>
 
 		<div class="link-tiles">
@@ -748,6 +758,32 @@
 						min="1"
 						placeholder="e.g., 5280"
 					/>
+				</div>
+
+				<div class="form-group">
+					<label for="num_lifts">Number of Lifts</label>
+					<input
+						type="number"
+						id="num_lifts"
+						bind:value={configForm.num_lifts}
+						min="1"
+						placeholder="e.g., 2"
+					/>
+				</div>
+
+				<div class="form-group">
+					<label for="total_tonnage">Total Estimated Tonnage</label>
+					<input
+						type="number"
+						id="total_tonnage"
+						bind:value={configForm.total_tonnage}
+						min="0"
+						step="1"
+						placeholder="Auto-calculated or enter manually"
+					/>
+					{#if estTonnage}
+						<div class="hint-text">Auto-calculated: {fmt(estTonnage, 1)} tons</div>
+					{/if}
 				</div>
 
 				<div class="form-group">
@@ -1498,6 +1534,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+	}
+
+	.hint-text {
+		font-size: 0.78rem;
+		color: var(--text-muted);
+		padding: 4px 0;
 	}
 
 	.form-row {

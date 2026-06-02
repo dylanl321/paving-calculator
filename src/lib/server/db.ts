@@ -115,6 +115,8 @@ export interface DbJobSiteConfig {
 	tack_type: 'anionic' | 'cationic' | 'polymer_modified' | 'trackless' | null;
 	target_tack_rate: number | null;
 	notes: string | null;
+	num_lifts: number | null;
+	total_tonnage: number | null;
 	created_at: number;
 	updated_at: number;
 }
@@ -816,8 +818,9 @@ export class DbHelper {
 					`INSERT INTO job_site_config (
 						job_site_id, road_type, num_lanes, lane_width_ft, total_length_ft,
 						scope_of_work, mix_type, target_thickness_in, target_spread_rate,
-						tack_type, target_tack_rate, notes, created_at, updated_at
-					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+						tack_type, target_tack_rate, notes, num_lifts, total_tonnage,
+						created_at, updated_at
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 				)
 				.bind(
 					jobSiteId,
@@ -832,6 +835,8 @@ export class DbHelper {
 					config.tack_type || null,
 					config.target_tack_rate || null,
 					config.notes || null,
+					config.num_lifts || null,
+					config.total_tonnage || null,
 					now,
 					now
 				)
@@ -883,6 +888,14 @@ export class DbHelper {
 			if (config.notes !== undefined) {
 				fields.push('notes = ?');
 				values.push(config.notes);
+			}
+			if (config.num_lifts !== undefined) {
+				fields.push('num_lifts = ?');
+				values.push(config.num_lifts);
+			}
+			if (config.total_tonnage !== undefined) {
+				fields.push('total_tonnage = ?');
+				values.push(config.total_tonnage);
 			}
 
 			if (fields.length > 0) {
