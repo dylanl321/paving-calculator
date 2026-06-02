@@ -144,10 +144,16 @@
 
 :root[data-theme='light'] {
 	color-scheme: light;
+	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+	--shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+	--shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.16);
 }
 
 :root[data-theme='sunlight'] {
 	color-scheme: light;
+	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+	--shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+	--shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.16);
 }
 
 * {
