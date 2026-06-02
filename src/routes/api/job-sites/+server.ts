@@ -13,7 +13,17 @@ export async function GET(event: RequestEvent) {
 			return json({ error: 'Organization not found' }, { status: 404 });
 		}
 
-		const jobSites = await db.getJobSitesByOrgId(org.id);
+		const role = await db.getUserRole(user.id, org.id);
+
+		// Foreman: only sees job sites assigned to their crew
+		// Laborer: only sees job sites assigned to their crew (same as foreman scope)
+		// Admin/Owner/others: sees all job sites
+		let jobSites;
+		if (role === 'foreman' || role === 'laborer') {
+			jobSites = await db.getJobSitesByForeman(user.id, org.id);
+		} else {
+			jobSites = await db.getJobSitesByOrgId(org.id);
+		}
 
 		return json({
 			job_sites: jobSites.map((site) => ({
