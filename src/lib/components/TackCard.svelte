@@ -5,7 +5,8 @@
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
 	import DotTable from './DotTable.svelte';
-	import { tack, tackMid, rainCheck, weatherConfig } from '$lib/config';
+	import SpecAlert from './SpecAlert.svelte';
+	import { tack, tackMid, rainCheck, tackTempCheck, weatherConfig } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
 	import { tackGallons } from '$lib/config/formulas';
@@ -35,9 +36,10 @@
 	});
 
 	const rain = $derived(rainCheck(weather.rainNext24hIn));
+	const tempCheck = $derived(tackTempCheck(weather.effectiveTempF));
 	const tackBlocked = $derived(
 		weatherConfig.wetSurfaceBlocked &&
-			(rain?.status === 'fail' || weather.isRaining)
+			(rain?.status === 'fail' || weather.isRaining || tempCheck?.status === 'fail')
 	);
 
 	$effect(() => {
@@ -68,16 +70,24 @@
 
 	<div class="width-note">Using job width: <strong>{job.widthFt} ft</strong></div>
 
-	{#if tackBlocked}
-		<div class="weather-warn fail">
-			{#if weather.isRaining}
-				Raining now — do not tack on a wet surface.
-			{:else if rain}
-				{rain.message}
-			{/if}
-		</div>
+	{#if tempCheck?.status === 'fail'}
+		<SpecAlert status="fail" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} />
+	{:else if tempCheck?.status === 'warn'}
+		<SpecAlert status="warn" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} />
+	{:else if tempCheck?.status === 'pass'}
+		<SpecAlert status="pass" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} />
+	{/if}
+
+	{#if rain?.status === 'fail'}
+		<SpecAlert status="fail" message={rain.message} clause={rain.clause} clauseTitle={rain.clauseTitle} />
 	{:else if rain?.status === 'warn'}
-		<div class="weather-warn warn">{rain.message}</div>
+		<SpecAlert status="warn" message={rain.message} clause={rain.clause} clauseTitle={rain.clauseTitle} />
+	{/if}
+
+	{#if weather.isRaining}
+		<div class="weather-warn fail">
+			Raining now — do not tack on a wet surface.
+		</div>
 	{/if}
 
 	<div class="apps">
