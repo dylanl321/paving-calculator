@@ -100,6 +100,14 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('spread-rate'));
+
+	function snapToTarget() {
+		if (targetRate != null && distanceFt && job.widthFt) {
+			const areaYards = (distanceFt * job.widthFt) / 9;
+			const adjustedTons = (targetRate * areaYards) / 2000;
+			tons = Math.round(adjustedTons * 100) / 100;
+		}
+	}
 </script>
 
 <CalcCard
@@ -194,7 +202,17 @@
 	{#if placedRate != null && targetRate != null}
 		<SpreadRateGauge actual={placedRate} target={targetRate} toleranceLbsSy={tolerance.toleranceLbsSy} />
 		{#if spec}
-			<p class="spec-note {spec.status}">{spec.message}</p>
+			<div class="spec-note {spec.status}">
+				<p class="spec-message">{spec.message}</p>
+				{#if (spec.status === 'warn' || spec.status === 'bad') && distanceFt && job.widthFt}
+					<button type="button" class="snap-btn" onclick={snapToTarget}>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+						</svg>
+						Snap to spec
+					</button>
+				{/if}
+			</div>
 		{/if}
 	{/if}
 
@@ -343,11 +361,14 @@
 		flex-shrink: 0;
 	}
 	.spec-note {
-		font-size: 0.78rem;
 		margin: 10px 0 0;
-		padding: 8px 10px;
+		padding: 10px 12px;
 		border-radius: 8px;
-		line-height: 1.35;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		justify-content: space-between;
+		flex-wrap: wrap;
 	}
 	.spec-note.good {
 		background: color-mix(in srgb, var(--good) 16%, transparent);
@@ -360,6 +381,40 @@
 	.spec-note.bad {
 		background: color-mix(in srgb, var(--bad) 16%, transparent);
 		color: var(--bad);
+	}
+	.spec-message {
+		font-size: 0.78rem;
+		line-height: 1.35;
+		margin: 0;
+		flex: 1;
+		min-width: 150px;
+	}
+	.snap-btn {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 6px 12px;
+		min-height: 36px;
+		background: currentColor;
+		color: var(--surface);
+		border: none;
+		border-radius: 6px;
+		font-size: 0.75rem;
+		font-weight: 700;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: opacity 0.2s, transform 0.15s;
+		flex-shrink: 0;
+	}
+	.snap-btn:hover {
+		opacity: 0.9;
+	}
+	.snap-btn:active {
+		transform: scale(0.97);
+	}
+	.snap-btn svg {
+		width: 14px;
+		height: 14px;
 	}
 	@media (max-width: 460px) {
 		.two-up {

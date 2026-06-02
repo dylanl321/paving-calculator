@@ -4,6 +4,7 @@
 	import { page } from '$app/stores';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { config } from '$lib/config';
+	import { toastStore } from '$lib/stores/toast';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	let email = $state('');
@@ -22,8 +23,10 @@
 
 		if (result.error) {
 			error = result.error;
+			toastStore.error(result.error);
 			loading = false;
 		} else {
+			toastStore.success('Signed in successfully');
 			goto('/dashboard');
 		}
 	}
@@ -36,8 +39,10 @@
 
 		if (result.error) {
 			error = result.error;
+			toastStore.error(result.error);
 			loading = false;
 		} else {
+			toastStore.success('Dev login successful');
 			goto('/dashboard');
 		}
 	}

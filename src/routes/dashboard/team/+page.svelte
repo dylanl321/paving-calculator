@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { toastStore } from '$lib/stores/toast';
 
 	type Member = {
 		user_id: string;
@@ -104,15 +105,16 @@
 
 			if (!res.ok) {
 				const data = await res.json();
-				alert(data.error || 'Failed to send invitation');
+				toastStore.error(data.error || 'Failed to send invitation');
 				return;
 			}
 
 			await loadTeam();
 			showInviteModal = false;
 			inviteForm = { email: '', role: 'member' };
+			toastStore.success('Invitation sent successfully');
 		} catch (e) {
-			alert('Failed to send invitation');
+			toastStore.error('Failed to send invitation');
 		} finally {
 			inviting = false;
 		}
@@ -137,14 +139,15 @@
 
 			if (!res.ok) {
 				const data = await res.json();
-				alert(data.error || 'Failed to update role');
+				toastStore.error(data.error || 'Failed to update role');
 				return;
 			}
 
 			await loadTeam();
 			roleChangeConfirm = null;
+			toastStore.success('Role updated successfully');
 		} catch (e) {
-			alert('Failed to update role');
+			toastStore.error('Failed to update role');
 		}
 	}
 
@@ -158,13 +161,14 @@
 
 			if (!res.ok) {
 				const data = await res.json();
-				alert(data.error || 'Failed to remove member');
+				toastStore.error(data.error || 'Failed to remove member');
 				return;
 			}
 
 			await loadTeam();
+			toastStore.success('Member removed successfully');
 		} catch (e) {
-			alert('Failed to remove member');
+			toastStore.error('Failed to remove member');
 		}
 	}
 

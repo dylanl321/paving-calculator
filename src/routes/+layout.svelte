@@ -7,6 +7,7 @@
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import AppShell from '$lib/components/shell/AppShell.svelte';
 	import PwaInstallPrompt from '$lib/components/PwaInstallPrompt.svelte';
+	import Toast from '$lib/components/ui/Toast.svelte';
 	import '../app.css';
 
 	let { children } = $props();
@@ -82,4 +83,5 @@
 		<AppShell {children} />
 	{/if}
 	<PwaInstallPrompt />
+	<Toast />
 </div>
