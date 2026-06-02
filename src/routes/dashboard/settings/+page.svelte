@@ -30,6 +30,13 @@
 	let emailFromName = $state(data.settings?.emailFromName ?? '');
 	let emailReplyTo = $state(data.settings?.emailReplyTo ?? '');
 
+	// --- Email preview ---
+	let previewType = $state<'invitation' | 'verification' | 'password-reset'>('invitation');
+	let previewHtml = $state('');
+	let previewSubject = $state('');
+	let previewFrom = $state('');
+	let loadingPreview = $state(false);
+
 	// --- Default job setup (seeded from YAML, overridden where present) ---
 	let roadWidthFt = $state(ov.defaults?.roadWidthFt ?? config.defaults.roadWidthFt);
 	let truckLoadTons = $state(ov.defaults?.truckLoadTons ?? config.defaults.truckLoadTons);
@@ -218,6 +225,28 @@
 	const currentLogoSrc = $derived(
 		logoPreview ?? (hasLogo ? `/api/org/logo?t=${Date.now()}` : null)
 	);
+
+	async function loadPreview() {
+		loadingPreview = true;
+		try {
+			const res = await fetch(`/api/org/email-preview?type=${previewType}`, {
+				credentials: 'include'
+			});
+			if (!res.ok) {
+				const error = await res.json();
+				console.error('Preview error:', error);
+				return;
+			}
+			const data = await res.json();
+			previewHtml = data.html;
+			previewSubject = data.subject;
+			previewFrom = data.from;
+		} catch (e) {
+			console.error('Failed to load preview:', e);
+		} finally {
+			loadingPreview = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -324,6 +353,38 @@
 				disabled={!canEdit}
 			/>
 			<span class="hint">Optional email address for replies</span>
+		</div>
+
+		<div class="preview-section">
+			<h4 style="margin:0 0 12px;font-size:0.95rem;color:var(--text);">Email Preview</h4>
+			<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+				<select bind:value={previewType} style="flex:1;max-width:220px;" onchange={loadPreview}>
+					<option value="invitation">Team Invitation</option>
+					<option value="verification">Email Verification</option>
+					<option value="password-reset">Password Reset</option>
+				</select>
+				<button type="button" class="ghost-btn" onclick={loadPreview} disabled={loadingPreview}>
+					{loadingPreview ? 'Loading...' : 'Refresh Preview'}
+				</button>
+			</div>
+
+			{#if previewHtml}
+				<div class="preview-meta">
+					<div><strong>From:</strong> {previewFrom}</div>
+					<div><strong>Subject:</strong> {previewSubject}</div>
+				</div>
+				<div class="preview-frame">
+					<iframe
+						title="Email preview"
+						srcDoc={previewHtml}
+						style="width:100%;height:600px;border:none;background:#1b2228;border-radius:8px;"
+					></iframe>
+				</div>
+			{:else}
+				<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:0.9rem;">
+					Click "Refresh Preview" to see how your emails will look
+				</div>
+			{/if}
 		</div>
 	</section>
 
@@ -956,6 +1017,37 @@
 		gap: 14px;
 		padding-top: 8px;
 		border-top: 1px solid var(--border);
+	}
+
+	.preview-section {
+		margin-top: 24px;
+		padding-top: 24px;
+		border-top: 1px solid var(--border);
+	}
+
+	.preview-meta {
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 12px 14px;
+		margin-bottom: 12px;
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.preview-meta div {
+		margin: 4px 0;
+	}
+
+	.preview-meta strong {
+		color: var(--text);
+		font-weight: 600;
+	}
+
+	.preview-frame {
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		overflow: hidden;
 	}
 
 	@media (max-width: 640px) {
