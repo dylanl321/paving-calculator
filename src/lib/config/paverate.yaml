@@ -227,6 +227,7 @@ weather:
   rainBlockIn: 0.10        # ~2.5 mm — do not pave or tack
   tempWarnMarginF: 5       # warn when within this many °F of Table 4 minimum
   ogfcMinAirTempF: 60      # Section 400.3.05.E — OGFC / PEM floor
+  tackMinAirTempF: 40      # Section 413.3.05.A — tack coat minimum air temp
   wetSurfaceBlocked: true  # no placement on wet or frozen surfaces
 
 # ---------------------------------------------------------------------------
