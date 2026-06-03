@@ -9,7 +9,6 @@
 	import AppShell from '$lib/components/shell/AppShell.svelte';
 	import PwaInstallPrompt from '$lib/components/PwaInstallPrompt.svelte';
 	import Toast from '$lib/components/ui/Toast.svelte';
-	import TempCheckPrompt from '$lib/components/TempCheckPrompt.svelte';
 	import { offlineStore } from '$lib/stores/offline.svelte';
 	import '../app.css';
 
@@ -106,7 +105,4 @@
 	{/if}
 	<PwaInstallPrompt />
 	<Toast />
-	{#if !isStandalone}
-		<TempCheckPrompt />
-	{/if}
 </div>
