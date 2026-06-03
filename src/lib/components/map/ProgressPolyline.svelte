@@ -17,27 +17,62 @@
 		log_date: string | null;
 	}
 
+	/** Simplified log entry shape used when geometry prop is provided */
+	interface LogEntry {
+		station_start: number | null;
+		station_end: number | null;
+		tons_placed: number | null;
+		log_date?: string | null;
+	}
+
+	interface GeoJSONLineString {
+		type: 'LineString';
+		coordinates: [number, number][];
+	}
+
 	interface Props {
-		waypoints: Waypoint[];
-		entries: ProgressEntry[];
-		today: string;
+		/** Existing waypoints-based API */
+		waypoints?: Waypoint[];
+		entries?: ProgressEntry[];
+		today?: string;
 		numLanes?: number | null;
 		laneWidthFt?: number | null;
 		showAllLanes?: boolean;
+		/** New GeoJSON-based API */
+		geometry?: GeoJSONLineString | null;
+		logEntries?: LogEntry[];
+		totalLength?: number | null;
 	}
 
 	let {
-		waypoints,
-		entries,
-		today,
+		waypoints = [],
+		entries = [],
+		today = '',
 		numLanes = null,
 		laneWidthFt = null,
-		showAllLanes = false
+		showAllLanes = false,
+		geometry = null,
+		logEntries = [],
+		totalLength = null
 	}: Props = $props();
 
 	const ctx = getContext<MapContext>(MAP_CONTEXT_KEY);
 
 	let layers: L.Polyline[] = [];
+
+	// Determine if we have a valid route to render
+	const hasGeometry = $derived(
+		geometry != null &&
+			geometry.type === 'LineString' &&
+			geometry.coordinates.length >= 2
+	);
+	const hasWaypoints = $derived(waypoints.length >= 2);
+	const canRender = $derived(hasGeometry || hasWaypoints);
+
+	/** Convert GeoJSON LineString coordinates [lng, lat] to internal Waypoint[] */
+	function geoJsonToWaypoints(geom: GeoJSONLineString): Waypoint[] {
+		return geom.coordinates.map(([lng, lat]) => ({ lat, lng }));
+	}
 
 	function stationToFeet(station: number): number {
 		return station * 100;
@@ -102,6 +137,16 @@
 		return pts;
 	}
 
+	/** Compute total route length in feet from waypoints */
+	function computeRouteLengthFt(wps: Waypoint[]): number {
+		let total = 0;
+		for (let i = 0; i < wps.length - 1; i++) {
+			const m = haversineMeters(wps[i].lat, wps[i].lng, wps[i + 1].lat, wps[i + 1].lng);
+			total += m * 3.28084;
+		}
+		return total;
+	}
+
 	// Compute perpendicular offset for a waypoint
 	function offsetPoints(
 		wps: Waypoint[],
@@ -154,6 +199,57 @@
 
 		clearLayers(map);
 
+		// --- New GeoJSON-based rendering ---
+		if (hasGeometry && geometry) {
+			const wps = geoJsonToWaypoints(geometry);
+			if (wps.length < 2) return;
+
+			const routeLengthFt = totalLength ?? computeRouteLengthFt(wps);
+			const allWpPts: [number, number][] = wps.map((w) => [w.lat, w.lng]);
+
+			// Draw grey unpaved base first (full route)
+			const greyBase = L.polyline(allWpPts, {
+				color: '#6b7280',
+				weight: 7,
+				opacity: 0.7,
+				lineCap: 'round'
+			}).addTo(map);
+			layers.push(greyBase);
+
+			// Overlay paved segments (green or yellow for today)
+			for (const entry of logEntries) {
+				if (entry.tons_placed == null || entry.tons_placed <= 0) continue;
+				let startFt: number | null = null;
+				let endFt: number | null = null;
+
+				if (entry.station_start != null) {
+					startFt = stationToFeet(entry.station_start);
+				}
+				if (entry.station_end != null) {
+					endFt = stationToFeet(entry.station_end);
+				}
+
+				if (startFt == null || endFt == null || endFt <= startFt) continue;
+				// Clamp to route length
+				startFt = Math.max(0, startFt);
+				endFt = Math.min(routeLengthFt, endFt);
+				if (endFt <= startFt) continue;
+
+				const isToday = today && entry.log_date === today;
+				const color = isToday ? '#f2c037' : '#22c55e';
+				const pts = buildSegmentPoints(startFt, endFt, wps);
+				if (pts.length >= 2) {
+					const poly = L.polyline(pts, { color, weight: 7, opacity: 0.9, lineCap: 'round' }).addTo(map);
+					layers.push(poly);
+				}
+			}
+
+			return () => {
+				clearLayers(map);
+			};
+		}
+
+		// --- Legacy waypoints-based rendering ---
 		if (waypoints.length < 2 || entries.length === 0) return;
 
 		const laneCount = numLanes && numLanes > 1 ? numLanes : 1;
@@ -209,3 +305,40 @@
 		if (map) clearLayers(map);
 	});
 </script>
+
+{#if !canRender}
+	<div
+		class="no-geometry-fallback"
+		role="status"
+		aria-label="No route geometry available"
+	>
+		<svg
+			xmlns="http://www.w3.org/2000/svg"
+			width="20"
+			height="20"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			stroke-width="2"
+			aria-hidden="true"
+		>
+			<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+			<polyline points="9 22 9 12 15 12 15 22" />
+		</svg>
+		<span>No route geometry defined for this job site.</span>
+	</div>
+{/if}
+
+<style>
+	.no-geometry-fallback {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 12px 16px;
+		color: #94a3b8;
+		font-size: 0.875rem;
+		background: rgba(30, 41, 59, 0.5);
+		border-radius: 8px;
+		border: 1px solid rgba(100, 116, 139, 0.2);
+	}
+</style>
