@@ -1,4 +1,5 @@
 import type { D1Database } from '../../cloudflare';
+import { toHex } from '$lib/utils/format';
 
 export interface WebhookEvent {
 	type: string;
@@ -31,7 +32,7 @@ interface WebhookDeliveryPayload {
 export function generateWebhookSecret(): string {
 	const bytes = new Uint8Array(32);
 	crypto.getRandomValues(bytes);
-	return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+	return toHex(bytes);
 }
 
 async function signPayload(payload: string, secret: string): Promise<string> {
@@ -48,8 +49,7 @@ async function signPayload(payload: string, secret: string): Promise<string> {
 	);
 
 	const signature = await crypto.subtle.sign('HMAC', key, messageData);
-	const hashArray = Array.from(new Uint8Array(signature));
-	return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+	return toHex(new Uint8Array(signature));
 }
 
 async function deliverToWebhook(

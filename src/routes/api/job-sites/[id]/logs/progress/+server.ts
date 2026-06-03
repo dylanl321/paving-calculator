@@ -37,6 +37,7 @@ export const GET: RequestHandler = async ({ params, locals, platform }) => {
 		distance_ft: number | null;
 		entry_type: string;
 		lane: string | null;
+		spread_rate_actual: number | null;
 	}> = [];
 
 	let totalPavedFt = 0;
@@ -51,7 +52,8 @@ export const GET: RequestHandler = async ({ params, locals, platform }) => {
 					station_end: entry.station_end,
 					distance_ft: entry.distance_ft,
 					entry_type: entry.entry_type,
-					lane: entry.lane ?? null
+					lane: entry.lane ?? null,
+					spread_rate_actual: entry.spread_rate_actual ?? null
 				});
 				if (entry.distance_ft) totalPavedFt += entry.distance_ft;
 				if (entry.tons_placed) totalTons += entry.tons_placed;

@@ -56,7 +56,7 @@ export async function DELETE(event: RequestEvent) {
 
 		return json({ success: true });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error revoking invitation:', error);
 		return json({ error: 'Failed to revoke invitation' }, { status: 500 });
 	}
@@ -138,7 +138,7 @@ export async function POST(event: RequestEvent) {
 			}
 		}, { status: 201 });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error resending invitation:', error);
 		return json({ error: 'Failed to resend invitation' }, { status: 500 });
 	}
