@@ -27,6 +27,7 @@
 
 	let mapEl: HTMLDivElement;
 	let mapInstance: L.Map | null = null;
+	let markerMap: Map<string, L.Marker> = new Map();
 	let sites = $state<MapSite[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
@@ -132,6 +133,7 @@
 		}).addTo(mapInstance);
 
 		const bounds: [number, number][] = [];
+		markerMap.clear();
 
 		for (const site of pinnedSites) {
 			bounds.push([site.latitude, site.longitude]);
@@ -140,7 +142,11 @@
 			const icon = createPinIcon(color);
 			const popup = L.popup({ closeButton: true }).setContent(createPopupContent(site));
 
-			L.marker([site.latitude, site.longitude], { icon }).bindPopup(popup).addTo(mapInstance);
+			const marker = L.marker([site.latitude, site.longitude], { icon })
+				.bindPopup(popup)
+				.addTo(mapInstance);
+
+			markerMap.set(site.id, marker);
 		}
 
 		if (bounds.length === 1) {
@@ -205,6 +211,14 @@
 			clearInterval(refreshInterval);
 		}
 	});
+
+	export function flyToSite(siteId: string) {
+		const site = pinnedSites.find((s) => s.id === siteId);
+		if (!site || !mapInstance) return;
+		mapInstance.flyTo([site.latitude, site.longitude], 15, { duration: 1 });
+		const marker = markerMap.get(siteId);
+		if (marker) marker.openPopup();
+	}
 </script>
 
 {#if loading}
