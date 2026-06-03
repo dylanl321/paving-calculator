@@ -18,6 +18,8 @@
 	let currentDate = $state(initialDate || new Date().toISOString().split('T')[0]);
 	let loading = $state(true);
 	let data = $state<any>(null);
+	let siteName = $state('Job Site');
+	let generatingPDF = $state(false);
 
 	onMount(() => {
 		loadData();
@@ -32,15 +34,54 @@
 	async function loadData() {
 		loading = true;
 		try {
-			const res = await fetch(
-				`/api/job-sites/${jobSiteId}/logs/rollup?period=${periodType}&date=${currentDate}`
-			);
-			if (res.ok) {
-				data = await res.json();
+			const [rollupRes, siteRes] = await Promise.all([
+				fetch(`/api/job-sites/${jobSiteId}/logs/rollup?period=${periodType}&date=${currentDate}`),
+				fetch(`/api/job-sites/${jobSiteId}`)
+			]);
+			if (rollupRes.ok) {
+				data = await rollupRes.json();
+			}
+			if (siteRes.ok) {
+				const siteData = await siteRes.json();
+				siteName = siteData.name || 'Job Site';
 			}
 		} finally {
 			loading = false;
 		}
+	}
+
+	async function exportPDF() {
+		if (!data || generatingPDF) return;
+		generatingPDF = true;
+		try {
+			const { generateWeeklyMonthlyPDF } = await import('$lib/utils/pdf-export');
+			const { jobState } = await import('$lib/stores/job.svelte');
+			await generateWeeklyMonthlyPDF(
+				{
+					periodType,
+					period: data.period,
+					bounds: data.bounds,
+					days: data.days,
+					totals: data.totals
+				},
+				siteName,
+				undefined,
+				jobState
+			);
+		} finally {
+			generatingPDF = false;
+		}
+	}
+
+	async function exportCSV() {
+		if (!data) return;
+		const { exportRollupCSV } = await import('$lib/utils/csv-export');
+		exportRollupCSV({
+			period: data.period,
+			periodType,
+			siteName,
+			data
+		});
 	}
 
 	function handleBackdrop(e: MouseEvent) {
@@ -215,6 +256,25 @@
 						<rect x="6" y="14" width="12" height="8"></rect>
 					</svg>
 					Print
+				</button>
+				<button class="btn-pdf" onclick={exportPDF} disabled={generatingPDF}>
+					{#if generatingPDF}
+						<div class="mini-spinner"></div>
+					{:else}
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+							<polyline points="14 2 14 8 20 8"></polyline>
+						</svg>
+					{/if}
+					PDF
+				</button>
+				<button class="btn-secondary" onclick={exportCSV}>
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+						<polyline points="7 10 12 15 17 10"></polyline>
+						<line x1="12" y1="15" x2="12" y2="3"></line>
+					</svg>
+					CSV
 				</button>
 				<button class="btn-close" onclick={onClose}>Close</button>
 			</div>
@@ -471,7 +531,8 @@
 		background: var(--bg);
 	}
 
-	.btn-print {
+	.btn-print,
+	.btn-secondary {
 		display: flex;
 		align-items: center;
 		gap: 6px;
@@ -487,6 +548,36 @@
 		white-space: nowrap;
 	}
 
+	.btn-pdf {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		background: var(--accent);
+		border: 1px solid var(--accent);
+		border-radius: var(--radius);
+		color: var(--accent-text);
+		font-size: 0.9rem;
+		font-weight: 600;
+		padding: 0 16px;
+		height: 48px;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.btn-pdf:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.mini-spinner {
+		width: 16px;
+		height: 16px;
+		border: 2px solid currentColor;
+		border-top-color: transparent;
+		border-radius: 50%;
+		animation: spin 0.7s linear infinite;
+	}
+
 	.btn-close {
 		flex: 1;
 		height: 48px;
@@ -500,7 +591,12 @@
 	}
 
 	.btn-print:hover,
+	.btn-secondary:hover,
 	.btn-close:hover {
 		background: var(--surface);
+	}
+
+	.btn-pdf:hover:not(:disabled) {
+		opacity: 0.9;
 	}
 </style>
