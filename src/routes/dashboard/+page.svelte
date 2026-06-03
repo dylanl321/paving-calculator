@@ -5,6 +5,7 @@
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import GeofenceMonitor from '$lib/components/GeofenceMonitor.svelte';
 	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import type { PageData } from './$types';
 	import { formatDate } from '$lib/utils/format';
 
@@ -268,7 +269,9 @@
 					{/if}
 				</div>
 				{#await import('$lib/components/JobSiteMap.svelte')}
-					<div class="map-loading">Loading map&hellip;</div>
+					<div class="map-skeleton">
+						<Skeleton width="100%" height="280px" borderRadius="var(--radius-md)" />
+					</div>
 				{:then { default: JobSiteMap }}
 					<JobSiteMap sites={mapSites} />
 				{/await}
@@ -278,7 +281,9 @@
 		{#if org.role === 'owner' || org.role === 'admin'}
 			<section class="section crew-status-section">
 				{#await import('$lib/components/LiveCrewDashboard.svelte')}
-					<div class="map-loading">Loading crew status&hellip;</div>
+					<div class="crew-skeleton">
+						<Skeleton width="100%" height="160px" borderRadius="var(--radius-md)" />
+					</div>
 				{:then { default: LiveCrewDashboard }}
 					<LiveCrewDashboard />
 				{/await}
@@ -872,14 +877,9 @@
 		color: var(--text-muted);
 	}
 
-	.map-loading {
-		padding: 40px 20px;
-		text-align: center;
-		color: var(--text-muted);
-		font-size: 0.875rem;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md, 12px);
+	.map-skeleton,
+	.crew-skeleton {
+		padding: 0;
 	}
 
 	.crew-status-section {
