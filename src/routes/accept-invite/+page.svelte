@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
-	import { toastStore } from '$lib/stores/toast';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -33,7 +33,7 @@
 				})
 			});
 
-			const result = await response.json();
+			const result = (await response.json()) as { error?: string };
 
 			if (!response.ok) {
 				toastStore.error(result.error || 'Failed to accept invitation');
@@ -66,7 +66,7 @@
 				})
 			});
 
-			const result = await response.json();
+			const result = (await response.json()) as { error?: string };
 
 			if (!response.ok) {
 				toastStore.error(result.error || 'Failed to accept invitation');

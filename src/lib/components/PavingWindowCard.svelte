@@ -98,7 +98,7 @@
 		/>
 
 		{#if check != null}
-			<SpecAlert status={check.status} message={check.message} clause={check.clause} clauseTitle={check.clauseTitle} />
+			<SpecAlert status={check.status} message={check.message} clause={check.clause} clauseTitle={check.clauseTitle} guidance={check.guidance} />
 		{/if}
 
 		{#if ogfcCheck != null}
