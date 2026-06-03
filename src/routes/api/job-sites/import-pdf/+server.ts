@@ -18,6 +18,10 @@ async function readPdfUploads(request: Request): Promise<UploadedFile[]> {
 	const contentType = request.headers.get('content-type') ?? '';
 	if (!contentType.includes('multipart/form-data')) return [];
 
+	const boundaryMatch = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType);
+	const boundary = boundaryMatch?.[1] ?? boundaryMatch?.[2];
+
+	let nativeFiles: UploadedFile[] | null = null;
 	try {
 		const form = await request.clone().formData();
 		const files: UploadedFile[] = [];
@@ -26,44 +30,100 @@ async function readPdfUploads(request: Request): Promise<UploadedFile[]> {
 				files.push({ name: value.name, type: value.type, bytes: await value.arrayBuffer() });
 			}
 		}
-		if (files.length > 0) return files;
+		if (files.length > 0) nativeFiles = files;
 	} catch {
 		// fall through to manual parse
 	}
 
-	const boundaryMatch = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType);
-	const boundary = boundaryMatch?.[1] ?? boundaryMatch?.[2];
-	if (!boundary) return [];
+	// If the native parser produced clean PDF bytes (every file starts with the
+	// %PDF signature), trust it. Otherwise fall back to the manual byte parser —
+	// undici's FormData under `vite dev` can mangle binary uploads.
+	if (nativeFiles && nativeFiles.every((f) => looksLikePdf(f.bytes))) {
+		return nativeFiles;
+	}
 
-	const raw = new Uint8Array(await request.arrayBuffer());
-	return parseMultipartFiles(raw, boundary);
+	if (boundary) {
+		const raw = new Uint8Array(await request.arrayBuffer());
+		const manual = parseMultipartFiles(raw, boundary);
+		if (manual.length > 0) return manual;
+	}
+
+	return nativeFiles ?? [];
+}
+
+// Checks for the "%PDF" magic bytes at the start of the buffer.
+function looksLikePdf(bytes: ArrayBuffer): boolean {
+	const head = new Uint8Array(bytes, 0, Math.min(8, bytes.byteLength));
+	// Some PDFs have leading whitespace; scan the first few bytes.
+	for (let i = 0; i < head.length - 3; i++) {
+		if (head[i] === 0x25 && head[i + 1] === 0x50 && head[i + 2] === 0x44 && head[i + 3] === 0x46) {
+			return true;
+		}
+	}
+	return false;
 }
 
 function parseMultipartFiles(raw: Uint8Array, boundary: string): UploadedFile[] {
-	const text = new TextDecoder('latin1').decode(raw);
-	const delimiter = `--${boundary}`;
-	const parts = text.split(delimiter);
 	const files: UploadedFile[] = [];
+	const enc = new TextEncoder();
+	const delimiter = enc.encode(`--${boundary}`);
+	const crlfcrlf = enc.encode('\r\n\r\n');
 
-	for (const part of parts) {
-		const headerEnd = part.indexOf('\r\n\r\n');
+	// Find every delimiter offset at the byte level (no string round-trip, so
+	// binary PDF bytes are never mangled).
+	const bounds: number[] = [];
+	for (let i = 0; i <= raw.length - delimiter.length; i++) {
+		let match = true;
+		for (let j = 0; j < delimiter.length; j++) {
+			if (raw[i + j] !== delimiter[j]) {
+				match = false;
+				break;
+			}
+		}
+		if (match) {
+			bounds.push(i);
+			i += delimiter.length - 1;
+		}
+	}
+
+	for (let b = 0; b < bounds.length - 1; b++) {
+		// Part spans from just after this delimiter to just before the next one.
+		let partStart = bounds[b] + delimiter.length;
+		const partEnd = bounds[b + 1];
+		// Skip the CRLF that follows the delimiter.
+		if (raw[partStart] === 0x0d && raw[partStart + 1] === 0x0a) partStart += 2;
+
+		// Locate the header/body separator (\r\n\r\n) within the part.
+		let headerEnd = -1;
+		for (let i = partStart; i <= partEnd - crlfcrlf.length; i++) {
+			if (
+				raw[i] === 0x0d &&
+				raw[i + 1] === 0x0a &&
+				raw[i + 2] === 0x0d &&
+				raw[i + 3] === 0x0a
+			) {
+				headerEnd = i;
+				break;
+			}
+		}
 		if (headerEnd === -1) continue;
-		const headers = part.slice(0, headerEnd);
+
+		const headers = new TextDecoder('latin1').decode(raw.subarray(partStart, headerEnd));
 		if (!/filename="?([^"]+)"?/i.test(headers)) continue;
 
 		const nameMatch = /filename="?([^"\r\n]+)"?/i.exec(headers);
 		const typeMatch = /content-type:\s*([^\r\n]+)/i.exec(headers);
 
 		const bodyStart = headerEnd + 4;
-		let bodyEnd = part.length;
-		if (part.endsWith('\r\n')) bodyEnd -= 2;
+		let bodyEnd = partEnd;
+		// Strip the trailing CRLF before the next delimiter.
+		if (raw[bodyEnd - 2] === 0x0d && raw[bodyEnd - 1] === 0x0a) bodyEnd -= 2;
 
-		const partStart = text.indexOf(part);
-		const slice = raw.slice(partStart + bodyStart, partStart + bodyEnd);
+		const slice = raw.subarray(bodyStart, bodyEnd);
 		files.push({
 			name: nameMatch?.[1]?.trim() ?? 'upload.pdf',
 			type: typeMatch?.[1]?.trim() ?? 'application/pdf',
-			bytes: slice.buffer.slice(slice.byteOffset, slice.byteOffset + slice.byteLength)
+			bytes: slice.slice().buffer
 		});
 	}
 
@@ -122,8 +182,12 @@ export async function POST(event: RequestEvent) {
 				texts.push(await pdfToText(file.bytes));
 			} catch (err) {
 				console.error('PDF text extraction failed for', file.name, err);
+				const detail = err instanceof Error ? err.message : String(err);
 				return json(
-					{ error: `Could not read text from "${file.name}". Is it a scanned image?` },
+					{
+						error: `Could not read text from "${file.name}". It may be a scanned image or an unsupported PDF.`,
+						detail
+					},
 					{ status: 422 }
 				);
 			}
