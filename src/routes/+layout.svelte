@@ -10,6 +10,7 @@
 	import PwaInstallPrompt from '$lib/components/PwaInstallPrompt.svelte';
 	import Toast from '$lib/components/ui/Toast.svelte';
 	import TempCheckPrompt from '$lib/components/TempCheckPrompt.svelte';
+	import { offlineStore } from '$lib/stores/offline.svelte';
 	import '../app.css';
 
 	let { children } = $props();
@@ -83,6 +84,9 @@
 	});
 
 	onMount(async () => {
+		// Initialize offline store event listeners
+		offlineStore.init();
+
 		const { registerSW } = await import('virtual:pwa-register');
 		registerSW({ immediate: true });
 

@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { config } from '$lib/config';
-	import { toastStore } from '$lib/stores/toast';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	const token = $page.url.searchParams.get('token') || '';
@@ -37,7 +37,7 @@
 				body: JSON.stringify({ token, password })
 			});
 
-			const data = await response.json();
+			const data = (await response.json()) as { error?: string };
 
 			if (!response.ok) {
 				error = data.error || 'Something went wrong';

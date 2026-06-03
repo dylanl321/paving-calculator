@@ -2,8 +2,53 @@
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
 	import type { PageData } from './$types';
+	import DailySummaryReport from '$lib/components/DailySummaryReport.svelte';
+	import WeeklyMonthlyReport from '$lib/components/WeeklyMonthlyReport.svelte';
+	import ProductionLineChart from '$lib/components/charts/ProductionLineChart.svelte';
+	import ProductionRateTrendChart from '$lib/components/charts/ProductionRateTrendChart.svelte';
+	import { formatFeet } from '$lib/utils/format';
 
 	let { data }: { data: PageData } = $props();
+	let summaryLog = $state<any>(null);
+	let showReports = $state(false);
+
+	// Build chart data from logs, sorted by date ascending
+	const chartData = $derived(
+		[...data.logs]
+			.sort((a, b) => a.log_date.localeCompare(b.log_date))
+			.map((log) => ({
+				date: log.log_date,
+				tons: log.summary?.total_tons ?? 0
+			}))
+	);
+
+	// Build rate chart data (only logs with hours)
+	const rateChartData = $derived(
+		[...data.logs]
+			.sort((a, b) => a.log_date.localeCompare(b.log_date))
+			.map((log) => ({
+				date: log.log_date,
+				tons: log.summary?.total_tons ?? 0,
+				hours: log.summary?.hours_worked ?? 0
+			}))
+	);
+
+	// Check if we have any rate data
+	const hasRateData = $derived(rateChartData.some((d) => d.hours > 0));
+
+	// Avg rate across days with hours > 0
+	const avgRate = $derived(
+		(() => {
+			const valid = rateChartData.filter((d) => d.hours > 0);
+			if (valid.length === 0) return 0;
+			return valid.reduce((sum, d) => sum + d.tons / d.hours, 0) / valid.length;
+		})()
+	);
+
+	// Calculate total tons across all days
+	const totalTons = $derived(
+		data.logs.reduce((sum, log) => sum + (log.summary?.total_tons ?? 0), 0)
+	);
 
 	function formatDate(dateString: string): string {
 		const date = new Date(dateString);
@@ -13,13 +58,6 @@
 			day: 'numeric',
 			year: 'numeric'
 		});
-	}
-
-	function formatDistance(ft: number): string {
-		if (ft >= 5280) {
-			return `${(ft / 5280).toFixed(2)} mi`;
-		}
-		return `${ft.toLocaleString()} ft`;
 	}
 
 	function getWeatherIcon(condition: string | null): string {
@@ -35,6 +73,10 @@
 
 	function viewLog(logId: string) {
 		goto(`/dashboard/job-sites/${data.jobSite.id}/log?date=${logId}`);
+	}
+
+	function openSummary(log: any) {
+		summaryLog = log;
 	}
 </script>
 
@@ -91,21 +133,40 @@
 			<h2 class="page-title">Log History</h2>
 			<p class="page-subtitle">{data.logs.length} day{data.logs.length === 1 ? '' : 's'} logged</p>
 		</div>
-		<a href="/dashboard/job-sites/{data.jobSite.id}/log" class="btn-secondary">
-			<svg
-				width="18"
-				height="18"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-			>
-				<polyline points="15 18 9 12 15 6"></polyline>
-			</svg>
-			Back to Today
-		</a>
+		<div class="header-actions">
+			<button class="btn-primary" onclick={() => (showReports = true)}>
+				<svg
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+					<line x1="3" y1="9" x2="21" y2="9"></line>
+					<line x1="9" y1="21" x2="9" y2="9"></line>
+				</svg>
+				Reports
+			</button>
+			<a href="/dashboard/job-sites/{data.jobSite.id}/log" class="btn-secondary">
+				<svg
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<polyline points="15 18 9 12 15 6"></polyline>
+				</svg>
+				Back to Today
+			</a>
+		</div>
 	</div>
 
 	{#if data.logs.length === 0}
@@ -132,6 +193,28 @@
 			</a>
 		</div>
 	{:else}
+		<div class="chart-section">
+			<div class="section-header">
+				<h3>Production Over Time</h3>
+				<p class="section-subtitle">
+					{totalTons.toFixed(1)} tons across {data.logs.length} day{data.logs.length === 1 ? '' : 's'}
+				</p>
+			</div>
+			<ProductionLineChart data={chartData} />
+		</div>
+
+		{#if hasRateData}
+			<div class="chart-section">
+				<div class="section-header">
+					<h3>Production Rate Trend</h3>
+					<p class="section-subtitle">
+						{avgRate.toFixed(1)} T/hr avg &mdash; 3-day rolling average
+					</p>
+				</div>
+				<ProductionRateTrendChart data={rateChartData} />
+			</div>
+		{/if}
+
 		<div class="log-list">
 			{#each data.logs as log}
 				<div class="log-card">
@@ -162,7 +245,7 @@
 							{#if log.summary.total_distance_ft > 0}
 								<div class="summary-stat-compact">
 									<span class="stat-label">Distance</span>
-									<span class="stat-value">{formatDistance(log.summary.total_distance_ft)}</span>
+									<span class="stat-value">{formatFeet(log.summary.total_distance_ft)}</span>
 								</div>
 							{/if}
 							{#if log.summary.total_tons > 0}
@@ -190,12 +273,30 @@
 						<div class="log-notes">{log.notes}</div>
 					{/if}
 
-					<button class="view-log-btn" onclick={() => viewLog(log.id)}>View Details →</button>
+					<div class="log-actions">
+						<button class="btn-primary" onclick={() => openSummary(log)}>View Summary</button>
+						<button class="btn-secondary" onclick={() => viewLog(log.id)}>Open Log</button>
+					</div>
 				</div>
 			{/each}
 		</div>
 	{/if}
 </div>
+
+{#if summaryLog}
+	<DailySummaryReport
+		jobSiteId={data.jobSite.id}
+		log={summaryLog}
+		onClose={() => (summaryLog = null)}
+	/>
+{/if}
+
+{#if showReports}
+	<WeeklyMonthlyReport
+		jobSiteId={data.jobSite.id}
+		onClose={() => (showReports = false)}
+	/>
+{/if}
 
 <style>
 	.dashboard {
@@ -231,6 +332,12 @@
 		align-items: flex-start;
 		gap: 16px;
 		margin-bottom: 24px;
+	}
+
+	.header-actions {
+		display: flex;
+		gap: 10px;
+		flex-wrap: wrap;
 	}
 
 	.page-title {
@@ -304,6 +411,29 @@
 	.empty-state p {
 		margin: 0;
 		font-size: 0.9rem;
+	}
+
+	.chart-section {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 20px;
+		margin-bottom: 24px;
+	}
+
+	.section-header {
+		margin-bottom: 16px;
+	}
+
+	.section-header h3 {
+		margin: 0 0 4px;
+		font-size: 1.2rem;
+	}
+
+	.section-subtitle {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--text-muted);
 	}
 
 	.log-list {
@@ -382,19 +512,43 @@
 		border-radius: calc(var(--radius) - 4px);
 	}
 
-	.view-log-btn {
-		width: 100%;
+	.log-actions {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 12px;
+	}
+
+	.btn-primary {
 		min-height: 48px;
-		background: var(--bg);
+		padding: 0 16px;
+		background: var(--accent);
+		color: var(--accent-text);
+		border: none;
+		border-radius: var(--radius);
+		font-size: 0.9rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: opacity 0.2s;
+	}
+
+	.btn-primary:hover {
+		opacity: 0.9;
+	}
+
+	.btn-secondary {
+		min-height: 48px;
+		padding: 0 16px;
+		background: var(--surface-alt);
+		color: var(--text);
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
-		color: var(--accent);
+		font-size: 0.9rem;
 		font-weight: 600;
 		cursor: pointer;
 		transition: background 0.2s;
 	}
 
-	.view-log-btn:hover {
-		background: var(--surface-alt);
+	.btn-secondary:hover {
+		background: var(--bg);
 	}
 </style>

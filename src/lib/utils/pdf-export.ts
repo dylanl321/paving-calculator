@@ -1,15 +1,12 @@
 // PDF proof sheet generator for PaveRate calculations.
 // Captures job setup parameters and provides templates for calculator sections.
+import type { jsPDF as JsPDFInstance } from 'jspdf';
 import type { JobState } from '$lib/stores/job.svelte';
+import { formatFeet } from '$lib/utils/format';
 
 async function getJsPDF() {
-	try {
-		const module = await import('jspdf');
-		return module.jsPDF;
-	} catch {
-		const stub = await import('./jspdf-stub');
-		return stub.jsPDF;
-	}
+	const module = await import('jspdf');
+	return module.jsPDF;
 }
 
 export async function generateProofPDF(jobState: JobState): Promise<void> {
@@ -202,7 +199,7 @@ export async function generateProofPDF(jobState: JobState): Promise<void> {
 }
 
 function addSection(
-	doc: jsPDF,
+	doc: JsPDFInstance,
 	title: string,
 	yPos: number,
 	pageWidth: number,
@@ -255,9 +252,19 @@ export interface DailyReportEntry {
 	notes: string | null;
 }
 
+export interface LoadRecord {
+	id: string;
+	ticket_number: string | null;
+	tons: number;
+	timestamp: number;
+	spread_rate: number | null;
+	notes: string | null;
+}
+
 export interface DailyReportData {
 	date: string; // YYYY-MM-DD
 	siteName: string;
+	orgName?: string;
 	weatherTempF: number | null;
 	weatherConditions: string | null;
 	windSpeedMph: number | null;
@@ -266,6 +273,7 @@ export interface DailyReportData {
 	endTime: string | null;
 	notes: string | null;
 	entries: DailyReportEntry[];
+	loads?: LoadRecord[];
 	totals: {
 		totalTons: number;
 		totalDistanceFt: number;
@@ -278,20 +286,6 @@ export interface DailyReportData {
 		targetRate: number | null;
 		diffPct: number | null;
 	};
-	loads?: Array<{
-		id: string;
-		ticket_number: string | null;
-		tons: number;
-		timestamp: number;
-		spread_rate: number | null;
-		notes: string | null;
-	}>;
-}
-
-function fmtFeet(ft: number | null): string {
-	if (ft == null) return '—';
-	if (ft >= 5280) return `${(ft / 5280).toFixed(2)} mi`;
-	return `${Math.round(ft).toLocaleString()} ft`;
 }
 
 async function loadImageAsDataUrl(url: string): Promise<string | null> {
@@ -329,36 +323,68 @@ export async function generateDailyReportPDF(
 		day: 'numeric'
 	});
 
-	// Header with branding
-	const logoData = await loadImageAsDataUrl('/static/logo-wordmark.png');
-	if (logoData) {
-		try {
-			doc.addImage(logoData, 'PNG', margin, yPos, 120, 36);
-			yPos += 46;
-		} catch {
-			doc.setFontSize(20);
-			doc.setFont('helvetica', 'bold');
-			doc.setTextColor(0);
-			doc.text('PaveRate — Daily Production Report', margin, yPos);
-			yPos += 26;
+	// Load logo
+	let logoDataUrl: string | null = null;
+	try {
+		const logoResponse = await fetch('/logo-wordmark.png');
+		if (logoResponse.ok) {
+			const logoBuffer = await logoResponse.arrayBuffer();
+			const logoBase64 = btoa(
+				new Uint8Array(logoBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+			);
+			logoDataUrl = `data:image/png;base64,${logoBase64}`;
 		}
-	} else {
-		doc.setFontSize(20);
-		doc.setFont('helvetica', 'bold');
-		doc.setTextColor(0);
-		doc.text('PaveRate — Daily Production Report', margin, yPos);
-		yPos += 26;
+	} catch {
+		// Logo loading failed, continue without it
 	}
+
+	// Dark header banner
+	const bannerHeight = 55;
+	doc.setFillColor(26, 26, 26);
+	doc.rect(margin - 5, yPos - 12, pageWidth - margin * 2 + 10, bannerHeight, 'F');
+
+	// Add logo if loaded (top right of banner)
+	if (logoDataUrl) {
+		try {
+			const logoWidth = 80;
+			const logoHeight = 24;
+			doc.addImage(
+				logoDataUrl,
+				'PNG',
+				pageWidth - margin - logoWidth,
+				yPos - 6,
+				logoWidth,
+				logoHeight
+			);
+		} catch {
+			// Image add failed, continue without logo
+		}
+	}
+
+	// Title in banner
+	doc.setFontSize(18);
+	doc.setFont('helvetica', 'bold');
+	doc.setTextColor(255, 255, 255);
+	doc.text('Daily Production Report', margin, yPos + 8);
 
 	doc.setFontSize(11);
 	doc.setFont('helvetica', 'normal');
-	doc.setTextColor(60);
-	doc.text(dateLabel, margin, yPos);
-	if (day.siteName) {
-		doc.text(day.siteName, pageWidth - margin, yPos, { align: 'right' });
-	}
-	yPos += 22;
+	doc.text(dateLabel, margin, yPos + 26);
 
+	yPos += bannerHeight + 8;
+
+	// Site name and org name below banner
+	doc.setTextColor(60);
+	doc.setFontSize(10);
+	if (day.siteName) {
+		doc.text(day.siteName, margin, yPos);
+	}
+	if (day.orgName) {
+		doc.text(day.orgName, pageWidth - margin, yPos, { align: 'right' });
+	}
+	yPos += 20;
+
+	// Yellow accent line
 	doc.setDrawColor(242, 192, 55);
 	doc.setLineWidth(2);
 	doc.line(margin, yPos, pageWidth - margin, yPos);
@@ -392,7 +418,7 @@ export async function generateDailyReportPDF(
 	const t = day.totals;
 	const totalsLine = [
 		`Tons placed: ${t.totalTons.toLocaleString(undefined, { maximumFractionDigits: 1 })}`,
-		`Paved: ${fmtFeet(t.totalDistanceFt)}`,
+		`Paved: ${formatFeet(t.totalDistanceFt)}`,
 		`Loads: ${t.totalLoads}`,
 		`Tack: ${Math.round(t.totalTackGallons)} gal`
 	];
@@ -478,7 +504,7 @@ export async function generateDailyReportPDF(
 		doc.text(e.entry_type, cols[1].x, yPos);
 		doc.text(station, cols[2].x, yPos);
 		doc.text(e.tons_placed != null ? String(e.tons_placed) : '—', cols[3].x, yPos);
-		doc.text(e.distance_ft != null ? fmtFeet(e.distance_ft) : '—', cols[4].x, yPos);
+		doc.text(e.distance_ft != null ? formatFeet(e.distance_ft) : '—', cols[4].x, yPos);
 		doc.text(e.spread_rate_actual != null ? String(Math.round(e.spread_rate_actual)) : '—', cols[5].x, yPos);
 		const detailLines = doc.splitTextToSize(detail || '—', pageWidth - margin - cols[6].x);
 		doc.text(detailLines, cols[6].x, yPos);
@@ -488,14 +514,14 @@ export async function generateDailyReportPDF(
 	// Per-Load Tickets section
 	if (day.loads && day.loads.length > 0) {
 		yPos += 10;
-		if (yPos > pageHeight - 80) {
+		if (yPos > pageHeight - 120) {
 			doc.addPage();
 			yPos = margin;
 		}
 		doc.setFontSize(13);
 		doc.setFont('helvetica', 'bold');
 		doc.setTextColor(0);
-		doc.text('Per-Load Tickets', margin, yPos);
+		doc.text('Load Tickets', margin, yPos);
 		yPos += 6;
 		doc.setDrawColor(242, 192, 55);
 		doc.setLineWidth(2);

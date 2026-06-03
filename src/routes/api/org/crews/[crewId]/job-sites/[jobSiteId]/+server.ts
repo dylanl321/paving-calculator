@@ -20,6 +20,9 @@ export async function DELETE(event: RequestEvent) {
 		}
 
 		const { crewId, jobSiteId } = event.params;
+		if (!crewId || !jobSiteId) {
+			return json({ error: 'Crew ID and job site ID are required' }, { status: 400 });
+		}
 		await db.removeJobSiteFromCrew(crewId, jobSiteId);
 
 		return json({ success: true });
