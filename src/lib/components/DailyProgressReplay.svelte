@@ -119,7 +119,7 @@
 		try {
 			const res = await fetch(`/api/job-sites/${site.id}/logs/${logId}/replay`);
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
-			const data = await res.json();
+			const data = (await res.json()) as { entries?: ReplayEntry[] };
 			// Include ALL entry types, but filter to only those with station data for mapping
 			entries = (data.entries ?? []).filter(
 				(e: ReplayEntry) => e.station_start != null && e.station_end != null

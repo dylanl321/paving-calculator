@@ -1569,8 +1569,8 @@
 					<WorkZoneMap
 						orgId={data.jobSite.org_id}
 						siteId={data.jobSite.id}
-						lat={data.jobSite.latitude}
-						lng={data.jobSite.longitude}
+						lat={data.jobSite.latitude!}
+						lng={data.jobSite.longitude!}
 					/>
 				{/await}
 			{/if}

@@ -75,7 +75,7 @@
 			const response = await fetch(`/api/org/${orgId}/crew-locations?${params}`);
 			if (!response.ok) throw new Error('Failed to fetch crew locations');
 
-			const data = await response.json();
+			const data = (await response.json()) as { locations?: DbCrewLocation[] };
 			locations = data.locations || [];
 		} catch (error) {
 			console.error('Failed to fetch crew locations:', error);

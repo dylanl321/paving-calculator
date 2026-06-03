@@ -7,7 +7,7 @@
 
 	interface Props {
 		orgId: string;
-		siteId: number;
+		siteId: string;
 		lat: number;
 		lng: number;
 		readonly?: boolean;

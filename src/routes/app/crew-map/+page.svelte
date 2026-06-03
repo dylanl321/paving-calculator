@@ -19,7 +19,11 @@
 		return param ? parseInt(param, 10) : undefined;
 	});
 
-	const mapCenter = $derived(jobSiteCoords ?? ALABAMA_CENTER);
+	const mapCenter = $derived<[number, number]>(
+		jobSiteCoords
+			? [jobSiteCoords.lat, jobSiteCoords.lng]
+			: [ALABAMA_CENTER.lat, ALABAMA_CENTER.lng]
+	);
 	const mapZoom = $derived(jobSiteCoords ? JOB_SITE_ZOOM : DEFAULT_ZOOM);
 
 	// Fetch job site info if job_site_id is provided
@@ -29,7 +33,11 @@
 		fetch(`/api/job-sites/${jobSiteId}`)
 			.then((res) => {
 				if (!res.ok) throw new Error('Failed to fetch job site');
-				return res.json();
+				return res.json() as Promise<{
+					name?: string;
+					latitude?: number | null;
+					longitude?: number | null;
+				}>;
 			})
 			.then((data) => {
 				jobSiteName = data.name || null;

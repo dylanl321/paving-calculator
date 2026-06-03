@@ -22,6 +22,7 @@ interface AuthResponse {
 
 export interface JobSite {
 	id: string;
+	org_id: string;
 	name: string;
 	status: string;
 	latitude: number | null;
