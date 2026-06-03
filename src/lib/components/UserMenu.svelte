@@ -3,6 +3,7 @@
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import { goto } from '$app/navigation';
 	import { scale } from 'svelte/transition';
+	import { getInitials } from '$lib/utils/format';
 
 	let {
 		direction = 'down',
@@ -24,15 +25,6 @@
 		orgSettingsStore.clear();
 		close();
 		goto('/');
-	}
-
-	function getInitials(name: string): string {
-		return name
-			.split(' ')
-			.map((n) => n[0])
-			.join('')
-			.toUpperCase()
-			.slice(0, 2);
 	}
 </script>
 

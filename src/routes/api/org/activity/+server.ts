@@ -102,7 +102,7 @@ export async function GET(event: RequestEvent) {
 
 		return json({ activity });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get activity error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

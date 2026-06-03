@@ -1,7 +1,6 @@
 <script lang="ts">
 	interface Load {
 		spread_rate: number | null;
-		[key: string]: any;
 	}
 
 	interface Props {

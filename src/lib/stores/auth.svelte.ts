@@ -11,7 +11,7 @@ interface OrgData {
 	id: string;
 	name: string;
 	slug: string;
-	role: 'owner' | 'admin' | 'member';
+	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man';
 }
 
 interface AuthState {
@@ -44,7 +44,7 @@ class AuthStore {
 		try {
 			const res = await fetch('/api/auth/me', { credentials: 'include' });
 			if (res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { user: UserData | null; org: OrgData | null };
 				this.#state.user = data.user;
 				this.#state.org = data.org;
 			} else {
@@ -69,7 +69,7 @@ class AuthStore {
 				credentials: 'include'
 			});
 
-			const data = await res.json();
+			const data = (await res.json()) as { error?: string };
 
 			if (!res.ok) {
 				return { error: data.error || 'Login failed' };
@@ -90,7 +90,7 @@ class AuthStore {
 				credentials: 'include'
 			});
 
-			const data = await res.json();
+			const data = (await res.json()) as { error?: string };
 
 			if (!res.ok) {
 				return { error: data.error || 'Dev login failed' };
@@ -118,7 +118,7 @@ class AuthStore {
 				credentials: 'include'
 			});
 
-			const data = await res.json();
+			const data = (await res.json()) as { error?: string };
 
 			if (!res.ok) {
 				return { error: data.error || 'Registration failed' };
