@@ -13,6 +13,7 @@
 	import { constantMeta } from '$lib/config';
 	import { stickCheck } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { calcHistory } from '$lib/stores/calcHistory.svelte';
 	import { onDestroy } from 'svelte';
 
 	// Stick check is self-contained: target compacted thickness in, loose out.
@@ -41,6 +42,21 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('stick-check'));
+
+	// ── History recording ─────────────────────────────────────────────────
+	let _lastStickRecorded = $state<string | null>(null);
+	$effect(() => {
+		if (loose == null) return;
+		const resultStr = `${loose.toFixed(2)} in loose`;
+		if (resultStr === _lastStickRecorded) return;
+		_lastStickRecorded = resultStr;
+		calcHistory.add({
+			toolId: 'stick-check',
+			toolLabel: 'Stick Check',
+			result: resultStr,
+			summary: `${target ?? '?'}in compacted`
+		});
+	});
 
 	function getProofData(): CalcProofData | null {
 		if (target == null || target <= 0 || loose == null) {

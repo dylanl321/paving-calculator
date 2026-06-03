@@ -13,6 +13,7 @@
 	import { spreadRateFromThickness, tonnageToOrder } from '$lib/config/formulas';
 	import { constantMeta } from '$lib/config';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { calcHistory } from '$lib/stores/calcHistory.svelte';
 	import { onDestroy } from 'svelte';
 	import { unitsStore } from '$lib/stores/units.svelte';
 	import {
@@ -67,6 +68,21 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('tonnage'));
+
+	// ── History recording ─────────────────────────────────────────────────
+	let _lastTonnageRecorded = $state<string | null>(null);
+	$effect(() => {
+		if (tons == null) return;
+		const resultStr = `${tons.toFixed(1)} tons`;
+		if (resultStr === _lastTonnageRecorded) return;
+		_lastTonnageRecorded = resultStr;
+		calcHistory.add({
+			toolId: 'tonnage',
+			toolLabel: 'Tonnage',
+			result: resultStr,
+			summary: `${lengthInput ?? '?'}ft \u00d7 ${job.widthFt}ft wide \u00d7 ${job.thicknessIn}in`
+		});
+	});
 
 	const displayTons = $derived(
 		tons != null && unitsStore.system === 'metric' ? toMetricTonnes(tons) : tons
