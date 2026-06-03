@@ -9,7 +9,7 @@
 //
 // Persisted to localStorage. A single "current day" is kept; when the calendar
 // date rolls over, the previous day is archived and a fresh day starts.
-import { spreadRateFromThickness } from '$lib/config/formulas';
+import { spreadRateFromThickness, actualSpreadRate } from '$lib/config/formulas';
 
 const STORAGE_KEY = 'paverate.today.v1';
 
@@ -393,8 +393,11 @@ class Today {
 
 		let actualRate: number | null = null;
 		if (total_distance_ft > 0 && widthFt > 0) {
-			const sy = (total_distance_ft * widthFt) / 9;
-			if (sy > 0) actualRate = (total_tons * 2000) / sy;
+			actualRate = actualSpreadRate({
+				tons: total_tons,
+				distanceFt: total_distance_ft,
+				widthFt
+			});
 		}
 
 		let diffPct: number | null = null;

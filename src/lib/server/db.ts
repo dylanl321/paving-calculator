@@ -1,4 +1,5 @@
 import type { D1Database } from '../../cloudflare';
+import { toHex } from '$lib/utils/format';
 
 export interface DbUser {
 	id: string;
@@ -550,7 +551,7 @@ export class DbHelper {
 	async createSession(userId: string, expiresAt: number): Promise<string> {
 		const tokenBytes = new Uint8Array(32);
 		crypto.getRandomValues(tokenBytes);
-		const token = Array.from(tokenBytes, (b) => b.toString(16).padStart(2, '0')).join('');
+		const token = toHex(tokenBytes);
 		const now = Math.floor(Date.now() / 1000);
 
 		await this.db
@@ -821,7 +822,7 @@ export class DbHelper {
 		const id = crypto.randomUUID();
 		const tokenBytes = new Uint8Array(32);
 		crypto.getRandomValues(tokenBytes);
-		const token = Array.from(tokenBytes, (b) => b.toString(16).padStart(2, '0')).join('');
+		const token = toHex(tokenBytes);
 		const now = Math.floor(Date.now() / 1000);
 		const expiresAt = now + 7 * 24 * 60 * 60; // 7 days
 
