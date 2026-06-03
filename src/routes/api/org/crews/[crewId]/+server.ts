@@ -20,7 +20,7 @@ export async function DELETE(event: RequestEvent) {
 
 		const { crewId } = event.params;
 		if (!crewId) return json({ error: 'Crew ID is required' }, { status: 400 });
-		await db.deleteCrew(crewId, org.id);
+		await db.deleteCrew(crewId);
 
 		return json({ success: true });
 	} catch (error) {

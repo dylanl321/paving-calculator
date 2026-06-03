@@ -14,8 +14,8 @@
 				return;
 			}
 
-			const userData = await res.json();
-			userRole = userData.org?.role;
+			const userData = (await res.json()) as { org?: { role?: string | null } };
+			userRole = userData.org?.role ?? null;
 
 			if (userRole !== 'owner' && userRole !== 'admin') {
 				goto('/dashboard');

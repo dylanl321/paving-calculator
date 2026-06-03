@@ -35,7 +35,7 @@
 				credentials: 'include'
 			});
 			if (loadsRes.ok) {
-				const loadsData = await loadsRes.json();
+				const loadsData = (await loadsRes.json()) as { loads?: DbLoad[] };
 				loads = loadsData.loads || [];
 			}
 
@@ -44,7 +44,7 @@
 				credentials: 'include'
 			});
 			if (logsRes.ok) {
-				const logsData = await logsRes.json();
+				const logsData = (await logsRes.json()) as { logs?: DbDailyLog[] };
 				logs = logsData.logs || [];
 			}
 		} catch (e) {

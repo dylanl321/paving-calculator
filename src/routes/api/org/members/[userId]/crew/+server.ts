@@ -25,10 +25,10 @@ export async function PATCH(event: RequestEvent) {
 
 		if (crew_id === null || crew_id === undefined || crew_id === '') {
 			// Remove member from crew
-			await db.removeMemberFromCrew(userId, org.id);
+			await db.removeCrewMember(userId, org.id);
 		} else {
 			// Assign member to crew
-			await db.assignMemberToCrew(crew_id, userId, org.id);
+			await db.setCrewMember(crew_id, userId, org.id);
 		}
 
 		return json({ success: true });

@@ -173,10 +173,10 @@
 			error = null;
 			const res = await fetch('/api/org/map-sites', { credentials: 'include' });
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { error?: string };
 				throw new Error(data.error || 'Failed to fetch sites');
 			}
-			const data = await res.json();
+			const data = (await res.json()) as { sites: MapSite[] };
 			sites = data.sites;
 			lastUpdated = new Date();
 			loading = false;

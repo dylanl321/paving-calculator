@@ -18,16 +18,11 @@ export default defineConfig({
 	},
 	build: {
 		rollupOptions: {
-			external: ['leaflet', /^leaflet\//]
+			external: ['leaflet', 'leaflet/dist/leaflet.css']
 		}
 	},
 	ssr: {
 		noExternal: ['leaflet']
-	},
-	build: {
-		rollupOptions: {
-			external: ['leaflet', 'leaflet/dist/leaflet.css']
-		}
 	},
 	plugins: [
 		yaml(),

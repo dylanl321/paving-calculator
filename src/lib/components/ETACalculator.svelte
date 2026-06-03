@@ -57,7 +57,7 @@
 				credentials: 'include'
 			});
 			if (res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { loads: DbLoad[] };
 				loads = data.loads;
 			} else {
 				error = true;

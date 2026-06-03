@@ -8,7 +8,7 @@ export const load: PageLoad = async ({ fetch }) => {
 		throw redirect(302, '/login');
 	}
 
-	const data = await res.json();
+	const data = (await res.json()) as { user?: unknown; org?: unknown };
 
 	return {
 		user: data.user,

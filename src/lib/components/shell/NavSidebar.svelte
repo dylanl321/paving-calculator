@@ -41,7 +41,7 @@
 			}
 			if (item.authed && !authStore.isAuthenticated) return false;
 			if (item.adminOnly) {
-				const role = authStore.user?.role;
+				const role = authStore.org?.role;
 				return role === 'admin' || role === 'owner';
 			}
 			return true;
