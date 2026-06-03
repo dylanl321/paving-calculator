@@ -239,7 +239,11 @@
 			<Search size={20} aria-hidden="true" />
 		</button>
 		<ThemeToggle />
-		<UserMenu />
+		{#if authStore.isAuthenticated}
+			<UserMenu />
+		{:else}
+			<a href="/login" class="mobile-signin-btn">Sign In</a>
+		{/if}
 	</div>
 </header>
 
@@ -268,6 +272,13 @@
 			<span class="brand-tag">{config.app.tagline}</span>
 		</div>
 	</div>
+
+	{#if !authStore.isAuthenticated && !authStore.loading}
+		<div class="signin-cta">
+			<a href="/login" class="signin-cta-btn">Sign In</a>
+			<a href="/register" class="signin-cta-link">Create account</a>
+		</div>
+	{/if}
 
 	{#snippet navIcon(icon: string)}
 		{#if icon === 'calc'}
@@ -457,6 +468,81 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
+	}
+
+	/* ---- Mobile Sign In button (unauthenticated state) ---- */
+	.mobile-signin-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 80px;
+		min-height: 48px;
+		padding: 0 16px;
+		background: var(--accent);
+		border-radius: 10px;
+		color: var(--accent-text);
+		font-weight: 700;
+		font-size: 0.875rem;
+		white-space: nowrap;
+		transition:
+			opacity var(--dur-normal) var(--ease),
+			transform var(--dur-fast) var(--ease);
+	}
+
+	.mobile-signin-btn:hover {
+		opacity: 0.9;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.mobile-signin-btn:active {
+			transform: scale(0.96);
+		}
+	}
+
+	/* ---- Sidebar Sign In CTA (unauthenticated state) ---- */
+	.signin-cta {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 14px 16px;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.signin-cta-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 48px;
+		background: var(--accent);
+		border-radius: 10px;
+		color: var(--accent-text);
+		font-weight: 700;
+		font-size: 0.9375rem;
+		text-align: center;
+		transition:
+			opacity var(--dur-normal) var(--ease),
+			transform var(--dur-fast) var(--ease);
+	}
+
+	.signin-cta-btn:hover {
+		opacity: 0.9;
+	}
+
+	.signin-cta-link {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 40px;
+		background: transparent;
+		border-radius: 10px;
+		color: var(--text-muted);
+		font-size: 0.875rem;
+		text-align: center;
+		transition: color var(--dur-normal) var(--ease);
+	}
+
+	.signin-cta-link:hover {
+		color: var(--text);
 	}
 
 	/* ---- Scrim ---- */
