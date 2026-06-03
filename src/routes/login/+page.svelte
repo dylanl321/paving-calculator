@@ -9,20 +9,42 @@
 
 	let email = $state('');
 	let password = $state('');
-	let error = $state('');
+
+	// General server-error banner
+	let serverError = $state('');
+	// Per-field inline errors
+	let fieldErrors = $state<Record<string, string>>({});
 	let loading = $state(false);
 
 	const resetSuccess = $page.url.searchParams.get('reset') === 'success';
 
+	function validateFields(): boolean {
+		const errs: Record<string, string> = {};
+		if (!email.trim()) {
+			errs.email = 'Email is required.';
+		} else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+			errs.email = 'Enter a valid email address.';
+		}
+		if (!password) {
+			errs.password = 'Password is required.';
+		}
+		fieldErrors = errs;
+		return Object.keys(errs).length === 0;
+	}
+
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
-		error = '';
+		serverError = '';
+		fieldErrors = {};
+
+		if (!validateFields()) return;
+
 		loading = true;
 
 		const result = await authStore.login(email, password);
 
 		if (result.error) {
-			error = result.error;
+			serverError = result.error;
 			toastStore.error(result.error);
 			loading = false;
 		} else {
@@ -32,13 +54,14 @@
 	}
 
 	async function handleDevLogin() {
-		error = '';
+		serverError = '';
+		fieldErrors = {};
 		loading = true;
 
 		const result = await authStore.devLogin();
 
 		if (result.error) {
-			error = result.error;
+			serverError = result.error;
 			toastStore.error(result.error);
 			loading = false;
 		} else {
@@ -129,43 +152,69 @@
 				<p>Sign in to manage your job sites and daily logs.</p>
 			</div>
 
-			<form onsubmit={handleSubmit}>
-				{#if resetSuccess}
-					<div class="success-message">
-						Password reset successful! You can now sign in with your new password.
-					</div>
-				{/if}
+			{#if resetSuccess}
+				<div class="success-banner" role="status">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+						<polyline points="22 4 12 14.01 9 11.01"/>
+					</svg>
+					Password reset successful! You can now sign in with your new password.
+				</div>
+			{/if}
 
-				<div class="form-field">
+			{#if serverError}
+				<div class="error-banner" role="alert">
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<circle cx="12" cy="12" r="10"/>
+						<line x1="12" y1="8" x2="12" y2="12"/>
+						<line x1="12" y1="16" x2="12.01" y2="16"/>
+					</svg>
+					{serverError}
+				</div>
+			{/if}
+
+			<form onsubmit={handleSubmit} novalidate>
+				<div class="form-field" class:has-error={!!fieldErrors.email}>
 					<label for="email">Email</label>
 					<input
 						type="email"
 						id="email"
 						bind:value={email}
-						required
 						autocomplete="email"
 						placeholder="you@company.com"
+						aria-describedby={fieldErrors.email ? 'email-error' : undefined}
+						aria-invalid={!!fieldErrors.email}
 					/>
+					{#if fieldErrors.email}
+						<p class="field-error" id="email-error" role="alert">{fieldErrors.email}</p>
+					{/if}
 				</div>
 
-				<div class="form-field">
+				<div class="form-field" class:has-error={!!fieldErrors.password}>
 					<label for="password">Password</label>
 					<input
 						type="password"
 						id="password"
 						bind:value={password}
-						required
 						autocomplete="current-password"
 						placeholder="••••••••"
+						aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+						aria-invalid={!!fieldErrors.password}
 					/>
+					{#if fieldErrors.password}
+						<p class="field-error" id="password-error" role="alert">{fieldErrors.password}</p>
+					{/if}
 				</div>
 
-				{#if error}
-					<div class="error-message">{error}</div>
-				{/if}
-
 				<button type="submit" class="submit-btn" disabled={loading}>
-					{loading ? 'Signing in…' : 'Sign In'}
+					{#if loading}
+						<svg class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+							<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+						</svg>
+						Signing in...
+					{:else}
+						Sign In
+					{/if}
 				</button>
 
 				<div class="forgot-link">
@@ -319,6 +368,38 @@
 		line-height: 1.4;
 	}
 
+	/* ---- Banners ---- */
+	.error-banner,
+	.success-banner {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		padding: 12px 16px;
+		border-radius: var(--radius);
+		font-size: 0.9rem;
+		margin-bottom: 20px;
+		line-height: 1.4;
+	}
+
+	.error-banner {
+		background: rgba(var(--bad-rgb, 220, 80, 80), 0.18);
+		border: 1px solid var(--bad);
+		color: var(--bad);
+	}
+
+	.success-banner {
+		background: color-mix(in srgb, var(--good) 18%, transparent);
+		border: 1px solid var(--good);
+		color: var(--good);
+	}
+
+	.error-banner svg,
+	.success-banner svg {
+		flex-shrink: 0;
+		margin-top: 1px;
+	}
+
+	/* ---- Form fields ---- */
 	.form-field {
 		margin-bottom: 20px;
 	}
@@ -336,10 +417,11 @@
 		min-height: var(--touch);
 		padding: 0 16px;
 		background: var(--bg);
-		border: 1px solid var(--border);
+		border: 1.5px solid var(--border);
 		border-radius: var(--radius);
 		color: var(--text);
 		font-size: 1rem;
+		box-sizing: border-box;
 		transition:
 			border-color 0.18s,
 			box-shadow 0.18s,
@@ -358,30 +440,32 @@
 		box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 	}
 
-	.error-message {
-		padding: 12px 16px;
-		background: rgba(var(--bad-rgb), 0.18);
-		border: 1px solid var(--bad);
-		border-radius: var(--radius);
+	/* Red border + glow on invalid field */
+	.form-field.has-error input {
+		border-color: var(--bad);
+		background: rgba(var(--bad-rgb, 220, 80, 80), 0.06);
+	}
+
+	.form-field.has-error input:focus {
+		border-color: var(--bad);
+		box-shadow: 0 0 0 3px rgba(var(--bad-rgb, 220, 80, 80), 0.2);
+	}
+
+	.field-error {
+		margin: 6px 0 0;
+		font-size: 0.8rem;
 		color: var(--bad);
-		font-size: 0.9rem;
-		margin-bottom: 20px;
 	}
 
-	.success-message {
-		padding: 12px 16px;
-		background: color-mix(in srgb, var(--good) 18%, transparent);
-		border: 1px solid var(--good);
-		border-radius: var(--radius);
-		color: var(--good);
-		font-size: 0.9rem;
-		margin-bottom: 20px;
-	}
-
+	/* ---- Submit button ---- */
 	.submit-btn {
 		width: 100%;
 		min-height: var(--touch);
 		margin-top: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
 		background: var(--accent);
 		color: var(--accent-text);
 		border: none;
@@ -408,6 +492,17 @@
 	.submit-btn:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
+	}
+
+	/* Spinner animation */
+	.spinner {
+		animation: spin 0.9s linear infinite;
+		flex-shrink: 0;
+	}
+
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
 	}
 
 	.forgot-link {
@@ -485,6 +580,7 @@
 		border: 1px solid rgba(159, 176, 189, 0.18);
 		backdrop-filter: blur(10px);
 		-webkit-backdrop-filter: blur(10px);
+		min-height: var(--touch);
 		transition:
 			color 0.18s,
 			background 0.18s,
