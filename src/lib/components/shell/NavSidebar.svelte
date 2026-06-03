@@ -5,6 +5,7 @@
 	import { config } from '$lib/config';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
+	import { navCollapsedStore } from '$lib/stores/navCollapsed.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import UserMenu from '$lib/components/UserMenu.svelte';
 	import { fade } from 'svelte/transition';
@@ -19,8 +20,13 @@
 		Users,
 		Settings,
 		Map,
-		ChevronDown
+		ChevronDown,
+		PanelLeftClose,
+		PanelLeftOpen,
+		Search
 	} from 'lucide-svelte';
+
+	let { onOpenPalette = () => {} }: { onOpenPalette?: () => void } = $props();
 
 	let drawerOpen = $state(false);
 	let sidebarEl = $state<HTMLElement | null>(null);
@@ -224,6 +230,14 @@
 		<span>{brandName}</span>
 	</a>
 	<div class="mobile-actions">
+		<button
+			class="cmd-trigger-btn"
+			onclick={onOpenPalette}
+			aria-label="Open command palette"
+			title="Search (Ctrl+K)"
+		>
+			<Search size={20} aria-hidden="true" />
+		</button>
 		<ThemeToggle />
 		<UserMenu />
 	</div>
@@ -243,6 +257,7 @@
 <nav
 	class="sidebar"
 	class:open={drawerOpen}
+	class:nav-collapsed={navCollapsedStore.collapsed}
 	aria-label="Primary"
 	bind:this={sidebarEl}
 >
@@ -348,6 +363,30 @@
 		<div class="footer-actions">
 			<ThemeToggle />
 			<UserMenu direction="up" align="left" />
+		</div>
+		<div class="footer-tools">
+			<button
+				class="cmd-trigger-btn"
+				onclick={onOpenPalette}
+				aria-label="Open command palette"
+				title="Search (Ctrl+K / Cmd+K)"
+			>
+				<Search size={18} aria-hidden="true" />
+				<span class="cmd-trigger-label">Search</span>
+				<kbd class="cmd-kbd">⌘K</kbd>
+			</button>
+			<button
+				class="collapse-btn"
+				onclick={() => navCollapsedStore.toggle()}
+				aria-label={navCollapsedStore.collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+				title={navCollapsedStore.collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+			>
+				{#if navCollapsedStore.collapsed}
+					<PanelLeftOpen size={18} aria-hidden="true" />
+				{:else}
+					<PanelLeftClose size={18} aria-hidden="true" />
+				{/if}
+			</button>
 		</div>
 		{#if orgSettingsStore.orgName}
 			<a href="/app" class="powered-by">
@@ -636,6 +675,33 @@
 		flex-shrink: 0;
 	}
 
+	.footer-tools {
+		display: none;
+	}
+
+	.cmd-trigger-btn {
+		display: none;
+	}
+
+	/* Mobile bar search button is always visible on mobile */
+	.mobile-bar .cmd-trigger-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 48px;
+		min-height: 48px;
+		background: none;
+		border: 0;
+		color: var(--text);
+		cursor: pointer;
+		border-radius: 10px;
+		transition: background var(--dur-normal) var(--ease);
+	}
+
+	.mobile-bar .cmd-trigger-btn:hover {
+		background: var(--surface-hover);
+	}
+
 	/* ---- Tablet: static icon rail ---- */
 	@media (min-width: 768px) {
 		.mobile-bar,
@@ -742,6 +808,148 @@
 
 		.powered-by span {
 			display: inline;
+		}
+
+		.footer-tools {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			margin-top: 8px;
+		}
+
+		.cmd-trigger-btn {
+			flex: 1;
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			min-height: 36px;
+			padding: 0 10px;
+			background: var(--surface-alt);
+			border: 1px solid var(--border);
+			border-radius: 8px;
+			color: var(--text-muted);
+			cursor: pointer;
+			font-size: 0.85rem;
+			font-family: inherit;
+			transition: background var(--dur-normal) var(--ease), color var(--dur-normal) var(--ease);
+		}
+
+		.cmd-trigger-btn:hover {
+			background: var(--surface-hover);
+			color: var(--text);
+		}
+
+		.cmd-trigger-label {
+			flex: 1;
+			text-align: left;
+		}
+
+		.cmd-kbd {
+			font-size: 0.7rem;
+			color: var(--text-muted);
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-radius: 4px;
+			padding: 1px 4px;
+			font-family: inherit;
+		}
+
+		.collapse-btn {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			min-width: 36px;
+			min-height: 36px;
+			background: var(--surface-alt);
+			border: 1px solid var(--border);
+			border-radius: 8px;
+			color: var(--text-muted);
+			cursor: pointer;
+			transition: background var(--dur-normal) var(--ease), color var(--dur-normal) var(--ease);
+		}
+
+		.collapse-btn:hover {
+			background: var(--surface-hover);
+			color: var(--text);
+		}
+	}
+
+	/* Collapsed state on desktop: hide labels, center icons */
+	:global(.sidebar-collapsed) .sidebar {
+		width: var(--sidebar-rail-w) !important;
+	}
+
+	@media (min-width: 1100px) {
+		:global(body.nav-collapsed) .sidebar,
+		.sidebar.nav-collapsed {
+			width: var(--sidebar-rail-w);
+		}
+
+		.sidebar.nav-collapsed .brand {
+			justify-content: center;
+			padding: 18px 8px;
+		}
+
+		.sidebar.nav-collapsed .brand-text {
+			display: none;
+		}
+
+		.sidebar.nav-collapsed .nav-link {
+			justify-content: center;
+			padding: 0;
+		}
+
+		.sidebar.nav-collapsed .nav-label {
+			display: none;
+		}
+
+		.sidebar.nav-collapsed .nav-row {
+			gap: 0;
+		}
+
+		.sidebar.nav-collapsed .nav-expand {
+			display: none;
+		}
+
+		.sidebar.nav-collapsed .nav-sublist {
+			margin: 4px 0;
+			padding: 0;
+			border-left: 0;
+			gap: 4px;
+		}
+
+		.sidebar.nav-collapsed .nav-sublink {
+			min-height: 48px;
+		}
+
+		.sidebar.nav-collapsed .footer-actions {
+			flex-direction: column;
+			gap: 10px;
+		}
+
+		.sidebar.nav-collapsed .footer-tools {
+			flex-direction: column;
+		}
+
+		.sidebar.nav-collapsed .cmd-trigger-btn {
+			flex: none;
+			min-width: 36px;
+			min-height: 36px;
+			padding: 0;
+			justify-content: center;
+		}
+
+		.sidebar.nav-collapsed .cmd-trigger-label,
+		.sidebar.nav-collapsed .cmd-kbd {
+			display: none;
+		}
+
+		.sidebar.nav-collapsed .powered-by {
+			justify-content: center;
+		}
+
+		.sidebar.nav-collapsed .powered-by span {
+			display: none;
 		}
 	}
 </style>
