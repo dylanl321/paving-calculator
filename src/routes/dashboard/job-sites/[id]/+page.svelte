@@ -2,54 +2,69 @@
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
-	import { searchPlaces, type GeoResult } from '$lib/services/weather';
 	import type { PageData } from './$types';
 	import { MapPin } from 'lucide-svelte';
 	import LoadTracker from '$lib/components/LoadTracker.svelte';
+	import TruckQueue from '$lib/components/TruckQueue.svelte';
+	import SpreadRateHistogram from '$lib/components/SpreadRateHistogram.svelte';
+	import WasteYieldAnalysis from '$lib/components/WasteYieldAnalysis.svelte';
+	import ETACalculator from '$lib/components/ETACalculator.svelte';
+	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
+	import { spreadToleranceFor } from '$lib/config';
+	import { job } from '$lib/stores/job.svelte';
 
 	let { data }: { data: PageData } = $props();
 
-	let activeTab = $state('overview');
-
-	// Location / coordinates state
-	let locationQuery = $state('');
-	let locationResults = $state<GeoResult[]>([]);
-	let locationSearching = $state(false);
-	let locationSaving = $state(false);
-	let locationSearchTimer: ReturnType<typeof setTimeout> | undefined;
-	let showLocationSearch = $state(false);
-
-	function onLocationInput() {
-		clearTimeout(locationSearchTimer);
-		if (locationQuery.trim().length < 2) {
-			locationResults = [];
-			return;
-		}
-		locationSearchTimer = setTimeout(async () => {
-			locationSearching = true;
-			try {
-				locationResults = await searchPlaces(locationQuery);
-			} catch {
-				locationResults = [];
-			} finally {
-				locationSearching = false;
-			}
-		}, 300);
+	interface Photo {
+		id: string;
+		filename: string;
+		caption?: string | null;
+		taken_at: number;
+		lat?: number | null;
+		lng?: number | null;
+	}
+	interface PhotosResponse {
+		photos?: Photo[];
+	}
+	interface EquipmentItem {
+		id: string;
+		equipment_type: string;
+		name: string;
+		capacity?: string | null;
+		notes?: string | null;
+	}
+	interface EquipmentResponse {
+		equipment: EquipmentItem;
+	}
+	interface MilestoneItem {
+		id: string;
+		name: string;
+		description?: string | null;
+		status: 'pending' | 'in_progress' | 'completed';
+		target_date?: string | null;
+	}
+	interface MilestoneResponse {
+		milestone: MilestoneItem;
 	}
 
-	async function saveCoordinates(place: GeoResult) {
+	let activeTab = $state('overview');
+
+	// Location / coordinates state — driven by JobSiteLocationPicker
+	let pickerLat = $state<number | null>(data.jobSite.latitude ?? null);
+	let pickerLng = $state<number | null>(data.jobSite.longitude ?? null);
+	let locationSaving = $state(false);
+	let showLocationSearch = $state(false);
+
+	async function handleLocationChange(lat: number | null, lng: number | null) {
 		locationSaving = true;
-		locationResults = [];
-		locationQuery = '';
-		showLocationSearch = false;
 		try {
 			await fetch(`/api/job-sites/${data.jobSite.id}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ latitude: place.latitude, longitude: place.longitude }),
+				body: JSON.stringify({ latitude: lat, longitude: lng }),
 				credentials: 'include'
 			});
-			// Reload to get updated data
+			// Reload to reflect updated coords throughout the page
 			goto(`/dashboard/job-sites/${data.jobSite.id}`);
 		} catch {
 			// ignore
@@ -59,13 +74,7 @@
 	}
 
 	async function clearCoordinates() {
-		await fetch(`/api/job-sites/${data.jobSite.id}`, {
-			method: 'PATCH',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ latitude: null, longitude: null }),
-			credentials: 'include'
-		});
-		goto(`/dashboard/job-sites/${data.jobSite.id}`);
+		await handleLocationChange(null, null);
 	}
 	let configForm = $state({
 		road_type: data.config?.road_type || null,
@@ -117,7 +126,7 @@
 		try {
 			const res = await fetch(`/api/job-sites/${data.jobSite.id}/photos`);
 			if (!res.ok) return;
-			const result = await res.json();
+			const result = (await res.json()) as PhotosResponse;
 			photos = result.photos ?? [];
 			renderPhotoGrid();
 		} catch {
@@ -163,7 +172,7 @@
 		selectedPhoto = null;
 	}
 
-	const roadTypeLabels = {
+	const roadTypeLabels: Record<string, string> = {
 		highway: 'Highway',
 		state_route: 'State Route',
 		county_road: 'County Road',
@@ -173,7 +182,7 @@
 		other: 'Other'
 	};
 
-	const scopeOfWorkLabels = {
+	const scopeOfWorkLabels: Record<string, string> = {
 		full_depth: 'Full Depth',
 		mill_and_fill: 'Mill & Fill',
 		overlay: 'Overlay',
@@ -182,14 +191,14 @@
 		widening: 'Widening'
 	};
 
-	const tackTypeLabels = {
+	const tackTypeLabels: Record<string, string> = {
 		anionic: 'Anionic',
 		cationic: 'Cationic',
 		polymer_modified: 'Polymer Modified',
 		trackless: 'Trackless'
 	};
 
-	const equipmentTypeLabels = {
+	const equipmentTypeLabels: Record<string, string> = {
 		paver: 'Paver',
 		shuttle_buggy: 'Shuttle Buggy',
 		roller_breakdown: 'Breakdown Roller',
@@ -243,7 +252,7 @@
 
 			if (!res.ok) throw new Error('Failed to add equipment');
 
-			const { equipment } = await res.json();
+			const { equipment } = (await res.json()) as EquipmentResponse;
 			equipmentList = [...equipmentList, equipment];
 
 			newEquipment = {
@@ -291,7 +300,7 @@
 
 			if (!res.ok) throw new Error('Failed to create milestone');
 
-			const { milestone } = await res.json();
+			const { milestone } = (await res.json()) as MilestoneResponse;
 			milestones = [...milestones, milestone];
 
 			milestoneForm = {
@@ -320,7 +329,7 @@
 
 			if (!res.ok) throw new Error('Failed to update milestone');
 
-			const { milestone } = await res.json();
+			const { milestone } = (await res.json()) as MilestoneResponse;
 			milestones = milestones.map((m) => (m.id === id ? milestone : m));
 		} catch (err) {
 			console.error(err);
@@ -829,6 +838,31 @@
 							/>
 						{/await}
 					</div>
+
+					<div class="progress-map-section">
+						<div class="progress-map-head">
+							<h4>Spread Rate Map</h4>
+							<span class="progress-map-sub">Color-coded by spread rate vs target</span>
+						</div>
+						{#await import('$lib/components/SpreadRateHeatMap.svelte')}
+							<div class="map-mini-loading">Loading spread rate map&hellip;</div>
+						{:then { default: SpreadRateHeatMap }}
+							<SpreadRateHeatMap
+								site={{
+									id: data.jobSite.id,
+									name: data.jobSite.name,
+									status: data.jobSite.status,
+									latitude: data.jobSite.latitude,
+									longitude: data.jobSite.longitude,
+									location_description: data.jobSite.location_description
+								}}
+								waypoints={data.routeWaypoints}
+								targetRate={configForm.target_spread_rate}
+								toleranceLbsSy={5}
+								height="320px"
+							/>
+						{/await}
+					</div>
 				{/if}
 
 				{#if data.jobSite.latitude != null && data.jobSite.longitude != null}
@@ -861,45 +895,43 @@
 					</div>
 				{/if}
 			{:else}
-				{#if showLocationSearch || data.jobSite.latitude == null}
-					<div class="location-search">
-						<input
-							type="search"
-							class="location-input"
-							placeholder="Search city or address&hellip;"
-							bind:value={locationQuery}
-							oninput={onLocationInput}
-							autocomplete="off"
-						/>
-						{#if locationSearching}
-							<p class="location-hint">Searching&hellip;</p>
-						{:else if locationResults.length > 0}
-							<ul class="location-results">
-								{#each locationResults as place (place.latitude + ',' + place.longitude)}
-									<li>
-										<button
-											type="button"
-											class="location-result-btn"
-											onclick={() => saveCoordinates(place)}
-											disabled={locationSaving}
-										>
-											{place.name}{#if place.admin1}, {place.admin1}{/if}
-											{#if place.country && place.country !== 'United States'}, {place.country}{/if}
-										</button>
-									</li>
-								{/each}
-							</ul>
-						{:else if locationQuery.length >= 2}
-							<p class="location-hint">No results found.</p>
-						{:else if data.jobSite.latitude == null}
-							<p class="location-hint">Set a map pin to show this site on the dashboard map.</p>
-						{/if}
-					</div>
+				<!-- Location picker: shown when no coords yet, or when "Change" is clicked -->
+				<JobSiteLocationPicker
+					bind:latitude={pickerLat}
+					bind:longitude={pickerLng}
+					onchange={handleLocationChange}
+					mapHeight="280px"
+					showMapEager={showLocationSearch}
+				/>
+				{#if locationSaving}
+					<p class="location-saving">Saving&hellip;</p>
 				{/if}
 			{/if}
 		</section>
 
-		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
+		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} numLanes={data.config?.num_lanes} targetTonnage={configForm.total_tonnage || estTonnage || null} />
+
+		<WasteYieldAnalysis
+			jobSiteId={data.jobSite.id}
+			plannedTonnage={configForm.total_tonnage || estTonnage || null}
+			isAuthenticated={!!data.user}
+		/>
+
+		<ETACalculator
+			jobSiteId={data.jobSite.id}
+			targetTonnage={configForm.total_tonnage || estTonnage || null}
+			isAuthenticated={!!data.user}
+			latitude={data.jobSite.latitude}
+			longitude={data.jobSite.longitude}
+		/>
+
+		<TruckQueue jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
+
+		<SpreadRateHistogram
+			jobSiteId={data.jobSite.id}
+			targetRate={configForm.target_spread_rate}
+			toleranceLbsSy={spreadToleranceFor(job.courseType).toleranceLbsSy}
+		/>
 
 		<section class="panel">
 			<div class="panel-head">
@@ -2447,6 +2479,12 @@
 	.location-result-btn:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
+	}
+
+	.location-saving {
+		margin: var(--sp-2) 0 0;
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
 	}
 
 	.map-mini-loading {

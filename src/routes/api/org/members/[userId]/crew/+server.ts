@@ -19,6 +19,7 @@ export async function PATCH(event: RequestEvent) {
 		}
 
 		const { userId } = event.params;
+		if (!userId) return json({ error: 'User ID is required' }, { status: 400 });
 		const body = await event.request.json();
 		const { crew_id } = body;
 

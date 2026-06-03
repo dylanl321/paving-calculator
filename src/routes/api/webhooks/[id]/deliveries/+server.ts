@@ -17,7 +17,9 @@ export async function GET(event: RequestEvent) {
 			return json({ error: 'Only owners and admins can view webhook deliveries' }, { status: 403 });
 		}
 
-		const webhook = await db.getWebhookById(event.params.id);
+		const { id } = event.params;
+		if (!id) return json({ error: 'Webhook ID is required' }, { status: 400 });
+		const webhook = await db.getWebhookById(id);
 		if (!webhook) {
 			return json({ error: 'Webhook not found' }, { status: 404 });
 		}
@@ -33,7 +35,7 @@ export async function GET(event: RequestEvent) {
 			return json({ error: 'Invalid status filter. Must be pending, delivered, or failed' }, { status: 400 });
 		}
 
-		const deliveries = await db.getWebhookDeliveries(event.params.id, statusFilter, 50);
+		const deliveries = await db.getWebhookDeliveries(id, statusFilter, 50);
 
 		return json({
 			deliveries: deliveries.map((delivery) => ({

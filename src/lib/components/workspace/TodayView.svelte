@@ -6,8 +6,44 @@
 	import { fetchJobSites, pushTodayToCloud, pullFromCloud, type JobSiteOption } from '$lib/services/todaySync';
 	import TodaySummary from './TodaySummary.svelte';
 	import TimeInput from '$lib/components/TimeInput.svelte';
+	import DailyTarget from './DailyTarget.svelte';
+	import { formatFeet } from '$lib/utils/format';
 
 	const entries = $derived(today.entries);
+
+	// ---- Date navigation ----
+	let selectedDate = $state(todayDate());
+	const isViewingToday = $derived(selectedDate === todayDate());
+	const isViewingPast = $derived(selectedDate < todayDate());
+
+	function todayDate(): string {
+		return new Date().toISOString().split('T')[0];
+	}
+
+	function formatSelectedDate(dateStr: string): string {
+		const d = new Date(dateStr + 'T00:00:00');
+		return d.toLocaleDateString('en-US', {
+			weekday: 'short',
+			month: 'short',
+			day: 'numeric'
+		});
+	}
+
+	function goPrevDay() {
+		const d = new Date(selectedDate + 'T00:00:00');
+		d.setDate(d.getDate() - 1);
+		selectedDate = d.toISOString().split('T')[0];
+	}
+
+	function goNextDay() {
+		const d = new Date(selectedDate + 'T00:00:00');
+		d.setDate(d.getDate() + 1);
+		selectedDate = d.toISOString().split('T')[0];
+	}
+
+	function jumpToToday() {
+		selectedDate = todayDate();
+	}
 
 	// ---- Cloud sync (only when signed in) ----
 	let jobSites = $state<JobSiteOption[]>([]);
@@ -217,12 +253,6 @@
 		note: '📝'
 	};
 
-	function fmtFeet(ft: number | null): string {
-		if (ft == null) return '';
-		if (ft >= 5280) return `${(ft / 5280).toFixed(2)} mi`;
-		return `${Math.round(ft).toLocaleString()} ft`;
-	}
-
 	const dateLabel = $derived(
 		new Date(today.date + 'T00:00:00').toLocaleDateString('en-US', {
 			weekday: 'long',
@@ -242,7 +272,7 @@
 				const todayDate = today.date;
 				const res = await fetch(`/api/job-sites/${today.jobSiteId}/loads?start_date=${todayDate}`, { credentials: 'include' });
 				if (res.ok) {
-					const data = await res.json();
+					const data = (await res.json()) as { loads?: any[] };
 					loads = data.loads || [];
 				}
 			} catch {
@@ -313,15 +343,34 @@
 
 <div class="today">
 	<div class="day-head">
-		<div>
-			<div class="eyebrow">{dateLabel}</div>
-			{#if today.siteName}<h2 class="site">{today.siteName}</h2>{/if}
+		<div class="date-nav">
+			<button class="btn btn-subtle btn-sm nav-btn" onclick={goPrevDay} aria-label="Previous day">
+				‹
+			</button>
+			<div class="date-display">
+				<div class="eyebrow">{formatSelectedDate(selectedDate)}</div>
+				{#if today.siteName}<h2 class="site">{today.siteName}</h2>{/if}
+			</div>
+			<button class="btn btn-subtle btn-sm nav-btn" onclick={goNextDay} disabled={isViewingToday} aria-label="Next day">
+				›
+			</button>
+			{#if !isViewingToday}
+				<button class="btn btn-ghost btn-sm" onclick={jumpToToday}>Today</button>
+			{/if}
 		</div>
 		<div class="head-actions">
 			<button class="btn btn-ghost btn-sm" onclick={exportDailyReport}>Daily report PDF</button>
 			<button class="btn btn-primary btn-sm" onclick={openAdd}>+ Add entry</button>
 		</div>
 	</div>
+
+	{#if isViewingPast}
+		<div class="readonly-banner">
+			Read-only: viewing past day. Switch to today to add entries.
+		</div>
+	{/if}
+
+	<DailyTarget />
 
 	<section class="conditions">
 		<div class="cond-head">
@@ -428,7 +477,7 @@
 								{:else if e.loads_count != null && e.loads_count > 0}
 									<span class="est-tons">{(e.loads_count * job.truckLoadTons).toFixed(1)}T est.</span>
 								{/if}
-								{#if e.distance_ft != null}<span>{fmtFeet(e.distance_ft)}</span>{/if}
+								{#if e.distance_ft != null}<span>{formatFeet(e.distance_ft)}</span>{/if}
 								{#if e.station_start != null && e.station_end != null}
 									<span>{e.station_start}+00 → {e.station_end}+00</span>
 								{/if}
@@ -549,6 +598,26 @@
 		align-items: flex-end;
 		justify-content: space-between;
 		gap: var(--sp-3);
+		flex-wrap: wrap;
+	}
+	.date-nav {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+	}
+	.date-display {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	.nav-btn {
+		min-width: 48px;
+		font-size: var(--fs-lg);
+		font-weight: var(--fw-bold);
+	}
+	.nav-btn:disabled {
+		opacity: 0.3;
+		cursor: not-allowed;
 	}
 	.site {
 		margin: 2px 0 0;
@@ -559,6 +628,16 @@
 		display: flex;
 		gap: var(--sp-2);
 		flex-shrink: 0;
+	}
+	.readonly-banner {
+		background: color-mix(in srgb, var(--warn) 16%, transparent);
+		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+		border-radius: var(--radius-md);
+		padding: var(--sp-3);
+		text-align: center;
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-medium);
+		color: var(--warn);
 	}
 
 	.conditions,

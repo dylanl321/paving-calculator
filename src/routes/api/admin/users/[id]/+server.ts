@@ -6,6 +6,7 @@ export async function PATCH(event: RequestEvent) {
 	try {
 		await requireGlobalAdmin(event);
 		const { id } = event.params;
+		if (!id) return json({ error: 'User ID is required' }, { status: 400 });
 		const body = await event.request.json();
 		const { name, email, phone, is_global_admin, disabled } = body;
 

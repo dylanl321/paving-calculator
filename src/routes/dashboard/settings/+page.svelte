@@ -11,6 +11,26 @@
 
 	let { data } = $props();
 
+	interface SettingsSaveResult {
+		error?: string;
+		hasLogo?: boolean;
+		accentColor?: string | null;
+		overrides?: OrgOverrides;
+		org?: { name?: string } | null;
+	}
+	interface LogoUploadResult {
+		error?: string;
+	}
+	interface NotificationPrefsResult {
+		error?: string;
+		prefs?: Record<string, boolean>;
+	}
+	interface EmailPreviewResult {
+		html: string;
+		subject: string;
+		from: string;
+	}
+
 	const canEdit = $derived(data.settings?.role === 'owner' || data.settings?.role === 'admin');
 	const machines = config.machines;
 	const tackApplications = config.tack.field;
@@ -18,8 +38,15 @@
 
 	const ov: OrgOverrides = data.settings?.overrides ?? {};
 
+	// --- Tab navigation ---
+	type TabId = 'general' | 'defaults' | 'branding' | 'notifications';
+	let activeTab = $state<TabId>('general');
+
 	// --- Organization identity / branding ---
 	let orgName = $state(data.settings?.org?.name ?? '');
+	let orgAddress = $state(data.settings?.org?.address ?? '');
+	let superintendentEmail = $state(data.settings?.org?.superintendentEmail ?? '');
+	let superintendentPhone = $state(data.settings?.org?.superintendentPhone ?? '');
 	let accentColor = $state(data.settings?.accentColor ?? config.theme.dark.accent);
 	let useCustomAccent = $state(!!data.settings?.accentColor);
 	let hasLogo = $state(!!data.settings?.hasLogo);
@@ -44,6 +71,8 @@
 	let wastePct = $state(ov.defaults?.wastePct ?? config.defaults.wastePct);
 	let tackApplication = $state(ov.defaults?.tackApplication ?? config.defaults.tackApplication);
 	let courseType = $state(ov.defaults?.courseType ?? config.defaults.courseType);
+	let liftThicknessIn = $state(ov.defaults?.liftThicknessIn ?? 2);
+	let mixType = $state(ov.defaults?.mixType ?? '');
 
 	// --- Calculation constants ---
 	const constantKeys = Object.keys(OVERRIDABLE_CONSTANTS);
@@ -100,6 +129,8 @@
 		if (wastePct !== config.defaults.wastePct) dOut.wastePct = wastePct;
 		if (tackApplication !== config.defaults.tackApplication) dOut.tackApplication = tackApplication;
 		if (courseType !== config.defaults.courseType) dOut.courseType = courseType;
+		if (liftThicknessIn !== 2) dOut.liftThicknessIn = liftThicknessIn;
+		if (mixType.trim()) dOut.mixType = mixType.trim();
 		if (Object.keys(dOut).length) out.defaults = dOut;
 
 		const cOut: Record<string, number> = {};
@@ -127,13 +158,16 @@
 				credentials: 'include',
 				body: JSON.stringify({
 					name: orgName.trim(),
+					address: orgAddress.trim() || null,
+					superintendentEmail: superintendentEmail.trim() || null,
+					superintendentPhone: superintendentPhone.trim() || null,
 					accentColor: useCustomAccent ? accentColor : null,
 					emailFromName: emailFromName.trim() || null,
 					emailReplyTo: emailReplyTo.trim() || null,
 					overrides
 				})
 			});
-			const result = await res.json();
+			const result = (await res.json()) as SettingsSaveResult;
 			if (!res.ok) {
 				message = result.error || 'Failed to save settings';
 				messageType = 'error';
@@ -150,10 +184,10 @@
 					body: form
 				});
 				if (!logoRes.ok) {
-					const lr = await logoRes.json();
+					const lr = (await logoRes.json()) as LogoUploadResult;
 					message = lr.error || 'Settings saved, but logo upload failed';
 					messageType = 'error';
-					hasLogo = result.hasLogo;
+					hasLogo = result.hasLogo ?? hasLogo;
 					orgSettingsStore.apply({
 						accentColor: result.accentColor,
 						overrides: result.overrides,
@@ -205,13 +239,13 @@
 				credentials: 'include',
 				body: JSON.stringify({ prefs: notificationPrefs })
 			});
-			const result = await res.json();
+			const result = (await res.json()) as NotificationPrefsResult;
 			if (!res.ok) {
 				notificationMessage = result.error || 'Failed to save preferences';
 				notificationMessageType = 'error';
 				return;
 			}
-			notificationPrefs = result.prefs;
+			notificationPrefs = result.prefs ?? notificationPrefs;
 			notificationMessage = 'Notification preferences saved';
 			notificationMessageType = 'ok';
 		} catch (e) {
@@ -237,7 +271,7 @@
 				console.error('Preview error:', error);
 				return;
 			}
-			const data = await res.json();
+			const data = (await res.json()) as EmailPreviewResult;
 			previewHtml = data.html;
 			previewSubject = data.subject;
 			previewFrom = data.from;
@@ -274,314 +308,367 @@
 		<div class="notice">You have view-only access. Ask an owner or admin to change settings.</div>
 	{/if}
 
-	<!-- Organization identity -->
-	<section class="card">
-		<h3>Organization</h3>
-		<p class="card-desc">Your company name, logo, and brand color across the app.</p>
+	<!-- Tab navigation -->
+	<div class="tabs">
+		<button type="button" class="tab" class:active={activeTab === 'general'} onclick={() => activeTab = 'general'}>
+			General
+		</button>
+		<button type="button" class="tab" class:active={activeTab === 'defaults'} onclick={() => activeTab = 'defaults'}>
+			Defaults
+		</button>
+		<button type="button" class="tab" class:active={activeTab === 'branding'} onclick={() => activeTab = 'branding'}>
+			Branding
+		</button>
+		<button type="button" class="tab" class:active={activeTab === 'notifications'} onclick={() => activeTab = 'notifications'}>
+			Notifications
+		</button>
+	</div>
 
-		<div class="field">
-			<label for="orgName">Organization name</label>
-			<input id="orgName" type="text" bind:value={orgName} disabled={!canEdit} />
-		</div>
+	<!-- General tab -->
+	{#if activeTab === 'general'}
+		<section class="card">
+			<h3>General Information</h3>
+			<p class="card-desc">Your organization's basic details.</p>
 
-		<div class="field">
-			<span class="field-label">Logo</span>
-			<div class="logo-row">
-				<div class="logo-preview">
-					{#if currentLogoSrc}
-						<img src={currentLogoSrc} alt="Org logo preview" />
-					{:else}
-						<img src="/logo-mark.png" alt="Default logo" />
-						<span class="logo-hint">Default</span>
+			<div class="field">
+				<label for="orgName">Organization name</label>
+				<input id="orgName" type="text" bind:value={orgName} disabled={!canEdit} />
+			</div>
+
+			<div class="field">
+				<label for="orgAddress">Address</label>
+				<textarea id="orgAddress" rows="3" bind:value={orgAddress} disabled={!canEdit} placeholder="Street, City, State ZIP"></textarea>
+			</div>
+
+			<div class="field">
+				<label for="supEmail">Superintendent email</label>
+				<input id="supEmail" type="email" bind:value={superintendentEmail} disabled={!canEdit} placeholder="superintendent@company.com" />
+			</div>
+
+			<div class="field">
+				<label for="supPhone">Superintendent phone</label>
+				<input id="supPhone" type="tel" bind:value={superintendentPhone} disabled={!canEdit} placeholder="(555) 123-4567" />
+			</div>
+		</section>
+	{/if}
+
+	<!-- Defaults tab -->
+	{#if activeTab === 'defaults'}
+		<section class="card">
+			<h3>Default job setup</h3>
+			<p class="card-desc">
+				New jobs start from these values. They override the app defaults for your org.
+			</p>
+
+			<div class="grid">
+				<div class="field">
+					<label for="liftThickness">Lift thickness (in) {#if isDefaultOverridden('liftThicknessIn', liftThicknessIn)}<span class="badge">Overridden</span>{/if}</label>
+					<input id="liftThickness" type="number" step="0.5" min="0.5" max="10" bind:value={liftThicknessIn} disabled={!canEdit} />
+				</div>
+				<div class="field">
+					<label for="mixType">Mix type {#if mixType.trim()}<span class="badge">Set</span>{/if}</label>
+					<input id="mixType" type="text" bind:value={mixType} disabled={!canEdit} placeholder="e.g. 9.5mm Superpave" />
+				</div>
+				<div class="field">
+					<label for="roadWidth">Road width (ft) {#if isDefaultOverridden('roadWidthFt', roadWidthFt)}<span class="badge">Overridden</span>{/if}</label>
+					<input id="roadWidth" type="number" step="0.5" min="1" max="60" bind:value={roadWidthFt} disabled={!canEdit} />
+				</div>
+				<div class="field">
+					<label for="truckLoad">Truck load (tons) {#if isDefaultOverridden('truckLoadTons', truckLoadTons)}<span class="badge">Overridden</span>{/if}</label>
+					<input id="truckLoad" type="number" step="0.5" min="1" max="40" bind:value={truckLoadTons} disabled={!canEdit} />
+				</div>
+				<div class="field">
+					<label for="machine">Default machine {#if isDefaultOverridden('machine', machine)}<span class="badge">Overridden</span>{/if}</label>
+					<select id="machine" bind:value={machine} disabled={!canEdit}>
+						{#each machines as m (m.id)}
+							<option value={m.id}>{m.label}</option>
+						{/each}
+					</select>
+				</div>
+				<div class="field">
+					<label for="waste">Waste % {#if isDefaultOverridden('wastePct', wastePct)}<span class="badge">Overridden</span>{/if}</label>
+					<input id="waste" type="number" step="1" min="0" max="50" bind:value={wastePct} disabled={!canEdit} />
+				</div>
+				<div class="field wide">
+					<label for="tackApp">Default tack application {#if isDefaultOverridden('tackApplication', tackApplication)}<span class="badge">Overridden</span>{/if}</label>
+					<select id="tackApp" bind:value={tackApplication} disabled={!canEdit}>
+						{#each tackApplications as t (t.id)}
+							<option value={t.id}>{t.label} ({t.min}–{t.max} {t.unit})</option>
+						{/each}
+					</select>
+				</div>
+				<div class="field wide">
+					<label for="courseType">Default course type {#if isDefaultOverridden('courseType', courseType)}<span class="badge">Overridden</span>{/if}</label>
+					<select id="courseType" bind:value={courseType} disabled={!canEdit}>
+						{#each courseTypes as c (c.id)}
+							<option value={c.id}>{c.label} (±{c.toleranceLbsSy} lbs/SY)</option>
+						{/each}
+					</select>
+				</div>
+			</div>
+		</section>
+
+		<!-- Calculation constants -->
+		<section class="card">
+			<h3>Calculation constants</h3>
+			<p class="card-desc">
+				Defaults are GDOT-derived. Only change these if your operation uses different values —
+				they affect calculator results for everyone in your org.
+			</p>
+
+			<div class="grid">
+				{#each constantKeys as key (key)}
+					<div class="field">
+						<label for={`const-${key}`}>
+							{OVERRIDABLE_CONSTANTS[key].label}
+							{#if isConstOverridden(key)}<span class="badge">Overridden</span>{/if}
+						</label>
+						<div class="const-row">
+							<input
+								id={`const-${key}`}
+								type="number"
+								step="0.05"
+								min={OVERRIDABLE_CONSTANTS[key].min}
+								max={OVERRIDABLE_CONSTANTS[key].max}
+								bind:value={constants[key]}
+								disabled={!canEdit}
+							/>
+							{#if canEdit && isConstOverridden(key)}
+								<button type="button" class="reset-btn" onclick={() => resetConstant(key)}>Reset</button>
+							{/if}
+						</div>
+						<span class="hint">Default {constantDefault(key)} · allowed {OVERRIDABLE_CONSTANTS[key].min}–{OVERRIDABLE_CONSTANTS[key].max}</span>
+					</div>
+				{/each}
+			</div>
+		</section>
+
+		<!-- Tack presets -->
+		<section class="card">
+			<h3>Tack rate presets</h3>
+			<p class="card-desc">Min/max shot-rate ranges (gal/SY) suggested in the tack calculator.</p>
+
+			<div class="tack-group">
+				<h4>Field ranges</h4>
+				{#each tackField as t, i (t.id)}
+					<div class="tack-row">
+						<span class="tack-name">{t.label}</span>
+						<label class="mini">min<input type="number" step="0.005" min="0" max="5" bind:value={tackField[i].min} disabled={!canEdit} /></label>
+						<label class="mini">max<input type="number" step="0.005" min="0" max="5" bind:value={tackField[i].max} disabled={!canEdit} /></label>
+					</div>
+				{/each}
+			</div>
+
+			<div class="tack-group">
+				<h4>Spec ranges</h4>
+				{#each tackSpec as t, i (t.id)}
+					<div class="tack-row">
+						<span class="tack-name">{t.label}</span>
+						<label class="mini">min<input type="number" step="0.005" min="0" max="5" bind:value={tackSpec[i].min} disabled={!canEdit} /></label>
+						<label class="mini">max<input type="number" step="0.005" min="0" max="5" bind:value={tackSpec[i].max} disabled={!canEdit} /></label>
+					</div>
+				{/each}
+			</div>
+		</section>
+	{/if}
+
+	<!-- Branding tab -->
+	{#if activeTab === 'branding'}
+		<section class="card">
+			<h3>Logo and brand color</h3>
+			<p class="card-desc">Your company logo and brand color across the app.</p>
+
+			<div class="field">
+				<span class="field-label">Logo</span>
+				<div class="logo-row">
+					<div class="logo-preview">
+						{#if currentLogoSrc}
+							<img src={currentLogoSrc} alt="Org logo preview" />
+						{:else}
+							<img src="/logo-mark.png" alt="Default logo" />
+							<span class="logo-hint">Default</span>
+						{/if}
+					</div>
+					{#if canEdit}
+						<div class="logo-actions">
+							<label class="ghost-btn file-btn">
+								{hasLogo || logoFile ? 'Replace logo' : 'Upload logo'}
+								<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onchange={onLogoChange} />
+							</label>
+							{#if hasLogo}
+								<button type="button" class="ghost-btn danger" onclick={removeLogo}>Remove</button>
+							{/if}
+							<p class="hint">PNG, JPEG, WebP, or SVG. Max 512 KB.</p>
+						</div>
 					{/if}
 				</div>
-				{#if canEdit}
-					<div class="logo-actions">
-						<label class="ghost-btn file-btn">
-							{hasLogo || logoFile ? 'Replace logo' : 'Upload logo'}
-							<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onchange={onLogoChange} />
-						</label>
-						{#if hasLogo}
-							<button type="button" class="ghost-btn danger" onclick={removeLogo}>Remove</button>
-						{/if}
-						<p class="hint">PNG, JPEG, WebP, or SVG. Max 512 KB.</p>
+			</div>
+
+			<div class="field">
+				<label class="checkbox-row">
+					<input type="checkbox" bind:checked={useCustomAccent} disabled={!canEdit} />
+					Use a custom brand accent color
+				</label>
+				{#if useCustomAccent}
+					<div class="color-row">
+						<input type="color" bind:value={accentColor} disabled={!canEdit} />
+						<input type="text" class="color-hex" bind:value={accentColor} disabled={!canEdit} />
+						<span class="swatch" style="background:{accentColor}"></span>
 					</div>
 				{/if}
 			</div>
-		</div>
+		</section>
 
-		<div class="field">
-			<label class="checkbox-row">
-				<input type="checkbox" bind:checked={useCustomAccent} disabled={!canEdit} />
-				Use a custom brand accent color
-			</label>
-			{#if useCustomAccent}
-				<div class="color-row">
-					<input type="color" bind:value={accentColor} disabled={!canEdit} />
-					<input type="text" class="color-hex" bind:value={accentColor} disabled={!canEdit} />
-					<span class="swatch" style="background:{accentColor}"></span>
+		<!-- Email branding -->
+		<section class="card">
+			<h3>Email Branding</h3>
+			<p class="card-desc">Customize how emails from your organization appear to recipients.</p>
+
+			<div class="field">
+				<label for="emailFromName">From name</label>
+				<input
+					id="emailFromName"
+					type="text"
+					placeholder="PaveRate"
+					bind:value={emailFromName}
+					disabled={!canEdit}
+					maxlength="100"
+				/>
+				<span class="hint">The name shown in the "From" field of emails (max 100 characters)</span>
+			</div>
+
+			<div class="field">
+				<label for="emailReplyTo">Reply-To address</label>
+				<input
+					id="emailReplyTo"
+					type="email"
+					placeholder="support@yourcompany.com"
+					bind:value={emailReplyTo}
+					disabled={!canEdit}
+				/>
+				<span class="hint">Optional email address for replies</span>
+			</div>
+
+			<div class="preview-section">
+				<h4 style="margin:0 0 12px;font-size:0.95rem;color:var(--text);">Email Preview</h4>
+				<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
+					<select bind:value={previewType} style="flex:1;max-width:220px;" onchange={loadPreview}>
+						<option value="invitation">Team Invitation</option>
+						<option value="verification">Email Verification</option>
+						<option value="password-reset">Password Reset</option>
+					</select>
+					<button type="button" class="ghost-btn" onclick={loadPreview} disabled={loadingPreview}>
+						{loadingPreview ? 'Loading...' : 'Refresh Preview'}
+					</button>
 				</div>
-			{/if}
-		</div>
-	</section>
 
-	<!-- Email branding -->
-	<section class="card">
-		<h3>Email Branding</h3>
-		<p class="card-desc">Customize how emails from your organization appear to recipients.</p>
+				{#if previewHtml}
+					<div class="preview-meta">
+						<div><strong>From:</strong> {previewFrom}</div>
+						<div><strong>Subject:</strong> {previewSubject}</div>
+					</div>
+					<div class="preview-frame">
+						<iframe
+							title="Email preview"
+							srcDoc={previewHtml}
+							style="width:100%;height:600px;border:none;background:var(--surface);border-radius:8px;"
+						></iframe>
+					</div>
+				{:else}
+					<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:0.9rem;">
+						Click "Refresh Preview" to see how your emails will look
+					</div>
+				{/if}
+			</div>
+		</section>
+	{/if}
 
-		<div class="field">
-			<label for="emailFromName">From name</label>
-			<input
-				id="emailFromName"
-				type="text"
-				placeholder="PaveRate"
-				bind:value={emailFromName}
-				disabled={!canEdit}
-				maxlength="100"
-			/>
-			<span class="hint">The name shown in the "From" field of emails (max 100 characters)</span>
-		</div>
+	<!-- Notifications tab -->
+	{#if activeTab === 'notifications'}
+		<section class="card">
+			<h3>Notification Preferences</h3>
+			<p class="card-desc">Control which notifications you receive for your account.</p>
 
-		<div class="field">
-			<label for="emailReplyTo">Reply-To address</label>
-			<input
-				id="emailReplyTo"
-				type="email"
-				placeholder="support@yourcompany.com"
-				bind:value={emailReplyTo}
-				disabled={!canEdit}
-			/>
-			<span class="hint">Optional email address for replies</span>
-		</div>
+			<div class="notification-group">
+				<h4 class="group-heading">Email Notifications</h4>
+				<label class="notification-toggle">
+					<input
+						type="checkbox"
+						bind:checked={notificationPrefs.email_daily_summary}
+					/>
+					<div class="notification-info">
+						<span class="notification-label">Daily Summary</span>
+						<span class="notification-desc">Receive a daily email summary of job activity</span>
+					</div>
+				</label>
+				<label class="notification-toggle">
+					<input
+						type="checkbox"
+						bind:checked={notificationPrefs.email_invite}
+					/>
+					<div class="notification-info">
+						<span class="notification-label">Organization Invites</span>
+						<span class="notification-desc">Email notifications when invited to an organization</span>
+					</div>
+				</label>
+				<label class="notification-toggle">
+					<input
+						type="checkbox"
+						bind:checked={notificationPrefs.email_spec_alerts}
+					/>
+					<div class="notification-info">
+						<span class="notification-label">Specification Alerts</span>
+						<span class="notification-desc">Real-time alerts for spec violations via email</span>
+					</div>
+				</label>
+				<label class="notification-toggle">
+					<input
+						type="checkbox"
+						bind:checked={notificationPrefs.email_job_updates}
+					/>
+					<div class="notification-info">
+						<span class="notification-label">Job Status Changes</span>
+						<span class="notification-desc">Email when job site status changes</span>
+					</div>
+				</label>
+			</div>
 
-		<div class="preview-section">
-			<h4 style="margin:0 0 12px;font-size:0.95rem;color:var(--text);">Email Preview</h4>
-			<div style="display:flex;gap:10px;align-items:center;margin-bottom:12px;">
-				<select bind:value={previewType} style="flex:1;max-width:220px;" onchange={loadPreview}>
-					<option value="invitation">Team Invitation</option>
-					<option value="verification">Email Verification</option>
-					<option value="password-reset">Password Reset</option>
-				</select>
-				<button type="button" class="ghost-btn" onclick={loadPreview} disabled={loadingPreview}>
-					{loadingPreview ? 'Loading...' : 'Refresh Preview'}
+			<div class="notification-group">
+				<h4 class="group-heading">Push Notifications</h4>
+				<label class="notification-toggle">
+					<input
+						type="checkbox"
+						bind:checked={notificationPrefs.push_spec_alerts}
+					/>
+					<div class="notification-info">
+						<span class="notification-label">Specification Alerts</span>
+						<span class="notification-desc">Browser push notifications for spec violations</span>
+					</div>
+				</label>
+				<label class="notification-toggle">
+					<input
+						type="checkbox"
+						bind:checked={notificationPrefs.push_job_updates}
+					/>
+					<div class="notification-info">
+						<span class="notification-label">Job Updates</span>
+						<span class="notification-desc">Browser push notifications for job site updates</span>
+					</div>
+				</label>
+			</div>
+
+			<div class="notification-save-bar">
+				{#if notificationMessage}
+					<span class="save-msg" class:error={notificationMessageType === 'error'}>{notificationMessage}</span>
+				{/if}
+				<button type="button" class="save-btn" onclick={saveNotificationPrefs} disabled={savingNotifications}>
+					{savingNotifications ? 'Saving…' : 'Save Preferences'}
 				</button>
 			</div>
+		</section>
+	{/if}
 
-			{#if previewHtml}
-				<div class="preview-meta">
-					<div><strong>From:</strong> {previewFrom}</div>
-					<div><strong>Subject:</strong> {previewSubject}</div>
-				</div>
-				<div class="preview-frame">
-					<iframe
-						title="Email preview"
-						srcDoc={previewHtml}
-						style="width:100%;height:600px;border:none;background:var(--surface);border-radius:8px;"
-					></iframe>
-				</div>
-			{:else}
-				<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:0.9rem;">
-					Click "Refresh Preview" to see how your emails will look
-				</div>
-			{/if}
-		</div>
-	</section>
-
-	<!-- Default job setup -->
-	<section class="card">
-		<h3>Default job setup</h3>
-		<p class="card-desc">
-			New jobs start from these values. They override the app defaults for your org.
-		</p>
-
-		<div class="grid">
-			<div class="field">
-				<label for="roadWidth">Road width (ft) {#if isDefaultOverridden('roadWidthFt', roadWidthFt)}<span class="badge">Overridden</span>{/if}</label>
-				<input id="roadWidth" type="number" step="0.5" min="1" max="60" bind:value={roadWidthFt} disabled={!canEdit} />
-			</div>
-			<div class="field">
-				<label for="truckLoad">Truck load (tons) {#if isDefaultOverridden('truckLoadTons', truckLoadTons)}<span class="badge">Overridden</span>{/if}</label>
-				<input id="truckLoad" type="number" step="0.5" min="1" max="40" bind:value={truckLoadTons} disabled={!canEdit} />
-			</div>
-			<div class="field">
-				<label for="machine">Default machine {#if isDefaultOverridden('machine', machine)}<span class="badge">Overridden</span>{/if}</label>
-				<select id="machine" bind:value={machine} disabled={!canEdit}>
-					{#each machines as m (m.id)}
-						<option value={m.id}>{m.label}</option>
-					{/each}
-				</select>
-			</div>
-			<div class="field">
-				<label for="waste">Waste % {#if isDefaultOverridden('wastePct', wastePct)}<span class="badge">Overridden</span>{/if}</label>
-				<input id="waste" type="number" step="1" min="0" max="50" bind:value={wastePct} disabled={!canEdit} />
-			</div>
-			<div class="field wide">
-				<label for="tackApp">Default tack application {#if isDefaultOverridden('tackApplication', tackApplication)}<span class="badge">Overridden</span>{/if}</label>
-				<select id="tackApp" bind:value={tackApplication} disabled={!canEdit}>
-					{#each tackApplications as t (t.id)}
-						<option value={t.id}>{t.label} ({t.min}–{t.max} {t.unit})</option>
-					{/each}
-				</select>
-			</div>
-			<div class="field wide">
-				<label for="courseType">Default course type {#if isDefaultOverridden('courseType', courseType)}<span class="badge">Overridden</span>{/if}</label>
-				<select id="courseType" bind:value={courseType} disabled={!canEdit}>
-					{#each courseTypes as c (c.id)}
-						<option value={c.id}>{c.label} (±{c.toleranceLbsSy} lbs/SY)</option>
-					{/each}
-				</select>
-			</div>
-		</div>
-	</section>
-
-	<!-- Calculation constants -->
-	<section class="card">
-		<h3>Calculation constants</h3>
-		<p class="card-desc">
-			Defaults are GDOT-derived. Only change these if your operation uses different values —
-			they affect calculator results for everyone in your org.
-		</p>
-
-		<div class="grid">
-			{#each constantKeys as key (key)}
-				<div class="field">
-					<label for={`const-${key}`}>
-						{OVERRIDABLE_CONSTANTS[key].label}
-						{#if isConstOverridden(key)}<span class="badge">Overridden</span>{/if}
-					</label>
-					<div class="const-row">
-						<input
-							id={`const-${key}`}
-							type="number"
-							step="0.05"
-							min={OVERRIDABLE_CONSTANTS[key].min}
-							max={OVERRIDABLE_CONSTANTS[key].max}
-							bind:value={constants[key]}
-							disabled={!canEdit}
-						/>
-						{#if canEdit && isConstOverridden(key)}
-							<button type="button" class="reset-btn" onclick={() => resetConstant(key)}>Reset</button>
-						{/if}
-					</div>
-					<span class="hint">Default {constantDefault(key)} · allowed {OVERRIDABLE_CONSTANTS[key].min}–{OVERRIDABLE_CONSTANTS[key].max}</span>
-				</div>
-			{/each}
-		</div>
-	</section>
-
-	<!-- Tack presets -->
-	<section class="card">
-		<h3>Tack rate presets</h3>
-		<p class="card-desc">Min/max shot-rate ranges (gal/SY) suggested in the tack calculator.</p>
-
-		<div class="tack-group">
-			<h4>Field ranges</h4>
-			{#each tackField as t, i (t.id)}
-				<div class="tack-row">
-					<span class="tack-name">{t.label}</span>
-					<label class="mini">min<input type="number" step="0.005" min="0" max="5" bind:value={tackField[i].min} disabled={!canEdit} /></label>
-					<label class="mini">max<input type="number" step="0.005" min="0" max="5" bind:value={tackField[i].max} disabled={!canEdit} /></label>
-				</div>
-			{/each}
-		</div>
-
-		<div class="tack-group">
-			<h4>Spec ranges</h4>
-			{#each tackSpec as t, i (t.id)}
-				<div class="tack-row">
-					<span class="tack-name">{t.label}</span>
-					<label class="mini">min<input type="number" step="0.005" min="0" max="5" bind:value={tackSpec[i].min} disabled={!canEdit} /></label>
-					<label class="mini">max<input type="number" step="0.005" min="0" max="5" bind:value={tackSpec[i].max} disabled={!canEdit} /></label>
-				</div>
-			{/each}
-		</div>
-	</section>
-
-	<!-- Notification Preferences -->
-	<section class="card">
-		<h3>Notification Preferences</h3>
-		<p class="card-desc">Control which notifications you receive for your account.</p>
-
-		<div class="notification-group">
-			<h4 class="group-heading">Email Notifications</h4>
-			<label class="notification-toggle">
-				<input
-					type="checkbox"
-					bind:checked={notificationPrefs.email_daily_summary}
-				/>
-				<div class="notification-info">
-					<span class="notification-label">Daily Summary</span>
-					<span class="notification-desc">Receive a daily email summary of job activity</span>
-				</div>
-			</label>
-			<label class="notification-toggle">
-				<input
-					type="checkbox"
-					bind:checked={notificationPrefs.email_invite}
-				/>
-				<div class="notification-info">
-					<span class="notification-label">Organization Invites</span>
-					<span class="notification-desc">Email notifications when invited to an organization</span>
-				</div>
-			</label>
-			<label class="notification-toggle">
-				<input
-					type="checkbox"
-					bind:checked={notificationPrefs.email_spec_alerts}
-				/>
-				<div class="notification-info">
-					<span class="notification-label">Specification Alerts</span>
-					<span class="notification-desc">Real-time alerts for spec violations via email</span>
-				</div>
-			</label>
-			<label class="notification-toggle">
-				<input
-					type="checkbox"
-					bind:checked={notificationPrefs.email_job_updates}
-				/>
-				<div class="notification-info">
-					<span class="notification-label">Job Status Changes</span>
-					<span class="notification-desc">Email when job site status changes</span>
-				</div>
-			</label>
-		</div>
-
-		<div class="notification-group">
-			<h4 class="group-heading">Push Notifications</h4>
-			<label class="notification-toggle">
-				<input
-					type="checkbox"
-					bind:checked={notificationPrefs.push_spec_alerts}
-				/>
-				<div class="notification-info">
-					<span class="notification-label">Specification Alerts</span>
-					<span class="notification-desc">Browser push notifications for spec violations</span>
-				</div>
-			</label>
-			<label class="notification-toggle">
-				<input
-					type="checkbox"
-					bind:checked={notificationPrefs.push_job_updates}
-				/>
-				<div class="notification-info">
-					<span class="notification-label">Job Updates</span>
-					<span class="notification-desc">Browser push notifications for job site updates</span>
-				</div>
-			</label>
-		</div>
-
-		<div class="notification-save-bar">
-			{#if notificationMessage}
-				<span class="save-msg" class:error={notificationMessageType === 'error'}>{notificationMessage}</span>
-			{/if}
-			<button type="button" class="save-btn" onclick={saveNotificationPrefs} disabled={savingNotifications}>
-				{savingNotifications ? 'Saving…' : 'Save Preferences'}
-			</button>
-		</div>
-	</section>
-
-	{#if canEdit}
+	{#if canEdit && activeTab !== 'notifications'}
 		<div class="save-bar">
 			{#if message}
 				<span class="save-msg" class:error={messageType === 'error'}>{message}</span>
@@ -631,6 +718,38 @@
 		padding: 12px 16px;
 		color: var(--text-muted);
 		margin-bottom: 16px;
+	}
+
+	.tabs {
+		display: flex;
+		gap: 0;
+		border-bottom: 1px solid var(--border);
+		margin-bottom: 16px;
+		overflow-x: auto;
+	}
+
+	.tab {
+		min-height: 48px;
+		padding: 0 20px;
+		background: transparent;
+		border: none;
+		border-bottom: 3px solid transparent;
+		color: var(--text-muted);
+		font-size: 0.95rem;
+		font-weight: 600;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: all 0.15s;
+	}
+
+	.tab:hover {
+		color: var(--text);
+		background: rgba(255, 255, 255, 0.03);
+	}
+
+	.tab.active {
+		color: var(--text);
+		border-bottom-color: var(--accent);
 	}
 
 	.card {
@@ -694,8 +813,11 @@
 	}
 
 	input[type='text'],
+	input[type='email'],
+	input[type='tel'],
 	input[type='number'],
-	select {
+	select,
+	textarea {
 		width: 100%;
 		min-height: 48px;
 		padding: 0 14px;
@@ -704,17 +826,26 @@
 		border-radius: var(--radius);
 		color: var(--text);
 		font-size: 1rem;
+		font-family: inherit;
+	}
+
+	textarea {
+		padding: 14px;
+		resize: vertical;
+		min-height: 80px;
 	}
 
 	input:focus,
-	select:focus {
+	select:focus,
+	textarea:focus {
 		outline: none;
 		border-color: var(--accent);
 		box-shadow: 0 0 0 3px rgba(242, 192, 55, 0.18);
 	}
 
 	input:disabled,
-	select:disabled {
+	select:disabled,
+	textarea:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
 	}
