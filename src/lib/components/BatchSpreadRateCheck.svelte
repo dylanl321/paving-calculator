@@ -155,7 +155,7 @@
 		{#if aggregateRate != null && targetRate != null}
 			<SpreadRateGauge actual={aggregateRate} target={targetRate} toleranceLbsSy={tolerance.toleranceLbsSy} />
 			{#if spec}
-				<SpecAlert status={spec.status} message={spec.message} clause={spec.clause} clauseTitle={spec.clauseTitle} />
+				<SpecAlert status={spec.status} message={spec.message} clause={spec.clause} clauseTitle={spec.clauseTitle} guidance={spec.guidance} />
 			{/if}
 		{/if}
 

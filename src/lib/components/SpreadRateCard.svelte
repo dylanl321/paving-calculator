@@ -253,7 +253,7 @@
 	{#if placedRate != null && targetRate != null}
 		<SpreadRateGauge actual={placedRate} target={targetRate} toleranceLbsSy={tolerance.toleranceLbsSy} />
 		{#if spec}
-			<SpecAlert status={spec.status} message={spec.message} clause={spec.clause} clauseTitle={spec.clauseTitle} />
+			<SpecAlert status={spec.status} message={spec.message} clause={spec.clause} clauseTitle={spec.clauseTitle} guidance={spec.guidance} />
 			{#if (spec.status === 'warn' || spec.status === 'bad') && distanceFt && calcContext.road_width.value}
 				<button type="button" class="snap-btn" onclick={snapToTarget}>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

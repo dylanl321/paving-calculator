@@ -76,17 +76,17 @@
 	<div class="width-note">Using job width: <strong>{job.widthFt} ft</strong></div>
 
 	{#if tempCheck?.status === 'fail'}
-		<SpecAlert status="fail" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} />
+		<SpecAlert status="fail" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} guidance={tempCheck.guidance} />
 	{:else if tempCheck?.status === 'warn'}
-		<SpecAlert status="warn" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} />
+		<SpecAlert status="warn" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} guidance={tempCheck.guidance} />
 	{:else if tempCheck?.status === 'pass'}
-		<SpecAlert status="pass" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} />
+		<SpecAlert status="pass" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} guidance={tempCheck.guidance} />
 	{/if}
 
 	{#if rain?.status === 'fail'}
-		<SpecAlert status="fail" message={rain.message} clause={rain.clause} clauseTitle={rain.clauseTitle} />
+		<SpecAlert status="fail" message={rain.message} clause={rain.clause} clauseTitle={rain.clauseTitle} guidance={rain.guidance} />
 	{:else if rain?.status === 'warn'}
-		<SpecAlert status="warn" message={rain.message} clause={rain.clause} clauseTitle={rain.clauseTitle} />
+		<SpecAlert status="warn" message={rain.message} clause={rain.clause} clauseTitle={rain.clauseTitle} guidance={rain.guidance} />
 	{/if}
 
 	{#if weather.isRaining}
