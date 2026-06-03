@@ -20,7 +20,8 @@
 			$page.url.pathname === '/login' ||
 			$page.url.pathname === '/register' ||
 			$page.url.pathname === '/forgot-password' ||
-			$page.url.pathname === '/reset-password'
+			$page.url.pathname === '/reset-password' ||
+			$page.url.pathname === '/dashboard/onboarding'
 	);
 
 	const themeTokens = $derived(config.theme[themeStore.mode]);
