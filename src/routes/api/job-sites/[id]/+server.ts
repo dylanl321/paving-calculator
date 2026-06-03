@@ -31,6 +31,8 @@ export async function GET(event: RequestEvent) {
 			location_description: jobSite.location_description,
 			latitude: jobSite.latitude,
 			longitude: jobSite.longitude,
+			gdot_county: jobSite.gdot_county,
+			gdot_district: jobSite.gdot_district,
 			status: jobSite.status,
 			created_at: jobSite.created_at,
 			updated_at: jobSite.updated_at
@@ -122,6 +124,8 @@ export async function PATCH(event: RequestEvent) {
 			location_description: updatedJobSite!.location_description,
 			latitude: updatedJobSite!.latitude,
 			longitude: updatedJobSite!.longitude,
+			gdot_county: updatedJobSite!.gdot_county,
+			gdot_district: updatedJobSite!.gdot_district,
 			status: updatedJobSite!.status,
 			created_at: updatedJobSite!.created_at,
 			updated_at: updatedJobSite!.updated_at

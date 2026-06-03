@@ -227,6 +227,7 @@
 	let photos = $state<any[]>([]);
 	let photosLoading = $state(true);
 	let selectedPhoto = $state<any | null>(null);
+	let gdotLookupLoading = $state(false);
 
 	async function loadPhotos() {
 		photosLoading = true;
@@ -286,6 +287,29 @@
 
 	function closeLightbox() {
 		selectedPhoto = null;
+	}
+
+	async function lookupGdotBoundaries() {
+		gdotLookupLoading = true;
+		try {
+			const res = await fetch(`/api/job-sites/${data.jobSite.id}/gdot-lookup`, {
+				method: 'POST',
+				credentials: 'include'
+			});
+			if (res.ok) {
+				const result = await res.json();
+				data.jobSite.gdot_county = result.county;
+				data.jobSite.gdot_district = result.district;
+				toastStore.success('GDOT information updated');
+			} else {
+				const errorData = await res.json();
+				toastStore.error(errorData.error || 'Failed to lookup GDOT information');
+			}
+		} catch (error) {
+			toastStore.error('Failed to lookup GDOT information');
+		} finally {
+			gdotLookupLoading = false;
+		}
 	}
 </script>
 
@@ -602,6 +626,29 @@
 			{data.jobSite.latitude.toFixed(5)}, {data.jobSite.longitude?.toFixed(5)}
 			<button class="link-btn-sm" onclick={clearCoordinates}>Clear</button>
 		</p>
+
+		<div class="gdot-info-section">
+			<h4>GDOT Information</h4>
+			<dl class="gdot-spec-list">
+				<div class="spec-item">
+					<dt>County</dt>
+					<dd>{data.jobSite.gdot_county || 'Unknown'}</dd>
+				</div>
+				<div class="spec-item">
+					<dt>District</dt>
+					<dd>{data.jobSite.gdot_district || 'Unknown'}</dd>
+				</div>
+			</dl>
+			{#if data.jobSite.latitude != null && data.jobSite.longitude != null}
+				{#if gdotLookupLoading}
+					<button class="btn-secondary" disabled>Updating...</button>
+				{:else}
+					<button class="btn-secondary" onclick={lookupGdotBoundaries}>
+						{data.jobSite.gdot_county ? 'Refresh' : 'Lookup'} GDOT Info
+					</button>
+				{/if}
+			{/if}
+		</div>
 
 		<div class="progress-map-section">
 			<div class="progress-map-head">
@@ -1100,6 +1147,28 @@
 		margin: var(--sp-2) 0 0;
 		font-size: var(--fs-sm);
 		color: var(--text-muted);
+	}
+
+	.gdot-info-section {
+		margin-top: 20px;
+		padding: 16px;
+		background: var(--surface-alt, var(--surface));
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+	}
+
+	.gdot-info-section h4 {
+		margin: 0 0 12px;
+		font-size: 0.95rem;
+		font-weight: 700;
+		color: var(--text);
+	}
+
+	.gdot-spec-list {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 12px;
+		margin-bottom: 12px;
 	}
 
 	.progress-map-section {

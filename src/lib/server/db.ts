@@ -42,6 +42,8 @@ export interface DbJobSite {
 	location_description: string | null;
 	latitude: number | null;
 	longitude: number | null;
+	gdot_county: string | null;
+	gdot_district: string | null;
 	status: 'active' | 'completed' | 'archived';
 	created_at: number;
 	updated_at: number;
@@ -431,7 +433,7 @@ export class DbHelper {
 
 	async updateJobSite(
 		id: string,
-		updates: Partial<Pick<DbJobSite, 'name' | 'location_description' | 'latitude' | 'longitude' | 'status'>>
+		updates: Partial<Pick<DbJobSite, 'name' | 'location_description' | 'latitude' | 'longitude' | 'gdot_county' | 'gdot_district' | 'status'>>
 	): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		const fields: string[] = [];
@@ -452,6 +454,14 @@ export class DbHelper {
 		if (updates.longitude !== undefined) {
 			fields.push('longitude = ?');
 			values.push(updates.longitude);
+		}
+		if (updates.gdot_county !== undefined) {
+			fields.push('gdot_county = ?');
+			values.push(updates.gdot_county);
+		}
+		if (updates.gdot_district !== undefined) {
+			fields.push('gdot_district = ?');
+			values.push(updates.gdot_district);
 		}
 		if (updates.status !== undefined) {
 			fields.push('status = ?');

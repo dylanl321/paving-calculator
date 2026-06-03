@@ -28,6 +28,8 @@ export interface JobSite {
 	latitude: number | null;
 	longitude: number | null;
 	location_description: string | null;
+	gdot_county?: string | null;
+	gdot_district?: string | null;
 }
 
 export interface JobSiteConfig {
