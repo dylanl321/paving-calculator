@@ -308,7 +308,7 @@ export async function GET(event: RequestEvent) {
 			fetched_at: Math.floor(Date.now() / 1000)
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Crew productivity error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

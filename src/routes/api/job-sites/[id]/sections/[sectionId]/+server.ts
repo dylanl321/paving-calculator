@@ -100,7 +100,7 @@ export async function PATCH(event: RequestEvent) {
 
 		return json(updatedSection);
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Update road section error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -146,7 +146,7 @@ export async function DELETE(event: RequestEvent) {
 
 		return json({ ok: true });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Delete road section error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

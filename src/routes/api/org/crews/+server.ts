@@ -30,7 +30,7 @@ export async function GET(event: RequestEvent) {
 
 		return json({ crews: crewsWithMembers });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get crews error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -68,7 +68,7 @@ export async function POST(event: RequestEvent) {
 
 		return json({ crew }, { status: 201 });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Create crew error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

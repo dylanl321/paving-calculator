@@ -49,7 +49,7 @@ export async function PATCH(event: RequestEvent) {
 
 		return json({ success: true });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error updating member role:', error);
 		return json({ error: 'Failed to update member role' }, { status: 500 });
 	}
@@ -90,7 +90,7 @@ export async function DELETE(event: RequestEvent) {
 
 		return json({ success: true });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error removing member:', error);
 		return json({ error: 'Failed to remove member' }, { status: 500 });
 	}

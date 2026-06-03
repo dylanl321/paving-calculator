@@ -50,7 +50,7 @@ export async function PATCH(event: RequestEvent) {
 		const { password_hash, ...sanitized } = user;
 		return json({ user: sanitized });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error updating user:', error);
 		return json({ error: 'Failed to update user' }, { status: 500 });
 	}

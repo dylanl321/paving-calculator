@@ -49,7 +49,7 @@ export async function GET(event: RequestEvent) {
 			updatedAt: settings?.updated_at ?? null
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get org settings error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -201,7 +201,7 @@ export async function PUT(event: RequestEvent) {
 			updatedAt: settings?.updated_at ?? null
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Update org settings error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

@@ -40,7 +40,7 @@ export async function GET(event: RequestEvent) {
 
 		return json({ locations: result.results || [] });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get crew locations error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

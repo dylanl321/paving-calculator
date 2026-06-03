@@ -66,7 +66,7 @@ export async function POST(event: RequestEvent) {
 		const { password_hash, ...sanitized } = newUser;
 		return json({ user: sanitized }, { status: 201 });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error creating user:', error);
 		return json({ error: 'Failed to create user' }, { status: 500 });
 	}

@@ -33,7 +33,7 @@ export async function PATCH(event: RequestEvent) {
 
 		return json({ success: true });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Update member crew error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

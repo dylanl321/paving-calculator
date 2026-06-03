@@ -89,7 +89,7 @@ export async function POST(event: RequestEvent) {
 			}
 		}, { status: 201 });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error creating invitation:', error);
 		return json({ error: 'Failed to create invitation' }, { status: 500 });
 	}
@@ -116,7 +116,7 @@ export async function GET(event: RequestEvent) {
 
 		return json({ invitations });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error fetching invitations:', error);
 		return json({ error: 'Failed to fetch invitations' }, { status: 500 });
 	}

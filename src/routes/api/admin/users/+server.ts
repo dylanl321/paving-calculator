@@ -33,7 +33,7 @@ export async function GET(event: RequestEvent) {
 		const sanitized = users.map(({ password_hash, ...user }) => user);
 		return json({ users: sanitized });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error fetching users:', error);
 		return json({ error: 'Failed to fetch users' }, { status: 500 });
 	}
@@ -81,7 +81,7 @@ export async function POST(event: RequestEvent) {
 		const { password_hash, ...sanitized } = user;
 		return json({ user: sanitized }, { status: 201 });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error creating user:', error);
 		return json({ error: 'Failed to create user' }, { status: 500 });
 	}

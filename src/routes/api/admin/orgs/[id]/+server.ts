@@ -36,7 +36,7 @@ export async function GET(event: RequestEvent) {
 		const members = await db.getOrgMembersByOrgId(id);
 		return json({ org, members });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error fetching org:', error);
 		return json({ error: 'Failed to fetch organization' }, { status: 500 });
 	}
@@ -85,7 +85,7 @@ export async function PATCH(event: RequestEvent) {
 		const org = await db.getOrganizationById(id);
 		return json({ org });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error updating org:', error);
 		return json({ error: 'Failed to update organization' }, { status: 500 });
 	}

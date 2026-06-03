@@ -38,7 +38,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 
 		// Verify org membership
 		const membership = await db
-			.prepare('SELECT role FROM organization_members WHERE org_id = ? AND user_id = ?')
+			.prepare('SELECT role FROM org_members WHERE org_id = ? AND user_id = ?')
 			.bind(orgId, user.id)
 			.first<{ role: string }>();
 
@@ -56,7 +56,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 
 		return json({ work_zones: zones.results || [] });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get work zones error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -81,7 +81,7 @@ export async function POST(event: RequestEvent): Promise<Response> {
 
 		// Verify org membership
 		const membership = await db
-			.prepare('SELECT role FROM organization_members WHERE org_id = ? AND user_id = ?')
+			.prepare('SELECT role FROM org_members WHERE org_id = ? AND user_id = ?')
 			.bind(orgId, user.id)
 			.first<{ role: string }>();
 
@@ -124,7 +124,7 @@ export async function POST(event: RequestEvent): Promise<Response> {
 
 		return json({ work_zone: result }, { status: 201 });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Create work zone error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

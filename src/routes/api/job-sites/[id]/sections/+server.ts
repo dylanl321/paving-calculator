@@ -33,7 +33,7 @@ export async function GET(event: RequestEvent) {
 			sections: sections.results || []
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get road sections error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -119,7 +119,7 @@ export async function POST(event: RequestEvent) {
 
 		return json(section);
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Create road section error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

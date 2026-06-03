@@ -39,7 +39,7 @@ export async function PATCH(event: RequestEvent): Promise<Response> {
 
 		// Verify org membership
 		const membership = await db
-			.prepare('SELECT role FROM organization_members WHERE org_id = ? AND user_id = ?')
+			.prepare('SELECT role FROM org_members WHERE org_id = ? AND user_id = ?')
 			.bind(orgId, user.id)
 			.first<{ role: string }>();
 
@@ -108,7 +108,7 @@ export async function PATCH(event: RequestEvent): Promise<Response> {
 
 		return json({ work_zone: updatedZone });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Update work zone error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -127,7 +127,7 @@ export async function DELETE(event: RequestEvent): Promise<Response> {
 
 		// Verify org membership
 		const membership = await db
-			.prepare('SELECT role FROM organization_members WHERE org_id = ? AND user_id = ?')
+			.prepare('SELECT role FROM org_members WHERE org_id = ? AND user_id = ?')
 			.bind(orgId, user.id)
 			.first<{ role: string }>();
 
@@ -150,7 +150,7 @@ export async function DELETE(event: RequestEvent): Promise<Response> {
 
 		return json({ success: true });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Delete work zone error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

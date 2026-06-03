@@ -43,7 +43,7 @@ export async function GET(event: RequestEvent) {
 			}))
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get webhooks error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -121,7 +121,7 @@ export async function POST(event: RequestEvent) {
 			{ status: 201 }
 		);
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Create webhook error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

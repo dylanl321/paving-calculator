@@ -19,7 +19,7 @@ export async function GET(event: RequestEvent) {
 
 		return json({ job_sites: jobSites });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get crew job-sites error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -61,7 +61,7 @@ export async function POST(event: RequestEvent) {
 
 		return json({ success: true }, { status: 201 });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Assign job-site to crew error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

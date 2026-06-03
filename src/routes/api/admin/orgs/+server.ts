@@ -15,7 +15,7 @@ export async function GET(event: RequestEvent) {
 		const orgs = await db.getAllOrganizations();
 		return json({ orgs });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error fetching orgs:', error);
 		return json({ error: 'Failed to fetch organizations' }, { status: 500 });
 	}
@@ -46,7 +46,7 @@ export async function POST(event: RequestEvent) {
 
 		return json({ org }, { status: 201 });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error creating org:', error);
 		return json({ error: 'Failed to create organization' }, { status: 500 });
 	}

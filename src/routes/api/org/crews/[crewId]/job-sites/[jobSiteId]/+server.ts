@@ -27,7 +27,7 @@ export async function DELETE(event: RequestEvent) {
 
 		return json({ success: true });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Remove job-site from crew error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
