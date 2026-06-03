@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { onDestroy } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { config } from '$lib/config';
 	import { toastStore } from '$lib/stores/toast.svelte';
@@ -8,6 +9,7 @@
 	let name = $state('');
 	let email = $state('');
 	let password = $state('');
+	let confirmPassword = $state('');
 	let orgName = $state('');
 
 	// General server-error banner
@@ -16,8 +18,18 @@
 	let fieldErrors = $state<Record<string, string>>({});
 	let loading = $state(false);
 	let successMsg = $state('');
+	let emailExistsHint = $state(false);
+	let retryAfterSeconds = $state(0);
+	let retryInterval: ReturnType<typeof setInterval> | null = null;
+
+	onDestroy(() => {
+		if (retryInterval) {
+			clearInterval(retryInterval);
+		}
+	});
 
 	function validateFields(): boolean {
+		emailExistsHint = false;
 		const errs: Record<string, string> = {};
 		if (!name.trim()) {
 			errs.name = 'Name is required.';
@@ -32,6 +44,9 @@
 		} else if (password.length < 8) {
 			errs.password = 'Password must be at least 8 characters.';
 		}
+		if (password !== confirmPassword) {
+			errs.confirmPassword = 'Passwords do not match.';
+		}
 		if (!orgName.trim()) {
 			errs.orgName = 'Organization name is required.';
 		}
@@ -43,6 +58,7 @@
 		e.preventDefault();
 		serverError = '';
 		fieldErrors = {};
+		emailExistsHint = false;
 
 		if (!validateFields()) return;
 
@@ -51,10 +67,43 @@
 		const result = await authStore.register(name, email, password, orgName);
 
 		if (result.error) {
-			serverError = result.error;
-			toastStore.error(result.error);
+			// Handle specific error codes
+			if (result.code === 'EMAIL_EXISTS') {
+				fieldErrors = { ...fieldErrors, email: 'This email is already registered.' };
+				emailExistsHint = true;
+				toastStore.error('Email already registered');
+			} else if (result.code === 'RATE_LIMITED') {
+				serverError = result.error || 'Too many requests';
+				retryAfterSeconds = result.retryAfter ?? 60;
+				if (retryInterval) clearInterval(retryInterval);
+				retryInterval = setInterval(() => {
+					if (retryAfterSeconds > 0) {
+						retryAfterSeconds--;
+					} else {
+						if (retryInterval) clearInterval(retryInterval);
+						retryInterval = null;
+					}
+				}, 1000);
+				toastStore.error(result.error);
+			} else if (result.code === 'VALIDATION_FAILED_EMAIL') {
+				fieldErrors = { ...fieldErrors, email: result.error };
+				toastStore.error(result.error);
+			} else if (result.code === 'VALIDATION_FAILED_PASSWORD') {
+				fieldErrors = { ...fieldErrors, password: result.error };
+				toastStore.error(result.error);
+			} else if (result.code === 'VALIDATION_FAILED_NAME') {
+				fieldErrors = { ...fieldErrors, name: result.error };
+				toastStore.error(result.error);
+			} else if (result.code === 'VALIDATION_FAILED_ORG') {
+				fieldErrors = { ...fieldErrors, orgName: result.error };
+				toastStore.error(result.error);
+			} else {
+				serverError = result.error;
+				toastStore.error(result.error);
+			}
 			loading = false;
 		} else {
+			confirmPassword = '';
 			successMsg = 'Account created! Redirecting to your dashboard...';
 			toastStore.success('Account created successfully');
 			setTimeout(() => goto('/dashboard'), 1200);
@@ -103,6 +152,9 @@
 						<line x1="12" y1="16" x2="12.01" y2="16"/>
 					</svg>
 					{serverError}
+					{#if retryAfterSeconds > 0}
+						<span class="retry-countdown">Try again in {retryAfterSeconds}s</span>
+					{/if}
 				</div>
 			{/if}
 
@@ -137,6 +189,9 @@
 					{#if fieldErrors.email}
 						<p class="field-error" id="email-error" role="alert">{fieldErrors.email}</p>
 					{/if}
+					{#if emailExistsHint}
+						<p class="field-hint"><a href="/login" class="link">Sign in instead?</a></p>
+					{/if}
 				</div>
 
 				<div class="form-field" class:has-error={!!fieldErrors.password}>
@@ -157,6 +212,22 @@
 					{/if}
 				</div>
 
+				<div class="form-field" class:has-error={!!fieldErrors.confirmPassword}>
+					<label for="confirm-password">Confirm Password</label>
+					<input
+						type="password"
+						id="confirm-password"
+						bind:value={confirmPassword}
+						autocomplete="new-password"
+						placeholder="••••••••"
+						aria-describedby={fieldErrors.confirmPassword ? 'confirm-password-error' : undefined}
+						aria-invalid={!!fieldErrors.confirmPassword}
+					/>
+					{#if fieldErrors.confirmPassword}
+						<p class="field-error" id="confirm-password-error" role="alert">{fieldErrors.confirmPassword}</p>
+					{/if}
+				</div>
+
 				<div class="form-field" class:has-error={!!fieldErrors.orgName}>
 					<label for="org-name">Organization Name</label>
 					<input
@@ -172,7 +243,7 @@
 					{/if}
 				</div>
 
-				<button type="submit" class="submit-btn" disabled={loading || !!successMsg}>
+				<button type="submit" class="submit-btn" disabled={loading || !!successMsg || retryAfterSeconds > 0}>
 					{#if loading}
 						<svg class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
 							<path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
@@ -429,5 +500,12 @@
 
 	.link:hover {
 		text-decoration: underline;
+	}
+
+	.retry-countdown {
+		display: block;
+		font-size: 0.8rem;
+		margin-top: 4px;
+		opacity: 0.85;
 	}
 </style>

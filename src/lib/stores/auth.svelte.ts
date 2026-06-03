@@ -109,7 +109,7 @@ class AuthStore {
 		email: string,
 		password: string,
 		orgName: string
-	): Promise<{ error?: string }> {
+	): Promise<{ error?: string; code?: string; retryAfter?: number }> {
 		try {
 			const res = await fetch('/api/auth/register', {
 				method: 'POST',
@@ -121,7 +121,40 @@ class AuthStore {
 			const data = (await res.json()) as { error?: string };
 
 			if (!res.ok) {
-				return { error: data.error || 'Registration failed' };
+				const status = res.status;
+				const errorMsg = data.error || 'Registration failed';
+
+				// Handle specific status codes
+				if (status === 409) {
+					return { error: data.error || 'Email already registered', code: 'EMAIL_EXISTS' };
+				}
+
+				if (status === 429) {
+					const retryAfterHeader = res.headers.get('Retry-After');
+					return {
+						error: data.error || 'Too many requests',
+						code: 'RATE_LIMITED',
+						retryAfter: parseInt(retryAfterHeader || '60')
+					};
+				}
+
+				if (status === 400) {
+					const lowerError = errorMsg.toLowerCase();
+					if (lowerError.includes('email')) {
+						return { error: errorMsg, code: 'VALIDATION_FAILED_EMAIL' };
+					}
+					if (lowerError.includes('password')) {
+						return { error: errorMsg, code: 'VALIDATION_FAILED_PASSWORD' };
+					}
+					if (lowerError.includes('name') && !lowerError.includes('org')) {
+						return { error: errorMsg, code: 'VALIDATION_FAILED_NAME' };
+					}
+					if (lowerError.includes('organization') || lowerError.includes('orgname')) {
+						return { error: errorMsg, code: 'VALIDATION_FAILED_ORG' };
+					}
+				}
+
+				return { error: errorMsg };
 			}
 
 			await this.fetch();
