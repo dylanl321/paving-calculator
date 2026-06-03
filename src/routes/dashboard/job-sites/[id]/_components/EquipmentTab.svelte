@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { equipmentTypeLabels } from './shared';
 	import type { Equipment } from '../$types';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	interface EquipmentItem {
 		id: string;
@@ -42,7 +43,10 @@
 				body: JSON.stringify(newEquipment)
 			});
 
-			if (!res.ok) throw new Error('Failed to add equipment');
+			if (!res.ok) {
+				toastStore.error('Failed to add equipment');
+				throw new Error('Failed to add equipment');
+			}
 
 			const { equipment } = (await res.json()) as EquipmentResponse;
 			equipmentList = [...equipmentList, equipment];
@@ -53,8 +57,10 @@
 				capacity: '',
 				notes: ''
 			};
+			toastStore.success('Equipment added');
 		} catch (err) {
 			console.error(err);
+			toastStore.error('Failed to add equipment');
 		} finally {
 			saving = false;
 		}
@@ -68,11 +74,16 @@
 				credentials: 'include'
 			});
 
-			if (!res.ok) throw new Error('Failed to remove equipment');
+			if (!res.ok) {
+				toastStore.error('Failed to remove equipment');
+				throw new Error('Failed to remove equipment');
+			}
 
 			equipmentList = equipmentList.filter((e) => e.id !== equipId);
+			toastStore.success('Equipment removed');
 		} catch (err) {
 			console.error(err);
+			toastStore.error('Failed to remove equipment');
 		} finally {
 			saving = false;
 		}

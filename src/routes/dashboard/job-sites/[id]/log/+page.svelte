@@ -21,6 +21,7 @@
 	import { today } from '$lib/stores/today.svelte';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
 	import SignatureModal from '$lib/components/SignatureModal.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -130,6 +131,9 @@
 			const { log } = (await res.json()) as LogResponse;
 			currentLog = log;
 			await invalidateAll();
+			toastStore.success('Log started successfully');
+		} else {
+			toastStore.error('Failed to start log');
 		}
 	}
 
@@ -151,8 +155,11 @@
 		});
 		if (res.ok) {
 			await loadLogDetails();
+			toastStore.success('Log updated');
 		} else if (res.status === 423) {
-			alert('This day is locked after close-out. Ask an admin to unlock it.');
+			toastStore.error('This day is locked after close-out. Ask an admin to unlock it.');
+		} else {
+			toastStore.error('Failed to update log');
 		}
 	}
 
@@ -234,8 +241,11 @@
 			if (res.ok) {
 				showEntryForm = false;
 				await loadLogDetails();
+				toastStore.success('Entry updated');
 			} else if (res.status === 423) {
-				alert('This day is locked after close-out. Ask an admin to unlock it.');
+				toastStore.error('This day is locked after close-out. Ask an admin to unlock it.');
+			} else {
+				toastStore.error('Failed to update entry');
 			}
 		} else {
 			const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries`, {
@@ -246,8 +256,11 @@
 			if (res.ok) {
 				showEntryForm = false;
 				await loadLogDetails();
+				toastStore.success('Entry added');
 			} else if (res.status === 423) {
-				alert('This day is locked after close-out. Ask an admin to unlock it.');
+				toastStore.error('This day is locked after close-out. Ask an admin to unlock it.');
+			} else {
+				toastStore.error('Failed to add entry');
 			}
 		}
 	}
@@ -266,8 +279,11 @@
 		);
 		if (res.ok) {
 			await loadLogDetails();
+			toastStore.success('Entry deleted');
 		} else if (res.status === 423) {
-			alert('This day is locked after close-out. Ask an admin to unlock it.');
+			toastStore.error('This day is locked after close-out. Ask an admin to unlock it.');
+		} else {
+			toastStore.error('Failed to delete entry');
 		}
 	}
 
@@ -544,12 +560,13 @@
 				const { log } = (await res.json()) as LogResponse;
 				currentLog = log;
 				await invalidateAll();
+				toastStore.success('Log unlocked successfully');
 			} else {
 				const err = (await res.json()) as UnlockErrorResponse;
-				alert(err.message || 'Failed to unlock log');
+				toastStore.error(err.message || 'Failed to unlock log');
 			}
 		} catch (err) {
-			alert('Failed to unlock log');
+			toastStore.error('Failed to unlock log');
 		} finally {
 			unlocking = false;
 		}

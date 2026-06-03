@@ -14,6 +14,7 @@
 	import type { PageData } from '../$types';
 	import { browser } from '$app/environment';
 	import { haversineFeet } from '$lib/services/mapUtils';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	interface Photo {
 		id: string;
@@ -200,15 +201,20 @@
 	async function handleLocationChange(lat: number | null, lng: number | null) {
 		locationSaving = true;
 		try {
-			await fetch(`/api/job-sites/${data.jobSite.id}`, {
+			const res = await fetch(`/api/job-sites/${data.jobSite.id}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ latitude: lat, longitude: lng }),
 				credentials: 'include'
 			});
-			goto(`/dashboard/job-sites/${data.jobSite.id}`);
+			if (res.ok) {
+				toastStore.success('Location updated successfully');
+				goto(`/dashboard/job-sites/${data.jobSite.id}`);
+			} else {
+				toastStore.error('Failed to update location');
+			}
 		} catch {
-			// ignore
+			toastStore.error('Failed to update location');
 		} finally {
 			locationSaving = false;
 		}

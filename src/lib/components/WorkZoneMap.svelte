@@ -5,6 +5,7 @@
 	import MapPolygon from '$lib/components/map/MapPolygon.svelte';
 	import MapDrawing from '$lib/components/map/MapDrawing.svelte';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	interface Props {
 		orgId: string;
@@ -143,13 +144,16 @@
 			});
 
 			if (!res.ok) {
+				toastStore.error('Failed to create work zone');
 				throw new Error('Failed to create work zone');
 			}
 
 			await loadZones();
 			cancelDrawing();
+			toastStore.success('Work zone created');
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to save zone';
+			toastStore.error('Failed to create work zone');
 		} finally {
 			saving = false;
 		}
@@ -166,12 +170,15 @@
 			});
 
 			if (!res.ok) {
+				toastStore.error('Failed to update zone status');
 				throw new Error('Failed to update zone status');
 			}
 
 			await loadZones();
+			toastStore.success('Zone status updated');
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to update zone';
+			toastStore.error('Failed to update zone');
 		} finally {
 			saving = false;
 		}
@@ -194,13 +201,16 @@
 			});
 
 			if (!res.ok) {
+				toastStore.error('Failed to delete zone');
 				throw new Error('Failed to delete zone');
 			}
 
 			await loadZones();
 			selectedZone = null;
+			toastStore.success('Zone deleted');
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to delete zone';
+			toastStore.error('Failed to delete zone');
 		} finally {
 			saving = false;
 		}

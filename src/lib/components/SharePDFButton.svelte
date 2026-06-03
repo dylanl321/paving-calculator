@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { toastStore } from '$lib/stores/toast.svelte';
+
 	interface Props {
 		getPdfBlob: () => Promise<Blob>;
 		filename: string;
@@ -60,13 +62,16 @@
 			if (!response.ok) {
 				message = result.error || 'Failed to send';
 				messageType = 'error';
+				toastStore.error(message);
 			} else {
 				message = `Sent to ${result.sent} recipient${result.sent === 1 ? '' : 's'}`;
 				messageType = 'success';
+				toastStore.success(message);
 			}
 		} catch (error) {
 			message = 'Network error';
 			messageType = 'error';
+			toastStore.error(message);
 		} finally {
 			loading = false;
 			setTimeout(() => {

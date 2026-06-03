@@ -5,6 +5,7 @@
 	import { constant } from '$lib/config';
 	import { metersToFeet, haversineFeet } from '$lib/services/mapUtils';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	interface Waypoint {
 		lat: number;
@@ -125,9 +126,13 @@
 				const created = (await res.json()) as RoadSection;
 				sections = [...sections, created];
 				nextSectionNumber++;
+				toastStore.success('Section created');
+			} else {
+				toastStore.error('Failed to create section');
 			}
 		} catch (err) {
 			console.error('Failed to create section:', err);
+			toastStore.error('Failed to create section');
 		}
 	}
 
@@ -196,8 +201,12 @@
 			if (res.ok) {
 				const updated = (await res.json()) as RoadSection;
 				sections = sections.map((s) => (s.id === id ? updated : s));
+				toastStore.success('Section updated');
+			} else {
+				toastStore.error('Failed to update section');
 			}
 		} catch (err) {
+			toastStore.error('Failed to update section');
 			console.error('Failed to update section:', err);
 		}
 	}

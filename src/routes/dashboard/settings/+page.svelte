@@ -15,6 +15,7 @@
 	import NotificationsTab from './_components/NotificationsTab.svelte';
 	import ReportsTab from './_components/ReportsTab.svelte';
 	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	let { data } = $props();
 
@@ -143,6 +144,7 @@
 			if (!res.ok) {
 				message = result.error || 'Failed to save settings';
 				messageType = 'error';
+				toastStore.error(message);
 				return;
 			}
 
@@ -159,6 +161,7 @@
 					const lr = (await logoRes.json()) as LogoUploadResult;
 					message = lr.error || 'Settings saved, but logo upload failed';
 					messageType = 'error';
+					toastStore.error(message);
 					hasLogo = result.hasLogo ?? hasLogo;
 					orgSettingsStore.apply({
 						accentColor: result.accentColor,
@@ -171,6 +174,7 @@
 				logoFile = null;
 				if (logoPreview) URL.revokeObjectURL(logoPreview);
 				logoPreview = null;
+				toastStore.success('Logo uploaded successfully');
 			}
 
 			orgSettingsStore.apply({
@@ -181,9 +185,11 @@
 			});
 			message = 'Settings saved';
 			messageType = 'ok';
+			toastStore.success('Settings saved successfully');
 		} catch (e) {
 			message = 'Network error while saving';
 			messageType = 'error';
+			toastStore.error('Network error while saving');
 		} finally {
 			saving = false;
 		}

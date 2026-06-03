@@ -12,6 +12,7 @@
 		Star
 	} from 'lucide-svelte';
 	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	// Step state
 	let currentStep = $state(1);
@@ -102,9 +103,13 @@
 			});
 			if (res.ok) {
 				jobSiteCreated = true;
+				toastStore.success('Job site created');
+			} else {
+				toastStore.error('Failed to create job site');
 			}
 		} catch (e) {
 			console.error('Failed to create job site:', e);
+			toastStore.error('Failed to create job site');
 		} finally {
 			creatingJobSite = false;
 		}
