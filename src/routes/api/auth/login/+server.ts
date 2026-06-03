@@ -2,6 +2,7 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { verifyPassword, createSession, setSessionCookie } from '$lib/server/auth';
 import { recordAudit } from '$lib/server/audit';
+import { checkRateLimit } from '$lib/server/rate-limit';
 
 interface LoginRequest {
 	email: string;
@@ -12,6 +13,19 @@ export async function POST(event: RequestEvent) {
 	try {
 		if (!event.platform?.env?.DB) {
 			return json({ error: 'Database not available' }, { status: 503 });
+		}
+
+		// Rate limiting: 10 attempts per hour
+		const ip =
+			event.request.headers.get('CF-Connecting-IP') ||
+			event.request.headers.get('X-Forwarded-For') ||
+			'0.0.0.0';
+		const rateLimit = await checkRateLimit(event.platform.env.DB, ip, 'login', 10, 3600);
+		if (!rateLimit.allowed) {
+			return json(
+				{ error: 'Too many requests. Please try again later.' },
+				{ status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+			);
 		}
 
 		const body: LoginRequest = await event.request.json();

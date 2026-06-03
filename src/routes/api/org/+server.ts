@@ -24,7 +24,7 @@ export async function GET(event: RequestEvent) {
 			members
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get org error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

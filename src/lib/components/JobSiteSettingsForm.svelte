@@ -12,6 +12,7 @@
 	import { weather } from '$lib/stores/weather.svelte';
 	import { formatRainTime, type GeoResult } from '$lib/services/weather';
 	import WeatherForecast from './WeatherForecast.svelte';
+	import HelpTip from './HelpTip.svelte';
 	import { MapPin } from 'lucide-svelte';
 
 	interface Props {
@@ -222,7 +223,12 @@
 					</div>
 				{:else if field.type === 'number'}
 					<div class="field">
-						<label for="js-{field.key}">{field.label}</label>
+						<div class="label-row">
+							<label for="js-{field.key}">{field.label}</label>
+							{#if field.key === 'thicknessIn'}
+								<HelpTip text="How thick this layer of asphalt is. Determines minimum paving temperature and target spread rate." />
+							{/if}
+						</div>
 						<div class="with-unit">
 							{#if field.key === 'widthFt'}
 								<input
@@ -280,7 +286,10 @@
 					</label>
 				{:else if field.type === 'tack'}
 					<div class="field">
-						<span class="field-label">{field.label}</span>
+						<div class="label-row">
+							<span class="field-label">{field.label}</span>
+							<HelpTip text="Gallons of tack coat per square yard. Too little = layers won't bond. Too much = tracking." />
+						</div>
 						<div class="chips">
 							{#each tack.field as t (t.id)}
 								<button
@@ -297,7 +306,10 @@
 					</div>
 				{:else if field.type === 'course'}
 					<div class="field">
-						<span class="field-label">{field.label}</span>
+						<div class="label-row">
+							<span class="field-label">{field.label}</span>
+							<HelpTip text="Surface, intermediate, or base layer — each has different spec requirements and spread rate tolerances." />
+						</div>
 						<div class="chips">
 							{#each spreadTolerance as c (c.id)}
 								<button
@@ -739,6 +751,12 @@
 		font-size: var(--fs-xs);
 		padding: 0 var(--sp-3);
 		min-height: 36px;
+	}
+
+	.label-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
 	}
 
 	@media (max-width: 360px) {

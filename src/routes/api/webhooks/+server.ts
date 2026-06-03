@@ -1,5 +1,6 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
+import { DbWebhookHelper } from '$lib/server/db-webhooks';
 import { requireAuth } from '$lib/server/auth';
 import { generateWebhookSecret } from '$lib/server/webhooks';
 
@@ -18,6 +19,7 @@ export async function GET(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const webhookDb = new DbWebhookHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -29,7 +31,7 @@ export async function GET(event: RequestEvent) {
 			return json({ error: 'Only owners and admins can view webhooks' }, { status: 403 });
 		}
 
-		const webhooks = await db.getWebhooksByOrgId(org.id);
+		const webhooks = await webhookDb.getWebhooksByOrgId(org.id);
 
 		// Return webhooks without the secret field
 		return json({
@@ -43,7 +45,7 @@ export async function GET(event: RequestEvent) {
 			}))
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get webhooks error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -59,6 +61,7 @@ export async function POST(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const webhookDb = new DbWebhookHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -98,7 +101,7 @@ export async function POST(event: RequestEvent) {
 		const secret = generateWebhookSecret();
 
 		// Create webhook
-		const webhook = await db.createWebhook(
+		const webhook = await webhookDb.createWebhook(
 			org.id,
 			body.url,
 			secret,
@@ -121,7 +124,7 @@ export async function POST(event: RequestEvent) {
 			{ status: 201 }
 		);
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Create webhook error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

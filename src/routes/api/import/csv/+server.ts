@@ -368,7 +368,7 @@ export const POST: RequestHandler = async (event: RequestEvent) => {
 			errors: errors.length > 0 ? errors : undefined
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('CSV import error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
