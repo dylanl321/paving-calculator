@@ -128,6 +128,48 @@ constants:
     tier: 1
     status: UNVERIFIED
     note: Project-specific; 95-100% typical
+  COMPACTION_MARGINAL_MIN:
+    value: 92
+    unit: '% max dry density'
+    tier: 5
+    status: FIELD_ESTIMATE
+    note: Below target but workable; field threshold for "marginal"
+  BAGS_PER_CF_80LB:
+    value: 0.45
+    unit: bags / cu ft
+    tier: 5
+    status: FIELD_ESTIMATE
+    note: 80lb concrete bags per cubic foot (rule-of-thumb)
+  CONCRETE_TRUCK_YD3:
+    value: 9
+    unit: cu yd / truck
+    tier: 5
+    status: FIELD_ESTIMATE
+    note: Standard ready-mix truck capacity
+  STONE_TRUCK_TONS:
+    value: 18
+    unit: tons / truck
+    tier: 5
+    status: FIELD_ESTIMATE
+    note: Standard dump-truck aggregate capacity
+  FT_PER_M:
+    value: 3.28084
+    unit: ft / m
+    tier: ~
+    status: NA
+    note: Universal length conversion
+  EARTH_RADIUS_M:
+    value: 6371000
+    unit: m
+    tier: ~
+    status: NA
+    note: Mean Earth radius (haversine)
+  FT_PER_STATION:
+    value: 100
+    unit: ft / station
+    tier: ~
+    status: NA
+    note: Survey station = 100 ft
 
 # ---------------------------------------------------------------------------
 # Remembered defaults (Job Setup). Pre-filled every job; user-editable.

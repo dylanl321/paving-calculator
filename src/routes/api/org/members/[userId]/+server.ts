@@ -6,6 +6,7 @@ export async function PATCH(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const { userId } = event.params;
+		if (!userId) return json({ error: 'User ID is required' }, { status: 400 });
 		const body = await event.request.json();
 		const { role } = body;
 
@@ -47,6 +48,7 @@ export async function DELETE(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const { userId } = event.params;
+		if (!userId) return json({ error: 'User ID is required' }, { status: 400 });
 
 		const db = new DbHelper(event.platform!.env.DB);
 

@@ -2,54 +2,116 @@
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
-	import { searchPlaces, type GeoResult } from '$lib/services/weather';
 	import type { PageData } from './$types';
 	import { MapPin } from 'lucide-svelte';
 	import LoadTracker from '$lib/components/LoadTracker.svelte';
+	import TruckQueue from '$lib/components/TruckQueue.svelte';
+	import SpreadRateHistogram from '$lib/components/SpreadRateHistogram.svelte';
+	import WasteYieldAnalysis from '$lib/components/WasteYieldAnalysis.svelte';
+	import ETACalculator from '$lib/components/ETACalculator.svelte';
+	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
+	import { spreadToleranceFor } from '$lib/config';
+	import { job } from '$lib/stores/job.svelte';
 
 	let { data }: { data: PageData } = $props();
 
-	let activeTab = $state('overview');
-
-	// Location / coordinates state
-	let locationQuery = $state('');
-	let locationResults = $state<GeoResult[]>([]);
-	let locationSearching = $state(false);
-	let locationSaving = $state(false);
-	let locationSearchTimer: ReturnType<typeof setTimeout> | undefined;
-	let showLocationSearch = $state(false);
-
-	function onLocationInput() {
-		clearTimeout(locationSearchTimer);
-		if (locationQuery.trim().length < 2) {
-			locationResults = [];
-			return;
-		}
-		locationSearchTimer = setTimeout(async () => {
-			locationSearching = true;
-			try {
-				locationResults = await searchPlaces(locationQuery);
-			} catch {
-				locationResults = [];
-			} finally {
-				locationSearching = false;
-			}
-		}, 300);
+	interface Photo {
+		id: string;
+		filename: string;
+		caption?: string | null;
+		taken_at: number;
+		lat?: number | null;
+		lng?: number | null;
+	}
+	interface PhotosResponse {
+		photos?: Photo[];
+	}
+	interface EquipmentItem {
+		id: string;
+		equipment_type: string;
+		name: string;
+		capacity?: string | null;
+		notes?: string | null;
+	}
+	interface EquipmentResponse {
+		equipment: EquipmentItem;
+	}
+	interface MilestoneItem {
+		id: string;
+		name: string;
+		description?: string | null;
+		status: 'pending' | 'in_progress' | 'completed';
+		target_date?: string | null;
+	}
+	interface MilestoneResponse {
+		milestone: MilestoneItem;
 	}
 
-	async function saveCoordinates(place: GeoResult) {
+	let activeTab = $state('overview');
+
+	// Location / coordinates state — driven by JobSiteLocationPicker
+	let pickerLat = $state<number | null>(data.jobSite.latitude ?? null);
+	let pickerLng = $state<number | null>(data.jobSite.longitude ?? null);
+	let locationSaving = $state(false);
+	let showLocationSearch = $state(false);
+
+	// Plant location state (stored in localStorage)
+	let plantForm = $state({
+		name: '',
+		latitude: null as number | null,
+		longitude: null as number | null
+	});
+	let plantSaved = $state(false);
+
+	// Load plant location from localStorage
+	function loadPlantLocation() {
+		if (typeof localStorage === 'undefined') return { name: '', latitude: null, longitude: null };
+		const key = `plant_${data.jobSite.id}`;
+		const stored = localStorage.getItem(key);
+		if (!stored) return { name: '', latitude: null, longitude: null };
+		try {
+			return JSON.parse(stored);
+		} catch {
+			return { name: '', latitude: null, longitude: null };
+		}
+	}
+
+	let plantLocation = $state(loadPlantLocation());
+
+	function savePlantLocation() {
+		if (typeof localStorage === 'undefined') return;
+		const key = `plant_${data.jobSite.id}`;
+		const location = {
+			name: plantForm.name,
+			latitude: plantForm.latitude,
+			longitude: plantForm.longitude
+		};
+		localStorage.setItem(key, JSON.stringify(location));
+		plantLocation = location;
+		plantSaved = true;
+		setTimeout(() => {
+			plantSaved = false;
+		}, 2000);
+	}
+
+	function clearPlantLocation() {
+		if (typeof localStorage === 'undefined') return;
+		const key = `plant_${data.jobSite.id}`;
+		localStorage.removeItem(key);
+		plantLocation = { name: '', latitude: null, longitude: null };
+		plantForm = { name: '', latitude: null, longitude: null };
+	}
+
+	async function handleLocationChange(lat: number | null, lng: number | null) {
 		locationSaving = true;
-		locationResults = [];
-		locationQuery = '';
-		showLocationSearch = false;
 		try {
 			await fetch(`/api/job-sites/${data.jobSite.id}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ latitude: place.latitude, longitude: place.longitude }),
+				body: JSON.stringify({ latitude: lat, longitude: lng }),
 				credentials: 'include'
 			});
-			// Reload to get updated data
+			// Reload to reflect updated coords throughout the page
 			goto(`/dashboard/job-sites/${data.jobSite.id}`);
 		} catch {
 			// ignore
@@ -59,13 +121,7 @@
 	}
 
 	async function clearCoordinates() {
-		await fetch(`/api/job-sites/${data.jobSite.id}`, {
-			method: 'PATCH',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ latitude: null, longitude: null }),
-			credentials: 'include'
-		});
-		goto(`/dashboard/job-sites/${data.jobSite.id}`);
+		await handleLocationChange(null, null);
 	}
 	let configForm = $state({
 		road_type: data.config?.road_type || null,
@@ -117,7 +173,7 @@
 		try {
 			const res = await fetch(`/api/job-sites/${data.jobSite.id}/photos`);
 			if (!res.ok) return;
-			const result = await res.json();
+			const result = (await res.json()) as PhotosResponse;
 			photos = result.photos ?? [];
 			renderPhotoGrid();
 		} catch {
@@ -163,7 +219,7 @@
 		selectedPhoto = null;
 	}
 
-	const roadTypeLabels = {
+	const roadTypeLabels: Record<string, string> = {
 		highway: 'Highway',
 		state_route: 'State Route',
 		county_road: 'County Road',
@@ -173,7 +229,7 @@
 		other: 'Other'
 	};
 
-	const scopeOfWorkLabels = {
+	const scopeOfWorkLabels: Record<string, string> = {
 		full_depth: 'Full Depth',
 		mill_and_fill: 'Mill & Fill',
 		overlay: 'Overlay',
@@ -182,14 +238,14 @@
 		widening: 'Widening'
 	};
 
-	const tackTypeLabels = {
+	const tackTypeLabels: Record<string, string> = {
 		anionic: 'Anionic',
 		cationic: 'Cationic',
 		polymer_modified: 'Polymer Modified',
 		trackless: 'Trackless'
 	};
 
-	const equipmentTypeLabels = {
+	const equipmentTypeLabels: Record<string, string> = {
 		paver: 'Paver',
 		shuttle_buggy: 'Shuttle Buggy',
 		roller_breakdown: 'Breakdown Roller',
@@ -243,7 +299,7 @@
 
 			if (!res.ok) throw new Error('Failed to add equipment');
 
-			const { equipment } = await res.json();
+			const { equipment } = (await res.json()) as EquipmentResponse;
 			equipmentList = [...equipmentList, equipment];
 
 			newEquipment = {
@@ -291,7 +347,7 @@
 
 			if (!res.ok) throw new Error('Failed to create milestone');
 
-			const { milestone } = await res.json();
+			const { milestone } = (await res.json()) as MilestoneResponse;
 			milestones = [...milestones, milestone];
 
 			milestoneForm = {
@@ -320,7 +376,7 @@
 
 			if (!res.ok) throw new Error('Failed to update milestone');
 
-			const { milestone } = await res.json();
+			const { milestone } = (await res.json()) as MilestoneResponse;
 			milestones = milestones.map((m) => (m.id === id ? milestone : m));
 		} catch (err) {
 			console.error(err);
@@ -803,6 +859,88 @@
 					<button class="link-btn-sm" onclick={clearCoordinates}>Clear</button>
 				</p>
 
+				<div class="progress-map-section">
+					<div class="progress-map-head">
+						<h4>Haul Route</h4>
+						<span class="progress-map-sub">Distance from asphalt plant to job site</span>
+					</div>
+					{#await import('$lib/components/HaulRouteMap.svelte')}
+						<div class="map-mini-loading">Loading haul route&hellip;</div>
+					{:then { default: HaulRouteMap }}
+						<HaulRouteMap
+							site={{
+								id: data.jobSite.id,
+								name: data.jobSite.name,
+								latitude: data.jobSite.latitude,
+								longitude: data.jobSite.longitude
+							}}
+							plant={plantLocation}
+							avgSpeedMph={30}
+							height="280px"
+						/>
+					{/await}
+					{#if !plantLocation.latitude || !plantLocation.longitude}
+						<div class="plant-form">
+							<h5>Set Plant Location</h5>
+							<div class="form-row">
+								<div class="form-group">
+									<label for="plant_name">Plant Name</label>
+									<input
+										type="text"
+										id="plant_name"
+										bind:value={plantForm.name}
+										placeholder="e.g., Metro Asphalt Plant"
+									/>
+								</div>
+							</div>
+							<div class="form-row">
+								<div class="form-group">
+									<label for="plant_lat">Latitude</label>
+									<input
+										type="number"
+										id="plant_lat"
+										bind:value={plantForm.latitude}
+										step="0.000001"
+										placeholder="e.g., 39.7392"
+									/>
+								</div>
+								<div class="form-group">
+									<label for="plant_lng">Longitude</label>
+									<input
+										type="number"
+										id="plant_lng"
+										bind:value={plantForm.longitude}
+										step="0.000001"
+										placeholder="e.g., -104.9903"
+									/>
+								</div>
+							</div>
+							<button
+								class="btn-primary"
+								onclick={savePlantLocation}
+								disabled={!plantForm.name || plantForm.latitude == null || plantForm.longitude == null}
+							>
+								Set Plant Location
+							</button>
+							{#if plantSaved}
+								<div class="plant-saved">Plant location saved</div>
+							{/if}
+						</div>
+					{:else}
+						<div class="plant-info">
+							<div class="plant-info-row">
+								<span class="plant-info-label">Plant:</span>
+								<span class="plant-info-value">{plantLocation.name}</span>
+							</div>
+							<div class="plant-info-row">
+								<span class="plant-info-label">Location:</span>
+								<span class="plant-info-value">{plantLocation.latitude?.toFixed(5)}, {plantLocation.longitude?.toFixed(5)}</span>
+							</div>
+							<button class="link-btn" onclick={clearPlantLocation}>Change Plant</button>
+						</div>
+					{/if}
+				</div>
+
 				{#if data.routeWaypoints.length >= 2}
 					<div class="progress-map-section">
 						<div class="progress-map-head">
@@ -825,6 +963,31 @@
 								numLanes={data.config?.num_lanes}
 								laneWidthFt={data.config?.lane_width_ft}
 								totalLengthFt={data.config?.total_length_ft}
+								height="320px"
+							/>
+						{/await}
+					</div>
+
+					<div class="progress-map-section">
+						<div class="progress-map-head">
+							<h4>Spread Rate Map</h4>
+							<span class="progress-map-sub">Color-coded by spread rate vs target</span>
+						</div>
+						{#await import('$lib/components/SpreadRateHeatMap.svelte')}
+							<div class="map-mini-loading">Loading spread rate map&hellip;</div>
+						{:then { default: SpreadRateHeatMap }}
+							<SpreadRateHeatMap
+								site={{
+									id: data.jobSite.id,
+									name: data.jobSite.name,
+									status: data.jobSite.status,
+									latitude: data.jobSite.latitude,
+									longitude: data.jobSite.longitude,
+									location_description: data.jobSite.location_description
+								}}
+								waypoints={data.routeWaypoints}
+								targetRate={configForm.target_spread_rate}
+								toleranceLbsSy={5}
 								height="320px"
 							/>
 						{/await}
@@ -861,45 +1024,43 @@
 					</div>
 				{/if}
 			{:else}
-				{#if showLocationSearch || data.jobSite.latitude == null}
-					<div class="location-search">
-						<input
-							type="search"
-							class="location-input"
-							placeholder="Search city or address&hellip;"
-							bind:value={locationQuery}
-							oninput={onLocationInput}
-							autocomplete="off"
-						/>
-						{#if locationSearching}
-							<p class="location-hint">Searching&hellip;</p>
-						{:else if locationResults.length > 0}
-							<ul class="location-results">
-								{#each locationResults as place (place.latitude + ',' + place.longitude)}
-									<li>
-										<button
-											type="button"
-											class="location-result-btn"
-											onclick={() => saveCoordinates(place)}
-											disabled={locationSaving}
-										>
-											{place.name}{#if place.admin1}, {place.admin1}{/if}
-											{#if place.country && place.country !== 'United States'}, {place.country}{/if}
-										</button>
-									</li>
-								{/each}
-							</ul>
-						{:else if locationQuery.length >= 2}
-							<p class="location-hint">No results found.</p>
-						{:else if data.jobSite.latitude == null}
-							<p class="location-hint">Set a map pin to show this site on the dashboard map.</p>
-						{/if}
-					</div>
+				<!-- Location picker: shown when no coords yet, or when "Change" is clicked -->
+				<JobSiteLocationPicker
+					bind:latitude={pickerLat}
+					bind:longitude={pickerLng}
+					onchange={handleLocationChange}
+					mapHeight="280px"
+					showMapEager={showLocationSearch}
+				/>
+				{#if locationSaving}
+					<p class="location-saving">Saving&hellip;</p>
 				{/if}
 			{/if}
 		</section>
 
-		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
+		<LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} numLanes={data.config?.num_lanes} targetTonnage={configForm.total_tonnage || estTonnage || null} />
+
+		<WasteYieldAnalysis
+			jobSiteId={data.jobSite.id}
+			plannedTonnage={configForm.total_tonnage || estTonnage || null}
+			isAuthenticated={!!data.user}
+		/>
+
+		<ETACalculator
+			jobSiteId={data.jobSite.id}
+			targetTonnage={configForm.total_tonnage || estTonnage || null}
+			isAuthenticated={!!data.user}
+			latitude={data.jobSite.latitude}
+			longitude={data.jobSite.longitude}
+		/>
+
+		<TruckQueue jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
+
+		<SpreadRateHistogram
+			jobSiteId={data.jobSite.id}
+			targetRate={configForm.target_spread_rate}
+			toleranceLbsSy={spreadToleranceFor(job.courseType).toleranceLbsSy}
+		/>
 
 		<section class="panel">
 			<div class="panel-head">
@@ -2449,6 +2610,12 @@
 		cursor: not-allowed;
 	}
 
+	.location-saving {
+		margin: var(--sp-2) 0 0;
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+	}
+
 	.map-mini-loading {
 		padding: 20px;
 		text-align: center;
@@ -2797,6 +2964,62 @@
 	.milestone-status-select:focus {
 		outline: 2px solid var(--accent);
 		outline-offset: 0;
+	}
+
+	/* Plant location form */
+	.plant-form {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md, 12px);
+		padding: 16px;
+		margin-top: 12px;
+	}
+
+	.plant-form h5 {
+		margin: 0 0 12px;
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.plant-saved {
+		margin-top: 8px;
+		padding: 8px;
+		background: rgba(34, 197, 94, 0.1);
+		color: var(--good, #22c55e);
+		border-radius: var(--radius);
+		font-size: 0.85rem;
+		text-align: center;
+	}
+
+	.plant-info {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md, 12px);
+		padding: 12px 16px;
+		margin-top: 12px;
+	}
+
+	.plant-info-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 6px;
+	}
+
+	.plant-info-row:last-child {
+		margin-bottom: 8px;
+	}
+
+	.plant-info-label {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		font-weight: 600;
+	}
+
+	.plant-info-value {
+		font-size: 0.85rem;
+		color: var(--text);
 	}
 
 	@media (max-width: 768px) {
