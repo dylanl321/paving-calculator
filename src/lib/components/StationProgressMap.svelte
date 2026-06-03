@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { MapContainer, MapPolyline, MapPolygon } from '$lib/components/map';
+	import { MapContainer, MapPolyline, MapPolygon, ProgressPolyline, StationMarkers, ProgressOverlay } from '$lib/components/map';
 
 	interface Waypoint {
 		lat: number;
@@ -22,6 +22,10 @@
 		distance_ft: number | null;
 		entry_type: string;
 		lane: string | null;
+		spread_rate_actual: number | null;
+		tons_placed: number | null;
+		log_date: string | null;
+		lift: string | null;
 	}
 
 	interface Props {
@@ -44,8 +48,15 @@
 
 	let progressEntries = $state<ProgressEntry[]>([]);
 	let totalPavedFt = $state(0);
+	let today = $state('');
+	let daysWithData = $state(0);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
+
+	// UI toggles
+	let showAllLanes = $state(false);
+	let showStationMarkers = $state(true);
+	let overlayCollapsed = $state(false);
 
 	const hasRoute = $derived(waypoints.length >= 2);
 	const hasPinned = $derived(site.latitude != null && site.longitude != null);
@@ -136,6 +147,7 @@
 	}
 
 	// Build the green "paved" progress segments from logged progress entries.
+	// Used only for legacy rendering (no today distinction) when ProgressPolyline is unavailable.
 	function buildProgressSegments(entries: ProgressEntry[], wps: Waypoint[]): [number, number][][] {
 		const segments: [number, number][][] = [];
 
@@ -187,9 +199,16 @@
 		try {
 			const res = await fetch(`/api/job-sites/${site.id}/logs/progress`);
 			if (!res.ok) throw new Error('Failed to load progress');
-			const data = (await res.json()) as { progress?: ProgressEntry[]; total_paved_ft?: number };
+			const data = (await res.json()) as {
+				progress?: ProgressEntry[];
+				total_paved_ft?: number;
+				today?: string;
+				days_with_data?: number;
+			};
 			progressEntries = data.progress ?? [];
 			totalPavedFt = data.total_paved_ft ?? 0;
+			today = data.today ?? new Date().toISOString().slice(0, 10);
+			daysWithData = data.days_with_data ?? 0;
 		} catch (err) {
 			error = 'Could not load progress data';
 		} finally {
@@ -229,6 +248,33 @@
 	);
 	const pctComplete = $derived(
 		effectiveTotalFt > 0 ? Math.min(Math.round((totalPavedFt / effectiveTotalFt) * 100), 100) : 0
+	);
+
+	// Today's active paving footage
+	const activeTodayFt = $derived(
+		progressEntries
+			.filter((e) => e.log_date === today)
+			.reduce((sum, e) => {
+				if (e.station_start != null && e.station_end != null) {
+					return sum + (e.station_end - e.station_start) * 100;
+				} else if (e.distance_ft != null) {
+					return sum + e.distance_ft;
+				}
+				return sum;
+			}, 0)
+	);
+
+	// Entries with date and tons info for new components
+	const enhancedEntries = $derived(
+		progressEntries.map((e) => ({
+			station_start: e.station_start,
+			station_end: e.station_end,
+			distance_ft: e.distance_ft,
+			lane: e.lane,
+			tons_placed: e.tons_placed,
+			log_date: e.log_date,
+			spread_rate_actual: e.spread_rate_actual
+		}))
 	);
 
 	onMount(async () => {
@@ -276,14 +322,38 @@
 			<span class="legend-swatch">
 				<span class="swatch-paved" aria-label="Paved"></span>
 				<span class="swatch-label">Paved</span>
+				<span class="swatch-today" aria-label="Today"></span>
+				<span class="swatch-label">Today</span>
 				<span class="swatch-planned" aria-label="Planned"></span>
 				<span class="swatch-label">Planned</span>
 			</span>
 		</div>
 
+		<!-- Map controls -->
+		<div class="map-controls">
+			{#if numLanes && numLanes > 1}
+				<button
+					class="ctrl-btn"
+					class:active={showAllLanes}
+					onclick={() => (showAllLanes = !showAllLanes)}
+					aria-pressed={showAllLanes}
+				>
+					{showAllLanes ? 'All Lanes' : 'Current Lane'}
+				</button>
+			{/if}
+			<button
+				class="ctrl-btn"
+				class:active={showStationMarkers}
+				onclick={() => (showStationMarkers = !showStationMarkers)}
+				aria-pressed={showStationMarkers}
+			>
+				{showStationMarkers ? 'Hide Stations' : 'Show Stations'}
+			</button>
+		</div>
+
 		<div class="map-wrap" style="height:{height}">
 			<MapContainer class="station-map" {height} center={center} zoom={15} bounds={bounds}>
-				<!-- Planned route -->
+				<!-- Planned route (grey) -->
 				<MapPolyline
 					points={routePoints}
 					color="#64748b"
@@ -301,13 +371,42 @@
 						weight={1}
 					/>
 				{/if}
-				<!-- Paved progress segments -->
-				{#each progressSegments as seg, i (i)}
-					<MapPolyline points={seg} color="#22c55e" weight={7} opacity={0.85} lineCap="round" />
-				{/each}
+				<!-- Color-coded progress polylines (green = paved, yellow = today) -->
+				{#if !loading && enhancedEntries.length > 0}
+					<ProgressPolyline
+						{waypoints}
+						entries={enhancedEntries}
+						{today}
+						{numLanes}
+						{laneWidthFt}
+						{showAllLanes}
+					/>
+				{:else if !loading}
+					<!-- Legacy fallback: single green layer -->
+					{#each progressSegments as seg, i (i)}
+						<MapPolyline points={seg} color="#22c55e" weight={7} opacity={0.85} lineCap="round" />
+					{/each}
+				{/if}
+				<!-- Station markers -->
+				<StationMarkers
+					{waypoints}
+					entries={enhancedEntries}
+					visible={showStationMarkers}
+					stationIntervalFt={500}
+				/>
 			</MapContainer>
 			{#if loading}
 				<div class="map-overlay-loading" aria-live="polite">Loading&hellip;</div>
+			{/if}
+			<!-- Progress summary overlay -->
+			{#if !loading && progressEntries.length > 0}
+				<ProgressOverlay
+					totalFt={effectiveTotalFt > 0 ? effectiveTotalFt : null}
+					pavedFt={totalPavedFt}
+					{activeTodayFt}
+					{daysWithData}
+					bind:collapsed={overlayCollapsed}
+				/>
 			{/if}
 		</div>
 	{/if}
@@ -396,7 +495,16 @@
 		display: inline-block;
 		width: 20px;
 		height: 5px;
-		background: var(--good);
+		background: #22c55e;
+		border-radius: 3px;
+		opacity: 0.85;
+	}
+
+	.swatch-today {
+		display: inline-block;
+		width: 20px;
+		height: 5px;
+		background: #f2c037;
 		border-radius: 3px;
 		opacity: 0.85;
 	}
@@ -412,6 +520,40 @@
 
 	.swatch-label {
 		font-size: 0.72rem;
+	}
+
+	/* Map control toggles */
+	.map-controls {
+		display: flex;
+		gap: 8px;
+		padding: 8px 14px;
+		background: var(--surface);
+		border-left: 1px solid var(--border);
+		border-right: 1px solid var(--border);
+	}
+
+	.ctrl-btn {
+		padding: 0 14px;
+		height: 36px;
+		min-height: 36px;
+		font-size: 0.8rem;
+		font-weight: 600;
+		background: var(--surface-alt, var(--surface));
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: background 0.15s, color 0.15s, border-color 0.15s;
+	}
+
+	.ctrl-btn.active {
+		background: color-mix(in srgb, var(--accent) 15%, transparent);
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+
+	.ctrl-btn:hover {
+		border-color: var(--accent);
 	}
 
 	.map-wrap {
@@ -449,6 +591,11 @@
 
 		.legend-label {
 			font-size: 0.8rem;
+		}
+
+		.map-controls {
+			flex-wrap: wrap;
+			gap: 6px;
 		}
 	}
 </style>

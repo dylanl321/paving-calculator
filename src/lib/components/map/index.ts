@@ -6,5 +6,8 @@ export { default as MapPolygon } from './MapPolygon.svelte';
 export { default as MapCircleMarker } from './MapCircleMarker.svelte';
 export { default as CrewLocationMarker } from './CrewLocationMarker.svelte';
 export { default as MapStationPicker } from './MapStationPicker.svelte';
+export { default as ProgressPolyline } from './ProgressPolyline.svelte';
+export { default as StationMarkers } from './StationMarkers.svelte';
+export { default as ProgressOverlay } from './ProgressOverlay.svelte';
 export { MAP_CONTEXT_KEY, type MapContext } from './mapContext';
 export { default as RoadSectionEditor } from '../RoadSectionEditor.svelte';
