@@ -65,14 +65,14 @@
 			]);
 
 			if (logRes.ok) {
-				const data = await logRes.json();
+				const data = (await logRes.json()) as { entries?: any[]; summary?: any; densityReadings?: any[] };
 				entries = data.entries ?? [];
 				summary = data.summary ?? summary;
 				densityReadings = data.densityReadings ?? [];
 			}
 
 			if (loadsRes.ok) {
-				const data = await loadsRes.json();
+				const data = (await loadsRes.json()) as { loads?: any[] };
 				loads = data.loads ?? [];
 			}
 		} finally {

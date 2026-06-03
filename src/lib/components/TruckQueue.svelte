@@ -55,7 +55,7 @@
 					credentials: 'include'
 				});
 				if (res.ok) {
-					const data = await res.json();
+					const data = (await res.json()) as { trucks: Truck[] };
 					trucks = data.trucks;
 				}
 			} catch {
@@ -122,7 +122,7 @@
 					credentials: 'include'
 				});
 				if (res.ok) {
-					const data = await res.json();
+					const data = (await res.json()) as { truck: Truck };
 					trucks = [...trucks, data.truck];
 				}
 			} catch {

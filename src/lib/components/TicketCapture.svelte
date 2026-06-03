@@ -141,7 +141,7 @@
 				throw new Error((data as { message?: string }).message || `Error ${res.status}`);
 			}
 
-			const data = await res.json();
+			const data = (await res.json()) as { load: DbLoad };
 			stage = 'done';
 			onLogged?.(data.load);
 

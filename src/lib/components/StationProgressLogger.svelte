@@ -35,7 +35,7 @@
 		try {
 			const res = await fetch(`/api/job-sites/${jobSiteId}/logs/${logId}`);
 			if (res.ok) {
-				const result = await res.json();
+				const result = (await res.json()) as { entries?: any[] };
 				// Filter paving entries and take last 5
 				recentEntries = (result.entries || [])
 					.filter((e: any) => e.entry_type === 'paving')
