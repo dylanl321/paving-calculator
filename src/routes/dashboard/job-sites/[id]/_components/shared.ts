@@ -1,4 +1,4 @@
-import type { JobSiteConfig } from '../$types';
+import type { JobSiteConfig } from '$lib/config';
 
 /** The mutable, parent-owned configuration form shape (mirrors JobSiteConfig). */
 export type ConfigForm = JobSiteConfig;

@@ -18,7 +18,7 @@
 			description: 'Enter the job site name, address, contract number, and contact info for the owner and general contractor. This creates the record where all your project data lives.',
 			whyText: 'All load tickets, photos, and daily reports are tied to the job site. Without it, nothing gets logged to the right contract.',
 			actionLabel: 'Create Job Site',
-			actionHref: '/dashboard/jobs/new',
+			actionHref: '/dashboard/job-sites',
 			icon: 'building'
 		},
 		{
@@ -54,7 +54,7 @@
 			description: 'Add crew members and assign their roles: foreman, operator, or laborer. Each crew member gets access to the job site data based on their role.',
 			whyText: 'Role-based access keeps your data secure and gives each crew member exactly the tools they need for their job.',
 			actionLabel: 'Manage Crew',
-			actionHref: '/dashboard/crew',
+			actionHref: '/dashboard/team',
 			icon: 'users'
 		},
 		{

@@ -834,7 +834,7 @@ export class DbHelper {
 			.run();
 	}
 
-	async setEmailVerified(id: string, verified: boolean): Promise<void> {
+	async setEmailVerified(id: string, verified = true): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		await this.db
 			.prepare('UPDATE users SET email_verified = ?, updated_at = ? WHERE id = ?')
@@ -1216,14 +1216,6 @@ export class DbHelper {
 		await this.db
 			.prepare('UPDATE email_tokens SET used_at = ? WHERE token = ?')
 			.bind(now, token)
-			.run();
-	}
-
-	async setEmailVerified(userId: string): Promise<void> {
-		const now = Math.floor(Date.now() / 1000);
-		await this.db
-			.prepare('UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?')
-			.bind(now, userId)
 			.run();
 	}
 
