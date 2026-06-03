@@ -18,22 +18,51 @@ export async function POST(event: RequestEvent) {
 			return json({ error: 'Missing required fields' }, { status: 400 });
 		}
 
+		// Normalize and validate email
+		const email = body.email.trim().toLowerCase();
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		if (!emailRegex.test(email)) {
+			return json({ error: 'Invalid email format' }, { status: 400 });
+		}
+
+		// Normalize and validate name
+		const name = body.name.trim().replace(/<[^>]*>/g, '');
+		if (name.length < 2) {
+			return json({ error: 'Name must be at least 2 characters' }, { status: 400 });
+		}
+		if (name.length > 100) {
+			return json({ error: 'Name must be 100 characters or less' }, { status: 400 });
+		}
+
+		// Normalize and validate orgName
+		const orgName = body.orgName.trim().replace(/<[^>]*>/g, '');
+		if (orgName.length < 2) {
+			return json({ error: 'Organization name must be at least 2 characters' }, { status: 400 });
+		}
+		if (orgName.length > 100) {
+			return json({ error: 'Organization name must be 100 characters or less' }, { status: 400 });
+		}
+
+		// Validate password
 		if (body.password.length < 8) {
 			return json({ error: 'Password must be at least 8 characters' }, { status: 400 });
+		}
+		if (body.password.length > 128) {
+			return json({ error: 'Password must be at most 128 characters' }, { status: 400 });
 		}
 
 		const db = new DbHelper(event.platform!.env.DB);
 
-		const existingUser = await db.getUserByEmail(body.email);
+		const existingUser = await db.getUserByEmail(email);
 		if (existingUser) {
 			return json({ error: 'Email already registered' }, { status: 409 });
 		}
 
 		const passwordHash = await hashPassword(body.password);
-		const user = await db.createUser(body.email, passwordHash, body.name);
+		const user = await db.createUser(email, passwordHash, name);
 
-		const orgSlug = slugify(body.orgName);
-		const org = await db.createOrganization(body.orgName, orgSlug);
+		const orgSlug = slugify(orgName);
+		const org = await db.createOrganization(orgName, orgSlug);
 
 		await db.addOrgMember(user.id, org.id, 'owner');
 
