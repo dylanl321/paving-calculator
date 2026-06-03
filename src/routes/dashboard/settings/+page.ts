@@ -30,7 +30,8 @@ export const load: PageLoad = async ({ fetch }) => {
 				errorMessage: `Failed to load settings (${settingsRes.status})`,
 				errorStatus: settingsRes.status,
 				settings: null as OrgSettings | null,
-				notificationPrefs: {} as Record<string, boolean>
+				notificationPrefs: {} as Record<string, boolean>,
+				emailReportSchedules: []
 			};
 		}
 
@@ -39,12 +40,23 @@ export const load: PageLoad = async ({ fetch }) => {
 			notificationPrefsRes.ok ? await notificationPrefsRes.json() : { prefs: {} }
 		) as NotificationPrefsResponse;
 
+		const role = settings?.role;
+		const schedulesRes =
+			role === 'owner' || role === 'admin'
+				? await fetch('/api/org/email-report-schedules', { credentials: 'include' })
+				: null;
+		const emailReportSchedules =
+			schedulesRes?.ok
+				? ((await schedulesRes.json()) as { schedules: unknown[] }).schedules
+				: [];
+
 		return {
 			error: false,
 			errorMessage: '',
 			errorStatus: 0,
 			settings,
-			notificationPrefs: notificationPrefs.prefs
+			notificationPrefs: notificationPrefs.prefs,
+			emailReportSchedules
 		};
 	} catch (err) {
 		// Re-throw SvelteKit redirects
@@ -54,7 +66,8 @@ export const load: PageLoad = async ({ fetch }) => {
 			errorMessage: 'Network error while loading settings',
 			errorStatus: 0,
 			settings: null as OrgSettings | null,
-			notificationPrefs: {} as Record<string, boolean>
+			notificationPrefs: {} as Record<string, boolean>,
+			emailReportSchedules: []
 		};
 	}
 };

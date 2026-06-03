@@ -13,7 +13,7 @@ export interface OrgBranding {
 	emailReplyTo?: string;
 }
 
-export type EmailType = 'verification' | 'password-reset' | 'invitation' | 'welcome';
+export type EmailType = 'verification' | 'password-reset' | 'invitation' | 'welcome' | 'report';
 
 /** Structured outcome of a single send attempt. */
 export interface EmailSendResult {

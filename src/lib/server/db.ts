@@ -234,6 +234,21 @@ export interface DbCrewLocation {
 	updated_at: number;
 }
 
+export interface DbEmailReportSchedule {
+	id: string;
+	org_id: string;
+	report_type: 'daily_summary' | 'weekly_rollup' | 'monthly_rollup';
+	frequency: 'daily' | 'weekly' | 'monthly';
+	send_hour: number;
+	day_of_week: number | null;
+	recipients: string; // JSON
+	enabled: number; // 0|1
+	created_by: string;
+	created_at: number;
+	updated_at: number;
+	last_sent_at: number | null;
+}
+
 export class DbHelper {
 	constructor(private db: D1Database) {}
 
@@ -1464,5 +1479,80 @@ export class DbHelper {
 			)
 			.bind(stateDot, source)
 			.first<DbDotSyncLog>();
+	}
+
+	// Email report schedules
+	async getEmailReportSchedules(orgId: string): Promise<DbEmailReportSchedule[]> {
+		return await this.db
+			.prepare('SELECT * FROM email_report_schedules WHERE org_id = ? ORDER BY created_at DESC')
+			.bind(orgId)
+			.all<DbEmailReportSchedule>()
+			.then((r) => r.results);
+	}
+
+	async upsertEmailReportSchedule(
+		schedule: Omit<DbEmailReportSchedule, 'created_at' | 'updated_at' | 'last_sent_at'>
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		const existing = await this.db
+			.prepare('SELECT id FROM email_report_schedules WHERE id = ?')
+			.bind(schedule.id)
+			.first<{ id: string }>();
+
+		if (existing) {
+			await this.db
+				.prepare(
+					`UPDATE email_report_schedules
+					 SET report_type = ?, frequency = ?, send_hour = ?, day_of_week = ?,
+					     recipients = ?, enabled = ?, updated_at = ?
+					 WHERE id = ?`
+				)
+				.bind(
+					schedule.report_type,
+					schedule.frequency,
+					schedule.send_hour,
+					schedule.day_of_week,
+					schedule.recipients,
+					schedule.enabled,
+					now,
+					schedule.id
+				)
+				.run();
+		} else {
+			await this.db
+				.prepare(
+					`INSERT INTO email_report_schedules
+					 (id, org_id, report_type, frequency, send_hour, day_of_week, recipients, enabled, created_by, created_at, updated_at)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				)
+				.bind(
+					schedule.id,
+					schedule.org_id,
+					schedule.report_type,
+					schedule.frequency,
+					schedule.send_hour,
+					schedule.day_of_week,
+					schedule.recipients,
+					schedule.enabled,
+					schedule.created_by,
+					now,
+					now
+				)
+				.run();
+		}
+	}
+
+	async deleteEmailReportSchedule(id: string, orgId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM email_report_schedules WHERE id = ? AND org_id = ?')
+			.bind(id, orgId)
+			.run();
+	}
+
+	async markEmailReportScheduleSent(id: string, sentAt: number): Promise<void> {
+		await this.db
+			.prepare('UPDATE email_report_schedules SET last_sent_at = ? WHERE id = ?')
+			.bind(sentAt, id)
+			.run();
 	}
 }

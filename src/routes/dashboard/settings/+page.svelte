@@ -13,6 +13,7 @@
 	import DefaultsTab from './_components/DefaultsTab.svelte';
 	import BrandingTab from './_components/BrandingTab.svelte';
 	import NotificationsTab from './_components/NotificationsTab.svelte';
+	import ReportsTab from './_components/ReportsTab.svelte';
 	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
 
 	let { data } = $props();
@@ -230,6 +231,11 @@
 		<button type="button" class="tab" class:active={activeTab === 'notifications'} onclick={() => activeTab = 'notifications'}>
 			Notifications
 		</button>
+		{#if canEdit}
+			<button type="button" class="tab" class:active={activeTab === 'reports'} onclick={() => activeTab = 'reports'}>
+				Reports
+			</button>
+		{/if}
 	</div>
 
 	{#if activeTab === 'general'}
@@ -269,9 +275,11 @@
 		/>
 	{:else if activeTab === 'notifications'}
 		<NotificationsTab initialPrefs={data.notificationPrefs ?? {}} />
+	{:else if activeTab === 'reports'}
+		<ReportsTab initialSchedules={data.emailReportSchedules ?? []} />
 	{/if}
 
-	{#if canEdit && activeTab !== 'notifications'}
+	{#if canEdit && activeTab !== 'notifications' && activeTab !== 'reports'}
 		<div class="save-bar">
 			{#if message}
 				<span class="save-msg" class:error={messageType === 'error'}>{message}</span>
