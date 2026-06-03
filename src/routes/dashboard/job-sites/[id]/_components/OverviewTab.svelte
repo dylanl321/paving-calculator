@@ -7,6 +7,7 @@
 	import WasteYieldAnalysis from '$lib/components/WasteYieldAnalysis.svelte';
 	import ETACalculator from '$lib/components/ETACalculator.svelte';
 	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { fmt, fmtDollars, type ConfigForm } from './shared';
@@ -71,16 +72,20 @@
 	}
 
 	let sections = $state<OverviewSection[]>([]);
+	let sectionsLoading = $state(true);
 
 	$effect(() => {
 		if (!browser) return;
+		sectionsLoading = true;
 		fetch(`/api/job-sites/${data.jobSite.id}/sections`)
 			.then((res) => (res.ok ? res.json() : { sections: [] }))
 			.then((d) => {
 				sections = (d as { sections?: OverviewSection[] }).sections || [];
+				sectionsLoading = false;
 			})
 			.catch(() => {
 				sections = [];
+				sectionsLoading = false;
 			});
 	});
 
@@ -214,9 +219,11 @@
 	}
 
 	let photos = $state<any[]>([]);
+	let photosLoading = $state(true);
 	let selectedPhoto = $state<any | null>(null);
 
 	async function loadPhotos() {
+		photosLoading = true;
 		try {
 			const res = await fetch(`/api/job-sites/${data.jobSite.id}/photos`);
 			if (!res.ok) return;
@@ -225,6 +232,8 @@
 			renderPhotoGrid();
 		} catch {
 			// ignore
+		} finally {
+			photosLoading = false;
 		}
 	}
 
@@ -759,6 +768,13 @@
 					/>
 				{/await}
 
+				{#if photosLoading}
+					<div class="photo-grid-loading">
+						{#each Array(4) as _, i (i)}
+							<Skeleton width="100px" height="100px" borderRadius="6px" />
+						{/each}
+					</div>
+				{/if}
 				<div class="photo-grid" id="photo-grid"></div>
 			</div>
 		{/if}
@@ -1133,6 +1149,12 @@
 	.loading-text {
 		font-size: 0.75rem;
 		color: var(--text-muted);
+	}
+
+	.photo-grid-loading {
+		display: inline-flex;
+		gap: 8px;
+		margin-top: 12px;
 	}
 
 	.photo-grid {
