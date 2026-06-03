@@ -91,6 +91,7 @@ export interface DbOrgSettings {
 	overrides: string | null; // JSON
 	email_from_name: string | null;
 	email_reply_to: string | null;
+	report_recipients: string | null; // JSON array of email addresses
 	updated_by: string | null;
 	updated_at: number;
 }
@@ -897,6 +898,7 @@ export class DbHelper {
 			overrides?: string | null;
 			emailFromName?: string | null;
 			emailReplyTo?: string | null;
+			reportRecipients?: string | null;
 			updatedBy?: string | null;
 		}
 	): Promise<void> {
@@ -906,8 +908,8 @@ export class DbHelper {
 		if (!existing) {
 			await this.db
 				.prepare(
-					`INSERT INTO org_settings (org_id, accent_color, logo_key, logo_content_type, overrides, email_from_name, email_reply_to, updated_by, updated_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					`INSERT INTO org_settings (org_id, accent_color, logo_key, logo_content_type, overrides, email_from_name, email_reply_to, report_recipients, updated_by, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 				)
 				.bind(
 					orgId,
@@ -917,6 +919,7 @@ export class DbHelper {
 					updates.overrides ?? null,
 					updates.emailFromName ?? null,
 					updates.emailReplyTo ?? null,
+					updates.reportRecipients ?? null,
 					updates.updatedBy ?? null,
 					now
 				)
@@ -950,6 +953,10 @@ export class DbHelper {
 		if (updates.emailReplyTo !== undefined) {
 			fields.push('email_reply_to = ?');
 			values.push(updates.emailReplyTo);
+		}
+		if (updates.reportRecipients !== undefined) {
+			fields.push('report_recipients = ?');
+			values.push(updates.reportRecipients);
 		}
 		if (updates.updatedBy !== undefined) {
 			fields.push('updated_by = ?');

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import type { DbDailyLog } from '$lib/server/db-logs';
 	import { formatFeet } from '$lib/utils/format';
+	import SharePDFButton from '$lib/components/SharePDFButton.svelte';
 
 	interface Props {
 		jobSiteId: string;
@@ -23,6 +24,7 @@
 	});
 	let densityReadings = $state<any[]>([]);
 	let loads = $state<any[]>([]);
+	let recipientCount = $state(0);
 
 	const weatherIcons: Record<string, string> = {
 		clear: '☀️',
@@ -52,7 +54,20 @@
 
 	onMount(async () => {
 		await loadData();
+		await loadRecipientCount();
 	});
+
+	async function loadRecipientCount() {
+		try {
+			const res = await fetch('/api/org/settings');
+			if (res.ok) {
+				const data = await res.json();
+				recipientCount = data.reportRecipients?.length ?? 0;
+			}
+		} catch {
+			// Failed to load, keep recipientCount at 0
+		}
+	}
 
 	async function loadData() {
 		loading = true;
@@ -162,6 +177,54 @@
 			densityReadings,
 			summary
 		});
+	}
+
+	async function getPdfBlob(): Promise<Blob> {
+		const { generateDailyReportPDFBlob } = await import('$lib/utils/pdf-export');
+		const { jobState } = await import('$lib/stores/job.svelte');
+
+		// Build report data
+		const reportData = {
+			date: log.log_date,
+			siteName: 'Job Site',
+			weatherTempF: log.weather_temp_f,
+			weatherConditions: log.weather_conditions,
+			windSpeedMph: log.wind_speed_mph,
+			crewCount: log.crew_count,
+			startTime: log.start_time,
+			endTime: log.end_time,
+			notes: log.notes,
+			entries: entries.map((e: any) => ({
+				entry_type: e.entry_type,
+				timestamp: e.timestamp,
+				station_start: e.station_start,
+				station_end: e.station_end,
+				distance_ft: e.distance_ft,
+				tons_placed: e.tons_placed,
+				loads_count: e.loads_count,
+				truck_tickets: e.truck_tickets,
+				spread_rate_actual: e.spread_rate_actual,
+				tack_gallons: e.tack_gallons,
+				lane: e.lane,
+				notes: e.notes
+			})),
+			loads,
+			totals: {
+				totalTons: summary.total_tons,
+				totalDistanceFt: summary.total_distance_ft,
+				totalLoads: summary.total_loads,
+				totalTackGallons: summary.total_tack_gallons,
+				hoursWorked: hoursWorked
+			},
+			yield: {
+				actualRate: null,
+				targetRate: null,
+				diffPct: null
+			},
+			compliance: null
+		};
+
+		return await generateDailyReportPDFBlob(jobState, reportData);
 	}
 </script>
 
@@ -400,6 +463,35 @@
 
 			<!-- Footer -->
 			<div class="sheet-footer">
+				<SharePDFButton
+					getPdfBlob={async () => {
+						const { getDailyReportPDFBlob } = await import('$lib/utils/pdf-export');
+						const { jobState } = await import('$lib/stores/job.svelte');
+						return await getDailyReportPDFBlob(
+							jobState,
+							{
+								date: log.log_date,
+								siteName: 'Job Site',
+								entries,
+								loads,
+								totals: summary,
+								yield: {
+									actualRate: null,
+									targetRate: null,
+									diffPct: null
+								},
+								weatherTempF: log.weather_temp_f,
+								weatherConditions: log.weather_conditions,
+								windSpeedMph: log.wind_speed_mph,
+								crewCount: log.crew_count,
+								startTime: log.start_time,
+								endTime: log.end_time,
+								notes: log.notes
+							}
+						);
+					}}
+					filename={`daily-summary-${log.log_date}.pdf`}
+				/>
 				<button class="btn-print" onclick={() => window.print()}>
 					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<polyline points="6 9 6 2 18 2 18 9"></polyline>
