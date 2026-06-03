@@ -27,15 +27,21 @@ export async function POST(event: RequestEvent) {
 		}
 
 		const body: ForgotPasswordRequest = await event.request.json();
+		const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
 
-		if (!body.email) {
+		if (!email) {
 			return json({ error: 'Email is required' }, { status: 400 });
 		}
 
-		const db = new DbHelper(event.platform.env.DB);
-		const user = await db.getUserByEmail(body.email);
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		if (!emailRegex.test(email)) {
+			return json({ error: 'Invalid email format' }, { status: 400 });
+		}
 
-		// Always return success to prevent email enumeration
+		const db = new DbHelper(event.platform.env.DB);
+		const user = await db.getUserByEmail(email);
+
+		// Unknown addresses return success to prevent email enumeration.
 		if (user) {
 			// Create reset token (1h expiry)
 			const resetToken = await db.createEmailToken(user.id, 'reset_password', 60 * 60);
@@ -45,7 +51,7 @@ export async function POST(event: RequestEvent) {
 			const settings = org ? await db.getOrgSettings(org.id) : null;
 			const branding = buildOrgBranding(org, settings);
 
-			await sendPasswordResetEmail(
+			const result = await sendPasswordResetEmail(
 				event.platform?.env.RESEND_API_KEY,
 				user.email,
 				user.name,
@@ -54,6 +60,13 @@ export async function POST(event: RequestEvent) {
 				branding,
 				{ logger: db, orgId: org?.id ?? null, userId: user.id }
 			);
+
+			if (!result.ok) {
+				return json(
+					{ error: 'Could not send password reset email. Please try again later.' },
+					{ status: 502 }
+				);
+			}
 		}
 
 		return json({ success: true });

@@ -9,18 +9,24 @@ interface ResetPasswordRequest {
 
 export async function POST(event: RequestEvent) {
 	try {
-		const body: ResetPasswordRequest = await event.request.json();
+		if (!event.platform?.env?.DB) {
+			return json({ error: 'Database not available' }, { status: 503 });
+		}
 
-		if (!body.token || !body.password) {
+		const body: ResetPasswordRequest = await event.request.json();
+		const token = typeof body.token === 'string' ? body.token.trim() : '';
+		const password = typeof body.password === 'string' ? body.password : '';
+
+		if (!token || !password) {
 			return json({ error: 'Missing required fields' }, { status: 400 });
 		}
 
-		if (body.password.length < 8) {
+		if (password.length < 8) {
 			return json({ error: 'Password must be at least 8 characters' }, { status: 400 });
 		}
 
-		const db = new DbHelper(event.platform!.env.DB);
-		const tokenData = await db.getEmailToken(body.token, 'reset_password');
+		const db = new DbHelper(event.platform.env.DB);
+		const tokenData = await db.getEmailToken(token, 'reset_password');
 
 		if (!tokenData) {
 			return json({ error: 'Invalid reset token' }, { status: 400 });
@@ -37,11 +43,11 @@ export async function POST(event: RequestEvent) {
 		}
 
 		// Update password
-		const passwordHash = await hashPassword(body.password);
+		const passwordHash = await hashPassword(password);
 		await db.updatePassword(tokenData.user_id, passwordHash);
 
 		// Mark token as used
-		await db.markEmailTokenUsed(body.token);
+		await db.markEmailTokenUsed(token);
 
 		// Delete all user sessions to force re-login
 		await db.deleteSessionsByUserId(tokenData.user_id);
