@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { getInitials } from '$lib/utils/format';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
 
 	type Member = {
 		user_id: string;
@@ -222,7 +223,13 @@
 	}
 
 	async function removeMember(member: Member) {
-		if (!confirm(`Remove ${member.user_name} from the organization?`)) return;
+		const confirmed = await confirmStore.ask({
+			title: 'Remove Member',
+			message: `Remove ${member.user_name} from the organization?`,
+			confirmLabel: 'Remove',
+			destructive: true
+		});
+		if (!confirmed) return;
 
 		try {
 			const res = await fetch(`/api/org/members/${member.user_id}`, {
@@ -243,7 +250,13 @@
 	}
 
 	async function revokeInvitation(invite: Invitation) {
-		if (!confirm(`Revoke invitation for ${invite.email}?`)) return;
+		const confirmed = await confirmStore.ask({
+			title: 'Revoke Invitation',
+			message: `Revoke invitation for ${invite.email}?`,
+			confirmLabel: 'Revoke',
+			destructive: true
+		});
+		if (!confirmed) return;
 
 		try {
 			const res = await fetch(`/api/org/invite/${invite.id}`, {

@@ -19,6 +19,7 @@
 	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
 	import CompletenessBar from '$lib/components/CompletenessBar.svelte';
 	import { today } from '$lib/stores/today.svelte';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -250,7 +251,13 @@
 	}
 
 	async function deleteEntry(entryId: string) {
-		if (!confirm('Delete this entry?')) return;
+		const confirmed = await confirmStore.ask({
+			title: 'Delete Entry',
+			message: 'Delete this entry? This cannot be undone.',
+			confirmLabel: 'Delete',
+			destructive: true
+		});
+		if (!confirmed) return;
 		const res = await fetch(
 			`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries/${entryId}`,
 			{ method: 'DELETE' }

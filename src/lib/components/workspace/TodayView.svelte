@@ -10,6 +10,7 @@
 	import { formatFeet } from '$lib/utils/format';
 	import EodReport from '$lib/components/EodReport.svelte';
 	import CompletenessBar from '$lib/components/CompletenessBar.svelte';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
 
 	const entries = $derived(today.entries);
 
@@ -245,8 +246,16 @@
 		editingId = null;
 	}
 
-	function remove(id: string) {
-		today.removeEntry(id);
+	async function remove(id: string) {
+		const confirmed = await confirmStore.ask({
+			title: 'Remove Entry',
+			message: "Remove this entry from today's log?",
+			confirmLabel: 'Remove',
+			destructive: true
+		});
+		if (confirmed) {
+			today.removeEntry(id);
+		}
 	}
 
 	// Entry type icons - these are display elements in the timeline, kept as emoji for consistency with weather display patterns

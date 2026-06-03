@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
 
 	interface Org {
 		id: string;
@@ -171,7 +172,15 @@
 	}
 
 	async function removeMember(userId: string) {
-		if (!org || !confirm('Remove this member from the organization?')) return;
+		if (!org) return;
+
+		const confirmed = await confirmStore.ask({
+			title: 'Remove Member',
+			message: 'Remove this member from the organization?',
+			confirmLabel: 'Remove',
+			destructive: true
+		});
+		if (!confirmed) return;
 
 		try {
 			const res = await fetch(`/api/admin/orgs/${org.id}`, {
@@ -202,14 +211,15 @@
 	async function toggleArchive() {
 		if (!org || archiving) return;
 		const wantArchived = !org.archived_at;
-		if (
-			!confirm(
-				wantArchived
-					? 'Archive this organization? Members keep access but it is hidden from active lists.'
-					: 'Unarchive this organization?'
-			)
-		)
-			return;
+		const confirmed = await confirmStore.ask({
+			title: wantArchived ? 'Archive Organization' : 'Unarchive Organization',
+			message: wantArchived
+				? 'Archive this organization? Members keep access but it is hidden from active lists.'
+				: 'Unarchive this organization?',
+			confirmLabel: wantArchived ? 'Archive' : 'Unarchive',
+			destructive: wantArchived
+		});
+		if (!confirmed) return;
 		archiving = true;
 		try {
 			const res = await fetch(`/api/admin/orgs/${org.id}`, {
