@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
 	import { Upload, Check, AlertCircle, ChevronRight } from 'lucide-svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	interface JobSite {
 		id: string;
@@ -171,6 +172,7 @@
 
 			if (!res.ok) {
 				error = result.error || 'Import failed';
+				toastStore.error(error);
 				step = 'review';
 				importing = false;
 				return;
@@ -179,8 +181,10 @@
 			importResult = result;
 			step = 'complete';
 			importing = false;
+			toastStore.success(`Import complete: ${result.imported} entries imported`);
 		} catch (err) {
 			error = 'Network error during import';
+			toastStore.error(error);
 			step = 'review';
 			importing = false;
 		}

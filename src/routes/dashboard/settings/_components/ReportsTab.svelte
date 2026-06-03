@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { toastStore } from '$lib/stores/toast.svelte';
+
 	interface EmailReportSchedule {
 		id: string;
 		reportType: 'daily_summary' | 'weekly_rollup' | 'monthly_rollup';
@@ -116,17 +118,20 @@
 				const error = await res.json();
 				message = error.error || 'Failed to save schedule';
 				messageType = 'error';
+				toastStore.error(message);
 				saving = false;
 				return;
 			}
 
 			message = 'Schedule saved successfully';
 			messageType = 'ok';
+			toastStore.success('Schedule saved successfully');
 			resetForm();
 			await loadSchedules();
 		} catch (e) {
 			message = 'Network error';
 			messageType = 'error';
+			toastStore.error('Network error');
 		} finally {
 			saving = false;
 		}
@@ -151,9 +156,13 @@
 
 			if (res.ok) {
 				await loadSchedules();
+				toastStore.success('Schedule updated');
+			} else {
+				toastStore.error('Failed to update schedule');
 			}
 		} catch (e) {
 			console.error('Failed to toggle schedule:', e);
+			toastStore.error('Failed to update schedule');
 		}
 	}
 
@@ -169,9 +178,13 @@
 
 			if (res.ok) {
 				await loadSchedules();
+				toastStore.success('Schedule deleted');
+			} else {
+				toastStore.error('Failed to delete schedule');
 			}
 		} catch (e) {
 			console.error('Failed to delete schedule:', e);
+			toastStore.error('Failed to delete schedule');
 		}
 	}
 

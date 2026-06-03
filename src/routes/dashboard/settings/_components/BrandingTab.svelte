@@ -2,6 +2,7 @@
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import type { EmailPreviewResult, LogoUploadResult } from './shared';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	let {
 		canEdit,
@@ -53,6 +54,9 @@
 			if (logoPreview) URL.revokeObjectURL(logoPreview);
 			logoPreview = null;
 			orgSettingsStore.apply({ hasLogo: false });
+			toastStore.success('Logo removed');
+		} else {
+			toastStore.error('Failed to remove logo');
 		}
 	}
 

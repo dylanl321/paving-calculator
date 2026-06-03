@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { toastStore } from '$lib/stores/toast.svelte';
+
 	interface Props {
 		jobSiteId: string;
 		dailyLogId?: string;
@@ -112,12 +114,14 @@
 			const data = (await res.json()) as PhotoUploadResult;
 			captureState = 'done';
 			onUploaded?.(data.photo);
+			toastStore.success('Photo uploaded successfully');
 
 			// Reset after a brief success display
 			setTimeout(reset, 1500);
 		} catch (err: any) {
 			captureState = 'error';
 			errorMsg = err.message || 'Upload failed';
+			toastStore.error(errorMsg);
 		}
 	}
 

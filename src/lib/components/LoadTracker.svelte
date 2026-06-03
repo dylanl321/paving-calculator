@@ -15,6 +15,7 @@
 	import { offlineStore } from '$lib/stores/offline.svelte';
 	import { formatTime } from '$lib/utils/format';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	interface Props {
 		jobSiteId: string;
@@ -165,6 +166,9 @@
 						const data = (await res.json()) as LoadResponse;
 						loads = [data.load, ...loads];
 						offlineStore.updateLastSyncedAt();
+						toastStore.success('Load added successfully');
+					} else {
+						toastStore.error('Failed to add load');
 					}
 				} catch {
 					// Fall back to offline queue
@@ -255,10 +259,14 @@
 			if (res.ok) {
 				const data = (await res.json()) as LoadResponse;
 				loads = loads.map(l => l.id === loadId ? data.load : l);
+				toastStore.success('Load rejected');
+			} else {
+				toastStore.error('Failed to reject load');
 			}
 		} catch {
 			// For unauthenticated: update locally
 			loads = loads.map(l => l.id === loadId ? { ...l, rejected: 1, rejection_reason: rejectionReason, rejection_notes: rejectionNotesInput || null } : l);
+			toastStore.success('Load rejected');
 		}
 		rejectingLoadId = null;
 		rejectionReason = '';
@@ -279,9 +287,13 @@
 			if (res.ok) {
 				const data = (await res.json()) as LoadResponse;
 				loads = loads.map(l => l.id === loadId ? data.load : l);
+				toastStore.success('Load unreject succeeded');
+			} else {
+				toastStore.error('Failed to unreject load');
 			}
 		} catch {
 			loads = loads.map(l => l.id === loadId ? { ...l, rejected: 0, rejection_reason: null, rejection_notes: null } : l);
+			toastStore.error('Failed to unreject load');
 		}
 	}
 

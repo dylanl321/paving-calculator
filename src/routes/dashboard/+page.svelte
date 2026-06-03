@@ -119,14 +119,17 @@
 
 			if (!res.ok) {
 				createError = result.error || 'Failed to create job site';
+				toastStore.error(createError);
 				creating = false;
 				return;
 			}
 
+			toastStore.success('Job site created successfully');
 			// Navigate to the new job site
 			await goto(`/dashboard/job-sites/${result.id}`);
 		} catch (err) {
 			createError = 'Network error — check your connection and try again';
+			toastStore.error(createError);
 			creating = false;
 		}
 	}
