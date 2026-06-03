@@ -1,11 +1,13 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
+import { DbCrewHelper } from '$lib/server/db-crews';
 import { requireAuth } from '$lib/server/auth';
 
 export async function PATCH(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const crewDb = new DbCrewHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -19,20 +21,21 @@ export async function PATCH(event: RequestEvent) {
 		}
 
 		const { userId } = event.params;
-		const body = await event.request.json();
+		if (!userId) return json({ error: 'User ID is required' }, { status: 400 });
+		const body = (await event.request.json()) as { crew_id?: string | null };
 		const { crew_id } = body;
 
 		if (crew_id === null || crew_id === undefined || crew_id === '') {
 			// Remove member from crew
-			await db.removeMemberFromCrew(userId, org.id);
+			await crewDb.removeCrewMember(userId, org.id);
 		} else {
 			// Assign member to crew
-			await db.assignMemberToCrew(crew_id, userId, org.id);
+			await crewDb.setCrewMember(crew_id, userId, org.id);
 		}
 
 		return json({ success: true });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Update member crew error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

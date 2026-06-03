@@ -21,7 +21,7 @@
 
 	type DetectState = 'idle' | 'acquiring' | 'done' | 'error';
 
-	let state = $state<DetectState>('idle');
+	let detectState = $state<DetectState>('idle');
 	let detectedStation = $state<number | null>(null);
 	let errorMsg = $state<string>('');
 
@@ -30,12 +30,12 @@
 	async function detect() {
 		if (!hasRoute) return;
 		if (!('geolocation' in navigator)) {
-			state = 'error';
+			detectState = 'error';
 			errorMsg = 'GPS not available on this device';
 			return;
 		}
 
-		state = 'acquiring';
+		detectState = 'acquiring';
 		detectedStation = null;
 		errorMsg = '';
 
@@ -43,16 +43,16 @@
 			(pos) => {
 				const result = detectStation(pos.coords.latitude, pos.coords.longitude, waypoints);
 				if (!result) {
-					state = 'error';
+					detectState = 'error';
 					errorMsg = 'Could not detect station';
 					return;
 				}
 				detectedStation = parseFloat(result.station.toFixed(2));
-				state = 'done';
+				detectState = 'done';
 				onDetected?.(detectedStation);
 			},
 			(err) => {
-				state = 'error';
+				detectState = 'error';
 				if (err.code === 1) {
 					errorMsg = 'Location permission denied';
 				} else if (err.code === 2) {
@@ -70,7 +70,7 @@
 	}
 
 	function reset() {
-		state = 'idle';
+		detectState = 'idle';
 		detectedStation = null;
 		errorMsg = '';
 	}
@@ -81,19 +81,19 @@
 		<button
 			type="button"
 			class="gps-btn-compact"
-			class:acquiring={state === 'acquiring'}
-			class:done={state === 'done'}
-			class:error={state === 'error'}
-			onclick={state === 'done' || state === 'error' ? reset : detect}
-			disabled={state === 'acquiring'}
-			title={state === 'done' && detectedStation != null
+			class:acquiring={detectState === 'acquiring'}
+			class:done={detectState === 'done'}
+			class:error={detectState === 'error'}
+			onclick={detectState === 'done' || detectState === 'error' ? reset : detect}
+			disabled={detectState === 'acquiring'}
+			title={detectState === 'done' && detectedStation != null
 				? 'Detected: Sta ' + formatStation(detectedStation) + ' - tap to reset'
-				: state === 'error'
+				: detectState === 'error'
 					? errorMsg + ' - tap to retry'
 					: 'Auto-detect station from GPS'}
-			aria-label={state === 'acquiring' ? 'Detecting GPS position...' : label}
+			aria-label={detectState === 'acquiring' ? 'Detecting GPS position...' : label}
 		>
-			{#if state === 'acquiring'}
+			{#if detectState === 'acquiring'}
 				<svg
 					class="spin"
 					width="18"
@@ -108,7 +108,7 @@
 				>
 					<path d="M21 12a9 9 0 11-6.219-8.56" />
 				</svg>
-			{:else if state === 'done'}
+			{:else if detectState === 'done'}
 				<svg
 					width="18"
 					height="18"
@@ -122,7 +122,7 @@
 				>
 					<polyline points="20 6 9 17 4 12" />
 				</svg>
-			{:else if state === 'error'}
+			{:else if detectState === 'error'}
 				<svg
 					width="18"
 					height="18"
@@ -165,14 +165,14 @@
 			<button
 				type="button"
 				class="gps-btn"
-				class:acquiring={state === 'acquiring'}
-				class:done={state === 'done'}
-				class:error={state === 'error'}
-				onclick={state === 'done' || state === 'error' ? reset : detect}
-				disabled={state === 'acquiring'}
-				aria-label={state === 'acquiring' ? 'Detecting GPS position...' : label}
+				class:acquiring={detectState === 'acquiring'}
+				class:done={detectState === 'done'}
+				class:error={detectState === 'error'}
+				onclick={detectState === 'done' || detectState === 'error' ? reset : detect}
+				disabled={detectState === 'acquiring'}
+				aria-label={detectState === 'acquiring' ? 'Detecting GPS position...' : label}
 			>
-				{#if state === 'acquiring'}
+				{#if detectState === 'acquiring'}
 					<svg
 						class="spin"
 						width="18"
@@ -188,7 +188,7 @@
 						<path d="M21 12a9 9 0 11-6.219-8.56" />
 					</svg>
 					<span>Detecting...</span>
-				{:else if state === 'done' && detectedStation != null}
+				{:else if detectState === 'done' && detectedStation != null}
 					<svg
 						width="18"
 						height="18"
@@ -203,7 +203,7 @@
 						<polyline points="20 6 9 17 4 12" />
 					</svg>
 					<span>Sta {formatStation(detectedStation)} - tap to reset</span>
-				{:else if state === 'error'}
+				{:else if detectState === 'error'}
 					<svg
 						width="18"
 						height="18"

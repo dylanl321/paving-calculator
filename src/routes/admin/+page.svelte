@@ -1,168 +1,298 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import type { PageData } from './$types';
 
-	interface AdminStats {
-		totalOrgs: number;
-		totalUsers: number;
-		activeUsers: number;
+	let { data }: { data: PageData } = $props();
+
+	const stats = $derived(data.stats);
+
+	function formatDate(ts: number): string {
+		return new Date(ts * 1000).toLocaleDateString();
 	}
 
-	let stats = $state<AdminStats>({ totalOrgs: 0, totalUsers: 0, activeUsers: 0 });
-	let loading = $state(true);
-	let error = $state('');
+	function formatDateTime(ts: number): string {
+		return new Date(ts * 1000).toLocaleString();
+	}
 
-	onMount(async () => {
-		try {
-			const [orgsRes, usersRes] = await Promise.all([
-				fetch('/api/admin/orgs'),
-				fetch('/api/admin/users')
-			]);
-
-			if (!orgsRes.ok || !usersRes.ok) {
-				if (orgsRes.status === 403 || usersRes.status === 403) {
-					error = 'Access denied. Global admin privileges required.';
-				} else {
-					error = 'Failed to load admin data';
-				}
-				loading = false;
-				return;
-			}
-
-			const orgsData = await orgsRes.json();
-			const usersData = await usersRes.json();
-
-			stats = {
-				totalOrgs: orgsData.orgs.length,
-				totalUsers: usersData.users.length,
-				activeUsers: usersData.users.filter((u: { disabled: boolean }) => !u.disabled).length
-			};
-		} catch (e) {
-			error = 'Failed to load admin data';
-		} finally {
-			loading = false;
-		}
-	});
+	function statusLabel(status: string): string {
+		if (status === 'failed') return 'Failed';
+		if (status === 'skipped_no_key') return 'Skipped (no key)';
+		return status;
+	}
 </script>
 
-<div class="admin-dashboard">
-	<header>
-		<h1>Global Admin Dashboard</h1>
-		<nav>
-			<a href="/admin/orgs">Organizations</a>
-			<a href="/admin/users">Users</a>
-			<a href="/dashboard">Back to App</a>
-		</nav>
-	</header>
+<div class="admin-overview">
+	<h1>Overview</h1>
 
-	{#if loading}
-		<p class="loading">Loading...</p>
-	{:else if error}
-		<div class="error">{error}</div>
-	{:else}
-		<div class="stats-grid">
-			<a href="/admin/orgs" class="stat-card">
-				<h2>{stats.totalOrgs}</h2>
-				<p>Organizations</p>
-			</a>
-			<a href="/admin/users" class="stat-card">
-				<h2>{stats.totalUsers}</h2>
-				<p>Total Users</p>
-			</a>
-			<div class="stat-card">
-				<h2>{stats.activeUsers}</h2>
-				<p>Active Users</p>
-			</div>
+	<div class="kpi-grid">
+		<a href="/admin/orgs" class="kpi">
+			<span class="kpi-num">{stats.totalOrgs}</span>
+			<span class="kpi-cap">Organizations</span>
+		</a>
+		<a href="/admin/users" class="kpi">
+			<span class="kpi-num">{stats.totalUsers}</span>
+			<span class="kpi-cap">Total Users</span>
+		</a>
+		<div class="kpi">
+			<span class="kpi-num">{stats.activeUsers}</span>
+			<span class="kpi-cap">Active Users</span>
 		</div>
-	{/if}
+		<div class="kpi">
+			<span class="kpi-num">{stats.totalJobSites}</span>
+			<span class="kpi-cap">Job Sites</span>
+		</div>
+		<div class="kpi" class:warn={stats.unverifiedUsers > 0}>
+			<span class="kpi-num">{stats.unverifiedUsers}</span>
+			<span class="kpi-cap">Unverified Users</span>
+		</div>
+		<a href="/admin/emails" class="kpi" class:bad={stats.failedEmails > 0}>
+			<span class="kpi-num">{stats.failedEmails}</span>
+			<span class="kpi-cap">Failed Emails</span>
+		</a>
+	</div>
+
+	<div class="panels">
+		<section class="panel">
+			<div class="panel-head">
+				<h2>Recent Users</h2>
+				<a href="/admin/users">View all</a>
+			</div>
+			{#if data.recentUsers.length === 0}
+				<p class="empty">No users yet.</p>
+			{:else}
+				<ul class="activity-list">
+					{#each data.recentUsers as u}
+						<li>
+							<a href="/admin/users/{u.id}" class="activity-main">{u.name}</a>
+							<span class="activity-sub">{u.email}</span>
+							<span class="activity-meta">{formatDate(u.created_at)}</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+
+		<section class="panel">
+			<div class="panel-head">
+				<h2>Recent Organizations</h2>
+				<a href="/admin/orgs">View all</a>
+			</div>
+			{#if data.recentOrgs.length === 0}
+				<p class="empty">No organizations yet.</p>
+			{:else}
+				<ul class="activity-list">
+					{#each data.recentOrgs as o}
+						<li>
+							<a href="/admin/orgs/{o.id}" class="activity-main">{o.name}</a>
+							<span class="activity-sub">{o.member_count} member{o.member_count === 1 ? '' : 's'}</span>
+							<span class="activity-meta">{formatDate(o.created_at)}</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+
+		<section class="panel">
+			<div class="panel-head">
+				<h2>Recent Failed Emails</h2>
+				<a href="/admin/emails">Email log</a>
+			</div>
+			{#if data.recentFailedEmails.length === 0}
+				<p class="empty">No failed sends. 🎉</p>
+			{:else}
+				<ul class="activity-list">
+					{#each data.recentFailedEmails as e}
+						<li>
+							<span class="activity-main">{e.to_email}</span>
+							<span class="activity-sub">{e.type} · {statusLabel(e.status)}</span>
+							<span class="activity-meta">{formatDateTime(e.created_at)}</span>
+							{#if e.error}
+								<span class="activity-error" title={e.error}>{e.error}</span>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+
+		<section class="panel">
+			<div class="panel-head">
+				<h2>Orgs Needing Attention</h2>
+			</div>
+			{#if data.needingAttention.length === 0}
+				<p class="empty">All organizations have an owner and members.</p>
+			{:else}
+				<ul class="activity-list">
+					{#each data.needingAttention as o}
+						<li>
+							<a href="/admin/orgs/{o.id}" class="activity-main">{o.name}</a>
+							<span class="activity-sub">
+								{o.member_count === 0
+									? 'No members'
+									: o.owner_count === 0
+										? 'No owner'
+										: 'Needs review'}
+							</span>
+							<span class="activity-meta">{formatDate(o.created_at)}</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+	</div>
 </div>
 
 <style>
-	.admin-dashboard {
-		padding: 1rem;
+	.admin-overview {
 		max-width: 1200px;
 		margin: 0 auto;
 	}
 
-	header {
-		margin-bottom: 2rem;
-		border-bottom: 2px solid var(--border);
-		padding-bottom: 1rem;
-	}
-
 	h1 {
 		font-size: 1.75rem;
-		margin: 0 0 1rem 0;
+		margin: 0 0 1.5rem;
 		color: var(--text);
 	}
 
-	nav {
-		display: flex;
-		gap: 1rem;
-		flex-wrap: wrap;
-	}
-
-	nav a {
-		padding: 0.5rem 1rem;
-		background: var(--surface);
-		color: var(--text);
-		text-decoration: none;
-		border-radius: var(--radius);
-		min-height: var(--touch);
-		display: flex;
-		align-items: center;
-		border: 1px solid var(--border);
-	}
-
-	nav a:hover {
-		background: var(--surface-hover);
-	}
-
-	.loading,
-	.error {
-		text-align: center;
-		padding: 2rem;
-		font-size: 1.125rem;
-		color: var(--text);
-	}
-
-	.error {
-		color: var(--bad);
-		background: var(--surface);
-		border-radius: var(--radius);
-		border: 1px solid var(--bad);
-	}
-
-	.stats-grid {
+	.kpi-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-		gap: 1.5rem;
+		grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+		gap: 1rem;
+		margin-bottom: 2rem;
 	}
 
-	.stat-card {
+	.kpi {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
 		background: var(--surface);
-		padding: 2rem;
-		border-radius: var(--radius);
-		text-align: center;
 		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 1.5rem;
 		text-decoration: none;
-		display: block;
 		transition: background 0.15s ease;
 	}
 
-	a.stat-card:hover {
+	a.kpi:hover {
 		background: var(--surface-hover);
-		cursor: pointer;
 	}
 
-	.stat-card h2 {
-		font-size: 3rem;
-		margin: 0 0 0.5rem 0;
+	.kpi-num {
+		font-size: 2.25rem;
+		font-weight: 700;
+		color: var(--accent);
+		line-height: 1;
+	}
+
+	.kpi-cap {
+		font-size: 0.95rem;
+		color: var(--text-muted);
+	}
+
+	.kpi.warn .kpi-num {
 		color: var(--accent);
 	}
 
-	.stat-card p {
-		font-size: 1.125rem;
+	.kpi.bad .kpi-num {
+		color: var(--bad);
+	}
+
+	.panels {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+		gap: 1.5rem;
+	}
+
+	.panel {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 1.25rem 1.5rem;
+	}
+
+	.panel-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 1rem;
+	}
+
+	.panel-head h2 {
+		font-size: 1.15rem;
 		margin: 0;
+		color: var(--text);
+	}
+
+	.panel-head a {
+		font-size: 0.85rem;
+		color: var(--accent);
+		text-decoration: none;
+	}
+
+	.panel-head a:hover {
+		text-decoration: underline;
+	}
+
+	.activity-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.activity-list li {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		grid-template-areas:
+			'main meta'
+			'sub meta'
+			'err err';
+		gap: 0.1rem 0.75rem;
+		padding: 0.65rem 0;
+		border-top: 1px solid var(--border);
+	}
+
+	.activity-list li:first-child {
+		border-top: none;
+	}
+
+	.activity-main {
+		grid-area: main;
+		font-weight: 600;
+		color: var(--text);
+		text-decoration: none;
+	}
+
+	a.activity-main:hover {
+		color: var(--accent);
+	}
+
+	.activity-sub {
+		grid-area: sub;
+		font-size: 0.85rem;
 		color: var(--text-muted);
+	}
+
+	.activity-meta {
+		grid-area: meta;
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		white-space: nowrap;
+	}
+
+	.activity-error {
+		grid-area: err;
+		font-size: 0.8rem;
+		color: var(--bad);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		margin-top: 0.2rem;
+	}
+
+	.empty {
+		color: var(--text-muted);
+		padding: 0.5rem 0;
+		margin: 0;
 	}
 </style>
