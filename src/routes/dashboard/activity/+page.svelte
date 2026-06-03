@@ -50,7 +50,7 @@
 			});
 
 			if (res.ok) {
-				const result = await res.json();
+				const result = (await res.json()) as { entries: typeof data.entries; next_cursor: typeof data.nextCursor };
 				entries = result.entries;
 				nextCursor = result.next_cursor;
 
@@ -96,7 +96,7 @@
 			});
 
 			if (res.ok) {
-				const result = await res.json();
+				const result = (await res.json()) as { entries: typeof data.entries; next_cursor: typeof data.nextCursor };
 				entries = [...entries, ...result.entries];
 				nextCursor = result.next_cursor;
 			}

@@ -28,8 +28,8 @@
 				return;
 			}
 
-			const orgsData = await orgsRes.json();
-			const usersData = await usersRes.json();
+			const orgsData = (await orgsRes.json()) as { orgs: unknown[] };
+			const usersData = (await usersRes.json()) as { users: { disabled: boolean }[] };
 
 			stats = {
 				totalOrgs: orgsData.orgs.length,

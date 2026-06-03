@@ -35,6 +35,10 @@
 
 	const visibleItems = $derived(
 		navItems.filter((item) => {
+			// screed_man sees only the Calculators link
+			if (authStore.org?.role === 'screed_man') {
+				return item.href === '/app';
+			}
 			if (item.authed && !authStore.isAuthenticated) return false;
 			if (item.adminOnly) {
 				const role = authStore.user?.role;

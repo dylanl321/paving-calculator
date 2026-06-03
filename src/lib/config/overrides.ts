@@ -16,6 +16,8 @@ export interface OrgDefaultsOverride {
 	tackApplication?: string;
 	wastePct?: number;
 	courseType?: string;
+	liftThicknessIn?: number;
+	mixType?: string;
 }
 
 export interface OrgTackOverride {
@@ -52,7 +54,9 @@ export const OVERRIDABLE_DEFAULTS: Record<
 	firstPass: { type: 'boolean' },
 	tackApplication: { type: 'string' },
 	wastePct: { min: 0, max: 50, type: 'number' },
-	courseType: { type: 'string' }
+	courseType: { type: 'string' },
+	liftThicknessIn: { min: 0.5, max: 10, type: 'number' },
+	mixType: { type: 'string' }
 };
 
 export interface ValidationResult {
