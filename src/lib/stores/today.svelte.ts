@@ -30,6 +30,7 @@ export interface TodayEntry {
 	tack_gallons: number | null;
 	lane: string | null;
 	notes: string | null;
+	waste_tons: number | null;
 	/** Which calculator produced this entry, if any (local-only metadata). */
 	source_calc: string | null;
 	created_at: number;
@@ -278,6 +279,7 @@ class Today {
 		tack_gallons?: number | null;
 		lane?: string | null;
 		notes?: string | null;
+		waste_tons?: number | null;
 		source_calc?: string | null;
 	}): TodayEntry {
 		let distance = input.distance_ft ?? null;
@@ -299,6 +301,7 @@ class Today {
 			tack_gallons: input.tack_gallons ?? null,
 			lane: input.lane ?? null,
 			notes: input.notes ?? null,
+			waste_tons: input.waste_tons ?? null,
 			source_calc: input.source_calc ?? null,
 			created_at: Math.floor(Date.now() / 1000),
 			remote_id: null
