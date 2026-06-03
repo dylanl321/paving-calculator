@@ -1,5 +1,6 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
+import { DbWebhookHelper } from '$lib/server/db-webhooks';
 import { requireAuth } from '$lib/server/auth';
 
 const VALID_EVENT_TYPES = [
@@ -17,6 +18,7 @@ export async function GET(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const webhookDb = new DbWebhookHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -28,7 +30,9 @@ export async function GET(event: RequestEvent) {
 			return json({ error: 'Only owners and admins can view webhooks' }, { status: 403 });
 		}
 
-		const webhook = await db.getWebhookById(event.params.id);
+		const { id } = event.params;
+		if (!id) return json({ error: 'Webhook ID is required' }, { status: 400 });
+		const webhook = await webhookDb.getWebhookById(id);
 		if (!webhook) {
 			return json({ error: 'Webhook not found' }, { status: 404 });
 		}
@@ -48,7 +52,7 @@ export async function GET(event: RequestEvent) {
 			created_at: webhook.created_at
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get webhook error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -65,6 +69,7 @@ export async function PATCH(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const webhookDb = new DbWebhookHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -76,7 +81,9 @@ export async function PATCH(event: RequestEvent) {
 			return json({ error: 'Only owners and admins can update webhooks' }, { status: 403 });
 		}
 
-		const webhook = await db.getWebhookById(event.params.id);
+		const { id } = event.params;
+		if (!id) return json({ error: 'Webhook ID is required' }, { status: 400 });
+		const webhook = await webhookDb.getWebhookById(id);
 		if (!webhook) {
 			return json({ error: 'Webhook not found' }, { status: 404 });
 		}
@@ -113,7 +120,7 @@ export async function PATCH(event: RequestEvent) {
 		}
 
 		// Update webhook
-		await db.updateWebhook(event.params.id, {
+		await webhookDb.updateWebhook(id, {
 			url: body.url,
 			events: body.events,
 			description: body.description,
@@ -121,7 +128,7 @@ export async function PATCH(event: RequestEvent) {
 		});
 
 		// Fetch updated webhook
-		const updatedWebhook = await db.getWebhookById(event.params.id);
+		const updatedWebhook = await webhookDb.getWebhookById(id);
 		if (!updatedWebhook) {
 			return json({ error: 'Webhook not found after update' }, { status: 500 });
 		}
@@ -135,7 +142,7 @@ export async function PATCH(event: RequestEvent) {
 			created_at: updatedWebhook.created_at
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Update webhook error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -145,6 +152,7 @@ export async function DELETE(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const webhookDb = new DbWebhookHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -156,7 +164,9 @@ export async function DELETE(event: RequestEvent) {
 			return json({ error: 'Only owners and admins can delete webhooks' }, { status: 403 });
 		}
 
-		const webhook = await db.getWebhookById(event.params.id);
+		const { id } = event.params;
+		if (!id) return json({ error: 'Webhook ID is required' }, { status: 400 });
+		const webhook = await webhookDb.getWebhookById(id);
 		if (!webhook) {
 			return json({ error: 'Webhook not found' }, { status: 404 });
 		}
@@ -167,11 +177,11 @@ export async function DELETE(event: RequestEvent) {
 		}
 
 		// Delete webhook (and its deliveries via cascade or explicit)
-		await db.deleteWebhook(event.params.id);
+		await webhookDb.deleteWebhook(id);
 
 		return json({ success: true });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Delete webhook error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

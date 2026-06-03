@@ -3,6 +3,7 @@
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import { goto } from '$app/navigation';
 	import { scale } from 'svelte/transition';
+	import { getInitials } from '$lib/utils/format';
 
 	let {
 		direction = 'down',
@@ -24,15 +25,6 @@
 		orgSettingsStore.clear();
 		close();
 		goto('/');
-	}
-
-	function getInitials(name: string): string {
-		return name
-			.split(' ')
-			.map((n) => n[0])
-			.join('')
-			.toUpperCase()
-			.slice(0, 2);
 	}
 </script>
 
@@ -112,20 +104,20 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0 16px;
-		background: var(--surface);
-		border: 1px solid var(--border);
+		padding: 0 20px;
+		background: var(--accent);
+		border: none;
 		border-radius: 12px;
-		color: var(--text);
-		font-weight: 600;
+		color: var(--accent-text);
+		font-weight: 700;
 		font-size: 0.9rem;
 		transition:
-			background var(--dur-normal) var(--ease),
+			opacity var(--dur-normal) var(--ease),
 			transform var(--dur-fast) var(--ease);
 	}
 
 	.login-link:hover {
-		background: var(--surface-alt);
+		opacity: 0.9;
 	}
 
 	.dropdown {

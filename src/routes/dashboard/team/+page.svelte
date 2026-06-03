@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { toastStore } from '$lib/stores/toast';
+	import { toastStore } from '$lib/stores/toast.svelte';
+	import { getInitials } from '$lib/utils/format';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
 
 	type Member = {
 		user_id: string;
@@ -27,6 +29,23 @@
 	} | null;
 
 	let members = $state<Member[]>([]);
+
+	interface MeResponse {
+		user: { id: string };
+		org: { role: string };
+	}
+	interface MembersResponse {
+		members?: Member[];
+	}
+	interface InvitesResponse {
+		invitations?: Invitation[];
+	}
+	interface ActivityResponse {
+		activity?: Record<string, MemberActivity>;
+	}
+	interface ErrorResponse {
+		error?: string;
+	}
 	let invitations = $state<Invitation[]>([]);
 	let memberActivity = $state<Record<string, MemberActivity>>({});
 	let loading = $state(true);
@@ -95,7 +114,7 @@
 		try {
 			const res = await fetch('/api/auth/me');
 			if (res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as MeResponse;
 				currentUserId = data.user.id;
 				currentUserRole = data.org.role;
 			}
@@ -122,16 +141,16 @@
 				return;
 			}
 
-			const membersData = await membersRes.json();
+			const membersData = (await membersRes.json()) as MembersResponse;
 			members = membersData.members || [];
 
 			if (invitesRes.ok) {
-				const invitesData = await invitesRes.json();
+				const invitesData = (await invitesRes.json()) as InvitesResponse;
 				invitations = invitesData.invitations || [];
 			}
 
 			if (activityRes.ok) {
-				const activityData = await activityRes.json();
+				const activityData = (await activityRes.json()) as ActivityResponse;
 				memberActivity = activityData.activity || {};
 			}
 		} catch (e) {
@@ -156,7 +175,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as ErrorResponse;
 				toastStore.error(data.error || 'Failed to send invitation');
 				return;
 			}
@@ -190,7 +209,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as ErrorResponse;
 				toastStore.error(data.error || 'Failed to update role');
 				return;
 			}
@@ -204,7 +223,13 @@
 	}
 
 	async function removeMember(member: Member) {
-		if (!confirm(`Remove ${member.user_name} from the organization?`)) return;
+		const confirmed = await confirmStore.ask({
+			title: 'Remove Member',
+			message: `Remove ${member.user_name} from the organization?`,
+			confirmLabel: 'Remove',
+			destructive: true
+		});
+		if (!confirmed) return;
 
 		try {
 			const res = await fetch(`/api/org/members/${member.user_id}`, {
@@ -212,7 +237,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as ErrorResponse;
 				toastStore.error(data.error || 'Failed to remove member');
 				return;
 			}
@@ -225,7 +250,13 @@
 	}
 
 	async function revokeInvitation(invite: Invitation) {
-		if (!confirm(`Revoke invitation for ${invite.email}?`)) return;
+		const confirmed = await confirmStore.ask({
+			title: 'Revoke Invitation',
+			message: `Revoke invitation for ${invite.email}?`,
+			confirmLabel: 'Revoke',
+			destructive: true
+		});
+		if (!confirmed) return;
 
 		try {
 			const res = await fetch(`/api/org/invite/${invite.id}`, {
@@ -233,7 +264,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as ErrorResponse;
 				alert(data.error || 'Failed to revoke invitation');
 				return;
 			}
@@ -254,15 +285,6 @@
 			return false;
 		}
 		return true;
-	}
-
-	function getInitials(name: string): string {
-		return name
-			.split(' ')
-			.map((n) => n[0])
-			.join('')
-			.toUpperCase()
-			.slice(0, 2);
 	}
 
 	function formatRelativeTime(timestamp: number): string {
@@ -369,7 +391,25 @@
 				</div>
 			{/if}
 			{#if filteredMembers.length === 0}
-				<p class="empty">{hasActiveFilters ? 'No members match your filters' : 'No team members yet'}</p>
+				{#if hasActiveFilters}
+					<p class="empty">No members match your filters</p>
+				{:else}
+					<div class="empty-state">
+						<div class="icon-circle">
+							<svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+								<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" opacity="0.4"></path>
+								<circle cx="9" cy="7" r="4"></circle>
+								<path d="M23 21v-2a4 4 0 0 0-3-3.87" opacity="0.4"></path>
+								<path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+							</svg>
+						</div>
+						<h4>No team members yet</h4>
+						<p>Invite colleagues to collaborate on projects and share work</p>
+						<button type="button" class="btn-primary" onclick={() => (showInviteModal = true)}>
+							Invite team member
+						</button>
+					</div>
+				{/if}
 			{:else}
 				<div class="members-cards">
 					{#each filteredMembers as member}
@@ -385,19 +425,21 @@
 								<div class="card-row">
 									<span class="label">Role</span>
 									{#if canModifyMember(member)}
-										<select
-											class="role-select"
-											value={member.role}
-											onchange={(e) => requestRoleChange(member, e.currentTarget.value)}
-										>
-											<option value="owner">Owner</option>
-											<option value="admin">Admin</option>
-											<option value="member">Member</option>
-											<option value="foreman">Foreman</option>
-											<option value="operator">Operator</option>
-											<option value="inspector">Inspector</option>
-											<option value="office">Office</option>
-										</select>
+																		<select
+																			class="role-select"
+																			value={member.role}
+																			onchange={(e) => requestRoleChange(member, e.currentTarget.value)}
+																		>
+																			<option value="owner">Owner</option>
+																			<option value="admin">Admin</option>
+																			<option value="member">Member</option>
+																			<option value="foreman">Foreman</option>
+																			<option value="operator">Operator</option>
+																			<option value="inspector">Inspector</option>
+																			<option value="office">Office</option>
+																			<option value="laborer">Laborer</option>
+																			<option value="screed_man">Screed Man</option>
+																		</select>
 									{:else}
 										<span class="role-badge {member.role}">{member.role}</span>
 									{/if}
@@ -485,17 +527,19 @@
 				/>
 			</label>
 			<label>
-				Role
-				<select bind:value={inviteForm.role}>
-					<option value="owner">Owner</option>
-					<option value="admin">Admin</option>
-					<option value="member">Member</option>
-					<option value="foreman">Foreman</option>
-					<option value="operator">Operator</option>
-					<option value="inspector">Inspector</option>
-					<option value="office">Office</option>
-				</select>
-			</label>
+						Role
+						<select bind:value={inviteForm.role}>
+							<option value="owner">Owner</option>
+							<option value="admin">Admin</option>
+							<option value="member">Member</option>
+							<option value="foreman">Foreman</option>
+							<option value="operator">Operator</option>
+							<option value="inspector">Inspector</option>
+							<option value="office">Office</option>
+							<option value="laborer">Laborer</option>
+							<option value="screed_man">Screed Man</option>
+						</select>
+					</label>
 			<div class="modal-actions">
 				<button type="button" onclick={() => (showInviteModal = false)}>Cancel</button>
 				<button type="submit" disabled={inviting || !inviteForm.email.trim()}>
@@ -593,6 +637,64 @@
 		text-align: center;
 		padding: var(--sp-8);
 		font-size: var(--fs-lg);
+	}
+
+	.empty-state {
+		text-align: center;
+		padding: 48px 24px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.empty-state .icon-circle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 96px;
+		height: 96px;
+		border-radius: 50%;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		margin-bottom: 24px;
+	}
+
+	.empty-state svg {
+		color: var(--accent);
+	}
+
+	.empty-state h4 {
+		margin: 0 0 8px;
+		font-size: 1.1rem;
+		color: var(--text);
+		font-weight: 500;
+	}
+
+	.empty-state p {
+		margin: 0 0 24px;
+		font-size: 0.9rem;
+		color: var(--text-muted);
+		max-width: 400px;
+		line-height: 1.5;
+	}
+
+	.empty-state .btn-primary {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 12px 24px;
+		min-height: 44px;
+		border-radius: 6px;
+		font-size: 0.95rem;
+		font-weight: 500;
+		border: none;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.empty-state .btn-primary:hover {
+		opacity: 0.9;
+		transform: translateY(-1px);
 	}
 
 	.error {
@@ -771,6 +873,16 @@
 	.role-badge.office {
 		background: rgba(20, 184, 166, 0.2);
 		color: rgb(20, 184, 166);
+	}
+
+	.role-badge.laborer {
+		background: rgba(251, 146, 60, 0.2);
+		color: rgb(251, 146, 60);
+	}
+
+	.role-badge.screed_man {
+		background: rgba(251, 191, 36, 0.2);
+		color: rgb(251, 191, 36);
 	}
 
 	.role-select {

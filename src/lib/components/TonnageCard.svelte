@@ -5,6 +5,7 @@
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
 	import DotTable from './DotTable.svelte';
+	import Tooltip from './ui/Tooltip.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { spreadRateFromThickness, tonnageToOrder } from '$lib/config/formulas';
 	import { constantMeta } from '$lib/config';

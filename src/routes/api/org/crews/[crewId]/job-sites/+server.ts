@@ -1,5 +1,6 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
+import { DbCrewHelper } from '$lib/server/db-crews';
 import { requireAuth } from '$lib/server/auth';
 
 // GET /api/org/crews/[crewId]/job-sites - list job sites assigned to this crew
@@ -7,6 +8,7 @@ export async function GET(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const crewDb = new DbCrewHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -14,11 +16,12 @@ export async function GET(event: RequestEvent) {
 		}
 
 		const { crewId } = event.params;
-		const jobSites = await db.getCrewJobSites(crewId);
+		if (!crewId) return json({ error: 'Crew ID is required' }, { status: 400 });
+		const jobSites = await crewDb.getCrewJobSites(crewId);
 
 		return json({ job_sites: jobSites });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get crew job-sites error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -29,6 +32,7 @@ export async function POST(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const crewDb = new DbCrewHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -42,7 +46,8 @@ export async function POST(event: RequestEvent) {
 		}
 
 		const { crewId } = event.params;
-		const body = await event.request.json();
+		if (!crewId) return json({ error: 'Crew ID is required' }, { status: 400 });
+		const body = (await event.request.json()) as { job_site_id?: string };
 		const { job_site_id } = body;
 
 		if (!job_site_id) {
@@ -55,11 +60,11 @@ export async function POST(event: RequestEvent) {
 			return json({ error: 'Job site not found' }, { status: 404 });
 		}
 
-		await db.assignJobSiteToCrew(crewId, job_site_id, org.id, user.id);
+		await crewDb.assignJobSiteToCrew(crewId, job_site_id, org.id, user.id);
 
 		return json({ success: true }, { status: 201 });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Assign job-site to crew error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
