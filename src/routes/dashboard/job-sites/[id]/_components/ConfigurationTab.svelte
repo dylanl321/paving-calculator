@@ -3,6 +3,7 @@
 	import AutoSaveStatus from '$lib/components/AutoSaveStatus.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import GdotPanel from '$lib/components/GdotPanel.svelte';
+	import { browser } from '$app/environment';
 
 	let {
 		jobSiteId,
@@ -19,6 +20,148 @@
 	} = $props();
 
 	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+	interface Mix {
+		id: string;
+		mix_name: string;
+		unit: string | null;
+		bid_quantity: number | null;
+		takeoff_tonnage: number | null;
+		quantity_per_day: number | null;
+		est_days: number | null;
+		mix_type: string | null;
+		target_thickness_in: number | null;
+		target_spread_rate: number | null;
+		tack_type: string | null;
+		target_tack_rate: number | null;
+		is_active: number;
+		sort_order: number;
+	}
+
+	const MIX_TYPE_OPTIONS = [
+		'12.5mm Superpave',
+		'9.5mm Superpave Type 1',
+		'9.5mm Superpave Type 2',
+		'4.75mm Superpave',
+		'Open Graded Interlayer (OGI)',
+		'Polymer Modified',
+		'SMA (Stone Matrix Asphalt)',
+		'Patching',
+		'Leveling',
+		'Other'
+	];
+
+	let mixes = $state<Mix[]>([]);
+	let mixesLoading = $state(true);
+
+	$effect(() => {
+		if (!browser) return;
+		loadMixes();
+	});
+
+	async function loadMixes() {
+		mixesLoading = true;
+		try {
+			const res = await fetch(`/api/job-sites/${jobSiteId}/mixes`, { credentials: 'include' });
+			if (res.ok) {
+				const d = (await res.json()) as { mixes?: Mix[] };
+				mixes = d.mixes ?? [];
+			}
+		} catch {
+			// ignore
+		} finally {
+			mixesLoading = false;
+		}
+	}
+
+	async function addMix() {
+		try {
+			const res = await fetch(`/api/job-sites/${jobSiteId}/mixes`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({ mix_name: 'New Mix', unit: 'TN' })
+			});
+			if (res.ok) {
+				const d = (await res.json()) as { mix?: Mix };
+				if (d.mix) mixes = [...mixes, d.mix];
+			} else {
+				toastStore.error('Failed to add mix');
+			}
+		} catch {
+			toastStore.error('Failed to add mix');
+		}
+	}
+
+	let mixSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+	function saveMix(mix: Mix) {
+		const existing = mixSaveTimers.get(mix.id);
+		if (existing) clearTimeout(existing);
+		mixSaveTimers.set(
+			mix.id,
+			setTimeout(async () => {
+				try {
+					await fetch(`/api/job-sites/${jobSiteId}/mixes/${mix.id}`, {
+						method: 'PATCH',
+						headers: { 'Content-Type': 'application/json' },
+						credentials: 'include',
+						body: JSON.stringify({
+							mix_name: mix.mix_name,
+							unit: mix.unit,
+							bid_quantity: mix.bid_quantity,
+							takeoff_tonnage: mix.takeoff_tonnage,
+							quantity_per_day: mix.quantity_per_day,
+							est_days: mix.est_days,
+							mix_type: mix.mix_type,
+							target_thickness_in: mix.target_thickness_in,
+							target_spread_rate: mix.target_spread_rate,
+							tack_type: mix.tack_type,
+							target_tack_rate: mix.target_tack_rate
+						})
+					});
+				} catch {
+					toastStore.error('Failed to save mix');
+				}
+			}, 600)
+		);
+	}
+
+	async function setActiveMix(mix: Mix) {
+		try {
+			const res = await fetch(`/api/job-sites/${jobSiteId}/mixes/${mix.id}`, {
+				method: 'PUT',
+				credentials: 'include'
+			});
+			if (res.ok) {
+				const d = (await res.json()) as { mixes?: Mix[] };
+				mixes = d.mixes ?? mixes;
+				toastStore.success(`${mix.mix_name} is now the active mix`);
+			}
+		} catch {
+			toastStore.error('Failed to set active mix');
+		}
+	}
+
+	async function removeMix(mix: Mix) {
+		try {
+			const res = await fetch(`/api/job-sites/${jobSiteId}/mixes/${mix.id}`, {
+				method: 'DELETE',
+				credentials: 'include'
+			});
+			if (res.ok) {
+				await loadMixes();
+			} else {
+				toastStore.error('Failed to remove mix');
+			}
+		} catch {
+			toastStore.error('Failed to remove mix');
+		}
+	}
+
+	const totalMixTonnage = $derived(
+		mixes.reduce((sum, m) => sum + (m.takeoff_tonnage ?? 0), 0)
+	);
 
 	async function saveConfig() {
 		saveStatus = 'saving';
@@ -115,21 +258,6 @@
 				min="1"
 				placeholder="e.g., 2"
 			/>
-		</div>
-
-		<div class="form-group">
-			<label for="total_tonnage">Total Estimated Tonnage</label>
-			<input
-				type="number"
-				id="total_tonnage"
-				bind:value={configForm.total_tonnage}
-				min="0"
-				step="1"
-				placeholder="Auto-calculated or enter manually"
-			/>
-			{#if estTonnage}
-				<div class="hint-text">Auto-calculated: {fmt(estTonnage, 1)} tons</div>
-			{/if}
 		</div>
 
 		<h3 class="form-section-title">Route Designation</h3>
@@ -231,76 +359,6 @@
 		</div>
 
 		<div class="form-group">
-			<label for="mix_type">Mix Type</label>
-			<select id="mix_type" bind:value={configForm.mix_type}>
-				<option value={null}>Select mix type</option>
-				<option value="12.5mm Superpave">12.5mm Superpave</option>
-				<option value="9.5mm Superpave Type 1">9.5mm Superpave Type 1</option>
-				<option value="9.5mm Superpave Type 2">9.5mm Superpave Type 2</option>
-				<option value="4.75mm Superpave">4.75mm Superpave</option>
-				<option value="Polymer Modified">Polymer Modified</option>
-				<option value="SMA (Stone Matrix Asphalt)">SMA (Stone Matrix Asphalt)</option>
-				<option value="Other">Other</option>
-			</select>
-		</div>
-
-		<div class="form-row">
-			<div class="form-group">
-				<label for="target_thickness_in">Target Thickness (in)</label>
-				<input
-					type="number"
-					id="target_thickness_in"
-					bind:value={configForm.target_thickness_in}
-					min="0"
-					step="0.25"
-					placeholder="e.g., 2"
-				/>
-			</div>
-
-			<div class="form-group">
-				<label for="target_spread_rate">Target Spread Rate (lbs/yd²)</label>
-				<input
-					type="number"
-					id="target_spread_rate"
-					bind:value={configForm.target_spread_rate}
-					min="0"
-					placeholder="Auto-calculated"
-				/>
-			</div>
-		</div>
-
-		<div class="form-group">
-			<label for="tack_type">Tack Coat Type</label>
-			<div class="selector-grid">
-				{#each Object.entries(tackTypeLabels) as [value, label]}
-					<button
-						type="button"
-						class="selector-card"
-						class:active={configForm.tack_type === value}
-						onclick={() => {
-							configForm.tack_type = value as any;
-							saveConfig();
-						}}
-					>
-						{label}
-					</button>
-				{/each}
-			</div>
-		</div>
-
-		<div class="form-group">
-			<label for="target_tack_rate">Target Tack Rate (gal/yd²)</label>
-			<input
-				type="number"
-				id="target_tack_rate"
-				bind:value={configForm.target_tack_rate}
-				min="0"
-				step="0.01"
-				placeholder="e.g., 0.06"
-			/>
-		</div>
-
-		<div class="form-group">
 			<label for="notes">Notes</label>
 			<textarea
 				id="notes"
@@ -314,3 +372,284 @@
 
 	<AutoSaveStatus status={saveStatus} onRetry={saveConfig} />
 </section>
+
+<section class="section">
+	<div class="mixes-header">
+		<div>
+			<h3>Mixes &amp; Tonnage</h3>
+			<p class="mixes-sub">
+				Each mix has its own tonnage and paving spec. The active mix feeds the calculators and daily-log targets.
+			</p>
+		</div>
+		<button type="button" class="btn btn-primary add-mix-btn" onclick={addMix}>+ Add Mix</button>
+	</div>
+
+	{#if mixesLoading}
+		<div class="mixes-empty">Loading mixes…</div>
+	{:else if mixes.length === 0}
+		<div class="mixes-empty">
+			<p>No mixes yet. Add a mix or import a project from a contract PDF.</p>
+		</div>
+	{:else}
+		<div class="mix-cards">
+			{#each mixes as mix (mix.id)}
+				<div class="mix-card" class:active={mix.is_active === 1}>
+					<div class="mix-card-head">
+						<input
+							class="mix-name-input"
+							type="text"
+							bind:value={mix.mix_name}
+							oninput={() => saveMix(mix)}
+							placeholder="Mix name"
+						/>
+						<div class="mix-card-actions">
+							{#if mix.is_active === 1}
+								<span class="active-badge">Active</span>
+							{:else}
+								<button type="button" class="mix-link" onclick={() => setActiveMix(mix)}>
+									Set Active
+								</button>
+							{/if}
+							<button
+								type="button"
+								class="mix-remove"
+								onclick={() => removeMix(mix)}
+								aria-label="Remove mix"
+							>
+								×
+							</button>
+						</div>
+					</div>
+
+					<div class="mix-fields">
+						<div class="mix-field">
+							<label>Mix Type</label>
+							<select bind:value={mix.mix_type} onchange={() => saveMix(mix)}>
+								<option value={null}>Select type</option>
+								{#each MIX_TYPE_OPTIONS as opt}
+									<option value={opt}>{opt}</option>
+								{/each}
+							</select>
+						</div>
+						<div class="mix-field">
+							<label>Unit</label>
+							<input type="text" bind:value={mix.unit} oninput={() => saveMix(mix)} placeholder="TN" />
+						</div>
+						<div class="mix-field">
+							<label>Bid Quantity</label>
+							<input type="number" bind:value={mix.bid_quantity} oninput={() => saveMix(mix)} min="0" step="any" />
+						</div>
+						<div class="mix-field">
+							<label>Takeoff Tonnage</label>
+							<input type="number" bind:value={mix.takeoff_tonnage} oninput={() => saveMix(mix)} min="0" step="any" />
+						</div>
+						<div class="mix-field">
+							<label>Qty / Day</label>
+							<input type="number" bind:value={mix.quantity_per_day} oninput={() => saveMix(mix)} min="0" step="any" />
+						</div>
+						<div class="mix-field">
+							<label>Est. Days</label>
+							<input type="number" bind:value={mix.est_days} oninput={() => saveMix(mix)} min="0" step="0.5" />
+						</div>
+						<div class="mix-field">
+							<label>Thickness (in)</label>
+							<input type="number" bind:value={mix.target_thickness_in} oninput={() => saveMix(mix)} min="0" step="0.25" />
+						</div>
+						<div class="mix-field">
+							<label>Spread (lbs/yd²)</label>
+							<input type="number" bind:value={mix.target_spread_rate} oninput={() => saveMix(mix)} min="0" step="any" />
+						</div>
+						<div class="mix-field">
+							<label>Tack Type</label>
+							<select bind:value={mix.tack_type} onchange={() => saveMix(mix)}>
+								<option value={null}>None</option>
+								{#each Object.entries(tackTypeLabels) as [value, label]}
+									<option value={value}>{label}</option>
+								{/each}
+							</select>
+						</div>
+						<div class="mix-field">
+							<label>Tack Rate (gal/yd²)</label>
+							<input type="number" bind:value={mix.target_tack_rate} oninput={() => saveMix(mix)} min="0" step="0.01" />
+						</div>
+					</div>
+				</div>
+			{/each}
+		</div>
+
+		<div class="mix-total">
+			<span>Total Tonnage (all mixes)</span>
+			<strong>{fmt(totalMixTonnage, 1)} t</strong>
+		</div>
+	{/if}
+</section>
+
+<style>
+	.mixes-header {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 16px;
+		flex-wrap: wrap;
+		margin-bottom: 16px;
+	}
+
+	.mixes-sub {
+		margin: 4px 0 0;
+		font-size: 0.85rem;
+		color: var(--text-muted);
+		max-width: 60ch;
+	}
+
+	.add-mix-btn {
+		white-space: nowrap;
+	}
+
+	.mixes-empty {
+		padding: 24px;
+		text-align: center;
+		color: var(--text-muted);
+		background: var(--surface);
+		border: 1px dashed var(--border);
+		border-radius: var(--radius);
+		font-size: 0.9rem;
+	}
+
+	.mix-cards {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	.mix-card {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 16px;
+		transition: border-color 0.2s;
+	}
+
+	.mix-card.active {
+		border-color: var(--accent);
+		border-left-width: 4px;
+	}
+
+	.mix-card-head {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin-bottom: 14px;
+	}
+
+	.mix-name-input {
+		flex: 1;
+		font-size: 1rem;
+		font-weight: 700;
+		padding: 8px 10px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text);
+		min-width: 0;
+	}
+
+	.mix-card-actions {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+	}
+
+	.active-badge {
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--accent-text);
+		background: var(--accent);
+		padding: 4px 10px;
+		border-radius: 999px;
+	}
+
+	.mix-link {
+		background: none;
+		border: none;
+		color: var(--accent);
+		font-size: 0.8rem;
+		font-weight: 600;
+		cursor: pointer;
+		text-decoration: underline;
+		padding: 8px;
+		min-height: 44px;
+	}
+
+	.mix-remove {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		font-size: 1.4rem;
+		line-height: 1;
+		cursor: pointer;
+		padding: 0 8px;
+		min-height: 44px;
+		min-width: 44px;
+	}
+
+	.mix-remove:hover {
+		color: #ef4444;
+	}
+
+	.mix-fields {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+		gap: 12px;
+	}
+
+	.mix-field {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.mix-field label {
+		font-size: 0.72rem;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--text-muted);
+		font-weight: 600;
+	}
+
+	.mix-field input,
+	.mix-field select {
+		padding: 8px 10px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text);
+		font-size: 0.9rem;
+		min-height: 44px;
+	}
+
+	.mix-total {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-top: 16px;
+		padding: 12px 16px;
+		background: var(--surface-alt, var(--surface));
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+	}
+
+	.mix-total span {
+		font-size: 0.8rem;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--text-muted);
+		font-weight: 600;
+	}
+
+	.mix-total strong {
+		font-size: 1.1rem;
+		color: var(--accent);
+	}
+</style>

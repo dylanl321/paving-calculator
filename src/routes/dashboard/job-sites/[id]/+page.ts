@@ -110,6 +110,27 @@ interface MilestonesResponse {
 	milestones?: Milestone[];
 }
 
+export interface ProductionMix {
+	id: string;
+	mix_name: string;
+	unit: string | null;
+	bid_quantity: number | null;
+	takeoff_tonnage: number | null;
+	quantity_per_day: number | null;
+	est_days: number | null;
+	mix_type: string | null;
+	target_thickness_in: number | null;
+	target_spread_rate: number | null;
+	tack_type: string | null;
+	target_tack_rate: number | null;
+	is_active: number;
+	sort_order: number;
+}
+
+interface MixesResponse {
+	mixes?: ProductionMix[];
+}
+
 export const load: PageLoad = async ({ params, fetch }) => {
 	try {
 		const authRes = await fetch('/api/auth/me', { credentials: 'include' });
@@ -129,13 +150,14 @@ export const load: PageLoad = async ({ params, fetch }) => {
 
 		const siteData = (await siteRes.json()) as JobSite;
 
-		const [calcRes, configRes, equipmentRes, assignmentsRes, routeRes, milestonesRes] = await Promise.all([
+		const [calcRes, configRes, equipmentRes, assignmentsRes, routeRes, milestonesRes, mixesRes] = await Promise.all([
 			fetch(`/api/calculations?job_site_id=${params.id}`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/config`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/equipment`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/assignments`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/route`, { credentials: 'include' }),
-			fetch(`/api/job-sites/${params.id}/milestones`, { credentials: 'include' })
+			fetch(`/api/job-sites/${params.id}/milestones`, { credentials: 'include' }),
+			fetch(`/api/job-sites/${params.id}/mixes`, { credentials: 'include' })
 		]);
 
 		if (!calcRes.ok) {
@@ -148,17 +170,40 @@ export const load: PageLoad = async ({ params, fetch }) => {
 		const assignmentsData = (assignmentsRes.ok ? await assignmentsRes.json() : { assignments: [] }) as AssignmentsResponse;
 		const routeData = (routeRes.ok ? await routeRes.json() : { waypoints: [] }) as RouteResponse;
 		const milestonesData = (milestonesRes.ok ? await milestonesRes.json() : { milestones: [] }) as MilestonesResponse;
+		const mixesData = (mixesRes.ok ? await mixesRes.json() : { mixes: [] }) as MixesResponse;
+
+		const mixes = mixesData.mixes || [];
+		const activeMix = mixes.find((m) => m.is_active === 1) ?? mixes[0] ?? null;
+
+		// Overlay the active mix's paving spec onto the config so the calculators,
+		// targets, and overview reflect the mix currently being placed. The stored
+		// job_site_config is not mutated — this is a read-time merge only.
+		let config = configData.config;
+		if (config && activeMix) {
+			config = {
+				...config,
+				mix_type: activeMix.mix_type ?? activeMix.mix_name ?? config.mix_type,
+				target_thickness_in: activeMix.target_thickness_in ?? config.target_thickness_in,
+				target_spread_rate: activeMix.target_spread_rate ?? config.target_spread_rate,
+				tack_type: (activeMix.tack_type as JobSiteConfig['tack_type']) ?? config.tack_type,
+				target_tack_rate: activeMix.target_tack_rate ?? config.target_tack_rate,
+				total_tonnage:
+					mixes.reduce((sum, m) => sum + (m.takeoff_tonnage ?? 0), 0) || config.total_tonnage
+			};
+		}
 
 		return {
 			user: authData.user,
 			org: authData.org,
 			jobSite: siteData,
 			calculations: calcData.calculations || [],
-			config: configData.config,
+			config,
 			equipment: equipmentData.equipment || [],
 			assignments: assignmentsData.assignments || [],
 			routeWaypoints: routeData.waypoints || [],
-			milestones: milestonesData.milestones || []
+			milestones: milestonesData.milestones || [],
+			mixes,
+			activeMix
 		};
 	} catch (err) {
 		// Re-throw SvelteKit errors/redirects; do not swallow real load failures

@@ -122,6 +122,12 @@ export interface DbProductionMix {
 	takeoff_tonnage: number | null;
 	quantity_per_day: number | null;
 	est_days: number | null;
+	mix_type: string | null;
+	target_thickness_in: number | null;
+	target_spread_rate: number | null;
+	tack_type: 'anionic' | 'cationic' | 'polymer_modified' | 'trackless' | null;
+	target_tack_rate: number | null;
+	is_active: number;
 	sort_order: number;
 	created_at: number;
 }
@@ -702,8 +708,10 @@ export class DbHelper {
 			.prepare(
 				`INSERT INTO job_production_mixes (
 					id, job_site_id, mix_name, unit, bid_quantity, takeoff_tonnage,
-					quantity_per_day, est_days, sort_order, created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					quantity_per_day, est_days, mix_type, target_thickness_in,
+					target_spread_rate, tack_type, target_tack_rate, is_active,
+					sort_order, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.bind(
 				id,
@@ -714,12 +722,78 @@ export class DbHelper {
 				mix.takeoff_tonnage ?? null,
 				mix.quantity_per_day ?? null,
 				mix.est_days ?? null,
+				mix.mix_type ?? null,
+				mix.target_thickness_in ?? null,
+				mix.target_spread_rate ?? null,
+				mix.tack_type ?? null,
+				mix.target_tack_rate ?? null,
+				mix.is_active ?? 0,
 				mix.sort_order ?? 0,
 				now
 			)
 			.run();
 
 		return { id, job_site_id: jobSiteId, created_at: now, ...mix };
+	}
+
+	async getProductionMix(mixId: string): Promise<DbProductionMix | null> {
+		return await this.db
+			.prepare('SELECT * FROM job_production_mixes WHERE id = ?')
+			.bind(mixId)
+			.first<DbProductionMix>();
+	}
+
+	async updateProductionMix(
+		mixId: string,
+		updates: Partial<Omit<DbProductionMix, 'id' | 'job_site_id' | 'created_at'>>
+	): Promise<void> {
+		const columns: (keyof typeof updates)[] = [
+			'mix_name',
+			'unit',
+			'bid_quantity',
+			'takeoff_tonnage',
+			'quantity_per_day',
+			'est_days',
+			'mix_type',
+			'target_thickness_in',
+			'target_spread_rate',
+			'tack_type',
+			'target_tack_rate',
+			'is_active',
+			'sort_order'
+		];
+		const fields: string[] = [];
+		const values: (string | number | null)[] = [];
+		for (const col of columns) {
+			const value = updates[col];
+			if (value !== undefined) {
+				fields.push(`${col} = ?`);
+				values.push(value as string | number | null);
+			}
+		}
+		if (fields.length === 0) return;
+		values.push(mixId);
+		await this.db
+			.prepare(`UPDATE job_production_mixes SET ${fields.join(', ')} WHERE id = ?`)
+			.bind(...values)
+			.run();
+	}
+
+	// Marks one mix active for a job site and clears the flag on all others, so
+	// exactly one mix is the "currently placing" mix that calculators read.
+	async setActiveMix(jobSiteId: string, mixId: string): Promise<void> {
+		await this.db
+			.prepare('UPDATE job_production_mixes SET is_active = 0 WHERE job_site_id = ?')
+			.bind(jobSiteId)
+			.run();
+		await this.db
+			.prepare('UPDATE job_production_mixes SET is_active = 1 WHERE id = ? AND job_site_id = ?')
+			.bind(mixId, jobSiteId)
+			.run();
+	}
+
+	async deleteProductionMix(mixId: string): Promise<void> {
+		await this.db.prepare('DELETE FROM job_production_mixes WHERE id = ?').bind(mixId).run();
 	}
 
 	async deleteProductionMixes(jobSiteId: string): Promise<void> {

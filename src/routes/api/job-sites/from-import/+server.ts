@@ -114,6 +114,7 @@ export async function POST(event: RequestEvent) {
 			const m = mixes[i];
 			const mixName = str(m.mix_name);
 			if (!mixName) continue;
+			const isActive = primaryMix != null && m === primaryMix ? 1 : 0;
 			await db.createProductionMix(jobSite.id, {
 				mix_name: mixName,
 				unit: str(m.unit),
@@ -121,6 +122,12 @@ export async function POST(event: RequestEvent) {
 				takeoff_tonnage: num(m.takeoff_tonnage),
 				quantity_per_day: num(m.quantity_per_day),
 				est_days: num(m.est_days),
+				mix_type: mixName,
+				target_thickness_in: null,
+				target_spread_rate: null,
+				tack_type: null,
+				target_tack_rate: null,
+				is_active: isActive,
 				sort_order: i
 			});
 		}
