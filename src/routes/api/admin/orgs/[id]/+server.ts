@@ -2,6 +2,25 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireGlobalAdmin } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
 
+type OrgRole =
+	| 'owner'
+	| 'admin'
+	| 'member'
+	| 'foreman'
+	| 'operator'
+	| 'inspector'
+	| 'office'
+	| 'laborer'
+	| 'screed_man';
+
+interface UpdateOrgBody {
+	name?: string;
+	slug?: string;
+	action?: string;
+	userId?: string;
+	role?: OrgRole;
+}
+
 export async function GET(event: RequestEvent) {
 	try {
 		await requireGlobalAdmin(event);
@@ -28,7 +47,7 @@ export async function PATCH(event: RequestEvent) {
 		await requireGlobalAdmin(event);
 		const { id } = event.params;
 		if (!id) return json({ error: 'Organization ID is required' }, { status: 400 });
-		const body = await event.request.json();
+		const body = (await event.request.json()) as UpdateOrgBody;
 		const { name, slug, action, userId, role } = body;
 
 		const db = new DbHelper(event.platform!.env.DB);

@@ -36,7 +36,7 @@ export async function PUT(event: RequestEvent) {
 		}
 		const db = new DbHelper(event.platform.env.DB);
 
-		const body = await event.request.json();
+		const body = (await event.request.json()) as { prefs?: Record<string, boolean> };
 
 		if (!body.prefs || typeof body.prefs !== 'object') {
 			return json({ error: 'prefs object is required' }, { status: 400 });

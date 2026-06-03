@@ -3,9 +3,17 @@ import { DbHelper } from '$lib/server/db';
 import { hashPassword, createSession, setSessionCookie } from '$lib/server/auth';
 import { sendWelcomeEmail, type OrgBranding } from '$lib/server/email';
 
+interface AcceptInviteBody {
+	token?: string;
+	name?: string;
+	password?: string;
+	existingUser?: boolean;
+}
+
 export async function POST(event: RequestEvent) {
 	try {
-		const { token, name, password, existingUser } = await event.request.json();
+		const { token, name, password, existingUser } =
+			(await event.request.json()) as AcceptInviteBody;
 
 		if (!token) {
 			return json({ error: 'Missing token' }, { status: 400 });

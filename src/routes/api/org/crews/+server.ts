@@ -52,7 +52,7 @@ export async function POST(event: RequestEvent) {
 			return json({ error: 'Forbidden: Admin or owner access required' }, { status: 403 });
 		}
 
-		const body = await event.request.json();
+		const body = (await event.request.json()) as { name?: string; color?: string };
 		const { name, color = 'slate' } = body;
 
 		if (!name || typeof name !== 'string' || name.trim().length === 0) {

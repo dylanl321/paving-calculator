@@ -44,7 +44,7 @@ export async function POST(event: RequestEvent) {
 
 		const { crewId } = event.params;
 		if (!crewId) return json({ error: 'Crew ID is required' }, { status: 400 });
-		const body = await event.request.json();
+		const body = (await event.request.json()) as { job_site_id?: string };
 		const { job_site_id } = body;
 
 		if (!job_site_id) {

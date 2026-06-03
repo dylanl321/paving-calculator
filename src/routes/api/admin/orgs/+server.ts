@@ -3,6 +3,11 @@ import { requireGlobalAdmin } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
 import { slugify } from '$lib/server/auth';
 
+interface CreateOrgBody {
+	name?: string;
+	ownerEmail?: string;
+}
+
 export async function GET(event: RequestEvent) {
 	try {
 		await requireGlobalAdmin(event);
@@ -19,7 +24,7 @@ export async function GET(event: RequestEvent) {
 export async function POST(event: RequestEvent) {
 	try {
 		await requireGlobalAdmin(event);
-		const body = await event.request.json();
+		const body = (await event.request.json()) as CreateOrgBody;
 		const { name, ownerEmail } = body;
 
 		if (!name || typeof name !== 'string' || name.trim().length === 0) {

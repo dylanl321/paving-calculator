@@ -3,10 +3,26 @@ import { requireAuth } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
 import { recordAudit } from '$lib/server/audit';
 
+type OrgRole =
+	| 'owner'
+	| 'admin'
+	| 'member'
+	| 'foreman'
+	| 'operator'
+	| 'inspector'
+	| 'office'
+	| 'laborer'
+	| 'screed_man';
+
+interface InviteBody {
+	email?: string;
+	role?: OrgRole;
+}
+
 export async function POST(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
-		const body = await event.request.json();
+		const body = (await event.request.json()) as InviteBody;
 		const { email, role } = body;
 
 		if (!email || !role) {

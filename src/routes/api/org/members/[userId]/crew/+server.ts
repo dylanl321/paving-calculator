@@ -20,7 +20,7 @@ export async function PATCH(event: RequestEvent) {
 
 		const { userId } = event.params;
 		if (!userId) return json({ error: 'User ID is required' }, { status: 400 });
-		const body = await event.request.json();
+		const body = (await event.request.json()) as { crew_id?: string | null };
 		const { crew_id } = body;
 
 		if (crew_id === null || crew_id === undefined || crew_id === '') {

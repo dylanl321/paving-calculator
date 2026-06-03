@@ -2,12 +2,23 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireAuth } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
 
+type OrgRole =
+	| 'owner'
+	| 'admin'
+	| 'member'
+	| 'foreman'
+	| 'operator'
+	| 'inspector'
+	| 'office'
+	| 'laborer'
+	| 'screed_man';
+
 export async function PATCH(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const { userId } = event.params;
 		if (!userId) return json({ error: 'User ID is required' }, { status: 400 });
-		const body = await event.request.json();
+		const body = (await event.request.json()) as { role?: OrgRole };
 		const { role } = body;
 
 		if (!role || !['owner', 'admin', 'member', 'foreman', 'operator', 'inspector', 'office'].includes(role)) {

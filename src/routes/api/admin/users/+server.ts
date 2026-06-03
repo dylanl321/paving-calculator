@@ -2,6 +2,27 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireGlobalAdmin, hashPassword } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
 
+type OrgRole =
+	| 'owner'
+	| 'admin'
+	| 'member'
+	| 'foreman'
+	| 'operator'
+	| 'inspector'
+	| 'office'
+	| 'laborer'
+	| 'screed_man';
+
+interface CreateUserBody {
+	email?: string;
+	password?: string;
+	name?: string;
+	org_id?: string;
+	role?: OrgRole;
+	phone?: string | null;
+	is_global_admin?: boolean;
+}
+
 export async function GET(event: RequestEvent) {
 	try {
 		await requireGlobalAdmin(event);
@@ -21,7 +42,7 @@ export async function GET(event: RequestEvent) {
 export async function POST(event: RequestEvent) {
 	try {
 		await requireGlobalAdmin(event);
-		const body = await event.request.json();
+		const body = (await event.request.json()) as CreateUserBody;
 		const { email, password, name, org_id, role, phone, is_global_admin } = body;
 
 		if (!email || !password || !name) {
