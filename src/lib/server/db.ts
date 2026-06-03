@@ -17,6 +17,9 @@ export interface DbOrganization {
 	id: string;
 	name: string;
 	slug: string;
+	address?: string | null;
+	superintendent_email?: string | null;
+	superintendent_phone?: string | null;
 	created_at: number;
 }
 
@@ -83,6 +86,8 @@ export interface DbOrgSettings {
 	logo_key: string | null;
 	logo_content_type: string | null;
 	overrides: string | null; // JSON
+	email_from_name: string | null;
+	email_reply_to: string | null;
 	updated_by: string | null;
 	updated_at: number;
 }
@@ -563,7 +568,7 @@ export class DbHelper {
 			.first<DbOrganization>();
 	}
 
-	async updateOrganization(id: string, updates: { name?: string; slug?: string }): Promise<void> {
+	async updateOrganization(id: string, updates: { name?: string; slug?: string; address?: string; superintendentEmail?: string; superintendentPhone?: string }): Promise<void> {
 		const fields: string[] = [];
 		const values: string[] = [];
 
@@ -574,6 +579,18 @@ export class DbHelper {
 		if (updates.slug !== undefined) {
 			fields.push('slug = ?');
 			values.push(updates.slug);
+		}
+		if (updates.address !== undefined) {
+			fields.push('address = ?');
+			values.push(updates.address);
+		}
+		if (updates.superintendentEmail !== undefined) {
+			fields.push('superintendent_email = ?');
+			values.push(updates.superintendentEmail);
+		}
+		if (updates.superintendentPhone !== undefined) {
+			fields.push('superintendent_phone = ?');
+			values.push(updates.superintendentPhone);
 		}
 
 		if (fields.length === 0) return;
@@ -680,6 +697,8 @@ export class DbHelper {
 			logoKey?: string | null;
 			logoContentType?: string | null;
 			overrides?: string | null;
+			emailFromName?: string | null;
+			emailReplyTo?: string | null;
 			updatedBy?: string | null;
 		}
 	): Promise<void> {
@@ -689,8 +708,8 @@ export class DbHelper {
 		if (!existing) {
 			await this.db
 				.prepare(
-					`INSERT INTO org_settings (org_id, accent_color, logo_key, logo_content_type, overrides, updated_by, updated_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?)`
+					`INSERT INTO org_settings (org_id, accent_color, logo_key, logo_content_type, overrides, email_from_name, email_reply_to, updated_by, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 				)
 				.bind(
 					orgId,
@@ -698,6 +717,8 @@ export class DbHelper {
 					updates.logoKey ?? null,
 					updates.logoContentType ?? null,
 					updates.overrides ?? null,
+					updates.emailFromName ?? null,
+					updates.emailReplyTo ?? null,
 					updates.updatedBy ?? null,
 					now
 				)
@@ -723,6 +744,14 @@ export class DbHelper {
 		if (updates.overrides !== undefined) {
 			fields.push('overrides = ?');
 			values.push(updates.overrides);
+		}
+		if (updates.emailFromName !== undefined) {
+			fields.push('email_from_name = ?');
+			values.push(updates.emailFromName);
+		}
+		if (updates.emailReplyTo !== undefined) {
+			fields.push('email_reply_to = ?');
+			values.push(updates.emailReplyTo);
 		}
 		if (updates.updatedBy !== undefined) {
 			fields.push('updated_by = ?');
