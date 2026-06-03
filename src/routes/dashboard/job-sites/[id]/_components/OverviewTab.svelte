@@ -84,6 +84,32 @@
 			});
 	});
 
+	interface ProgressData {
+		geometry: { type: 'LineString'; coordinates: [number, number][] } | null;
+		logEntries: Array<{
+			station_start: number | null;
+			station_end: number | null;
+			tons_placed: number | null;
+			log_date: string | null;
+		}>;
+		totalLengthFt: number | null;
+		today: string;
+	}
+
+	let progressData = $state<ProgressData | null>(null);
+
+	$effect(() => {
+		if (!browser) return;
+		fetch(`/api/job-sites/${data.jobSite.id}/progress`)
+			.then((res) => (res.ok ? res.json() : null))
+			.then((d) => {
+				progressData = d;
+			})
+			.catch(() => {
+				progressData = null;
+			});
+	});
+
 	// Total paving length (feet) derived from the drawn route, falling back to
 	// the configured total length.
 	const routeLengthFt = $derived.by(() => {
@@ -448,6 +474,50 @@
 			</section>
 		{/if}
 </div>
+
+{#if progressData !== null}
+	<section class="panel progress-map-panel">
+		<div class="panel-head">
+			<h3>Paving Progress Map</h3>
+		</div>
+		{#if progressData.geometry === null}
+			<div class="empty-state-mini">
+				<p>Draw a route alignment to see progress visualization</p>
+				<button class="btn-secondary" onclick={() => onGoToTab('location')}>
+					Go to Map Tab
+				</button>
+			</div>
+		{:else}
+			{#await Promise.all([
+				import('$lib/components/map/MapContainer.svelte'),
+				import('$lib/components/map/ProgressPolyline.svelte'),
+				import('$lib/components/map/StationMarkers.svelte'),
+				import('$lib/components/map/ProgressOverlay.svelte')
+			])}
+				<div class="map-mini-loading">Loading progress map&hellip;</div>
+			{:then [{ default: MapContainer }, { default: ProgressPolyline }, { default: StationMarkers }, { default: ProgressOverlay }]}
+				{@const coords = progressData.geometry.coordinates}
+				{@const midIndex = Math.floor(coords.length / 2)}
+				{@const center = [coords[midIndex][1], coords[midIndex][0]] as [number, number]}
+				<MapContainer {center} zoom={14} height="360px">
+					{#snippet children()}
+						<ProgressPolyline
+							geometry={progressData.geometry}
+							logEntries={progressData.logEntries}
+							totalLength={progressData.totalLengthFt}
+						/>
+						<StationMarkers geometry={progressData.geometry} logEntries={progressData.logEntries} />
+						<ProgressOverlay
+							logEntries={progressData.logEntries}
+							totalLengthFt={progressData.totalLengthFt}
+							today={progressData.today}
+						/>
+					{/snippet}
+				</MapContainer>
+			{/await}
+		{/if}
+	</section>
+{/if}
 
 <div class="link-tiles">
 	<button class="link-tile" onclick={() => onGoToTab('equipment')}>
@@ -1230,6 +1300,18 @@
 	.plant-info-value {
 		font-size: 0.85rem;
 		color: var(--text);
+	}
+
+	/* Progress map panel */
+	.progress-map-panel {
+		margin-bottom: 24px;
+	}
+
+	.map-mini-loading {
+		padding: 40px;
+		text-align: center;
+		color: var(--text-muted);
+		font-size: 0.85rem;
 	}
 
 	@media (max-width: 640px) {
