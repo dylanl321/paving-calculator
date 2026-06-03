@@ -100,6 +100,44 @@
 		spec ? { kind: spec.status, text: spec.label } : null
 	);
 
+	const inspectorStats = $derived.by(() => {
+		if (placedRate == null || targetRate == null) return undefined;
+
+		const variance = placedRate - targetRate;
+		const varianceStr = `${variance > 0 ? '+' : ''}${variance.toFixed(1)}`;
+
+		return [
+			{
+				label: 'Target Rate',
+				value: Math.round(displayTargetRate ?? targetRate).toString(),
+				unit: UNIT_LABELS.lbsSy[unitsStore.system],
+				highlight: spec?.status === 'good',
+				status: null as 'good' | 'warn' | 'bad' | null
+			},
+			{
+				label: 'Actual Rate',
+				value: Math.round(displayPlacedRate ?? placedRate).toString(),
+				unit: UNIT_LABELS.lbsSy[unitsStore.system],
+				highlight: false,
+				status: (spec?.status === 'good' ? 'good' : spec?.status === 'warn' ? 'warn' : spec?.status === 'bad' ? 'bad' : null) as 'good' | 'warn' | 'bad' | null
+			},
+			{
+				label: 'Variance',
+				value: varianceStr,
+				unit: UNIT_LABELS.lbsSy[unitsStore.system],
+				highlight: false,
+				status: null as 'good' | 'warn' | 'bad' | null
+			},
+			{
+				label: 'Width',
+				value: calcContext.road_width.value.toFixed(1),
+				unit: UNIT_LABELS.ft[unitsStore.system],
+				highlight: false,
+				status: null as 'good' | 'warn' | 'bad' | null
+			}
+		];
+	});
+
 	const multMeta = constantMeta('CONST.THICK_MULT');
 	const placement = $derived(placementCheck(weather.effectiveTempF, calcContext.lift_thickness.value));
 	const rain = $derived(rainCheck(weather.rainNext24hIn));
@@ -362,7 +400,7 @@
 		{/if}
 	{/if}
 
-	<ShowWork stepCount={5}>
+	<ShowWork stepCount={5} inspectorStats={inspectorStats} inspectorTitle="Spread Rate Check">
 		{#if tons && distanceFt && calcContext.road_width.value && targetRate != null && placedRate != null}
 			{@const areaYards = (distanceFt * calcContext.road_width.value) / 9}
 			{@const pounds = tons * 2000}
