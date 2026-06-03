@@ -142,6 +142,7 @@ export const toolGroups: ToolGroup[] = [
 
 export const allTools: Tool[] = toolGroups.flatMap((g) => g.tools);
 
-export function findTool(id: string | null | undefined): Tool {
-	return allTools.find((t) => t.id === id) ?? allTools[0];
+export function findTool(id: string | null | undefined): Tool | null {
+	if (!id) return null;
+	return allTools.find((t) => t.id === id) ?? null;
 }
