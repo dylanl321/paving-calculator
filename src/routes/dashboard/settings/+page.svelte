@@ -11,6 +11,26 @@
 
 	let { data } = $props();
 
+	interface SettingsSaveResult {
+		error?: string;
+		hasLogo?: boolean;
+		accentColor?: string | null;
+		overrides?: OrgOverrides;
+		org?: { name?: string } | null;
+	}
+	interface LogoUploadResult {
+		error?: string;
+	}
+	interface NotificationPrefsResult {
+		error?: string;
+		prefs?: Record<string, boolean>;
+	}
+	interface EmailPreviewResult {
+		html: string;
+		subject: string;
+		from: string;
+	}
+
 	const canEdit = $derived(data.settings?.role === 'owner' || data.settings?.role === 'admin');
 	const machines = config.machines;
 	const tackApplications = config.tack.field;
@@ -147,7 +167,7 @@
 					overrides
 				})
 			});
-			const result = await res.json();
+			const result = (await res.json()) as SettingsSaveResult;
 			if (!res.ok) {
 				message = result.error || 'Failed to save settings';
 				messageType = 'error';
@@ -164,10 +184,10 @@
 					body: form
 				});
 				if (!logoRes.ok) {
-					const lr = await logoRes.json();
+					const lr = (await logoRes.json()) as LogoUploadResult;
 					message = lr.error || 'Settings saved, but logo upload failed';
 					messageType = 'error';
-					hasLogo = result.hasLogo;
+					hasLogo = result.hasLogo ?? hasLogo;
 					orgSettingsStore.apply({
 						accentColor: result.accentColor,
 						overrides: result.overrides,
@@ -219,13 +239,13 @@
 				credentials: 'include',
 				body: JSON.stringify({ prefs: notificationPrefs })
 			});
-			const result = await res.json();
+			const result = (await res.json()) as NotificationPrefsResult;
 			if (!res.ok) {
 				notificationMessage = result.error || 'Failed to save preferences';
 				notificationMessageType = 'error';
 				return;
 			}
-			notificationPrefs = result.prefs;
+			notificationPrefs = result.prefs ?? notificationPrefs;
 			notificationMessage = 'Notification preferences saved';
 			notificationMessageType = 'ok';
 		} catch (e) {
@@ -251,7 +271,7 @@
 				console.error('Preview error:', error);
 				return;
 			}
-			const data = await res.json();
+			const data = (await res.json()) as EmailPreviewResult;
 			previewHtml = data.html;
 			previewSubject = data.subject;
 			previewFrom = data.from;

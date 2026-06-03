@@ -17,6 +17,13 @@
 
 	type CaptureState = 'idle' | 'selected' | 'uploading' | 'done' | 'error';
 
+	interface PhotoUploadError {
+		error?: string;
+	}
+	interface PhotoUploadResult {
+		photo: unknown;
+	}
+
 	let state = $state<CaptureState>('idle');
 	let selectedFile = $state<File | null>(null);
 	let previewUrl = $state<string | null>(null);
@@ -98,11 +105,11 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as PhotoUploadError;
 				throw new Error(data.error || 'Upload failed');
 			}
 
-			const data = await res.json();
+			const data = (await res.json()) as PhotoUploadResult;
 			state = 'done';
 			onUploaded?.(data.photo);
 

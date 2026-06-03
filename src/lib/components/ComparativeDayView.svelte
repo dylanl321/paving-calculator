@@ -59,7 +59,7 @@
 		try {
 			const logsRes = await fetch(`/api/job-sites/${jobSiteId}/logs?limit=100`);
 			if (!logsRes.ok) throw new Error('Failed to fetch logs');
-			const { logs } = await logsRes.json();
+			const { logs } = (await logsRes.json()) as { logs: { id: string; log_date: string; crew_count?: number | null }[] };
 
 			const yesterdayDate = getPrevDay(currentLogDate);
 

@@ -41,7 +41,7 @@
 				credentials: 'include'
 			});
 
-			const result = await res.json();
+			const result = (await res.json()) as { error?: string; id?: string };
 
 			if (!res.ok) {
 				createError = result.error || 'Failed to create job site';

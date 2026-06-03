@@ -23,6 +23,13 @@
 
 	let { jobSiteId, isAuthenticated = false, numLanes = null, targetTonnage = null }: Props = $props();
 
+	interface LoadsResponse {
+		loads: DbLoad[];
+	}
+	interface LoadResponse {
+		load: DbLoad;
+	}
+
 	let loads = $state<DbLoad[]>([]);
 	let showNewLoadForm = $state(false);
 	let saving = $state(false);
@@ -70,7 +77,7 @@
 					credentials: 'include'
 				});
 				if (res.ok) {
-					const data = await res.json();
+					const data = (await res.json()) as LoadsResponse;
 					loads = data.loads;
 				}
 			} catch {
@@ -152,7 +159,7 @@
 						credentials: 'include'
 					});
 					if (res.ok) {
-						const data = await res.json();
+						const data = (await res.json()) as LoadResponse;
 						loads = [data.load, ...loads];
 						offlineStore.updateLastSyncedAt();
 					}
@@ -235,7 +242,7 @@
 				credentials: 'include'
 			});
 			if (res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as LoadResponse;
 				loads = loads.map(l => l.id === loadId ? data.load : l);
 			}
 		} catch {
@@ -259,7 +266,7 @@
 				credentials: 'include'
 			});
 			if (res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as LoadResponse;
 				loads = loads.map(l => l.id === loadId ? data.load : l);
 			}
 		} catch {

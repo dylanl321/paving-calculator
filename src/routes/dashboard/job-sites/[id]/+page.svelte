@@ -15,6 +15,38 @@
 
 	let { data }: { data: PageData } = $props();
 
+	interface Photo {
+		id: string;
+		filename: string;
+		caption?: string | null;
+		taken_at: number;
+		lat?: number | null;
+		lng?: number | null;
+	}
+	interface PhotosResponse {
+		photos?: Photo[];
+	}
+	interface EquipmentItem {
+		id: string;
+		equipment_type: string;
+		name: string;
+		capacity?: string | null;
+		notes?: string | null;
+	}
+	interface EquipmentResponse {
+		equipment: EquipmentItem;
+	}
+	interface MilestoneItem {
+		id: string;
+		name: string;
+		description?: string | null;
+		status: 'pending' | 'in_progress' | 'completed';
+		target_date?: string | null;
+	}
+	interface MilestoneResponse {
+		milestone: MilestoneItem;
+	}
+
 	let activeTab = $state('overview');
 
 	// Location / coordinates state
@@ -123,7 +155,7 @@
 		try {
 			const res = await fetch(`/api/job-sites/${data.jobSite.id}/photos`);
 			if (!res.ok) return;
-			const result = await res.json();
+			const result = (await res.json()) as PhotosResponse;
 			photos = result.photos ?? [];
 			renderPhotoGrid();
 		} catch {
@@ -169,7 +201,7 @@
 		selectedPhoto = null;
 	}
 
-	const roadTypeLabels = {
+	const roadTypeLabels: Record<string, string> = {
 		highway: 'Highway',
 		state_route: 'State Route',
 		county_road: 'County Road',
@@ -179,7 +211,7 @@
 		other: 'Other'
 	};
 
-	const scopeOfWorkLabels = {
+	const scopeOfWorkLabels: Record<string, string> = {
 		full_depth: 'Full Depth',
 		mill_and_fill: 'Mill & Fill',
 		overlay: 'Overlay',
@@ -188,14 +220,14 @@
 		widening: 'Widening'
 	};
 
-	const tackTypeLabels = {
+	const tackTypeLabels: Record<string, string> = {
 		anionic: 'Anionic',
 		cationic: 'Cationic',
 		polymer_modified: 'Polymer Modified',
 		trackless: 'Trackless'
 	};
 
-	const equipmentTypeLabels = {
+	const equipmentTypeLabels: Record<string, string> = {
 		paver: 'Paver',
 		shuttle_buggy: 'Shuttle Buggy',
 		roller_breakdown: 'Breakdown Roller',
@@ -249,7 +281,7 @@
 
 			if (!res.ok) throw new Error('Failed to add equipment');
 
-			const { equipment } = await res.json();
+			const { equipment } = (await res.json()) as EquipmentResponse;
 			equipmentList = [...equipmentList, equipment];
 
 			newEquipment = {
@@ -297,7 +329,7 @@
 
 			if (!res.ok) throw new Error('Failed to create milestone');
 
-			const { milestone } = await res.json();
+			const { milestone } = (await res.json()) as MilestoneResponse;
 			milestones = [...milestones, milestone];
 
 			milestoneForm = {
@@ -326,7 +358,7 @@
 
 			if (!res.ok) throw new Error('Failed to update milestone');
 
-			const { milestone } = await res.json();
+			const { milestone } = (await res.json()) as MilestoneResponse;
 			milestones = milestones.map((m) => (m.id === id ? milestone : m));
 		} catch (err) {
 			console.error(err);

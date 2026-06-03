@@ -272,7 +272,7 @@
 				const todayDate = today.date;
 				const res = await fetch(`/api/job-sites/${today.jobSiteId}/loads?start_date=${todayDate}`, { credentials: 'include' });
 				if (res.ok) {
-					const data = await res.json();
+					const data = (await res.json()) as { loads?: any[] };
 					loads = data.loads || [];
 				}
 			} catch {

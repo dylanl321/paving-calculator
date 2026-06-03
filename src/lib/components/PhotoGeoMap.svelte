@@ -88,7 +88,7 @@
 			const res = await fetch(url);
 			if (!res.ok) throw new Error('Failed to load photos');
 
-			const data = await res.json();
+			const data = (await res.json()) as { photos?: Photo[] };
 			photos = data.photos ?? [];
 		} catch (err) {
 			error = 'Could not load photos';

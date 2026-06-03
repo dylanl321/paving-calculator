@@ -187,7 +187,7 @@
 		try {
 			const res = await fetch(`/api/job-sites/${site.id}/logs/progress`);
 			if (!res.ok) throw new Error('Failed to load progress');
-			const data = await res.json();
+			const data = (await res.json()) as { progress?: ProgressEntry[]; total_paved_ft?: number };
 			progressEntries = data.progress ?? [];
 			totalPavedFt = data.total_paved_ft ?? 0;
 		} catch (err) {
