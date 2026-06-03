@@ -14,6 +14,12 @@
 			title: 'How to Run a Paving Day',
 			description: 'Complete workflow from morning prep through end-of-day closeout. Track loads, log delays, and generate your daily report.',
 			stepCount: 5
+		},
+		{
+			slug: 'new-project',
+			title: 'Setting Up a New Project',
+			description: 'Configure your job site from scratch: contract info, route map, road settings, milestones, crew, and first-day checklist.',
+			stepCount: 6
 		}
 	];
 </script>
