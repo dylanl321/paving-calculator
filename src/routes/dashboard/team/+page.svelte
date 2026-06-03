@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { toastStore } from '$lib/stores/toast';
+	import { toastStore } from '$lib/stores/toast.svelte';
+	import { getInitials } from '$lib/utils/format';
 
 	type Member = {
 		user_id: string;
@@ -27,6 +28,23 @@
 	} | null;
 
 	let members = $state<Member[]>([]);
+
+	interface MeResponse {
+		user: { id: string };
+		org: { role: string };
+	}
+	interface MembersResponse {
+		members?: Member[];
+	}
+	interface InvitesResponse {
+		invitations?: Invitation[];
+	}
+	interface ActivityResponse {
+		activity?: Record<string, MemberActivity>;
+	}
+	interface ErrorResponse {
+		error?: string;
+	}
 	let invitations = $state<Invitation[]>([]);
 	let memberActivity = $state<Record<string, MemberActivity>>({});
 	let loading = $state(true);
@@ -95,7 +113,7 @@
 		try {
 			const res = await fetch('/api/auth/me');
 			if (res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as MeResponse;
 				currentUserId = data.user.id;
 				currentUserRole = data.org.role;
 			}
@@ -122,16 +140,16 @@
 				return;
 			}
 
-			const membersData = await membersRes.json();
+			const membersData = (await membersRes.json()) as MembersResponse;
 			members = membersData.members || [];
 
 			if (invitesRes.ok) {
-				const invitesData = await invitesRes.json();
+				const invitesData = (await invitesRes.json()) as InvitesResponse;
 				invitations = invitesData.invitations || [];
 			}
 
 			if (activityRes.ok) {
-				const activityData = await activityRes.json();
+				const activityData = (await activityRes.json()) as ActivityResponse;
 				memberActivity = activityData.activity || {};
 			}
 		} catch (e) {
@@ -156,7 +174,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as ErrorResponse;
 				toastStore.error(data.error || 'Failed to send invitation');
 				return;
 			}
@@ -190,7 +208,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as ErrorResponse;
 				toastStore.error(data.error || 'Failed to update role');
 				return;
 			}
@@ -212,7 +230,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as ErrorResponse;
 				toastStore.error(data.error || 'Failed to remove member');
 				return;
 			}
@@ -233,7 +251,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as ErrorResponse;
 				alert(data.error || 'Failed to revoke invitation');
 				return;
 			}
@@ -254,15 +272,6 @@
 			return false;
 		}
 		return true;
-	}
-
-	function getInitials(name: string): string {
-		return name
-			.split(' ')
-			.map((n) => n[0])
-			.join('')
-			.toUpperCase()
-			.slice(0, 2);
 	}
 
 	function formatRelativeTime(timestamp: number): string {
@@ -385,19 +394,21 @@
 								<div class="card-row">
 									<span class="label">Role</span>
 									{#if canModifyMember(member)}
-										<select
-											class="role-select"
-											value={member.role}
-											onchange={(e) => requestRoleChange(member, e.currentTarget.value)}
-										>
-											<option value="owner">Owner</option>
-											<option value="admin">Admin</option>
-											<option value="member">Member</option>
-											<option value="foreman">Foreman</option>
-											<option value="operator">Operator</option>
-											<option value="inspector">Inspector</option>
-											<option value="office">Office</option>
-										</select>
+																		<select
+																			class="role-select"
+																			value={member.role}
+																			onchange={(e) => requestRoleChange(member, e.currentTarget.value)}
+																		>
+																			<option value="owner">Owner</option>
+																			<option value="admin">Admin</option>
+																			<option value="member">Member</option>
+																			<option value="foreman">Foreman</option>
+																			<option value="operator">Operator</option>
+																			<option value="inspector">Inspector</option>
+																			<option value="office">Office</option>
+																			<option value="laborer">Laborer</option>
+																			<option value="screed_man">Screed Man</option>
+																		</select>
 									{:else}
 										<span class="role-badge {member.role}">{member.role}</span>
 									{/if}
@@ -485,17 +496,19 @@
 				/>
 			</label>
 			<label>
-				Role
-				<select bind:value={inviteForm.role}>
-					<option value="owner">Owner</option>
-					<option value="admin">Admin</option>
-					<option value="member">Member</option>
-					<option value="foreman">Foreman</option>
-					<option value="operator">Operator</option>
-					<option value="inspector">Inspector</option>
-					<option value="office">Office</option>
-				</select>
-			</label>
+						Role
+						<select bind:value={inviteForm.role}>
+							<option value="owner">Owner</option>
+							<option value="admin">Admin</option>
+							<option value="member">Member</option>
+							<option value="foreman">Foreman</option>
+							<option value="operator">Operator</option>
+							<option value="inspector">Inspector</option>
+							<option value="office">Office</option>
+							<option value="laborer">Laborer</option>
+							<option value="screed_man">Screed Man</option>
+						</select>
+					</label>
 			<div class="modal-actions">
 				<button type="button" onclick={() => (showInviteModal = false)}>Cancel</button>
 				<button type="submit" disabled={inviting || !inviteForm.email.trim()}>
@@ -771,6 +784,16 @@
 	.role-badge.office {
 		background: rgba(20, 184, 166, 0.2);
 		color: rgb(20, 184, 166);
+	}
+
+	.role-badge.laborer {
+		background: rgba(251, 146, 60, 0.2);
+		color: rgb(251, 146, 60);
+	}
+
+	.role-badge.screed_man {
+		background: rgba(251, 191, 36, 0.2);
+		color: rgb(251, 191, 36);
 	}
 
 	.role-select {

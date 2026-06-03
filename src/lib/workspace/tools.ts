@@ -11,6 +11,8 @@ import SubgradeCalcCard from '$lib/components/SubgradeCalcCard.svelte';
 import ConcreteVolumeCard from '$lib/components/ConcreteVolumeCard.svelte';
 import ConcretePSICard from '$lib/components/ConcretePSICard.svelte';
 import SlopeGradeCard from '$lib/components/SlopeGradeCard.svelte';
+import IntersectionCalcCard from '$lib/components/IntersectionCalcCard.svelte';
+import VariableWidthCard from '$lib/components/VariableWidthCard.svelte';
 
 import type { EntryType } from '$lib/stores/today.svelte';
 
@@ -137,11 +139,32 @@ export const toolGroups: ToolGroup[] = [
 				logsAs: 'note'
 			}
 		]
+	},
+	{
+		id: 'specialty',
+		label: 'Specialty',
+		tools: [
+			{
+				id: 'intersection-calc',
+				label: 'Intersection',
+				blurb: 'Two crossing roads — net area & tonnage',
+				component: IntersectionCalcCard,
+				logsAs: 'paving'
+			},
+			{
+				id: 'variable-width',
+				label: 'Variable Width',
+				blurb: 'Turn lane flare — trapezoidal area & tons',
+				component: VariableWidthCard,
+				logsAs: 'paving'
+			}
+		]
 	}
 ];
 
 export const allTools: Tool[] = toolGroups.flatMap((g) => g.tools);
 
-export function findTool(id: string | null | undefined): Tool {
-	return allTools.find((t) => t.id === id) ?? allTools[0];
+export function findTool(id: string | null | undefined): Tool | null {
+	if (!id) return null;
+	return allTools.find((t) => t.id === id) ?? null;
 }

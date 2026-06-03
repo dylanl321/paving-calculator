@@ -1,5 +1,6 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
+import { DbCrewHelper } from '$lib/server/db-crews';
 import { requireAuth } from '$lib/server/auth';
 import { recordAudit } from '$lib/server/audit';
 import { deliverWebhook } from '$lib/server/webhooks';
@@ -8,6 +9,7 @@ export async function GET(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const crewDb = new DbCrewHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -21,7 +23,7 @@ export async function GET(event: RequestEvent) {
 		// Admin/Owner/others: sees all job sites
 		let jobSites;
 		if (role === 'foreman' || role === 'laborer') {
-			jobSites = await db.getJobSitesByForeman(user.id, org.id);
+			jobSites = await crewDb.getJobSitesByForeman(user.id, org.id);
 		} else {
 			jobSites = await db.getJobSitesByOrgId(org.id);
 		}
@@ -40,7 +42,7 @@ export async function GET(event: RequestEvent) {
 			}))
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get job sites error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -120,7 +122,7 @@ export async function POST(event: RequestEvent) {
 			updated_at: jobSite.updated_at
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Create job site error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

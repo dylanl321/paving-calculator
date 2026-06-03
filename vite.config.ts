@@ -16,6 +16,14 @@ export default defineConfig({
 			)
 		}
 	},
+	build: {
+		rollupOptions: {
+			external: ['leaflet', 'leaflet/dist/leaflet.css']
+		}
+	},
+	ssr: {
+		noExternal: ['leaflet']
+	},
 	plugins: [
 		yaml(),
 		sveltekit(),
@@ -42,6 +50,34 @@ export default defineConfig({
 						purpose: 'maskable'
 					}
 				]
+			},
+			workbox: {
+				globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+				runtimeCaching: [
+					{
+						urlPattern: /^https:\/\/fonts\.googleapis\.com/,
+						handler: 'StaleWhileRevalidate',
+						options: {
+							cacheName: 'google-fonts-stylesheets'
+						}
+					},
+					{
+						urlPattern: /^\/api\//,
+						handler: 'NetworkFirst',
+						options: {
+							cacheName: 'api-cache',
+							networkTimeoutSeconds: 5,
+							expiration: {
+								maxEntries: 50,
+								maxAgeSeconds: 300
+							}
+						}
+					}
+				]
+			},
+			devOptions: {
+				enabled: true,
+				type: 'module'
 			}
 		})
 	]

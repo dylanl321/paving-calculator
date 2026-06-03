@@ -32,7 +32,14 @@ export async function GET(event: RequestEvent) {
 		const settings = await db.getOrgSettings(org.id);
 
 		return json({
-			org: { id: org.id, name: org.name, slug: org.slug },
+			org: {
+				id: org.id,
+				name: org.name,
+				slug: org.slug,
+				address: org.address ?? null,
+				superintendentEmail: org.superintendent_email ?? null,
+				superintendentPhone: org.superintendent_phone ?? null
+			},
 			role,
 			accentColor: settings?.accent_color ?? null,
 			hasLogo: !!settings?.logo_key,
@@ -42,7 +49,7 @@ export async function GET(event: RequestEvent) {
 			updatedAt: settings?.updated_at ?? null
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get org settings error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -64,7 +71,7 @@ export async function PUT(event: RequestEvent) {
 		// Owner/admin only. requireOrgRole throws a 403 Response otherwise.
 		await requireOrgRole(event, org.id, ['owner', 'admin']);
 
-		const body = await event.request.json();
+		const body = await event.request.json() as Record<string, unknown>;
 
 		const update: {
 			accentColor?: string | null;
@@ -125,9 +132,39 @@ export async function PUT(event: RequestEvent) {
 			update.overrides = JSON.stringify(result.cleaned ?? {});
 		}
 
-		// Optional org name change (owner/admin), reuses existing helper.
+		// Optional org changes (owner/admin)
+		const orgUpdates: { name?: string; address?: string; superintendentEmail?: string; superintendentPhone?: string } = {};
 		if ('name' in body && typeof body.name === 'string' && body.name.trim()) {
-			await db.updateOrganization(org.id, { name: body.name.trim() });
+			orgUpdates.name = body.name.trim();
+		}
+		if ('address' in body) {
+			if (typeof body.address === 'string') {
+				orgUpdates.address = body.address.trim() || '';
+			} else if (body.address === null) {
+				orgUpdates.address = '';
+			}
+		}
+		if ('superintendentEmail' in body) {
+			if (typeof body.superintendentEmail === 'string') {
+				const email = body.superintendentEmail.trim();
+				if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+					return json({ error: 'superintendentEmail must be a valid email address' }, { status: 400 });
+				}
+				orgUpdates.superintendentEmail = email || '';
+			} else if (body.superintendentEmail === null) {
+				orgUpdates.superintendentEmail = '';
+			}
+		}
+		if ('superintendentPhone' in body) {
+			if (typeof body.superintendentPhone === 'string') {
+				orgUpdates.superintendentPhone = body.superintendentPhone.trim() || '';
+			} else if (body.superintendentPhone === null) {
+				orgUpdates.superintendentPhone = '';
+			}
+		}
+
+		if (Object.keys(orgUpdates).length > 0) {
+			await db.updateOrganization(org.id, orgUpdates);
 		}
 
 		await db.upsertOrgSettings(org.id, update);
@@ -141,14 +178,21 @@ export async function PUT(event: RequestEvent) {
 			action: 'updated',
 			newValue: update,
 			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
-			userAgent: event.request.headers.get('user-agent')
+			userAgent: event.request.headers.get('user-agent') ?? undefined
 		});
 
 		const settings = await db.getOrgSettings(org.id);
 		const updatedOrg = await db.getOrganizationById(org.id);
 
 		return json({
-			org: { id: org.id, name: updatedOrg?.name ?? org.name, slug: org.slug },
+			org: {
+				id: org.id,
+				name: updatedOrg?.name ?? org.name,
+				slug: org.slug,
+				address: updatedOrg?.address ?? null,
+				superintendentEmail: updatedOrg?.superintendent_email ?? null,
+				superintendentPhone: updatedOrg?.superintendent_phone ?? null
+			},
 			accentColor: settings?.accent_color ?? null,
 			hasLogo: !!settings?.logo_key,
 			emailFromName: settings?.email_from_name ?? null,
@@ -157,7 +201,7 @@ export async function PUT(event: RequestEvent) {
 			updatedAt: settings?.updated_at ?? null
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Update org settings error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
