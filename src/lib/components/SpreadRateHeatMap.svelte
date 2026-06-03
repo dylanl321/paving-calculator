@@ -2,7 +2,10 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import L from 'leaflet';
-	import 'leaflet/dist/leaflet.css';
+
+	// Leaflet's CSS references .png assets via url(); load it browser-only so it
+	// stays out of the SSR / Pages Functions bundle (esbuild has no .png loader).
+	if (browser) import('leaflet/dist/leaflet.css');
 
 	interface Waypoint {
 		lat: number;

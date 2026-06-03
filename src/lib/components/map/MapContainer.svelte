@@ -2,7 +2,6 @@
 	import { onMount, onDestroy, setContext } from 'svelte';
 	import { browser } from '$app/environment';
 	import L from 'leaflet';
-	import 'leaflet/dist/leaflet.css';
 	import { MAP_CONTEXT_KEY, type MapContext } from './mapContext';
 
 	interface Props {
@@ -67,6 +66,10 @@
 
 	onMount(() => {
 		if (!browser) return;
+
+		// Leaflet's CSS references .png assets via url(); importing it here keeps
+		// it out of the SSR / Pages Functions bundle (esbuild has no .png loader).
+		import('leaflet/dist/leaflet.css');
 
 		// Initialize theme
 		checkTheme();
