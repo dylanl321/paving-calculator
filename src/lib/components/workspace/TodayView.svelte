@@ -290,7 +290,8 @@
 				tackApplication: job.tackApplication,
 				wastePct: job.wastePct,
 				siteName: job.siteName,
-				siteDescription: job.siteDescription
+				siteDescription: job.siteDescription,
+				courseType: job.courseType
 			},
 			{
 				date: today.date,

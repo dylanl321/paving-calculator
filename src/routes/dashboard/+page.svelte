@@ -8,6 +8,16 @@
 
 	let { data }: { data: PageData } = $props();
 
+	interface DashboardOrg {
+		name: string;
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man' | string;
+	}
+	interface DashboardUser {
+		isGlobalAdmin?: boolean;
+	}
+	const org = $derived(data.org as DashboardOrg);
+	const user = $derived(data.user as DashboardUser);
+
 	let showCreateForm = $state(false);
 	let newSiteName = $state('');
 	let newSiteLocation = $state('');
@@ -82,7 +92,7 @@
 	<div class="page-header">
 		<div>
 			<h2 class="page-title">Dashboard</h2>
-			<p class="page-subtitle">{data.org.name}</p>
+			<p class="page-subtitle">{org.name}</p>
 		</div>
 		{#if !showCreateForm}
 			<button class="btn-primary header-btn" onclick={() => (showCreateForm = true)}>
@@ -112,7 +122,7 @@
 			</svg>
 			Settings
 		</a>
-		{#if data.org.role === 'owner' || data.org.role === 'admin'}
+		{#if org.role === 'owner' || org.role === 'admin'}
 			<a href="/dashboard/audit" class="quick-link">
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -133,7 +143,7 @@
 				Crew Productivity
 			</a>
 		{/if}
-		{#if data.user.isGlobalAdmin}
+		{#if user.isGlobalAdmin}
 			<a href="/admin" class="quick-link admin">
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<circle cx="12" cy="12" r="3"></circle>
@@ -164,7 +174,7 @@
 			<section class="section map-section">
 				<div class="section-header">
 					<h3>Job Site Locations</h3>
-					{#if data.org.role === 'owner' || data.org.role === 'admin'}
+					{#if org.role === 'owner' || org.role === 'admin'}
 						<a href="/dashboard/map" class="btn-secondary btn-sm">
 							<svg
 								width="16"
@@ -191,7 +201,7 @@
 			</section>
 		{/if}
 
-		{#if data.org.role === 'owner' || data.org.role === 'admin'}
+		{#if org.role === 'owner' || org.role === 'admin'}
 			<section class="section crew-status-section">
 				{#await import('$lib/components/LiveCrewDashboard.svelte')}
 					<div class="map-loading">Loading crew status&hellip;</div>

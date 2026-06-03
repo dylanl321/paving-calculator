@@ -18,6 +18,8 @@
 
 	let { data }: { data: PageData } = $props();
 
+	const projectSummary = $derived(data.summary as typeof data.summary & { total_days?: number });
+
 	interface LogDetailsResponse {
 		entries: any[];
 		summary: { total_distance_ft: number; total_tons: number; total_loads: number };
@@ -405,7 +407,8 @@
 					tackApplication: 'new-to-new',
 					wastePct: 5,
 					siteName: data.jobSite.name,
-					siteDescription: data.jobSite.location_description || ''
+					siteDescription: data.jobSite.location_description || '',
+					courseType: ''
 				},
 				{
 					date: currentLog.log_date,
@@ -744,7 +747,7 @@
 				<span class="stat-label">Material Placed</span>
 			</div>
 			<div class="summary-stat">
-				<span class="stat-value">{data.summary.total_days} days</span>
+				<span class="stat-value">{projectSummary.total_days} days</span>
 				<span class="stat-label">Work Days</span>
 			</div>
 		</div>

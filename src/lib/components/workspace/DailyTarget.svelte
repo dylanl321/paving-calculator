@@ -68,7 +68,7 @@
 	function getBarColor(): string {
 		if (!progress.tons_pct) return '#F59E0B';
 		if (progress.tons_pct >= 100) return '#10B981';
-		if (progress.status === 'behind') return '#EF4444';
+		if ((progress.status as string | null) === 'behind') return '#EF4444';
 		return '#F59E0B';
 	}
 

@@ -84,6 +84,15 @@
 
 	const isEmpty = $derived(chartData.length === 0 || chartData.every((d: any) => d.tons === 0));
 
+	const barChartProps = $derived({
+		data: chartData,
+		x: 'dateLabel',
+		y: 'tons',
+		xAxisLabel: periodType === 'week' ? 'Day' : 'Week',
+		yAxisLabel: 'Tons',
+		padding: { left: 52, bottom: 32, top: 8, right: 8 }
+	});
+
 	const trendPct = $derived.by(() => {
 		if (!data || !data.totals || !data.prev_period_tons || data.prev_period_tons === 0) return null;
 		return ((data.totals.tons - data.prev_period_tons) / data.prev_period_tons) * 100;
@@ -190,14 +199,7 @@
 							<p class="empty">No production data for this period.</p>
 						{:else}
 							<ChartMount>
-								<BarChart
-									data={chartData}
-									x="dateLabel"
-									y="tons"
-									xAxisLabel={periodType === 'week' ? 'Day' : 'Week'}
-									yAxisLabel="Tons"
-									padding={{ left: 52, bottom: 32, top: 8, right: 8 }}
-								/>
+								<BarChart {...barChartProps} />
 							</ChartMount>
 						{/if}
 					</div>

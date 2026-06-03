@@ -197,7 +197,7 @@
 
 		map.removeLayer(currentPolyline);
 
-		let finalLayer: L.Polyline;
+		let finalLayer: L.Polyline | L.Polygon;
 		if (mode === 'polygon') {
 			finalLayer = L.polygon(currentPoints, {
 				color: POLYGON_COLOR,

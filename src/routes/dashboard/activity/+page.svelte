@@ -142,7 +142,8 @@
 		return 'badge-other';
 	}
 
-	function truncateId(id: string): string {
+	function truncateId(id: string | null): string {
+		if (id == null) return '';
 		return id.length > 8 ? id.slice(0, 8) : id;
 	}
 </script>

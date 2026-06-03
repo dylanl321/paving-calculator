@@ -139,14 +139,15 @@
 					id: crypto.randomUUID(),
 					job_site_id: jobSiteId,
 					user_id: 'local',
-					...newLoad as Required<typeof newLoad>,
+					...(newLoad as Required<Omit<typeof newLoad, 'id' | 'job_site_id' | 'user_id'>>),
 					spread_rate: null,
 					lane_number: newLoad.lane_number || null,
 					pass_number: newLoad.pass_number || null,
 					created_at: timestamp,
 					rejected: 0,
 					rejection_reason: null,
-					rejection_notes: null
+					rejection_notes: null,
+					ticket_photo_id: null
 				};
 				loads = [load, ...loads];
 				saveToLocalStorage();
@@ -178,14 +179,15 @@
 						id: crypto.randomUUID(),
 						job_site_id: jobSiteId,
 						user_id: 'local',
-						...newLoad as Required<typeof newLoad>,
+						...(newLoad as Required<Omit<typeof newLoad, 'id' | 'job_site_id' | 'user_id'>>),
 						spread_rate: null,
 						lane_number: newLoad.lane_number || null,
 						pass_number: newLoad.pass_number || null,
 						created_at: timestamp,
 						rejected: 0,
 						rejection_reason: null,
-						rejection_notes: null
+						rejection_notes: null,
+						ticket_photo_id: null
 					};
 					loads = [load, ...loads];
 					saveToLocalStorage();
@@ -206,7 +208,8 @@
 				created_at: timestamp,
 				rejected: 0,
 				rejection_reason: null,
-				rejection_notes: null
+				rejection_notes: null,
+				ticket_photo_id: null
 			};
 			loads = [load, ...loads];
 			saveToLocalStorage();

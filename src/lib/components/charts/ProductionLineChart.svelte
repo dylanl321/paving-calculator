@@ -19,6 +19,15 @@
 			};
 		})
 	);
+
+	const lineChartProps = $derived({
+		data: chartData,
+		x: 'dateLabel',
+		y: 'tons',
+		xAxisLabel: 'Date',
+		yAxisLabel: 'Tons',
+		padding: { left: 52, bottom: 32, top: 8, right: 8 }
+	});
 </script>
 
 <div class="chart">
@@ -29,14 +38,7 @@
 			<div class="target-label">Target: {targetTons.toFixed(1)} tons/day</div>
 		{/if}
 		<ChartMount>
-			<LineChart
-				data={chartData}
-				x="dateLabel"
-				y="tons"
-				xAxisLabel="Date"
-				yAxisLabel="Tons"
-				padding={{ left: 52, bottom: 32, top: 8, right: 8 }}
-			/>
+			<LineChart {...lineChartProps} />
 		</ChartMount>
 	{/if}
 </div>

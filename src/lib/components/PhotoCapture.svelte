@@ -24,7 +24,7 @@
 		photo: unknown;
 	}
 
-	let state = $state<CaptureState>('idle');
+	let captureState = $state<CaptureState>('idle');
 	let selectedFile = $state<File | null>(null);
 	let previewUrl = $state<string | null>(null);
 	let caption = $state('');
@@ -49,7 +49,7 @@
 		selectedFile = file;
 		previewUrl = URL.createObjectURL(file);
 		caption = '';
-		state = 'selected';
+		captureState = 'selected';
 		errorMsg = '';
 
 		// Try to get GPS position (best-effort, non-blocking)
@@ -86,7 +86,7 @@
 	async function upload() {
 		if (!selectedFile) return;
 
-		state = 'uploading';
+		captureState = 'uploading';
 		errorMsg = '';
 
 		try {
@@ -110,19 +110,19 @@
 			}
 
 			const data = (await res.json()) as PhotoUploadResult;
-			state = 'done';
+			captureState = 'done';
 			onUploaded?.(data.photo);
 
 			// Reset after a brief success display
 			setTimeout(reset, 1500);
 		} catch (err: any) {
-			state = 'error';
+			captureState = 'error';
 			errorMsg = err.message || 'Upload failed';
 		}
 	}
 
 	function reset() {
-		state = 'idle';
+		captureState = 'idle';
 		selectedFile = null;
 		if (previewUrl) URL.revokeObjectURL(previewUrl);
 		previewUrl = null;
@@ -150,7 +150,7 @@
 		style="display: none;"
 	/>
 
-	{#if state === 'idle'}
+	{#if captureState === 'idle'}
 		{#if compact}
 			<button type="button" class="photo-btn-compact" onclick={openCamera} title="Capture Photo">
 				<svg
@@ -191,7 +191,7 @@
 				<span>Capture Photo</span>
 			</button>
 		{/if}
-	{:else if state === 'selected'}
+	{:else if captureState === 'selected'}
 		<div class="preview-card">
 			{#if previewUrl}
 				<img src={previewUrl} alt="Preview" class="preview-img" />
@@ -216,7 +216,7 @@
 				</div>
 			</div>
 		</div>
-	{:else if state === 'uploading'}
+	{:else if captureState === 'uploading'}
 		<div class="status-card uploading">
 			<svg
 				class="spin"
@@ -234,7 +234,7 @@
 			</svg>
 			<span>Uploading...</span>
 		</div>
-	{:else if state === 'done'}
+	{:else if captureState === 'done'}
 		<div class="status-card done">
 			<svg
 				width="24"
@@ -251,7 +251,7 @@
 			</svg>
 			<span>Uploaded!</span>
 		</div>
-	{:else if state === 'error'}
+	{:else if captureState === 'error'}
 		<div class="status-card error">
 			<svg
 				width="24"

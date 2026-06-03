@@ -37,26 +37,27 @@
 
 	const pavingHint = $derived.by(() => {
 		if (inputTemp == null) return null;
-		const maxLift = maxLiftAtTemp(inputTemp);
+		const temp: number = inputTemp;
+		const maxLift = maxLiftAtTemp(temp);
 		if (maxLift == null) {
 			return {
 				status: 'bad' as const,
-				text: `${inputTemp}°F is below the minimum for any HMA placement (${absoluteMinTempF}°F)`
+				text: `${temp}°F is below the minimum for any HMA placement (${absoluteMinTempF}°F)`
 			};
 		}
 		// Check if it is within warn margin (5°F) of the limit
 		const warnEntries = temperature.filter(
-			(t) => inputTemp >= t.minAirTempF && inputTemp < t.minAirTempF + 5
+			(t) => temp >= t.minAirTempF && temp < t.minAirTempF + 5
 		);
 		if (warnEntries.length > 0) {
 			return {
 				status: 'warn' as const,
-				text: `Borderline — at ${inputTemp}°F you can pave up to ${maxLift}" lifts (GDOT Table 4)`
+				text: `Borderline — at ${temp}°F you can pave up to ${maxLift}" lifts (GDOT Table 4)`
 			};
 		}
 		return {
 			status: 'good' as const,
-			text: `At ${inputTemp}°F you can pave lifts up to ${maxLift}" (GDOT Table 4)`
+			text: `At ${temp}°F you can pave lifts up to ${maxLift}" (GDOT Table 4)`
 		};
 	});
 

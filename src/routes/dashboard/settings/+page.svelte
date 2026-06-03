@@ -43,10 +43,19 @@
 	let activeTab = $state<TabId>('general');
 
 	// --- Organization identity / branding ---
-	let orgName = $state(data.settings?.org?.name ?? '');
-	let orgAddress = $state(data.settings?.org?.address ?? '');
-	let superintendentEmail = $state(data.settings?.org?.superintendentEmail ?? '');
-	let superintendentPhone = $state(data.settings?.org?.superintendentPhone ?? '');
+	const settingsOrg = data.settings?.org as
+		| {
+				name?: string;
+				address?: string;
+				superintendentEmail?: string;
+				superintendentPhone?: string;
+		  }
+		| null
+		| undefined;
+	let orgName = $state(settingsOrg?.name ?? '');
+	let orgAddress = $state(settingsOrg?.address ?? '');
+	let superintendentEmail = $state(settingsOrg?.superintendentEmail ?? '');
+	let superintendentPhone = $state(settingsOrg?.superintendentPhone ?? '');
 	let accentColor = $state(data.settings?.accentColor ?? config.theme.dark.accent);
 	let useCustomAccent = $state(!!data.settings?.accentColor);
 	let hasLogo = $state(!!data.settings?.hasLogo);

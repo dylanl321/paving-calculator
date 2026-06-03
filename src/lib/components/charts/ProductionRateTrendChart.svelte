@@ -31,6 +31,15 @@
 
 	const isEmpty = $derived(chartData.length === 0);
 
+	const lineChartProps = $derived({
+		data: chartData,
+		x: 'dateLabel',
+		y: 'rollingAvg',
+		xAxisLabel: 'Date',
+		yAxisLabel: 'T/hr (3-Day Avg)',
+		padding: { left: 52, bottom: 32, top: 8, right: 8 }
+	});
+
 	// Stats for display
 	const stats = $derived(
 		isEmpty
@@ -66,14 +75,7 @@
 			{/if}
 		</div>
 		<ChartMount>
-			<LineChart
-				data={chartData}
-				x="dateLabel"
-				y="rollingAvg"
-				xAxisLabel="Date"
-				yAxisLabel="T/hr (3-Day Avg)"
-				padding={{ left: 52, bottom: 32, top: 8, right: 8 }}
-			/>
+			<LineChart {...lineChartProps} />
 		</ChartMount>
 	{/if}
 </div>

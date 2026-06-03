@@ -383,7 +383,7 @@
 		</div>
 	{:else}
 		<div class="empty-state">
-			<Truck size={48} strokeWidth={1.5} />
+			<TruckIcon size={48} strokeWidth={1.5} />
 			<p>No trucks in queue</p>
 			<button
 				class="btn-new-truck-cta"
