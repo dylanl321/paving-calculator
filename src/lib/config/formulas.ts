@@ -43,6 +43,21 @@ export function feetFromTons(tons: number, widthFt: number, rateLbsSy: number): 
 	return (tons * LB_PER_TON() * constant('CONST.SF_PER_SY')) / denom;
 }
 
+/**
+ * CALC.ACTUAL_RATE -- placed spread rate (lbs/SY) implied by tons over a paved
+ * distance and width. Inverse of feetFromTons: Rate = Tons x 2000 x 9 / (Width x Feet).
+ * Pass either widthFt (preferred) or a pre-computed area in SY.
+ */
+export function actualSpreadRate(opts: {
+	tons: number;
+	distanceFt: number;
+	widthFt: number;
+}): number {
+	const denom = opts.widthFt * opts.distanceFt;
+	if (denom <= 0) return 0;
+	return (opts.tons * LB_PER_TON() * constant('CONST.SF_PER_SY')) / denom;
+}
+
 /** CALC.REMAINING_DIST -- feet left from loads remaining. */
 export function feetFromLoads(opts: {
 	loads: number;
@@ -133,8 +148,8 @@ export function concreteVolume(lengthFt: number, widthFt: number, depthIn: numbe
 } {
 	const volumeFt3 = lengthFt * widthFt * (depthIn / 12);
 	const volumeYd3 = volumeFt3 / constant('CONST.CF_PER_CY');
-	const bags80lb = volumeFt3 * 0.45; // ~0.45 bags per ft³ for 80lb bags
-	const truckLoads = volumeYd3 / 9; // 9 yd³ standard truck
+	const bags80lb = volumeFt3 * constant('CONST.BAGS_PER_CF_80LB');
+	const truckLoads = volumeYd3 / constant('CONST.CONCRETE_TRUCK_YD3');
 	return { volumeFt3, volumeYd3, bags80lb, truckLoads };
 }
 
@@ -148,7 +163,7 @@ export function subgradeTonnage(opts: {
 	const volumeFt3 = opts.lengthFt * opts.widthFt * (opts.depthIn / 12);
 	const cubicYards = volumeFt3 / constant('CONST.CF_PER_CY');
 	const tons = cubicYards * opts.densityTonsPerYd3;
-	const truckLoads = tons / 18; // 18 tons per truck
+	const truckLoads = tons / constant('CONST.STONE_TRUCK_TONS');
 	return { cubicYards, tons, truckLoads };
 }
 
@@ -182,7 +197,7 @@ export function soilCompaction(opts: {
 	const compactionPct =
 		opts.proctorMaxDryPcf > 0 ? (dryDensity / opts.proctorMaxDryPcf) * 100 : 0;
 	let status: 'pass' | 'marginal' | 'fail' = 'fail';
-	if (compactionPct >= 95) status = 'pass';
-	else if (compactionPct >= 92) status = 'marginal';
+	if (compactionPct >= constant('CONST.COMPACTION_TARGET_MIN')) status = 'pass';
+	else if (compactionPct >= constant('CONST.COMPACTION_MARGINAL_MIN')) status = 'marginal';
 	return { wetDensity, dryDensity, compactionPct, status };
 }

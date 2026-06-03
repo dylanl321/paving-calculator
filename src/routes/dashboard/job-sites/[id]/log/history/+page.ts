@@ -2,6 +2,8 @@ import { error } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import type { DbDailyLog, LogSummary } from '$lib/server/db-logs';
 
+export type LogWithSummary = DbDailyLog & { summary?: LogSummary };
+
 export const load: PageLoad = async ({ params, fetch, parent }) => {
 	await parent();
 
@@ -11,13 +13,13 @@ export const load: PageLoad = async ({ params, fetch, parent }) => {
 		throw error(res.status, 'Failed to load log history');
 	}
 
-	const { logs }: { logs: DbDailyLog[] } = await res.json();
+	const { logs } = (await res.json()) as { logs: DbDailyLog[] };
 
-	const logsWithSummaries = await Promise.all(
-		logs.map(async (log) => {
+	const logsWithSummaries: LogWithSummary[] = await Promise.all(
+		logs.map(async (log): Promise<LogWithSummary> => {
 			const detailRes = await fetch(`/api/job-sites/${params.id}/logs/${log.id}`);
 			if (detailRes.ok) {
-				const { summary }: { summary: LogSummary } = await detailRes.json();
+				const { summary } = (await detailRes.json()) as { summary: LogSummary };
 				return { ...log, summary };
 			}
 			return log;

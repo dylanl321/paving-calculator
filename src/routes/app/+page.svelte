@@ -12,11 +12,17 @@
 	import TodaySummary from '$lib/components/workspace/TodaySummary.svelte';
 	import LogToToday from '$lib/components/workspace/LogToToday.svelte';
 	import UnitToggle from '$lib/components/UnitToggle.svelte';
+	import HomePrimaryCalcs from '$lib/components/workspace/HomePrimaryCalcs.svelte';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { authStore } from '$lib/stores/auth.svelte';
+	import ScreedManView from '$lib/components/ScreedManView.svelte';
+
+	const isScreedMan = $derived(authStore.org?.role === 'screed_man');
 
 	const isToday = $derived($page.url.searchParams.get('view') === 'today');
 	const activeTool = $derived(findTool($page.url.searchParams.get('tool')));
-	const ActiveComponent = $derived(activeTool.component);
+	const isHome = $derived(!isToday && activeTool == null);
+	const ActiveComponent = $derived(activeTool?.component);
 
 	function selectTool(id: string) {
 		logDraft.set(null);
@@ -29,6 +35,14 @@
 	function selectToday() {
 		const url = new URL($page.url);
 		url.searchParams.set('view', 'today');
+		goto(url, { replaceState: false, keepFocus: true, noScroll: true });
+	}
+
+	function selectHome() {
+		logDraft.set(null);
+		const url = new URL($page.url);
+		url.searchParams.delete('tool');
+		url.searchParams.delete('view');
 		goto(url, { replaceState: false, keepFocus: true, noScroll: true });
 	}
 
@@ -109,20 +123,32 @@
 		}
 
 		function navigateSwipe(direction: 'prev' | 'next') {
-			const currentIndex = isToday ? -1 : allTools.findIndex((t) => t.id === activeTool.id);
+			const currentIndex = isToday ? -1 : isHome ? -2 : allTools.findIndex((t) => t.id === activeTool?.id);
 
 			if (direction === 'next') {
 				if (isToday) {
-					// From Today to first tool
+					// From Today to Home
+					const url = new URL($page.url);
+					url.searchParams.delete('view');
+					url.searchParams.delete('tool');
+					goto(url, { replaceState: false, keepFocus: true, noScroll: true });
+				} else if (isHome) {
+					// From Home to first tool
 					selectTool(allTools[0].id);
-				} else if (currentIndex < allTools.length - 1) {
+				} else if (currentIndex >= 0 && currentIndex < allTools.length - 1) {
 					selectTool(allTools[currentIndex + 1].id);
 				}
 			} else {
 				// prev
-				if (currentIndex === 0) {
-					// From first tool to Today
+				if (isHome) {
+					// From Home to Today
 					selectToday();
+				} else if (currentIndex === 0) {
+					// From first tool to Home
+					const url = new URL($page.url);
+					url.searchParams.delete('view');
+					url.searchParams.delete('tool');
+					goto(url, { replaceState: false, keepFocus: true, noScroll: true });
 				} else if (currentIndex > 0) {
 					selectTool(allTools[currentIndex - 1].id);
 				}
@@ -157,13 +183,15 @@
 	// Determine if prev/next are available
 	const canGoPrev = $derived(() => {
 		if (isToday) return false;
-		const idx = allTools.findIndex((t) => t.id === activeTool.id);
-		return idx > 0 || idx === 0; // Can go to Today from first tool
+		if (isHome) return true; // Can go to Today from Home
+		const idx = allTools.findIndex((t) => t.id === activeTool?.id);
+		return idx > 0 || idx === 0; // Can go to Home from first tool
 	});
 
 	const canGoNext = $derived(() => {
-		if (isToday) return true; // Can go to first tool from Today
-		const idx = allTools.findIndex((t) => t.id === activeTool.id);
+		if (isToday) return true; // Can go to Home from Today
+		if (isHome) return true; // Can go to first tool from Home
+		const idx = allTools.findIndex((t) => t.id === activeTool?.id);
 		return idx >= 0 && idx < allTools.length - 1;
 	});
 </script>
@@ -172,6 +200,9 @@
 	<title>{config.app.name} — Workspace</title>
 </svelte:head>
 
+{#if isScreedMan}
+	<ScreedManView />
+{:else}
 <div class="workspace">
 	<JobBar />
 
@@ -181,10 +212,12 @@
 				<div class="eyebrow">Calculators</div>
 			</div>
 			<ToolList
-				activeId={isToday ? '' : activeTool.id}
+				activeId={isToday ? '' : isHome ? '' : activeTool?.id ?? ''}
 				todayActive={isToday}
+				homeActive={isHome}
 				onselect={selectTool}
 				onselecttoday={selectToday}
+				onselecthome={selectHome}
 			/>
 		</aside>
 
@@ -215,6 +248,56 @@
 					<TodaySummary variant="compact" />
 				</div>
 			</aside>
+		{:else if isHome}
+			<section
+				class="stage"
+				class:stage-dragging={isDraggingStage}
+				use:swipeNav
+				style="transform: translateX({swipeOffset}px);"
+			>
+				{#if showHints && canGoPrev()}
+					<div class="swipe-hint swipe-hint-left">‹</div>
+				{/if}
+				{#if showHints && canGoNext()}
+					<div class="swipe-hint swipe-hint-right">›</div>
+				{/if}
+				<header class="stage-head">
+					<div class="stage-head-row">
+						<div>
+							<div class="eyebrow">Workspace</div>
+							<h1 class="stage-title">Home</h1>
+						</div>
+						<UnitToggle />
+					</div>
+				</header>
+
+				<div class="stage-body">
+					<HomePrimaryCalcs />
+				</div>
+			</section>
+
+			<aside class="rates" aria-label="Live rates">
+				<div class="rates-header">
+					<div class="eyebrow">Live Rates</div>
+				</div>
+				<div class="rate-stats">
+					<div class="rate-stat">
+						<span class="rv">{targetRate}</span>
+						<span class="ru">lbs/SY</span>
+						<span class="rl">Target spread</span>
+					</div>
+					<div class="rate-stat">
+						<span class="rv">{looseHeight.toFixed(2)}</span>
+						<span class="ru">in</span>
+						<span class="rl">Loose behind screed</span>
+					</div>
+				</div>
+
+				<div class="chart-block">
+					<div class="eyebrow">Spread Rate vs Target</div>
+					<SpreadRateChart {targetRate} />
+				</div>
+			</aside>
 		{:else}
 			<section class="stage" use:swipeNav style="transform: translateX({swipeOffset}px);">
 				{#if showHints && canGoPrev()}
@@ -227,17 +310,19 @@
 					<div class="stage-head-row">
 						<div>
 							<div class="eyebrow">Calculator</div>
-							<h1 class="stage-title">{activeTool.label}</h1>
+							<h1 class="stage-title">{activeTool?.label ?? ''}</h1>
 						</div>
 						<UnitToggle />
 					</div>
 				</header>
 
 				<div class="stage-body">
-					{#key activeTool.id}
-						<ActiveComponent />
-						<LogToToday tool={activeTool} ongoToToday={selectToday} />
-					{/key}
+					{#if activeTool && ActiveComponent}
+						{#key activeTool.id}
+							<ActiveComponent />
+							<LogToToday tool={activeTool} ongoToToday={selectToday} />
+						{/key}
+					{/if}
 				</div>
 			</section>
 
@@ -266,6 +351,7 @@
 		{/if}
 	</div>
 </div>
+{/if}
 
 <style>
 	.workspace {

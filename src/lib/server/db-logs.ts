@@ -12,6 +12,12 @@ export interface DbDailyLog {
 	start_time: string | null; // HH:MM
 	end_time: string | null; // HH:MM
 	notes: string | null;
+	target_tons: number | null;
+	target_loads: number | null;
+	plant_name: string | null;
+	mix_type: string | null;
+	closed_at: number | null;
+	foreman_name: string | null;
 	created_at: number;
 	updated_at: number;
 }
@@ -105,6 +111,12 @@ export class DbLogHelper {
 			start_time: null,
 			end_time: null,
 			notes: null,
+			target_tons: null,
+			target_loads: null,
+			plant_name: null,
+			mix_type: null,
+			closed_at: null,
+			foreman_name: null,
 			created_at: now,
 			updated_at: now
 		};
@@ -122,6 +134,10 @@ export class DbLogHelper {
 				| 'start_time'
 				| 'end_time'
 				| 'notes'
+				| 'target_tons'
+				| 'target_loads'
+				| 'plant_name'
+				| 'mix_type'
 			>
 		>
 	): Promise<void> {
@@ -157,6 +173,22 @@ export class DbLogHelper {
 			fields.push('notes = ?');
 			values.push(updates.notes);
 		}
+		if (updates.target_tons !== undefined) {
+			fields.push('target_tons = ?');
+			values.push(updates.target_tons);
+		}
+		if (updates.target_loads !== undefined) {
+			fields.push('target_loads = ?');
+			values.push(updates.target_loads);
+		}
+		if (updates.plant_name !== undefined) {
+			fields.push('plant_name = ?');
+			values.push(updates.plant_name);
+		}
+		if (updates.mix_type !== undefined) {
+			fields.push('mix_type = ?');
+			values.push(updates.mix_type);
+		}
 
 		if (fields.length === 0) return;
 
@@ -167,6 +199,22 @@ export class DbLogHelper {
 		await this.db
 			.prepare(`UPDATE daily_logs SET ${fields.join(', ')} WHERE id = ?`)
 			.bind(...values)
+			.run();
+	}
+
+	async closeDailyLog(id: string, foremanName: string): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare('UPDATE daily_logs SET closed_at = ?, foreman_name = ?, updated_at = ? WHERE id = ?')
+			.bind(now, foremanName, now, id)
+			.run();
+	}
+
+	async reopenDailyLog(id: string): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare('UPDATE daily_logs SET closed_at = NULL, foreman_name = NULL, updated_at = ? WHERE id = ?')
+			.bind(now, id)
 			.run();
 	}
 
