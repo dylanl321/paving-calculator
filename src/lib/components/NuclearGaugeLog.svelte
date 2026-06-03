@@ -3,6 +3,7 @@
 	import NumberField from './NumberField.svelte';
 	import type { DbDensityReading } from '$lib/server/db-logs';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	interface Props {
 		logId: string;
@@ -124,9 +125,12 @@
 				readings = [...readings, data.reading];
 				resetForm();
 				showForm = false;
+				toastStore.success('Density reading saved');
+			} else {
+				toastStore.error('Failed to save reading');
 			}
 		} catch (err) {
-			console.error('Failed to save reading:', err);
+			toastStore.error('Failed to save reading');
 		}
 		saving = false;
 	}
@@ -151,9 +155,12 @@
 
 			if (res.ok) {
 				readings = readings.filter((r) => r.id !== readingId);
+				toastStore.success('Reading deleted');
+			} else {
+				toastStore.error('Failed to delete reading');
 			}
 		} catch (err) {
-			console.error('Failed to delete reading:', err);
+			toastStore.error('Failed to delete reading');
 		}
 	}
 
