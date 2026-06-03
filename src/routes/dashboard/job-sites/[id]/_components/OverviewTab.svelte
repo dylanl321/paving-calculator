@@ -246,12 +246,20 @@
 			return;
 		}
 
+		const escapeHtml = (str: string) =>
+				str
+					.replace(/&/g, '&amp;')
+					.replace(/</g, '&lt;')
+					.replace(/>/g, '&gt;')
+					.replace(/"/g, '&quot;')
+					.replace(/'/g, '&#039;');
+
 		grid.innerHTML = photos
 			.map(
 				(photo) => `
-			<div class="photo-thumb" data-photo-id="${photo.id}">
-				<img src="/api/job-sites/${data.jobSite.id}/photos/${photo.id}/view" alt="${photo.caption || photo.filename}" />
-				${photo.caption ? `<div class="photo-caption">${photo.caption}</div>` : ''}
+			<div class="photo-thumb" data-photo-id="${escapeHtml(String(photo.id))}">
+				<img src="/api/job-sites/${escapeHtml(String(data.jobSite.id))}/photos/${escapeHtml(String(photo.id))}/view" alt="${escapeHtml(photo.caption || photo.filename)}" />
+				${photo.caption ? `<div class="photo-caption">${escapeHtml(photo.caption)}</div>` : ''}
 			</div>
 		`
 			)
