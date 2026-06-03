@@ -92,7 +92,7 @@
 				return;
 			}
 			try {
-				const res = await fetch(`/api/gdot/routes?q=${encodeURIComponent(searchQuery)}`);
+				const res = await fetch(`/api/gdot-routes?q=${encodeURIComponent(searchQuery)}`);
 				if (res.ok) {
 					searchResults = await res.json();
 				}
@@ -110,6 +110,7 @@
 	}
 
 	$effect(() => {
+		const q = searchQuery;
 		handleSearchInput();
 	});
 </script>

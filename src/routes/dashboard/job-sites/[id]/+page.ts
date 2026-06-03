@@ -42,6 +42,11 @@ export interface JobSiteConfig {
 	tack_type: string | null;
 	target_tack_rate: number | null;
 	notes: string | null;
+	route_designation: string | null;
+	route_county: string | null;
+	route_district: string | null;
+	route_functional_class: string | null;
+	route_system_code: string | null;
 	num_lifts: number | null;
 	total_tonnage: number | null;
 	cost_per_ton: number | null;
