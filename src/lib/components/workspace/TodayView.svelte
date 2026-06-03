@@ -8,6 +8,7 @@
 	import TimeInput from '$lib/components/TimeInput.svelte';
 	import DailyTarget from './DailyTarget.svelte';
 	import { formatFeet } from '$lib/utils/format';
+	import EodReport from '$lib/components/EodReport.svelte';
 
 	const entries = $derived(today.entries);
 
@@ -161,6 +162,7 @@
 	let showForm = $state(false);
 	let editingId = $state<string | null>(null);
 	let form = $state(blankForm());
+	let showEod = $state(false);
 
 	function blankForm() {
 		return {
@@ -449,6 +451,12 @@
 		</section>
 	{/if}
 
+	<section class="eod-section">
+		<button class="btn btn-eod" onclick={() => (showEod = true)}>
+			📋 EOD Report
+		</button>
+	</section>
+
 	<section class="timeline-wrap">
 		<span class="eyebrow">Timeline</span>
 		{#if entries.length === 0}
@@ -588,6 +596,8 @@
 	</div>
 {/if}
 
+<EodReport bind:open={showEod} />
+
 <style>
 	.today {
 		display: flex;
@@ -671,6 +681,31 @@
 		margin: var(--sp-2) 0 0;
 		font-size: var(--fs-sm);
 		color: var(--bad);
+	}
+	.eod-section {
+		display: flex;
+	}
+	.btn-eod {
+		width: 100%;
+		min-height: 56px;
+		padding: 0 var(--sp-4);
+		background: #f59e0b;
+		color: #1b2228;
+		border: none;
+		border-radius: var(--radius-md);
+		font-size: var(--fs-lg);
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+	}
+	.btn-eod:hover {
+		background: #d97706;
+		transform: translateY(-1px);
+		box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+	}
+	.btn-eod:active {
+		transform: translateY(0);
 	}
 	.cond-head {
 		display: flex;
