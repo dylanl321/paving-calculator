@@ -117,7 +117,7 @@ export async function GET(event: RequestEvent) {
 			}
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get org logo error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -162,7 +162,7 @@ export async function POST(event: RequestEvent) {
 
 		return json({ success: true, hasLogo: true });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Upload org logo error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -196,7 +196,7 @@ export async function DELETE(event: RequestEvent) {
 
 		return json({ success: true, hasLogo: false });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Delete org logo error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

@@ -113,7 +113,7 @@ export async function GET(event: RequestEvent) {
 			next_cursor: hasMore ? returnedEntries[returnedEntries.length - 1].created_at : null
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get audit log error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

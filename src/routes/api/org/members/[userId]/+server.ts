@@ -2,11 +2,23 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireAuth } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
 
+type OrgRole =
+	| 'owner'
+	| 'admin'
+	| 'member'
+	| 'foreman'
+	| 'operator'
+	| 'inspector'
+	| 'office'
+	| 'laborer'
+	| 'screed_man';
+
 export async function PATCH(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const { userId } = event.params;
-		const body = await event.request.json();
+		if (!userId) return json({ error: 'User ID is required' }, { status: 400 });
+		const body = (await event.request.json()) as { role?: OrgRole };
 		const { role } = body;
 
 		if (!role || !['owner', 'admin', 'member', 'foreman', 'operator', 'inspector', 'office'].includes(role)) {
@@ -37,7 +49,7 @@ export async function PATCH(event: RequestEvent) {
 
 		return json({ success: true });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error updating member role:', error);
 		return json({ error: 'Failed to update member role' }, { status: 500 });
 	}
@@ -47,6 +59,7 @@ export async function DELETE(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const { userId } = event.params;
+		if (!userId) return json({ error: 'User ID is required' }, { status: 400 });
 
 		const db = new DbHelper(event.platform!.env.DB);
 
@@ -77,7 +90,7 @@ export async function DELETE(event: RequestEvent) {
 
 		return json({ success: true });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error removing member:', error);
 		return json({ error: 'Failed to remove member' }, { status: 500 });
 	}

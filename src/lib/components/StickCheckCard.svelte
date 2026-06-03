@@ -6,6 +6,8 @@
 	import SourceBadge from './SourceBadge.svelte';
 	import DotTable from './DotTable.svelte';
 	import CrossSectionDiagram from './CrossSectionDiagram.svelte';
+	import Tooltip from './ui/Tooltip.svelte';
+	import CalculationStep from './ui/CalculationStep.svelte';
 	import { constantMeta } from '$lib/config';
 	import { stickCheck } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
@@ -44,7 +46,10 @@
 	hideTitle
 	purpose="Loose material height to look for behind the screed for a target compacted thickness."
 >
-	<NumberField label="Target compacted thickness" unit="in" step={0.25} bind:value={target} />
+	<div class="label-with-tooltip">
+		<NumberField label="Target compacted thickness" unit="in" step={0.25} bind:value={target} />
+		<Tooltip term="Stick Check" definition="Manual thickness measurement of asphalt mat behind the screed. Measures loose material height to verify proper compacted thickness (loose height = compacted × 1.25)." />
+	</div>
 
 	<ResultStat
 		value={loose != null ? Number(loose.toFixed(2)) : null}
@@ -55,11 +60,24 @@
 		<CrossSectionDiagram compactedIn={target} looseIn={loose} />
 	{/if}
 
-	<ShowWork>
-		<code>loose = compacted × {factorMeta.value}</code>
-		<div class="src-row">Compaction factor: <SourceBadge status={factorMeta.status} tier={factorMeta.tier} /></div>
-		<p>Stick check uses GDOT §400.3.05.C (spreading & finishing). STICK_FACTOR 1.25 is the loose-to-compacted ratio applied to target depth to get the screed setting.</p>
-		<DotTable tableId="table-4" />
+	<ShowWork stepCount={1}>
+		{#if target != null && target > 0 && loose != null}
+			<CalculationStep
+				step={1}
+				label="Loose height"
+				formula="{target.toFixed(2)} × {factorMeta.value}"
+				result="{loose.toFixed(2)} in"
+			/>
+		{:else}
+			<code>loose = compacted × {factorMeta.value}</code>
+			<p>Enter target compacted thickness above to see calculation.</p>
+		{/if}
+
+		<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+			<div class="src-row">Compaction factor: <SourceBadge status={factorMeta.status} tier={factorMeta.tier} /></div>
+			<p>Stick check uses GDOT §400.3.05.C (spreading & finishing). STICK_FACTOR 1.25 is the loose-to-compacted ratio applied to target depth to get the screed setting.</p>
+			<DotTable tableId="table-4" />
+		</div>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>

@@ -297,12 +297,19 @@ export function minAirTempForThickness(thicknessIn: number): TempEntry {
 }
 
 /** GDOT Table 12 spread-rate tolerance entry for a course-type id. */
-export function spreadToleranceFor(courseId: string | null | undefined): SpreadToleranceEntry {
-	return (
+export function spreadToleranceFor(
+	courseId: string | null | undefined,
+	overrides?: import('./overrides').OrgOverrides | null
+): SpreadToleranceEntry {
+	const yamlEntry =
 		config.spreadTolerance.find((t) => t.id === courseId) ??
 		config.spreadTolerance.find((t) => t.id === config.defaults.courseType) ??
-		config.spreadTolerance[0]
-	);
+		config.spreadTolerance[0];
+
+	if (overrides?.spreadTolerances && courseId && courseId in overrides.spreadTolerances) {
+		return { ...yamlEntry, toleranceLbsSy: overrides.spreadTolerances[courseId] };
+	}
+	return yamlEntry;
 }
 
 export type SpreadSpecStatus = 'good' | 'warn' | 'bad';
@@ -316,6 +323,7 @@ export interface SpreadSpecCheck {
 	message: string;
 	clause: string;
 	clauseTitle: string;
+	guidance?: string;
 }
 
 /**
@@ -326,10 +334,11 @@ export interface SpreadSpecCheck {
 export function spreadSpecCheck(
 	placedLbsSy: number | null,
 	targetLbsSy: number | null,
-	courseId: string | null | undefined
+	courseId: string | null | undefined,
+	overrides?: import('./overrides').OrgOverrides | null
 ): SpreadSpecCheck | null {
 	if (placedLbsSy == null || targetLbsSy == null || targetLbsSy <= 0) return null;
-	const tol = spreadToleranceFor(courseId);
+	const tol = spreadToleranceFor(courseId, overrides);
 	const delta = placedLbsSy - targetLbsSy;
 	const absDelta = Math.abs(delta);
 	const direction = delta > 0 ? 'high' : 'low';
@@ -356,7 +365,8 @@ export function spreadSpecCheck(
 			courseLabel: tol.label,
 			message: `${off}; tolerance is ±${tol.toleranceLbsSy} lbs/SY (Table 12, ${tol.label})`,
 			clause: '§400.4.A.2.b Table 12',
-			clauseTitle: 'Spread Rate Tolerance'
+			clauseTitle: 'Spread Rate Tolerance',
+			guidance: 'Adjust tons or distance to bring rate within tolerance before the next load.'
 		};
 	}
 	return {
@@ -367,7 +377,8 @@ export function spreadSpecCheck(
 		courseLabel: tol.label,
 		message: `${off}; exceeds ±${tol.toleranceLbsSy} lbs/SY (Table 12, ${tol.label})`,
 		clause: '§400.4.A.2.b Table 12',
-		clauseTitle: 'Spread Rate Tolerance'
+		clauseTitle: 'Spread Rate Tolerance',
+		guidance: 'Stop and re-calibrate paver head before continuing. Document deviation on daily report.'
 	};
 }
 
@@ -379,6 +390,7 @@ export interface PlacementCheck {
 	message: string;
 	clause: string;
 	clauseTitle: string;
+	guidance?: string;
 }
 
 /** Compare live air temp against GDOT Table 4 minimum for the job lift thickness. */
@@ -401,7 +413,8 @@ export function placementCheck(airTempF: number | null, thicknessIn: number): Pl
 			minTempF: entry.minAirTempF,
 			message: `Borderline — ${airTempF}°F is within ${margin}°F of ${entry.minAirTempF}°F minimum for ${thicknessIn}" lift`,
 			clause: '§400.3.05.E Table 4',
-			clauseTitle: 'HMA Lift Thickness — Weather Limitations'
+			clauseTitle: 'HMA Lift Thickness — Weather Limitations',
+			guidance: 'Monitor closely — if temp drops further, suspend paving per GDOT §400.3.05.E.'
 		};
 	}
 	return {
@@ -409,7 +422,8 @@ export function placementCheck(airTempF: number | null, thicknessIn: number): Pl
 		minTempF: entry.minAirTempF,
 		message: `Too cold — ${airTempF}°F is below ${entry.minAirTempF}°F minimum for ${thicknessIn}" lift`,
 		clause: '§400.3.05.E Table 4',
-		clauseTitle: 'HMA Lift Thickness — Weather Limitations'
+		clauseTitle: 'HMA Lift Thickness — Weather Limitations',
+		guidance: 'Suspend paving. Air temp is below the GDOT Table 4 minimum for this lift thickness.'
 	};
 }
 
@@ -419,6 +433,7 @@ export interface RainCheck {
 	message: string;
 	clause: string;
 	clauseTitle: string;
+	guidance?: string;
 }
 
 export interface TackTempCheck {
@@ -426,6 +441,7 @@ export interface TackTempCheck {
 	message: string;
 	clause: string;
 	clauseTitle: string;
+	guidance?: string;
 }
 
 /** Tack coat air temperature check — GDOT §413.3.05.A requires ≥40°F. */
@@ -437,7 +453,8 @@ export function tackTempCheck(airTempF: number | null): TackTempCheck | null {
 			status: 'fail',
 			message: `Too cold for tack coat — §413.3.05.A requires air temp ≥ ${minTemp}°F in shade`,
 			clause: '§413.3.05.A',
-			clauseTitle: 'Tack Coat — Seasonal & Weather Limitation'
+			clauseTitle: 'Tack Coat — Seasonal & Weather Limitation',
+			guidance: 'Do not apply tack coat until air temperature reaches the required minimum.'
 		};
 	}
 	if (airTempF < minTemp + 5) {
@@ -445,7 +462,8 @@ export function tackTempCheck(airTempF: number | null): TackTempCheck | null {
 			status: 'warn',
 			message: `Borderline for tack — air temp is near ${minTemp}°F minimum`,
 			clause: '§413.3.05.A',
-			clauseTitle: 'Tack Coat — Seasonal & Weather Limitation'
+			clauseTitle: 'Tack Coat — Seasonal & Weather Limitation',
+			guidance: 'Monitor temperature closely before applying tack coat.'
 		};
 	}
 	return {
@@ -465,7 +483,8 @@ export function rainCheck(totalRainIn: number | null): RainCheck | null {
 			totalIn: totalRainIn,
 			message: `${totalRainIn.toFixed(2)} in rain forecast — do not pave or tack on wet surfaces`,
 			clause: '§400.3.05.E',
-			clauseTitle: 'HMA Weather Limitations — Wet/Frozen Surface'
+			clauseTitle: 'HMA Weather Limitations — Wet/Frozen Surface',
+			guidance: 'Hold paving and tack. Do not pave or apply tack on wet or frozen surfaces.'
 		};
 	}
 	if (totalRainIn >= weatherConfig.rainWarnIn) {
@@ -474,7 +493,8 @@ export function rainCheck(totalRainIn: number | null): RainCheck | null {
 			totalIn: totalRainIn,
 			message: `${totalRainIn.toFixed(2)} in rain forecast — watch tack timing and surface moisture`,
 			clause: '§400.3.05.E',
-			clauseTitle: 'HMA Weather Limitations — Wet/Frozen Surface'
+			clauseTitle: 'HMA Weather Limitations — Wet/Frozen Surface',
+			guidance: 'Delay tack coat until surface dries. Check surface moisture before resuming.'
 		};
 	}
 	return {
