@@ -1,8 +1,10 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import NavSidebar from './NavSidebar.svelte';
+	import CommandPalette from './CommandPalette.svelte';
 	import { APP_VERSION } from '$lib/version';
 	import { offlineStore } from '$lib/stores/offline.svelte';
+	import { navCollapsedStore } from '$lib/stores/navCollapsed.svelte';
 	import OfflineExportButton from '$lib/components/OfflineExportButton.svelte';
 
 	let {
@@ -27,10 +29,20 @@
 		const displayMinutes = minutes.toString().padStart(2, '0');
 		return `${displayHours}:${displayMinutes} ${ampm}`;
 	});
+
+	let paletteEl = $state<{ openPalette: () => void } | null>(null);
+
+	function onOpenPalette() {
+		paletteEl?.openPalette();
+	}
 </script>
 
-<div class="shell" class:with-context={showContext}>
-	<NavSidebar />
+<div
+	class="shell"
+	class:with-context={showContext}
+	class:nav-collapsed={navCollapsedStore.collapsed}
+>
+	<NavSidebar {onOpenPalette} />
 
 	<main class="shell-main">
 		{@render children()}
@@ -63,6 +75,8 @@
 		</aside>
 	{/if}
 </div>
+
+<CommandPalette bind:this={paletteEl} />
 
 <style>
 	/* Mobile-first: a single column. Sidebar renders its own mobile top bar /
@@ -177,6 +191,15 @@
 
 		.shell.with-context {
 			grid-template-columns: var(--sidebar-w) 1fr var(--context-w);
+		}
+
+		/* When sidebar is collapsed, shrink to rail width */
+		.shell.nav-collapsed {
+			grid-template-columns: var(--sidebar-rail-w) 1fr;
+		}
+
+		.shell.nav-collapsed.with-context {
+			grid-template-columns: var(--sidebar-rail-w) 1fr var(--context-w);
 		}
 
 		.shell-main {
