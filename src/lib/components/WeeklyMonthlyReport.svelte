@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { BarChart } from 'layerchart';
 	import ChartMount from '$lib/components/charts/ChartMount.svelte';
+	import { formatFeet } from '$lib/utils/format';
 
 	interface Props {
 		jobSiteId: string;
@@ -88,12 +89,6 @@
 		return ((data.totals.tons - data.prev_period_tons) / data.prev_period_tons) * 100;
 	});
 
-	function fmtFeet(ft: number): string {
-		if (ft === 0) return '0 ft';
-		if (ft >= 5280) return `${(ft / 5280).toFixed(2)} mi`;
-		return `${Math.round(ft).toLocaleString()} ft`;
-	}
-
 	function fmtTons(t: number): string {
 		return t.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 	}
@@ -174,7 +169,7 @@
 						</div>
 						<div class="total-card">
 							<span class="total-label">Total Distance</span>
-							<span class="total-value">{fmtFeet(data.totals.distance_ft)}</span>
+							<span class="total-value">{formatFeet(data.totals.distance_ft)}</span>
 						</div>
 						<div class="total-card">
 							<span class="total-label">Days Worked</span>
