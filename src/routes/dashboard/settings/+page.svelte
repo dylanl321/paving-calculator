@@ -13,6 +13,7 @@
 	import DefaultsTab from './_components/DefaultsTab.svelte';
 	import BrandingTab from './_components/BrandingTab.svelte';
 	import NotificationsTab from './_components/NotificationsTab.svelte';
+	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
 
 	let { data } = $props();
 
@@ -212,6 +213,8 @@
 	{#if !canEdit}
 		<div class="notice">You have view-only access. Ask an owner or admin to change settings.</div>
 	{/if}
+
+	<FeatureDiscovery feature="notifications" condition={true} />
 
 	<!-- Tab navigation -->
 	<div class="tabs">

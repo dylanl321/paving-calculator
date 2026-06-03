@@ -174,6 +174,10 @@
 				);
 			}
 
+			if (typeof window !== 'undefined') {
+				localStorage.setItem('paverate_last_closeout_date', new Date().toISOString());
+			}
+
 			showSuccess = true;
 			await invalidateAll();
 
