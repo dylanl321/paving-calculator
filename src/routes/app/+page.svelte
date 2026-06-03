@@ -13,6 +13,10 @@
 	import LogToToday from '$lib/components/workspace/LogToToday.svelte';
 	import UnitToggle from '$lib/components/UnitToggle.svelte';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { authStore } from '$lib/stores/auth.svelte';
+	import ScreedManView from '$lib/components/ScreedManView.svelte';
+
+	const isScreedMan = $derived(authStore.org?.role === 'screed_man');
 
 	const isToday = $derived($page.url.searchParams.get('view') === 'today');
 	const activeTool = $derived(findTool($page.url.searchParams.get('tool')));
@@ -172,6 +176,9 @@
 	<title>{config.app.name} — Workspace</title>
 </svelte:head>
 
+{#if isScreedMan}
+	<ScreedManView />
+{:else}
 <div class="workspace">
 	<JobBar />
 
@@ -266,6 +273,7 @@
 		{/if}
 	</div>
 </div>
+{/if}
 
 <style>
 	.workspace {

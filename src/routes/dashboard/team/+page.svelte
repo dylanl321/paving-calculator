@@ -377,19 +377,21 @@
 								<div class="card-row">
 									<span class="label">Role</span>
 									{#if canModifyMember(member)}
-										<select
-											class="role-select"
-											value={member.role}
-											onchange={(e) => requestRoleChange(member, e.currentTarget.value)}
-										>
-											<option value="owner">Owner</option>
-											<option value="admin">Admin</option>
-											<option value="member">Member</option>
-											<option value="foreman">Foreman</option>
-											<option value="operator">Operator</option>
-											<option value="inspector">Inspector</option>
-											<option value="office">Office</option>
-										</select>
+																		<select
+																			class="role-select"
+																			value={member.role}
+																			onchange={(e) => requestRoleChange(member, e.currentTarget.value)}
+																		>
+																			<option value="owner">Owner</option>
+																			<option value="admin">Admin</option>
+																			<option value="member">Member</option>
+																			<option value="foreman">Foreman</option>
+																			<option value="operator">Operator</option>
+																			<option value="inspector">Inspector</option>
+																			<option value="office">Office</option>
+																			<option value="laborer">Laborer</option>
+																			<option value="screed_man">Screed Man</option>
+																		</select>
 									{:else}
 										<span class="role-badge {member.role}">{member.role}</span>
 									{/if}
@@ -477,17 +479,19 @@
 				/>
 			</label>
 			<label>
-				Role
-				<select bind:value={inviteForm.role}>
-					<option value="owner">Owner</option>
-					<option value="admin">Admin</option>
-					<option value="member">Member</option>
-					<option value="foreman">Foreman</option>
-					<option value="operator">Operator</option>
-					<option value="inspector">Inspector</option>
-					<option value="office">Office</option>
-				</select>
-			</label>
+						Role
+						<select bind:value={inviteForm.role}>
+							<option value="owner">Owner</option>
+							<option value="admin">Admin</option>
+							<option value="member">Member</option>
+							<option value="foreman">Foreman</option>
+							<option value="operator">Operator</option>
+							<option value="inspector">Inspector</option>
+							<option value="office">Office</option>
+							<option value="laborer">Laborer</option>
+							<option value="screed_man">Screed Man</option>
+						</select>
+					</label>
 			<div class="modal-actions">
 				<button type="button" onclick={() => (showInviteModal = false)}>Cancel</button>
 				<button type="submit" disabled={inviting || !inviteForm.email.trim()}>
@@ -763,6 +767,16 @@
 	.role-badge.office {
 		background: rgba(20, 184, 166, 0.2);
 		color: rgb(20, 184, 166);
+	}
+
+	.role-badge.laborer {
+		background: rgba(251, 146, 60, 0.2);
+		color: rgb(251, 146, 60);
+	}
+
+	.role-badge.screed_man {
+		background: rgba(251, 191, 36, 0.2);
+		color: rgb(251, 191, 36);
 	}
 
 	.role-select {
