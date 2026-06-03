@@ -2,6 +2,16 @@ import { json, error } from '@sveltejs/kit';
 import { DbHelper, type DbLoad } from '$lib/server/db';
 import type { RequestHandler } from './$types';
 
+interface LoadRequestBody {
+	tons?: number;
+	lane_number?: number | null;
+	pass_number?: number | null;
+	timestamp?: number;
+	ticket_number?: string | null;
+	spread_rate?: number | null;
+	notes?: string | null;
+}
+
 export const GET: RequestHandler = async ({ params, locals, platform, url }) => {
 	if (!locals.user) {
 		throw error(401, 'Unauthorized');
@@ -68,7 +78,7 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		throw error(403, 'Access denied');
 	}
 
-	const body = await request.json();
+	const body = (await request.json()) as LoadRequestBody;
 
 	if (typeof body.tons !== 'number' || body.tons <= 0) {
 		throw error(400, 'Tons must be a positive number');

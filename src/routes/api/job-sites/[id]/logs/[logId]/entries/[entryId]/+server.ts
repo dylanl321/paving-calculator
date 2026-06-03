@@ -1,8 +1,26 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbLogHelper } from '$lib/server/db-logs';
+import type { DbLogEntry } from '$lib/server/db-logs';
 import { recordAudit } from '$lib/server/audit';
 import type { RequestHandler } from './$types';
+
+type LogEntryUpdateBody = Partial<
+	Pick<
+		DbLogEntry,
+		| 'timestamp'
+		| 'station_start'
+		| 'station_end'
+		| 'distance_ft'
+		| 'tons_placed'
+		| 'loads_count'
+		| 'truck_tickets'
+		| 'spread_rate_actual'
+		| 'tack_gallons'
+		| 'lane'
+		| 'notes'
+	>
+>;
 
 export const PATCH: RequestHandler = async ({ params, locals, platform, request }) => {
 	if (!locals.user) {
@@ -41,7 +59,7 @@ export const PATCH: RequestHandler = async ({ params, locals, platform, request 
 		}
 	}
 
-	const body = await request.json();
+	const body = (await request.json()) as LogEntryUpdateBody;
 
 	await logDb.updateLogEntry(params.entryId, body);
 

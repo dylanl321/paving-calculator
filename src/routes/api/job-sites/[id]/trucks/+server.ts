@@ -16,6 +16,13 @@ export interface DbTruck {
 	updated_at: number;
 }
 
+interface TruckRequestBody {
+	truck_number?: string;
+	estimated_tons?: number | null;
+	departure_time?: number;
+	travel_time_minutes?: number;
+}
+
 export const GET: RequestHandler = async ({ params, locals, platform, url }) => {
 	if (!locals.user) {
 		throw error(401, 'Unauthorized');
@@ -61,7 +68,7 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		throw error(403, 'Access denied');
 	}
 
-	const body = await request.json();
+	const body = (await request.json()) as TruckRequestBody;
 
 	if (!body.truck_number || typeof body.truck_number !== 'string') {
 		throw error(400, 'Truck number is required');

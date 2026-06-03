@@ -1,8 +1,26 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbLogHelper } from '$lib/server/db-logs';
+import type { DbDailyLog } from '$lib/server/db-logs';
 import { recordAudit } from '$lib/server/audit';
 import type { RequestHandler } from './$types';
+
+type DailyLogUpdateBody = Partial<
+	Pick<
+		DbDailyLog,
+		| 'weather_temp_f'
+		| 'weather_conditions'
+		| 'wind_speed_mph'
+		| 'crew_count'
+		| 'start_time'
+		| 'end_time'
+		| 'notes'
+		| 'target_tons'
+		| 'target_loads'
+		| 'plant_name'
+		| 'mix_type'
+	>
+>;
 
 export const GET: RequestHandler = async ({ params, locals, platform }) => {
 	if (!locals.user) {
@@ -66,7 +84,7 @@ export const PATCH: RequestHandler = async ({ params, locals, platform, request 
 		}
 	}
 
-	const body = await request.json();
+	const body = (await request.json()) as DailyLogUpdateBody;
 
 	await logDb.updateDailyLog(params.logId, body);
 

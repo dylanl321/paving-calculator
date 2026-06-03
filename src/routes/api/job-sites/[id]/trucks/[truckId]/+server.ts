@@ -3,6 +3,10 @@ import { DbHelper } from '$lib/server/db';
 import type { RequestHandler } from './$types';
 import type { DbTruck } from '../+server';
 
+interface TruckUpdateBody {
+	status?: DbTruck['status'];
+}
+
 export const PATCH: RequestHandler = async ({ params, locals, platform, request }) => {
 	if (!locals.user) {
 		throw error(401, 'Unauthorized');
@@ -29,7 +33,7 @@ export const PATCH: RequestHandler = async ({ params, locals, platform, request 
 		throw error(404, 'Truck not found');
 	}
 
-	const body = await request.json();
+	const body = (await request.json()) as TruckUpdateBody;
 	const now = Math.floor(Date.now() / 1000);
 
 	if (body.status) {

@@ -1,8 +1,24 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbLogHelper } from '$lib/server/db-logs';
+import type { DbLogEntry } from '$lib/server/db-logs';
 import { recordAudit } from '$lib/server/audit';
 import type { RequestHandler } from './$types';
+
+interface LogEntryCreateBody {
+	entry_type: DbLogEntry['entry_type'];
+	timestamp: string;
+	station_start?: number | null;
+	station_end?: number | null;
+	distance_ft?: number | null;
+	tons_placed?: number | null;
+	loads_count?: number | null;
+	truck_tickets?: string[] | null;
+	spread_rate_actual?: number | null;
+	tack_gallons?: number | null;
+	lane?: string | null;
+	notes?: string | null;
+}
 
 export const POST: RequestHandler = async ({ params, locals, platform, request }) => {
 	if (!locals.user) {
@@ -36,7 +52,7 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		}
 	}
 
-	const body = await request.json();
+	const body = (await request.json()) as LogEntryCreateBody;
 
 	const entry = await logDb.createLogEntry(params.logId, body);
 

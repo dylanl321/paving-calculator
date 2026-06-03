@@ -2,6 +2,14 @@ import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import type { RequestHandler } from './$types';
 
+interface MilestoneCreateBody {
+	name?: string;
+	description?: string | null;
+	status?: string;
+	target_date?: string | null;
+	sort_order?: number;
+}
+
 export const GET: RequestHandler = async ({ params, locals, platform }) => {
 	if (!locals.user) {
 		throw error(401, 'Unauthorized');
@@ -41,7 +49,7 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		throw error(403, 'Access denied');
 	}
 
-	const body = await request.json();
+	const body = (await request.json()) as MilestoneCreateBody;
 	const { name, description, status, target_date, sort_order } = body;
 
 	if (!name) {
