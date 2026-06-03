@@ -46,6 +46,22 @@
       };
     }
   });
+
+  // Clamp popover to viewport after it renders
+  $effect(() => {
+    if (isOpen && popover) {
+      const rect = popover.getBoundingClientRect();
+      const margin = 8;
+      if (rect.right > window.innerWidth - margin) {
+        const overshoot = rect.right - (window.innerWidth - margin);
+        popover.style.left = `calc(50% - ${overshoot}px)`;
+      }
+      if (rect.left < margin) {
+        const undershoot = margin - rect.left;
+        popover.style.left = `calc(50% + ${undershoot}px)`;
+      }
+    }
+  });
 </script>
 
 <div class="help-tip-container">

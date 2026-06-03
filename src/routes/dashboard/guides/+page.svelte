@@ -20,6 +20,12 @@
 			title: 'Setting Up a New Project',
 			description: 'Configure your job site from scratch: contract info, route map, road settings, milestones, crew, and first-day checklist.',
 			stepCount: 6
+		},
+		{
+			slug: 'calculators',
+			title: 'Understanding the Calculators',
+			description: 'Plain-English explanations of spread rate, tonnage, tack rate, area, and paving window formulas with worked examples and GDOT spec references.',
+			stepCount: 5
 		}
 	];
 </script>

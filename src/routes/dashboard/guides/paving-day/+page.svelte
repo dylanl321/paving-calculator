@@ -27,7 +27,7 @@
 			description: 'Log truck ticket, confirm mix type and tons',
 			tipText: 'Verify the ticket weight matches your order. Reject loads more than 5% over or under.',
 			actionLabel: 'Log First Load',
-			actionHref: '/app',
+			actionHref: '/dashboard/job-sites',
 			icon: 'truck'
 		},
 		{
@@ -36,7 +36,7 @@
 			description: 'Log loads as they arrive, track stations',
 			tipText: 'Log every load before the truck leaves the site. GPS station logging keeps your spread rate accurate.',
 			actionLabel: 'Open Load Tracker',
-			actionHref: '/app',
+			actionHref: '/dashboard/job-sites',
 			icon: 'road'
 		},
 		{
@@ -45,7 +45,7 @@
 			description: 'Log any stoppages with reason codes',
 			tipText: 'Delays over 30 minutes can affect mat temperature. Document the reason for your records.',
 			actionLabel: 'Log Delay',
-			actionHref: '/app',
+			actionHref: '/dashboard/job-sites',
 			icon: 'pause'
 		},
 		{
@@ -54,7 +54,7 @@
 			description: 'Review your summary, close out the job, generate PDF report',
 			tipText: 'Close out only after all loads are logged. The PDF report is your ticket for billing.',
 			actionLabel: 'View Day Summary',
-			actionHref: '/app',
+			actionHref: '/dashboard/job-sites',
 			icon: 'checkmark'
 		}
 	];
