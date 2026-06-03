@@ -10,6 +10,8 @@
 // Persisted to localStorage. A single "current day" is kept; when the calendar
 // date rolls over, the previous day is archived and a fresh day starts.
 import { spreadRateFromThickness, actualSpreadRate } from '$lib/config/formulas';
+import { deriveFields } from '$lib/services/autoDerive';
+import { weather } from '$lib/stores/weather.svelte';
 
 const STORAGE_KEY = 'paverate.today.v1';
 
@@ -58,6 +60,8 @@ export interface TodayState {
 	job_site_id: string | null;
 	/** Server daily_log id once synced (local-only metadata). */
 	remote_log_id: string | null;
+	/** Which fields were auto-derived (local-only metadata). */
+	derived_fields: string[];
 }
 
 function todayDate(): string {
@@ -81,7 +85,8 @@ function initial(): TodayState {
 		mix_type: null,
 		entries: [],
 		job_site_id: null,
-		remote_log_id: null
+		remote_log_id: null,
+		derived_fields: []
 	};
 }
 
@@ -117,6 +122,28 @@ class Today {
 		if (typeof localStorage !== 'undefined') {
 			this.#state = load();
 		}
+
+		// Reactive effect: auto-derive fields when entries or weather temp changes
+		let lastEntriesLength = 0;
+		let lastTempValue: number | null = null;
+
+		$effect(() => {
+			const entriesLength = this.#state.entries.length;
+			const tempValue = weather.effectiveTempF;
+
+			// Only derive if something actually changed
+			if (entriesLength !== lastEntriesLength || tempValue !== lastTempValue) {
+				lastEntriesLength = entriesLength;
+				lastTempValue = tempValue;
+
+				if (entriesLength > 0 || tempValue != null) {
+					// Call deriveFromWeather without tracking its state changes
+					queueMicrotask(() => {
+						this.deriveFromWeather();
+					});
+				}
+			}
+		});
 	}
 
 	// ---- Day header ----
@@ -251,6 +278,70 @@ class Today {
 	set remoteLogId(v: string | null) {
 		this.#state.remote_log_id = v;
 		this.#save();
+	}
+
+	// ---- Derived fields tracking ----
+	get derivedFields() {
+		return this.#state.derived_fields;
+	}
+	set derivedFields(v: string[]) {
+		this.#state.derived_fields = v;
+		this.#save();
+	}
+
+	/**
+	 * Auto-derive fields from weather and entry data.
+	 * Runs deriveFields() on each entry, merges derived values where field is null,
+	 * and tracks which fields were auto-derived.
+	 */
+	deriveFromWeather(): void {
+		let anyChanges = false;
+		const changedFields = new Set<string>();
+
+		// Process each entry
+		const updatedEntries = this.#state.entries.map((entry) => {
+			const { entryPatch, statePatch } = deriveFields(
+				entry,
+				this.#state,
+				{ road_width: null }, // No job config available in this context
+				weather.effectiveTempF
+			);
+
+			// Apply entry patches where field is null
+			let entryChanged = false;
+			const updatedEntry = { ...entry };
+			for (const [key, value] of Object.entries(entryPatch)) {
+				const fieldKey = key as keyof TodayEntry;
+				if (entry[fieldKey] == null && value != null) {
+					(updatedEntry as any)[fieldKey] = value;
+					changedFields.add(`entry.${key}`);
+					entryChanged = true;
+				}
+			}
+
+			// Apply state patches where field is null
+			for (const [key, value] of Object.entries(statePatch)) {
+				const fieldKey = key as keyof TodayState;
+				if (this.#state[fieldKey] == null && value != null) {
+					(this.#state as any)[fieldKey] = value;
+					changedFields.add(`state.${key}`);
+					anyChanges = true;
+				}
+			}
+
+			if (entryChanged) {
+				anyChanges = true;
+			}
+
+			return entryChanged ? updatedEntry : entry;
+		});
+
+		// Update entries if any changed
+		if (anyChanges) {
+			this.#state.entries = updatedEntries;
+			this.#state.derived_fields = Array.from(changedFields);
+			this.#save();
+		}
 	}
 
 	// ---- Entries ----

@@ -1,8 +1,15 @@
 <script lang="ts">
-	import type { TodayState } from "$lib/stores/today.svelte";
-
 	interface Props {
-		state: TodayState;
+		state: {
+			weather_temp_f: number | null;
+			crew_count: number | null;
+			start_time: string | null;
+			end_time: string | null;
+			entries: any[];
+			notes: string | null;
+			wind_speed_mph: number | null;
+			plant_name: string | null;
+		};
 	}
 
 	let { state }: Props = $props();

@@ -17,10 +17,24 @@
 	import DailySummaryReport from '$lib/components/DailySummaryReport.svelte';
 	import ComparativeDayView from '$lib/components/ComparativeDayView.svelte';
 	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
+	import CompletenessBar from '$lib/components/CompletenessBar.svelte';
+	import { today } from '$lib/stores/today.svelte';
 
 	let { data }: { data: PageData } = $props();
 
 	const projectSummary = $derived(data.summary as typeof data.summary & { total_days?: number });
+
+	// Reactive object for CompletenessBar from today store
+	const todayState = $derived({
+		weather_temp_f: today.weatherTempF,
+		crew_count: today.crewCount,
+		start_time: today.startTime,
+		end_time: today.endTime,
+		entries: today.entries,
+		notes: today.notes,
+		wind_speed_mph: today.windSpeedMph,
+		plant_name: today.plantName
+	});
 
 	interface LogDetailsResponse {
 		entries: any[];
@@ -735,6 +749,12 @@
 
 	{#if showComparison && currentLog}
 		<ComparativeDayView jobSiteId={data.jobSite.id} currentLogDate={viewedLog?.log_date ?? data.today} isLogClosed={!!currentLog?.closed_at} />
+	{/if}
+
+	{#if !isHistoricalView}
+		<div class="completeness-bar-wrapper">
+			<CompletenessBar state={todayState} />
+		</div>
 	{/if}
 
 	{#if data.summary.total_distance_ft > 0}
@@ -1867,6 +1887,10 @@
 		margin: 0;
 		font-size: 0.85rem;
 		opacity: 0.8;
+	}
+
+	.completeness-bar-wrapper {
+		margin-bottom: 24px;
 	}
 
 	@media (min-width: 768px) {
