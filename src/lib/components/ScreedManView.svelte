@@ -1,5 +1,6 @@
 <script lang="ts">
 	import SpreadRateCard from './SpreadRateCard.svelte';
+	import BatchSpreadRateCheck from './BatchSpreadRateCheck.svelte';
 	import StickCheckCard from './StickCheckCard.svelte';
 	import FeetLeftCard from './FeetLeftCard.svelte';
 </script>
@@ -17,6 +18,10 @@
 	<div class="screed-cards">
 		<section class="card-section" aria-label="Spread Rate">
 			<SpreadRateCard />
+		</section>
+
+		<section class="card-section" aria-label="Batch Spread Rate Check">
+			<BatchSpreadRateCheck />
 		</section>
 
 		<section class="card-section" aria-label="Stick Check">
