@@ -12,6 +12,7 @@
 	import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
 	import OnboardingOverlay from '$lib/components/ui/OnboardingOverlay.svelte';
 	import { offlineStore } from '$lib/stores/offline.svelte';
+	import { today } from '$lib/stores/today.svelte';
 	import '../app.css';
 
 	let { children } = $props();
@@ -88,6 +89,10 @@
 	onMount(async () => {
 		// Initialize offline store event listeners
 		offlineStore.init();
+
+		// Wire up the today store's reactive effects (must run inside a
+		// component context, not at module scope where the singleton is created).
+		today.initEffects();
 
 		const { registerSW } = await import('virtual:pwa-register');
 		registerSW({ immediate: true });

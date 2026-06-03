@@ -119,46 +119,61 @@ export interface TodayRollup {
 
 class Today {
 	#state = $state<TodayState>(initial());
+	#effectsStarted = false;
+	#cleanup: (() => void) | null = null;
 
 	constructor() {
 		if (typeof localStorage !== 'undefined') {
 			this.#state = load();
 		}
+	}
 
-		// Auto-fill weather_temp_f from weather store when available
-		$effect(() => {
-			const effectiveTempF = weather.effectiveTempF;
-			const currentTemp = this.#state.weather_temp_f;
-			const currentSource = this.#state.weather_temp_f_source;
+	/**
+	 * Wire up the store's reactive effects. Must be called once from a
+	 * component (e.g. the root layout) so the effects have an owner — Svelte
+	 * forbids creating `$effect` at module scope (`effect_orphan`), which is
+	 * where this singleton is instantiated.
+	 */
+	initEffects() {
+		if (this.#effectsStarted || typeof window === 'undefined') return;
+		this.#effectsStarted = true;
 
-			// Only auto-fill if: weather has a temp AND (no temp set OR source is 'auto')
-			if (effectiveTempF != null && (currentTemp == null || currentSource === 'auto')) {
-				this.#state.weather_temp_f = effectiveTempF;
-				this.#state.weather_temp_f_source = 'auto';
-				this.#save();
-			}
-		});
+		this.#cleanup = $effect.root(() => {
+			// Auto-fill weather_temp_f from weather store when available
+			$effect(() => {
+				const effectiveTempF = weather.effectiveTempF;
+				const currentTemp = this.#state.weather_temp_f;
+				const currentSource = this.#state.weather_temp_f_source;
 
-		// Reactive effect: auto-derive fields when entries or weather temp changes
-		let lastEntriesLength = 0;
-		let lastTempValue: number | null = null;
-
-		$effect(() => {
-			const entriesLength = this.#state.entries.length;
-			const tempValue = weather.effectiveTempF;
-
-			// Only derive if something actually changed
-			if (entriesLength !== lastEntriesLength || tempValue !== lastTempValue) {
-				lastEntriesLength = entriesLength;
-				lastTempValue = tempValue;
-
-				if (entriesLength > 0 || tempValue != null) {
-					// Call deriveFromWeather without tracking its state changes
-					queueMicrotask(() => {
-						this.deriveFromWeather();
-					});
+				// Only auto-fill if: weather has a temp AND (no temp set OR source is 'auto')
+				if (effectiveTempF != null && (currentTemp == null || currentSource === 'auto')) {
+					this.#state.weather_temp_f = effectiveTempF;
+					this.#state.weather_temp_f_source = 'auto';
+					this.#save();
 				}
-			}
+			});
+
+			// Reactive effect: auto-derive fields when entries or weather temp changes
+			let lastEntriesLength = 0;
+			let lastTempValue: number | null = null;
+
+			$effect(() => {
+				const entriesLength = this.#state.entries.length;
+				const tempValue = weather.effectiveTempF;
+
+				// Only derive if something actually changed
+				if (entriesLength !== lastEntriesLength || tempValue !== lastTempValue) {
+					lastEntriesLength = entriesLength;
+					lastTempValue = tempValue;
+
+					if (entriesLength > 0 || tempValue != null) {
+						// Call deriveFromWeather without tracking its state changes
+						queueMicrotask(() => {
+							this.deriveFromWeather();
+						});
+					}
+				}
+			});
 		});
 	}
 
