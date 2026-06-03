@@ -64,7 +64,12 @@
 			]
 		},
 		{ href: '/app', label: 'Quick Calc', icon: 'calc' },
-		{ href: '/reference', label: 'Reference', icon: 'book' },
+		{
+			href: '/reference',
+			label: 'Reference',
+			icon: 'book',
+			children: [{ href: '/reference/formulas', label: 'Formulas', icon: 'calc' }]
+		},
 		{ href: '/glossary', label: 'Glossary', icon: 'book' },
 		{ href: '/dashboard/guides', label: 'Guides', icon: 'guide', authed: true },
 		{ href: '/dashboard/import', label: 'Import', icon: 'upload', authed: true },
