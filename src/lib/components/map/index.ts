@@ -5,3 +5,4 @@ export { default as MapPolyline } from './MapPolyline.svelte';
 export { default as MapPolygon } from './MapPolygon.svelte';
 export { default as MapCircleMarker } from './MapCircleMarker.svelte';
 export { MAP_CONTEXT_KEY, type MapContext } from './mapContext';
+export { default as RoadSectionEditor } from '../RoadSectionEditor.svelte';

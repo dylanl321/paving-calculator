@@ -162,6 +162,21 @@ export interface DbJobSiteRoute {
 	updated_at: number;
 }
 
+export interface DbRoadSection {
+	id: string;
+	job_site_id: string;
+	name: string;
+	lane: string;
+	station_start: number | null;
+	station_end: number | null;
+	status: 'active' | 'completed' | 'skipped';
+	geometry_geojson: string | null;
+	notes: string | null;
+	sort_order: number;
+	created_at: number;
+	updated_at: number;
+}
+
 export interface DbWebhook {
 	id: string;
 	org_id: string;
