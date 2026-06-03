@@ -1,5 +1,12 @@
 <script lang="ts">
 	import { spreadSpecCheck, spreadToleranceFor } from '$lib/config';
+	import type { OrgOverrides } from '$lib/config/overrides';
+	import HelpTip from './HelpTip.svelte';
+
+	// ComplianceGauge receives courseType as a prop from parent components.
+	// It does not use calcContext directly - the parent is responsible for
+	// passing the appropriate courseType value (whether from job site config,
+	// calcContext, or other sources).
 
 	interface Props {
 		entries: Array<{
@@ -10,9 +17,10 @@
 		}>;
 		targetSpreadRate: number | null;
 		courseType: string | null;
+		overrides?: OrgOverrides | null;
 	}
 
-	let { entries, targetSpreadRate, courseType }: Props = $props();
+	let { entries, targetSpreadRate, courseType, overrides = null }: Props = $props();
 
 	const pavingEntries = $derived(
 		entries.filter(
@@ -26,7 +34,8 @@
 			const check = spreadSpecCheck(
 				entry.spread_rate_actual,
 				targetSpreadRate,
-				courseType
+				courseType,
+				overrides
 			);
 			if (check) {
 				counts[check.status]++;
@@ -38,13 +47,14 @@
 	const total = $derived(statusCounts.good + statusCounts.warn + statusCounts.bad);
 	const pctInSpec = $derived(total > 0 ? (statusCounts.good / total) * 100 : 0);
 
-	const tolerance = $derived(spreadToleranceFor(courseType));
+	const tolerance = $derived(spreadToleranceFor(courseType, overrides));
 	const hasTarget = $derived(targetSpreadRate != null && targetSpreadRate > 0);
 </script>
 
 <div class="compliance-gauge">
 	<div class="gauge-header">
 		<h3>DOT Compliance</h3>
+		<HelpTip text="Shows how many of today's loads are within spec tolerance. Green = on-spec, yellow = marginal, red = out of spec." />
 	</div>
 
 	{#if !hasTarget}
@@ -119,8 +129,15 @@
 		margin-bottom: 24px;
 	}
 
+	.gauge-header {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-bottom: 16px;
+	}
+
 	.gauge-header h3 {
-		margin: 0 0 16px;
+		margin: 0;
 		font-size: 1rem;
 		font-weight: 600;
 	}

@@ -5,6 +5,8 @@
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
 	import DotTable from './DotTable.svelte';
+	import Tooltip from './ui/Tooltip.svelte';
+	import CalculationStep from './ui/CalculationStep.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { spreadRateFromThickness, tonnageToOrder } from '$lib/config/formulas';
 	import { constantMeta } from '$lib/config';
@@ -88,10 +90,45 @@
 		secondary={`At ${job.widthFt} ft wide, ${job.thicknessIn}" (${Math.round(rate)} lbs/SY) · ${job.wastePct}% waste`}
 	/>
 
-	<ShowWork>
-		<code>tons = (length × width ÷ 9 × rate) ÷ 2000 × (1 + waste%)</code>
-		<p class="src-note">Spread rate from GDOT §400 Table 12 (§400.4.A.2.b); THICK_MULT constant: <SourceBadge status={thickMultMeta.status} tier={thickMultMeta.tier} /> ({thickMultMeta.value} lbs/SY/in from §400).</p>
-		<DotTable tableId="table-12" />
+	<ShowWork stepCount={4}>
+		{#if lengthFt && job.widthFt && rate && tons != null}
+			{@const areaYards = (lengthFt * job.widthFt) / 9}
+			{@const baseTons = (areaYards * rate) / 2000}
+			{@const wasteFactor = 1 + (job.wastePct / 100)}
+
+			<CalculationStep
+				step={1}
+				label="Area in square yards"
+				formula="{lengthFt.toFixed(0)} × {job.widthFt.toFixed(0)} ÷ 9"
+				result="{areaYards.toFixed(2)} SY"
+			/>
+			<CalculationStep
+				step={2}
+				label="Spread rate"
+				formula="{job.thicknessIn.toFixed(2)} × 110"
+				result="{rate.toFixed(0)} lbs/SY"
+			/>
+			<CalculationStep
+				step={3}
+				label="Base tons"
+				formula="{areaYards.toFixed(2)} × {rate.toFixed(0)} ÷ 2000"
+				result="{baseTons.toFixed(2)} tons"
+			/>
+			<CalculationStep
+				step={4}
+				label="With waste"
+				formula="{baseTons.toFixed(2)} × {wasteFactor.toFixed(2)}"
+				result="{tons.toFixed(2)} tons"
+			/>
+		{:else}
+			<code>tons = (length × width ÷ 9 × rate) ÷ 2000 × (1 + waste%)</code>
+			<p>Enter length above to see step-by-step calculation.</p>
+		{/if}
+
+		<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+			<p class="src-note">Spread rate from GDOT §400 Table 12 (§400.4.A.2.b); THICK_MULT constant: <SourceBadge status={thickMultMeta.status} tier={thickMultMeta.tier} /> ({thickMultMeta.value} lbs/SY/in from §400).</p>
+			<DotTable tableId="table-12" />
+		</div>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>

@@ -17,7 +17,7 @@ export interface JobSiteOption {
 export async function fetchJobSites(): Promise<JobSiteOption[]> {
 	const res = await fetch('/api/job-sites', { credentials: 'include' });
 	if (!res.ok) throw new Error('Could not load job sites');
-	const data = await res.json();
+	const data = (await res.json()) as { job_sites?: JobSiteOption[] };
 	return data.job_sites ?? [];
 }
 
@@ -39,7 +39,7 @@ export async function pushTodayToCloud(jobSiteId: string): Promise<SyncResult> {
 		credentials: 'include'
 	});
 	if (!logRes.ok) throw new Error('Could not start cloud day');
-	const { log } = await logRes.json();
+	const { log } = (await logRes.json()) as { log: { id: string } };
 	const logId: string = log.id;
 
 	today.jobSiteId = jobSiteId;
@@ -64,7 +64,7 @@ export async function pushTodayToCloud(jobSiteId: string): Promise<SyncResult> {
 			body: JSON.stringify(today.toServerEntry(entry))
 		});
 		if (res.ok) {
-			const { entry: created } = await res.json();
+			const { entry: created } = (await res.json()) as { entry: { id: string } };
 			today.updateEntry(entry.id, { remote_id: created.id });
 			pushed++;
 		}
@@ -85,7 +85,7 @@ export async function pullFromCloud(jobSiteId: string): Promise<number> {
 	});
 	if (!logsRes.ok) throw new Error('Could not fetch logs');
 
-	const logsData = await logsRes.json();
+	const logsData = (await logsRes.json()) as { logs?: { id: string; log_date: string }[] };
 	const todayDate = new Date().toISOString().split('T')[0];
 	const todayLog = logsData.logs?.find((log: any) => log.log_date === todayDate);
 
@@ -100,7 +100,7 @@ export async function pullFromCloud(jobSiteId: string): Promise<number> {
 	});
 	if (!logRes.ok) throw new Error('Could not fetch log details');
 
-	const logData = await logRes.json();
+	const logData = (await logRes.json()) as { entries?: any[] };
 	const cloudEntries = logData.entries || [];
 
 	// 3. Find entries that don't exist locally

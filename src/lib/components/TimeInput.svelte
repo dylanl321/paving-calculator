@@ -1,10 +1,11 @@
 <script lang="ts">
 	interface Props {
-		value?: string;
+		value?: string | null;
 		id?: string;
 		onchange?: () => void;
+		disabled?: boolean;
 	}
-	let { value = $bindable(''), id, onchange }: Props = $props();
+	let { value = $bindable(''), id, onchange, disabled = false }: Props = $props();
 
 	function setNow() {
 		const now = new Date();
@@ -16,8 +17,8 @@
 </script>
 
 <div class="time-wrap">
-	<input type="time" {id} bind:value onchange={onchange} />
-	<button type="button" class="now-btn" onclick={setNow}>Now</button>
+	<input type="time" {id} bind:value onchange={onchange} disabled={disabled} />
+	<button type="button" class="now-btn" onclick={setNow} disabled={disabled}>Now</button>
 </div>
 
 <style>

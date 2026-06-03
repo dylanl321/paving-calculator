@@ -3,14 +3,18 @@
 	import { slide } from 'svelte/transition';
 	interface Props {
 		children: Snippet;
+		stepCount?: number;
 	}
-	let { children }: Props = $props();
+	let { children, stepCount }: Props = $props();
 	let open = $state(false);
 </script>
 
 <div class="show-work">
 	<button class="toggle-link tap-scale" onclick={() => (open = !open)} aria-expanded={open}>
-		{open ? '▾' : '▸'} How this is figured
+		{open ? '▾' : '▸'} Show the math
+		{#if stepCount && stepCount > 0}
+			<span class="step-badge">{stepCount}</span>
+		{/if}
 	</button>
 	{#if open}
 		<div class="work-body" transition:slide={{ duration: 280 }}>
@@ -38,6 +42,21 @@
 
 	.toggle-link:hover {
 		color: var(--text);
+	}
+	.step-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 20px;
+		height: 20px;
+		padding: 0 6px;
+		margin-left: 6px;
+		background: var(--surface-2);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+		font-size: 0.7rem;
+		font-weight: var(--fw-bold);
+		color: var(--accent);
 	}
 	.work-body {
 		margin-top: 8px;

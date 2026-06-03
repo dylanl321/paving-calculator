@@ -6,6 +6,9 @@
 	import SourceBadge from './SourceBadge.svelte';
 	import DotTable from './DotTable.svelte';
 	import SpecAlert from './SpecAlert.svelte';
+	import HelpTip from './HelpTip.svelte';
+	import Tooltip from './ui/Tooltip.svelte';
+	import CalculationStep from './ui/CalculationStep.svelte';
 	import { tack, tackMid, rainCheck, tackTempCheck, weatherConfig } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -18,6 +21,16 @@
 	function clearInputs() {
 		lengthFt = null;
 		logDraft.clearFor('tack');
+	}
+
+	function getApplicationDescription(label: string): string {
+		const descriptions: Record<string, string> = {
+			'Leveling': 'For thin leveling courses or minor surface corrections (0.04-0.06 gal/SY)',
+			'Topping': 'Standard surface course over existing pavement (0.04-0.06 gal/SY)',
+			'OGI (Open-Graded Interlayer)': 'Porous interlayer requiring higher tack rate for proper bonding (0.06-0.08 gal/SY)',
+			'Rock Chip': 'Pre-existing rock chip seal coat requiring heavy tack (0.085 gal/SY)'
+		};
+		return descriptions[label] || 'Standard tack application rate for this surface type';
 	}
 
 	const selected = $derived(
@@ -66,22 +79,26 @@
 	hideTitle
 	purpose="Gallons of tack to shoot for an area. Shows the safe min–max window for the chosen application, with the mid-rate as the suggested amount."
 >
+	<div class="label-row tack-title">
+		<span class="tack-title-text">Tack Rate</span>
+		<Tooltip term="Tack Coat" definition="Asphalt emulsion sprayed on existing pavement to bond new layer. Application rate varies by surface condition (typically 0.04-0.12 gal/SY)." />
+	</div>
 	<NumberField label="Length to shoot" unit="ft" bind:value={lengthFt} />
 
 	<div class="width-note">Using job width: <strong>{job.widthFt} ft</strong></div>
 
 	{#if tempCheck?.status === 'fail'}
-		<SpecAlert status="fail" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} />
+		<SpecAlert status="fail" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} guidance={tempCheck.guidance} />
 	{:else if tempCheck?.status === 'warn'}
-		<SpecAlert status="warn" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} />
+		<SpecAlert status="warn" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} guidance={tempCheck.guidance} />
 	{:else if tempCheck?.status === 'pass'}
-		<SpecAlert status="pass" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} />
+		<SpecAlert status="pass" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} guidance={tempCheck.guidance} />
 	{/if}
 
 	{#if rain?.status === 'fail'}
-		<SpecAlert status="fail" message={rain.message} clause={rain.clause} clauseTitle={rain.clauseTitle} />
+		<SpecAlert status="fail" message={rain.message} clause={rain.clause} clauseTitle={rain.clauseTitle} guidance={rain.guidance} />
 	{:else if rain?.status === 'warn'}
-		<SpecAlert status="warn" message={rain.message} clause={rain.clause} clauseTitle={rain.clauseTitle} />
+		<SpecAlert status="warn" message={rain.message} clause={rain.clause} clauseTitle={rain.clauseTitle} guidance={rain.guidance} />
 	{/if}
 
 	{#if weather.isRaining}
@@ -98,6 +115,7 @@
 					class="chip"
 					class:active={job.tackApplication === t.id}
 					onclick={() => (job.tackApplication = t.id)}
+					title={getApplicationDescription(t.label)}
 				>
 					{t.label}
 				</button>
@@ -106,6 +124,7 @@
 		<div class="rate-display">
 			{selected.label}: <strong>{selected.min}–{selected.max} gal/SY</strong>
 		</div>
+		<p class="app-description">{getApplicationDescription(selected.label)}</p>
 	</div>
 
 	{#if job.widthFt}
@@ -125,13 +144,40 @@
 		badge={tackBlocked ? { kind: 'bad', text: 'Wet surface — no tack' } : null}
 	/>
 
-	<ShowWork>
-		<p>Using job width: <strong>{job.widthFt} ft</strong></p>
-		<code>gallons = (length × width ÷ 9) × shot rate (gal/SY)</code>
-		<p>Width in use: <strong>{job.widthFt} ft</strong> (from job settings).</p>
-		<p>{selected.label}: {selected.min}–{selected.max} gal/SY.</p>
-		<div class="src-row">Tack range source: <SourceBadge status={selected.status} tier={selected.tier} /></div>
-		<DotTable tableId="table-2" />
+	<ShowWork stepCount={3}>
+		{#if lengthFt && job.widthFt && gallons != null}
+			{@const areaYards = (lengthFt * job.widthFt) / 9}
+			{@const midRate = tackMid(selected)}
+
+			<CalculationStep
+				step={1}
+				label="Area in square yards"
+				formula="{lengthFt.toFixed(0)} × {job.widthFt.toFixed(0)} ÷ 9"
+				result="{areaYards.toFixed(2)} SY"
+			/>
+			<CalculationStep
+				step={2}
+				label="Mid rate"
+				formula="({selected.min.toFixed(2)} + {selected.max.toFixed(2)}) ÷ 2"
+				result="{midRate.toFixed(3)} gal/SY"
+			/>
+			<CalculationStep
+				step={3}
+				label="Gallons"
+				formula="{areaYards.toFixed(2)} × {midRate.toFixed(3)}"
+				result="{Math.round(gallons.mid)} gal"
+			/>
+		{:else}
+			<code>gallons = (length × width ÷ 9) × shot rate (gal/SY)</code>
+			<p>Enter length above to see step-by-step calculation.</p>
+			<p>{selected.label}: {selected.min}–{selected.max} gal/SY.</p>
+		{/if}
+
+		<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+			<p>Width in use: <strong>{job.widthFt} ft</strong> (from job settings).</p>
+			<div class="src-row">Tack range source: <SourceBadge status={selected.status} tier={selected.tier} /></div>
+			<DotTable tableId="table-2" />
+		</div>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>
@@ -163,6 +209,12 @@
 	.rate-display strong {
 		color: var(--accent);
 		font-weight: var(--fw-bold);
+	}
+	.app-description {
+		margin-top: var(--sp-3);
+		font-size: var(--fs-sm);
+		line-height: 1.4;
+		color: var(--text-muted);
 	}
 	.width-note {
 		font-size: var(--fs-sm);
@@ -207,5 +259,18 @@
 		margin-bottom: var(--sp-3);
 		background: color-mix(in srgb, var(--warn) 14%, transparent);
 		color: var(--warn);
+	}
+	.label-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.tack-title {
+		margin-bottom: var(--sp-4);
+	}
+	.tack-title-text {
+		font-size: var(--fs-lg);
+		font-weight: var(--fw-bold);
+		color: var(--text);
 	}
 </style>

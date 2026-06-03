@@ -13,7 +13,49 @@ export interface OrgBranding {
 	emailReplyTo?: string;
 }
 
-async function sendEmail(apiKey: string, payload: EmailPayload): Promise<boolean> {
+export type EmailType = 'verification' | 'password-reset' | 'invitation' | 'welcome';
+
+/** Structured outcome of a single send attempt. */
+export interface EmailSendResult {
+	ok: boolean;
+	/** Resend message id (from the `{ id }` response body) when the send succeeded. */
+	providerId?: string;
+	/** Error detail when the send failed or was skipped. */
+	error?: string;
+	/** 'sent' on success, 'failed' on error, 'skipped_no_key' when no API key was configured. */
+	status: 'sent' | 'failed' | 'skipped_no_key';
+}
+
+/**
+ * Minimal shape needed to persist an email_log row. Kept local so email.ts has
+ * no hard dependency on DbHelper's full surface, avoiding an import cycle.
+ */
+export interface EmailLogger {
+	logEmail(entry: {
+		to: string;
+		from: string;
+		subject: string;
+		type: EmailType;
+		status: EmailSendResult['status'];
+		orgId?: string | null;
+		userId?: string | null;
+		providerMessageId?: string | null;
+		error?: string | null;
+	}): Promise<void>;
+}
+
+/** Optional context used to write an email_log row from inside a sender. */
+export interface SendContext {
+	logger?: EmailLogger;
+	orgId?: string | null;
+	userId?: string | null;
+}
+
+interface ResendSuccessBody {
+	id?: string;
+}
+
+async function sendEmail(apiKey: string, payload: EmailPayload): Promise<EmailSendResult> {
 	try {
 		const requestBody: Record<string, string> = {
 			from: payload.from,
@@ -38,14 +80,84 @@ async function sendEmail(apiKey: string, payload: EmailPayload): Promise<boolean
 		if (!response.ok) {
 			const error = await response.text();
 			console.error('Resend API error:', response.status, error);
-			return false;
+			return { ok: false, status: 'failed', error: `${response.status} ${error}`.trim() };
 		}
 
-		return true;
+		let providerId: string | undefined;
+		try {
+			const body = (await response.json()) as ResendSuccessBody;
+			providerId = body?.id;
+		} catch {
+			// Resend should always return JSON with an id; tolerate a missing/invalid body.
+			providerId = undefined;
+		}
+
+		return { ok: true, status: 'sent', providerId };
 	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
 		console.error('Email send error:', error);
-		return false;
+		return { ok: false, status: 'failed', error: message };
 	}
+}
+
+/**
+ * Runs a send and persists an email_log row for the attempt. Logging never
+ * throws into the caller — a logging failure is swallowed so a transient DB
+ * issue can't break the actual email flow.
+ */
+async function sendAndLog(
+	apiKey: string | undefined,
+	type: EmailType,
+	payload: EmailPayload,
+	ctx?: SendContext
+): Promise<EmailSendResult> {
+	let result: EmailSendResult;
+	if (!apiKey) {
+		console.warn(`RESEND_API_KEY not set, skipping ${type} email`);
+		result = { ok: false, status: 'skipped_no_key', error: 'RESEND_API_KEY not set' };
+	} else {
+		result = await sendEmail(apiKey, payload);
+	}
+
+	if (ctx?.logger) {
+		try {
+			await ctx.logger.logEmail({
+				to: payload.to,
+				from: payload.from,
+				subject: payload.subject,
+				type,
+				status: result.status,
+				orgId: ctx.orgId ?? null,
+				userId: ctx.userId ?? null,
+				providerMessageId: result.providerId ?? null,
+				error: result.error ?? null
+			});
+		} catch (logError) {
+			console.error('Failed to write email_log row:', logError);
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Builds an OrgBranding object from an org row + its settings, so every sender
+ * call site assembles branding consistently (org name, accent, from-name, reply-to).
+ */
+export function buildOrgBranding(
+	org: { name?: string | null } | null,
+	settings: {
+		accent_color?: string | null;
+		email_from_name?: string | null;
+		email_reply_to?: string | null;
+	} | null
+): OrgBranding {
+	return {
+		orgName: org?.name ?? undefined,
+		accentColor: settings?.accent_color ?? undefined,
+		emailFromName: settings?.email_from_name ?? undefined,
+		emailReplyTo: settings?.email_reply_to ?? undefined
+	};
 }
 
 function getContrastColor(hexColor: string): string {
@@ -223,13 +335,9 @@ export async function sendVerificationEmail(
 	name: string,
 	token: string,
 	baseUrl: string,
-	branding?: OrgBranding
-): Promise<boolean> {
-	if (!apiKey) {
-		console.warn('RESEND_API_KEY not set, skipping verification email');
-		return false;
-	}
-
+	branding?: OrgBranding,
+	ctx?: SendContext
+): Promise<EmailSendResult> {
 	const verifyUrl = `${baseUrl}/api/auth/verify-email?token=${token}`;
 	const fromName = branding?.emailFromName ?? 'PaveRate';
 	const orgName = branding?.orgName ?? 'PaveRate';
@@ -246,13 +354,18 @@ export async function sendVerificationEmail(
 		branding
 	);
 
-	return await sendEmail(apiKey, {
-		from: `${fromName} <noreply@paverate.com>`,
-		to,
-		subject: `Verify your ${orgName} account`,
-		html,
-		replyTo: branding?.emailReplyTo
-	});
+	return await sendAndLog(
+		apiKey,
+		'verification',
+		{
+			from: `${fromName} <noreply@paverate.com>`,
+			to,
+			subject: `Verify your ${orgName} account`,
+			html,
+			replyTo: branding?.emailReplyTo
+		},
+		ctx
+	);
 }
 
 export async function sendPasswordResetEmail(
@@ -261,13 +374,9 @@ export async function sendPasswordResetEmail(
 	name: string,
 	token: string,
 	baseUrl: string,
-	branding?: OrgBranding
-): Promise<boolean> {
-	if (!apiKey) {
-		console.warn('RESEND_API_KEY not set, skipping password reset email');
-		return false;
-	}
-
+	branding?: OrgBranding,
+	ctx?: SendContext
+): Promise<EmailSendResult> {
 	const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 	const fromName = branding?.emailFromName ?? 'PaveRate';
 	const orgName = branding?.orgName ?? 'PaveRate';
@@ -284,13 +393,18 @@ export async function sendPasswordResetEmail(
 		branding
 	);
 
-	return await sendEmail(apiKey, {
-		from: `${fromName} <noreply@paverate.com>`,
-		to,
-		subject: `Reset your ${orgName} password`,
-		html,
-		replyTo: branding?.emailReplyTo
-	});
+	return await sendAndLog(
+		apiKey,
+		'password-reset',
+		{
+			from: `${fromName} <noreply@paverate.com>`,
+			to,
+			subject: `Reset your ${orgName} password`,
+			html,
+			replyTo: branding?.emailReplyTo
+		},
+		ctx
+	);
 }
 
 export async function sendInvitationEmail(
@@ -300,13 +414,9 @@ export async function sendInvitationEmail(
 	orgName: string,
 	token: string,
 	baseUrl: string,
-	branding?: OrgBranding
-): Promise<boolean> {
-	if (!apiKey) {
-		console.warn('RESEND_API_KEY not set, skipping invitation email');
-		return false;
-	}
-
+	branding?: OrgBranding,
+	ctx?: SendContext
+): Promise<EmailSendResult> {
 	const inviteUrl = `${baseUrl}/accept-invite?token=${token}`;
 	const fromName = branding?.emailFromName ?? 'PaveRate';
 	const displayOrgName = branding?.orgName ?? orgName;
@@ -320,13 +430,18 @@ export async function sendInvitationEmail(
 		branding
 	);
 
-	return await sendEmail(apiKey, {
-		from: `${fromName} <noreply@paverate.com>`,
-		to,
-		subject: `${inviterName} invited you to ${displayOrgName} on PaveRate`,
-		html,
-		replyTo: branding?.emailReplyTo
-	});
+	return await sendAndLog(
+		apiKey,
+		'invitation',
+		{
+			from: `${fromName} <noreply@paverate.com>`,
+			to,
+			subject: `${inviterName} invited you to ${displayOrgName} on PaveRate`,
+			html,
+			replyTo: branding?.emailReplyTo
+		},
+		ctx
+	);
 }
 
 export async function sendWelcomeEmail(
@@ -335,13 +450,9 @@ export async function sendWelcomeEmail(
 	name: string,
 	orgName: string,
 	baseUrl: string,
-	branding?: OrgBranding
-): Promise<boolean> {
-	if (!apiKey) {
-		console.warn('RESEND_API_KEY not set, skipping welcome email');
-		return false;
-	}
-
+	branding?: OrgBranding,
+	ctx?: SendContext
+): Promise<EmailSendResult> {
 	const fromName = branding?.emailFromName ?? 'PaveRate';
 	const displayOrgName = branding?.orgName ?? orgName;
 
@@ -357,13 +468,18 @@ export async function sendWelcomeEmail(
 		branding
 	);
 
-	return await sendEmail(apiKey, {
-		from: `${fromName} <noreply@paverate.com>`,
-		to,
-		subject: `Welcome to ${displayOrgName}!`,
-		html,
-		replyTo: branding?.emailReplyTo
-	});
+	return await sendAndLog(
+		apiKey,
+		'welcome',
+		{
+			from: `${fromName} <noreply@paverate.com>`,
+			to,
+			subject: `Welcome to ${displayOrgName}!`,
+			html,
+			replyTo: branding?.emailReplyTo
+		},
+		ctx
+	);
 }
 
 export function buildPreviewEmail(
