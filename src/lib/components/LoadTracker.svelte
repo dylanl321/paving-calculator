@@ -1,5 +1,6 @@
 <script lang="ts">
 	import NumberField from './NumberField.svelte';
+	import HelpTip from './HelpTip.svelte';
 	import { TruckIcon, Plus, X } from 'lucide-svelte';
 	import type { DbLoad } from '$lib/server/db';
 	import { unitsStore } from '$lib/stores/units.svelte';
@@ -353,6 +354,7 @@
 		<div class="header-title">
 			<TruckIcon size={24} />
 			<h3>Load Tracker</h3>
+			<HelpTip text="Tracks how many truck loads have arrived. Each load's tonnage contributes to your running spread rate calculation." />
 		</div>
 		{#if !showNewLoadForm && isAuthenticated}
 			<div class="header-actions">
@@ -743,7 +745,7 @@
 	.header-title {
 		display: flex;
 		align-items: center;
-		gap: var(--sp-3);
+		gap: var(--sp-2);
 	}
 
 	.header-title h3 {

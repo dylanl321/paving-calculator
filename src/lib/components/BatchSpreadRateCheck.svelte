@@ -3,6 +3,7 @@
 	import ResultStat from './ResultStat.svelte';
 	import SpreadRateGauge from './SpreadRateGauge.svelte';
 	import SpecAlert from './SpecAlert.svelte';
+	import HelpTip from './HelpTip.svelte';
 	import { spreadSpecCheck, spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { today } from '$lib/stores/today.svelte';
@@ -74,6 +75,10 @@
 	title="Batch Spread Rate Check"
 	purpose="Aggregate the last N loads to see the composite spread rate vs target spec. Perfect for spotting trends across multiple loads."
 >
+	<div class="card-title-with-help">
+		<span>Batch Spread Rate Check</span>
+		<HelpTip text="Checks the aggregate spread rate across the last N loads. Useful for catching systematic over- or under-application." />
+	</div>
 	{#if pavingEntries.length < 2}
 		<div class="empty-state">
 			<svg class="empty-icon" width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -347,6 +352,16 @@
 	.entry-data {
 		font-size: var(--fs-xs);
 		color: var(--text-muted);
+	}
+
+	.card-title-with-help {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: var(--sp-4);
+		font-size: var(--fs-lg);
+		font-weight: var(--fw-bold);
+		color: var(--text);
 	}
 
 	@media (max-width: 460px) {

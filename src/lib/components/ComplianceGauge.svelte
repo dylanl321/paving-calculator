@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { spreadSpecCheck, spreadToleranceFor } from '$lib/config';
 	import type { OrgOverrides } from '$lib/config/overrides';
+	import HelpTip from './HelpTip.svelte';
 
 	interface Props {
 		entries: Array<{
@@ -48,6 +49,7 @@
 <div class="compliance-gauge">
 	<div class="gauge-header">
 		<h3>DOT Compliance</h3>
+		<HelpTip text="Shows how many of today's loads are within spec tolerance. Green = on-spec, yellow = marginal, red = out of spec." />
 	</div>
 
 	{#if !hasTarget}
@@ -122,8 +124,15 @@
 		margin-bottom: 24px;
 	}
 
+	.gauge-header {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-bottom: 16px;
+	}
+
 	.gauge-header h3 {
-		margin: 0 0 16px;
+		margin: 0;
 		font-size: 1rem;
 		font-weight: 600;
 	}

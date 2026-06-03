@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import GpsStationButton from '$lib/components/GpsStationButton.svelte';
+	import HelpTip from './HelpTip.svelte';
 	import { formatStation, type RouteWaypoint } from '$lib/services/gpsStation';
 	import { formatFeet } from '$lib/utils/format';
 	import { MapStationPicker } from '$lib/components/map';
@@ -130,7 +131,10 @@
 </script>
 
 <div class="station-logger-card">
-	<h3 class="card-title">Quick Pass Entry</h3>
+	<div class="card-title-row">
+		<h3 class="card-title">Quick Pass Entry</h3>
+		<HelpTip text="Stations mark distance along the road. 5+00 means 500 feet from the start. Enter the decimal part (e.g. 5.0 for 5+00)." />
+	</div>
 
 	<div class="form-grid">
 		<div class="station-input-group">
@@ -293,8 +297,15 @@
 		margin-bottom: 24px;
 	}
 
+	.card-title-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 20px;
+	}
+
 	.card-title {
-		margin: 0 0 20px;
+		margin: 0;
 		font-size: 1.2rem;
 		font-weight: 600;
 		color: var(--text);
