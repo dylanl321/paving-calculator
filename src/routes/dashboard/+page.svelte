@@ -122,6 +122,16 @@
 				</svg>
 				Audit Log
 			</a>
+			<a href="/dashboard/admin/crew-productivity" class="quick-link">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+					<circle cx="9" cy="7" r="4"></circle>
+					<path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+					<path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+					<polyline points="16 16 18 18 22 14"></polyline>
+				</svg>
+				Crew Productivity
+			</a>
 		{/if}
 		{#if data.user.isGlobalAdmin}
 			<a href="/admin" class="quick-link admin">
@@ -159,6 +169,16 @@
 					<div class="map-loading">Loading map&hellip;</div>
 				{:then { default: JobSiteMap }}
 					<JobSiteMap sites={mapSites} />
+				{/await}
+			</section>
+		{/if}
+
+		{#if data.org.role === 'owner' || data.org.role === 'admin'}
+			<section class="section crew-status-section">
+				{#await import('$lib/components/LiveCrewDashboard.svelte')}
+					<div class="map-loading">Loading crew status&hellip;</div>
+				{:then { default: LiveCrewDashboard }}
+					<LiveCrewDashboard />
 				{/await}
 			</section>
 		{/if}
@@ -600,6 +620,10 @@
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md, 12px);
+	}
+
+	.crew-status-section {
+		margin-bottom: 0;
 	}
 
 	@media (min-width: 1100px) {

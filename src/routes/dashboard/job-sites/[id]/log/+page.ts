@@ -8,10 +8,11 @@ export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 	const today = new Date().toISOString().split('T')[0];
 	const viewDateId = url.searchParams.get('date');
 
-	const [logsRes, summaryRes, configRes] = await Promise.all([
+	const [logsRes, summaryRes, configRes, roleRes] = await Promise.all([
 		fetch(`/api/job-sites/${params.id}/logs`),
 		fetch(`/api/job-sites/${params.id}/logs/summary`),
-		fetch(`/api/job-sites/${params.id}/config`)
+		fetch(`/api/job-sites/${params.id}/config`),
+		fetch(`/api/org/role`)
 	]);
 
 	if (!logsRes.ok) {
@@ -24,6 +25,9 @@ export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 	const { logs }: { logs: DbDailyLog[] } = await logsRes.json();
 	const { summary }: { summary: LogSummary } = await summaryRes.json();
 	const siteConfig = configRes.ok ? await configRes.json() : null;
+	const { role: userRole, isGlobalAdmin } = roleRes.ok
+		? await roleRes.json()
+		: { role: null, isGlobalAdmin: false };
 
 	const todayLog = logs.find((l) => l.log_date === today);
 
@@ -31,6 +35,8 @@ export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 	let isHistoricalView = false;
 	let prevLogId: string | null = null;
 	let nextLogId: string | null = null;
+	let prevLabel = 'Prev';
+	let nextLabel = 'Next';
 
 	if (viewDateId) {
 		const historicalLog = logs.find((l) => l.id === viewDateId);
@@ -44,9 +50,23 @@ export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 			const currentIndex = sortedLogs.findIndex((l) => l.id === viewDateId);
 			if (currentIndex > 0) {
 				prevLogId = sortedLogs[currentIndex - 1].id;
+				const prevLog = sortedLogs[currentIndex - 1];
+				const currentDate = new Date(historicalLog.log_date);
+				const prevDate = new Date(prevLog.log_date);
+				const diffDays = Math.round((currentDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+				if (diffDays === 1) {
+					prevLabel = 'Yesterday';
+				}
 			}
 			if (currentIndex < sortedLogs.length - 1) {
 				nextLogId = sortedLogs[currentIndex + 1].id;
+				const nextLog = sortedLogs[currentIndex + 1];
+				const currentDate = new Date(historicalLog.log_date);
+				const nextDate = new Date(nextLog.log_date);
+				const diffDays = Math.round((nextDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+				if (diffDays === 1) {
+					nextLabel = 'Tomorrow';
+				}
 			}
 		}
 	}
@@ -60,6 +80,10 @@ export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 		activeLog,
 		isHistoricalView,
 		prevLogId,
-		nextLogId
+		nextLogId,
+		prevLabel,
+		nextLabel,
+		userRole,
+		isGlobalAdmin
 	};
 };
