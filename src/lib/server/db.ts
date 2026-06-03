@@ -258,6 +258,22 @@ export interface DbNotificationPref {
 	updated_at: number;
 }
 
+export interface DbCrewLocation {
+	id: number;
+	org_id: string;
+	job_site_id: number | null;
+	user_id: string;
+	display_name: string;
+	role: string;
+	lat: number;
+	lng: number;
+	accuracy: number | null;
+	heading: number | null;
+	speed: number | null;
+	status: 'active' | 'idle' | 'offline';
+	updated_at: number;
+}
+
 export class DbHelper {
 	constructor(private db: D1Database) {}
 
