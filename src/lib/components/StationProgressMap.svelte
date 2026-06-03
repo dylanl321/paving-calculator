@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
+	import { MapContainer, MapPolyline, MapPolygon, ProgressPolyline, StationMarkers, ProgressOverlay } from '$lib/components/map';
 
 	interface Waypoint {
 		lat: number;
@@ -21,6 +22,10 @@
 		distance_ft: number | null;
 		entry_type: string;
 		lane: string | null;
+		spread_rate_actual: number | null;
+		tons_placed: number | null;
+		log_date: string | null;
+		lift: string | null;
 	}
 
 	interface Props {
@@ -41,14 +46,17 @@
 		height = '360px'
 	}: Props = $props();
 
-	let mapEl: HTMLDivElement;
-	let mapInstance: any = null;
 	let progressEntries = $state<ProgressEntry[]>([]);
 	let totalPavedFt = $state(0);
+	let today = $state('');
+	let daysWithData = $state(0);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
-	let progressPolylines: any[] = [];
-	let routePolyline: any = null;
+
+	// UI toggles
+	let showAllLanes = $state(false);
+	let showStationMarkers = $state(true);
+	let overlayCollapsed = $state(false);
 
 	const hasRoute = $derived(waypoints.length >= 2);
 	const hasPinned = $derived(site.latitude != null && site.longitude != null);
@@ -100,155 +108,6 @@
 		return meters * 3.28084;
 	}
 
-	async function loadProgress() {
-		loading = true;
-		error = null;
-		try {
-			const res = await fetch(`/api/job-sites/${site.id}/logs/progress`);
-			if (!res.ok) throw new Error('Failed to load progress');
-			const data = await res.json();
-			progressEntries = data.progress ?? [];
-			totalPavedFt = data.total_paved_ft ?? 0;
-		} catch (err) {
-			error = 'Could not load progress data';
-		} finally {
-			loading = false;
-		}
-	}
-
-	function drawProgress(L: any) {
-		// Remove old progress layers
-		for (const pl of progressPolylines) {
-			mapInstance.removeLayer(pl);
-		}
-		progressPolylines = [];
-
-		for (const entry of progressEntries) {
-			let startFt: number | null = null;
-			let endFt: number | null = null;
-
-			if (entry.station_start != null) {
-				startFt = stationToFeet(entry.station_start);
-			}
-			if (entry.station_end != null) {
-				endFt = stationToFeet(entry.station_end);
-			} else if (startFt != null && entry.distance_ft != null) {
-				endFt = startFt + entry.distance_ft;
-			}
-
-			if (startFt == null || endFt == null) continue;
-			if (endFt <= startFt) continue;
-
-			const startLL = feetToLatLng(startFt, waypoints);
-			const endLL = feetToLatLng(endFt, waypoints);
-			if (!startLL || !endLL) continue;
-
-			// Build intermediate points along the route for this segment
-			const segPoints: [number, number][] = [startLL];
-			let accumulated = 0;
-			for (let i = 0; i < waypoints.length - 1; i++) {
-				const segMeters = haversineMeters(
-					waypoints[i].lat,
-					waypoints[i].lng,
-					waypoints[i + 1].lat,
-					waypoints[i + 1].lng
-				);
-				const segFt = segMeters * 3.28084;
-				const segStart = accumulated;
-				const segEnd = accumulated + segFt;
-				// If this waypoint intermediate is within [startFt, endFt], include it
-				if (segEnd > startFt && segStart < endFt) {
-					const wpFt = accumulated + segFt;
-					if (wpFt > startFt && wpFt < endFt) {
-						segPoints.push([waypoints[i + 1].lat, waypoints[i + 1].lng]);
-					}
-				}
-				accumulated += segFt;
-			}
-			segPoints.push(endLL);
-
-			const pl = L.polyline(segPoints, {
-				color: '#22c55e',
-				weight: 7,
-				opacity: 0.85,
-				lineCap: 'round'
-			}).addTo(mapInstance);
-
-			progressPolylines.push(pl);
-		}
-	}
-
-	async function initMap() {
-		if (!mapEl || (!hasRoute && !hasPinned)) return;
-
-		if (!document.querySelector('link[href*="leaflet"]')) {
-			const link = document.createElement('link');
-			link.rel = 'stylesheet';
-			link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-			document.head.appendChild(link);
-		}
-
-		if (!(window as any).L) {
-			await new Promise<void>((resolve, reject) => {
-				const script = document.createElement('script');
-				script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-				script.onload = () => resolve();
-				script.onerror = () => reject(new Error('Failed to load Leaflet'));
-				document.head.appendChild(script);
-			});
-		}
-
-		const L = (window as any).L;
-
-		if (mapInstance) {
-			mapInstance.remove();
-			mapInstance = null;
-		}
-
-		mapInstance = L.map(mapEl, {
-			zoomControl: true,
-			attributionControl: true
-		});
-
-		L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-			attribution:
-				'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-			maxZoom: 19
-		}).addTo(mapInstance);
-
-		if (hasRoute) {
-			// Draw the full planned route in gray
-			routePolyline = L.polyline(
-				waypoints.map((wp) => [wp.lat, wp.lng]),
-				{ color: '#64748b', weight: 4, opacity: 0.6, dashArray: '6 4' }
-			).addTo(mapInstance);
-
-			// Draw road-width buffer if lane info available
-			if (numLanes && laneWidthFt && numLanes > 0 && laneWidthFt > 0) {
-				const totalWidthFt = numLanes * laneWidthFt;
-				const totalWidthMeters = totalWidthFt * 0.3048;
-				const bufferCoords = computeBufferPolygon(waypoints, totalWidthMeters);
-				if (bufferCoords.length > 0) {
-					L.polygon(bufferCoords, {
-						color: 'rgba(100, 116, 139, 0.4)',
-						fillColor: 'rgba(100, 116, 139, 0.1)',
-						fillOpacity: 1,
-						weight: 1
-					}).addTo(mapInstance);
-				}
-			}
-
-			// Fit map to route bounds
-			const bounds = L.latLngBounds(waypoints.map((wp) => [wp.lat, wp.lng]));
-			mapInstance.fitBounds(bounds, { padding: [30, 30] });
-		} else if (hasPinned) {
-			mapInstance.setView([site.latitude as number, site.longitude as number], 15);
-		}
-
-		// Draw progress on top
-		drawProgress(L);
-	}
-
 	function computeBufferPolygon(wps: Waypoint[], widthMeters: number): [number, number][] {
 		if (wps.length < 2) return [];
 		const halfWidth = widthMeters / 2;
@@ -287,6 +146,102 @@
 		return [...leftSide, ...rightSide.reverse()];
 	}
 
+	// Build the green "paved" progress segments from logged progress entries.
+	// Used only for legacy rendering (no today distinction) when ProgressPolyline is unavailable.
+	function buildProgressSegments(entries: ProgressEntry[], wps: Waypoint[]): [number, number][][] {
+		const segments: [number, number][][] = [];
+
+		for (const entry of entries) {
+			let startFt: number | null = null;
+			let endFt: number | null = null;
+
+			if (entry.station_start != null) {
+				startFt = stationToFeet(entry.station_start);
+			}
+			if (entry.station_end != null) {
+				endFt = stationToFeet(entry.station_end);
+			} else if (startFt != null && entry.distance_ft != null) {
+				endFt = startFt + entry.distance_ft;
+			}
+
+			if (startFt == null || endFt == null) continue;
+			if (endFt <= startFt) continue;
+
+			const startLL = feetToLatLng(startFt, wps);
+			const endLL = feetToLatLng(endFt, wps);
+			if (!startLL || !endLL) continue;
+
+			const segPoints: [number, number][] = [startLL];
+			let accumulated = 0;
+			for (let i = 0; i < wps.length - 1; i++) {
+				const segMeters = haversineMeters(wps[i].lat, wps[i].lng, wps[i + 1].lat, wps[i + 1].lng);
+				const segFt = segMeters * 3.28084;
+				const segStart = accumulated;
+				const segEnd = accumulated + segFt;
+				if (segEnd > startFt && segStart < endFt) {
+					const wpFt = accumulated + segFt;
+					if (wpFt > startFt && wpFt < endFt) {
+						segPoints.push([wps[i + 1].lat, wps[i + 1].lng]);
+					}
+				}
+				accumulated += segFt;
+			}
+			segPoints.push(endLL);
+			segments.push(segPoints);
+		}
+
+		return segments;
+	}
+
+	async function loadProgress() {
+		loading = true;
+		error = null;
+		try {
+			const res = await fetch(`/api/job-sites/${site.id}/logs/progress`);
+			if (!res.ok) throw new Error('Failed to load progress');
+			const data = (await res.json()) as {
+				progress?: ProgressEntry[];
+				total_paved_ft?: number;
+				today?: string;
+				days_with_data?: number;
+			};
+			progressEntries = data.progress ?? [];
+			totalPavedFt = data.total_paved_ft ?? 0;
+			today = data.today ?? new Date().toISOString().slice(0, 10);
+			daysWithData = data.days_with_data ?? 0;
+		} catch (err) {
+			error = 'Could not load progress data';
+		} finally {
+			loading = false;
+		}
+	}
+
+	const routePoints = $derived<[number, number][]>(waypoints.map((wp) => [wp.lat, wp.lng]));
+
+	const bufferCoords = $derived.by<[number, number][]>(() => {
+		if (!hasRoute || !numLanes || !laneWidthFt || numLanes <= 0 || laneWidthFt <= 0) return [];
+		const totalWidthMeters = numLanes * laneWidthFt * 0.3048;
+		return computeBufferPolygon(waypoints, totalWidthMeters);
+	});
+
+	const progressSegments = $derived.by<[number, number][][]>(() =>
+		hasRoute ? buildProgressSegments(progressEntries, waypoints) : []
+	);
+
+	const bounds = $derived.by<[[number, number], [number, number]] | undefined>(() => {
+		if (!hasRoute) return undefined;
+		const lats = waypoints.map((wp) => wp.lat);
+		const lngs = waypoints.map((wp) => wp.lng);
+		return [
+			[Math.min(...lats), Math.min(...lngs)],
+			[Math.max(...lats), Math.max(...lngs)]
+		];
+	});
+
+	const center = $derived<[number, number] | undefined>(
+		!hasRoute && hasPinned ? [site.latitude as number, site.longitude as number] : undefined
+	);
+
 	const routeTotalFt = $derived(totalRouteFt(waypoints));
 	const effectiveTotalFt = $derived(
 		totalLengthFt && totalLengthFt > 0 ? totalLengthFt : routeTotalFt
@@ -295,26 +250,35 @@
 		effectiveTotalFt > 0 ? Math.min(Math.round((totalPavedFt / effectiveTotalFt) * 100), 100) : 0
 	);
 
+	// Today's active paving footage
+	const activeTodayFt = $derived(
+		progressEntries
+			.filter((e) => e.log_date === today)
+			.reduce((sum, e) => {
+				if (e.station_start != null && e.station_end != null) {
+					return sum + (e.station_end - e.station_start) * 100;
+				} else if (e.distance_ft != null) {
+					return sum + e.distance_ft;
+				}
+				return sum;
+			}, 0)
+	);
+
+	// Entries with date and tons info for new components
+	const enhancedEntries = $derived(
+		progressEntries.map((e) => ({
+			station_start: e.station_start,
+			station_end: e.station_end,
+			distance_ft: e.distance_ft,
+			lane: e.lane,
+			tons_placed: e.tons_placed,
+			log_date: e.log_date,
+			spread_rate_actual: e.spread_rate_actual
+		}))
+	);
+
 	onMount(async () => {
 		await loadProgress();
-		if (hasRoute || hasPinned) {
-			await initMap();
-		}
-	});
-
-	// Re-draw progress when data loads
-	$effect(() => {
-		if (!loading && mapInstance) {
-			const L = (window as any).L;
-			if (L) drawProgress(L);
-		}
-	});
-
-	onDestroy(() => {
-		if (mapInstance) {
-			mapInstance.remove();
-			mapInstance = null;
-		}
 	});
 </script>
 
@@ -358,15 +322,91 @@
 			<span class="legend-swatch">
 				<span class="swatch-paved" aria-label="Paved"></span>
 				<span class="swatch-label">Paved</span>
+				<span class="swatch-today" aria-label="Today"></span>
+				<span class="swatch-label">Today</span>
 				<span class="swatch-planned" aria-label="Planned"></span>
 				<span class="swatch-label">Planned</span>
 			</span>
 		</div>
 
+		<!-- Map controls -->
+		<div class="map-controls">
+			{#if numLanes && numLanes > 1}
+				<button
+					class="ctrl-btn"
+					class:active={showAllLanes}
+					onclick={() => (showAllLanes = !showAllLanes)}
+					aria-pressed={showAllLanes}
+				>
+					{showAllLanes ? 'All Lanes' : 'Current Lane'}
+				</button>
+			{/if}
+			<button
+				class="ctrl-btn"
+				class:active={showStationMarkers}
+				onclick={() => (showStationMarkers = !showStationMarkers)}
+				aria-pressed={showStationMarkers}
+			>
+				{showStationMarkers ? 'Hide Stations' : 'Show Stations'}
+			</button>
+		</div>
+
 		<div class="map-wrap" style="height:{height}">
-			<div bind:this={mapEl} class="map-el"></div>
+			<MapContainer class="station-map" {height} center={center} zoom={15} bounds={bounds}>
+				<!-- Planned route (grey) -->
+				<MapPolyline
+					points={routePoints}
+					color="#64748b"
+					weight={4}
+					opacity={0.6}
+					dashArray="6 4"
+				/>
+				<!-- Road-width buffer -->
+				{#if bufferCoords.length > 0}
+					<MapPolygon
+						points={bufferCoords}
+						color="rgba(100, 116, 139, 0.4)"
+						fillColor="rgba(100, 116, 139, 0.1)"
+						fillOpacity={1}
+						weight={1}
+					/>
+				{/if}
+				<!-- Color-coded progress polylines (green = paved, yellow = today) -->
+				{#if !loading && enhancedEntries.length > 0}
+					<ProgressPolyline
+						{waypoints}
+						entries={enhancedEntries}
+						{today}
+						{numLanes}
+						{laneWidthFt}
+						{showAllLanes}
+					/>
+				{:else if !loading}
+					<!-- Legacy fallback: single green layer -->
+					{#each progressSegments as seg, i (i)}
+						<MapPolyline points={seg} color="#22c55e" weight={7} opacity={0.85} lineCap="round" />
+					{/each}
+				{/if}
+				<!-- Station markers -->
+				<StationMarkers
+					{waypoints}
+					entries={enhancedEntries}
+					visible={showStationMarkers}
+					stationIntervalFt={500}
+				/>
+			</MapContainer>
 			{#if loading}
 				<div class="map-overlay-loading" aria-live="polite">Loading&hellip;</div>
+			{/if}
+			<!-- Progress summary overlay -->
+			{#if !loading && progressEntries.length > 0}
+				<ProgressOverlay
+					totalFt={effectiveTotalFt > 0 ? effectiveTotalFt : null}
+					pavedFt={totalPavedFt}
+					{activeTodayFt}
+					{daysWithData}
+					bind:collapsed={overlayCollapsed}
+				/>
 			{/if}
 		</div>
 	{/if}
@@ -455,7 +495,16 @@
 		display: inline-block;
 		width: 20px;
 		height: 5px;
-		background: var(--good);
+		background: #22c55e;
+		border-radius: 3px;
+		opacity: 0.85;
+	}
+
+	.swatch-today {
+		display: inline-block;
+		width: 20px;
+		height: 5px;
+		background: #f2c037;
 		border-radius: 3px;
 		opacity: 0.85;
 	}
@@ -473,6 +522,40 @@
 		font-size: 0.72rem;
 	}
 
+	/* Map control toggles */
+	.map-controls {
+		display: flex;
+		gap: 8px;
+		padding: 8px 14px;
+		background: var(--surface);
+		border-left: 1px solid var(--border);
+		border-right: 1px solid var(--border);
+	}
+
+	.ctrl-btn {
+		padding: 0 14px;
+		height: 36px;
+		min-height: 36px;
+		font-size: 0.8rem;
+		font-weight: 600;
+		background: var(--surface-alt, var(--surface));
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: background 0.15s, color 0.15s, border-color 0.15s;
+	}
+
+	.ctrl-btn.active {
+		background: color-mix(in srgb, var(--accent) 15%, transparent);
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+
+	.ctrl-btn:hover {
+		border-color: var(--accent);
+	}
+
 	.map-wrap {
 		position: relative;
 		width: 100%;
@@ -481,17 +564,9 @@
 		border: 1px solid var(--border);
 	}
 
-	.map-el {
-		width: 100%;
+	.map-wrap :global(.station-map) {
 		height: 100%;
-	}
-
-	.map-el :global(.leaflet-pane) {
-		z-index: 1;
-	}
-	.map-el :global(.leaflet-top),
-	.map-el :global(.leaflet-bottom) {
-		z-index: 2;
+		border-radius: 0;
 	}
 
 	.map-overlay-loading {
@@ -516,6 +591,11 @@
 
 		.legend-label {
 			font-size: 0.8rem;
+		}
+
+		.map-controls {
+			flex-wrap: wrap;
+			gap: 6px;
 		}
 	}
 </style>

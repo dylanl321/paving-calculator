@@ -1,4 +1,5 @@
 import type { D1Database } from '../../cloudflare';
+import { toHex } from '$lib/utils/format';
 
 export interface AuditEntry {
 	actorUserId?: string;
@@ -15,9 +16,7 @@ export interface AuditEntry {
 
 export async function recordAudit(db: D1Database, entry: AuditEntry): Promise<void> {
 	try {
-		const id = Array.from(crypto.getRandomValues(new Uint8Array(16)))
-			.map((b) => b.toString(16).padStart(2, '0'))
-			.join('');
+		const id = toHex(crypto.getRandomValues(new Uint8Array(16)));
 
 		await db
 			.prepare(

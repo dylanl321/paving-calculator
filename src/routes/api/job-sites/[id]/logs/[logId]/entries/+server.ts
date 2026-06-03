@@ -1,8 +1,24 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbLogHelper } from '$lib/server/db-logs';
+import type { DbLogEntry } from '$lib/server/db-logs';
 import { recordAudit } from '$lib/server/audit';
 import type { RequestHandler } from './$types';
+
+interface LogEntryCreateBody {
+	entry_type: DbLogEntry['entry_type'];
+	timestamp: string;
+	station_start?: number | null;
+	station_end?: number | null;
+	distance_ft?: number | null;
+	tons_placed?: number | null;
+	loads_count?: number | null;
+	truck_tickets?: string[] | null;
+	spread_rate_actual?: number | null;
+	tack_gallons?: number | null;
+	lane?: string | null;
+	notes?: string | null;
+}
 
 export const POST: RequestHandler = async ({ params, locals, platform, request }) => {
 	if (!locals.user) {
@@ -27,7 +43,16 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		throw error(403, 'Access denied');
 	}
 
-	const body = await request.json();
+	// Check if log is locked
+	if (log.closed_at) {
+		const userRole = await db.getUserRole(locals.user.id, org.id);
+		const isAdmin = userRole === 'owner' || userRole === 'admin' || locals.user.isGlobalAdmin;
+		if (!isAdmin) {
+			throw error(423, 'Log is locked after close-out. Contact an admin to unlock.');
+		}
+	}
+
+	const body = (await request.json()) as LogEntryCreateBody;
 
 	const entry = await logDb.createLogEntry(params.logId, body);
 

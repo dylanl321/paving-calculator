@@ -3,18 +3,18 @@
 </script>
 
 <svelte:head>
-	<title>{config.app.name} — Paving math that keeps up with your crew</title>
-	<meta name="description" content="In-field asphalt paving calculators. Spread rate, tack coat, tonnage — GDOT-spec accurate, offline-first, built for the job site." />
+	<title>{config.app.name} — Run paving projects from the field</title>
+	<meta name="description" content="Plan, track, and close out asphalt paving projects in the field. Schedule, crews, daily logs, live tonnage, and GDOT-spec calculators — offline-first, built for the job site." />
 </svelte:head>
 
 <!-- ─── Hero ─────────────────────────────────────────────────────────────── -->
 <section class="hero">
 	<div class="hero-inner">
 		<div class="hero-badge">Offline-first · GDOT-spec accurate · Free to start</div>
-		<h1 class="hero-heading">Paving math that keeps up with your crew</h1>
+		<h1 class="hero-heading">Run the whole paving job from the field</h1>
 		<p class="hero-sub">
-			Spread rate. Tack coat. Tonnage. All the numbers your foreman needs — instantly, on the job
-			site, without a signal.
+			Plan the project, track the crew, log every load, and close out the day — with all your
+			paving numbers calculated automatically. No office. No signal required.
 		</p>
 		<div class="hero-ctas">
 			<a href="/register" class="btn btn-primary">Get Started Free</a>
@@ -22,7 +22,7 @@
 		</div>
 	</div>
 
-	<!-- App mockup (pure CSS) -->
+	<!-- Project card mockup (pure CSS) -->
 	<div class="mockup" aria-hidden="true">
 		<div class="mockup-bar">
 			<div class="mockup-dot"></div>
@@ -31,20 +31,30 @@
 			<span class="mockup-title">paverate.com</span>
 		</div>
 		<div class="mockup-screen">
-			<div class="mockup-card">
-				<div class="mockup-label">Spread Rate</div>
-				<div class="mockup-value accent">112 <span class="mockup-unit">lb/sy</span></div>
+			<div class="mockup-project-head">
+				<div>
+					<div class="mockup-label">Project</div>
+					<div class="mockup-project-name">SR-141 Resurfacing</div>
+				</div>
+				<span class="mockup-pill good">Active</span>
 			</div>
-			<div class="mockup-card">
-				<div class="mockup-label">Tack Coat</div>
-				<div class="mockup-value">0.05 <span class="mockup-unit">gal/sy</span></div>
+			<div class="mockup-meta">
+				<span class="mockup-crew"><span class="mockup-crew-dot"></span>Crew B</span>
+				<span class="mockup-meta-sep">·</span>
+				<span>62% complete</span>
 			</div>
+			<div class="mockup-progress"><span style="width:62%"></span></div>
 			<div class="mockup-divider"></div>
-			<div class="mockup-card">
-				<div class="mockup-label">Estimated Tonnage</div>
-				<div class="mockup-value">48.6 <span class="mockup-unit">tons</span></div>
+			<div class="mockup-stats">
+				<div class="mockup-card">
+					<div class="mockup-label">Today's Tons</div>
+					<div class="mockup-value accent">312 <span class="mockup-unit">/ 380</span></div>
+				</div>
+				<div class="mockup-card">
+					<div class="mockup-label">Loads</div>
+					<div class="mockup-value">17</div>
+				</div>
 			</div>
-			<div class="mockup-pill good">In spec</div>
 		</div>
 	</div>
 </section>
@@ -52,43 +62,33 @@
 <!-- ─── Features ─────────────────────────────────────────────────────────── -->
 <section class="features">
 	<div class="container">
-		<h2 class="section-heading">Built for the field, not the office</h2>
+		<h2 class="section-heading">Everything a paving job needs, in one place</h2>
 		<div class="features-grid">
 			<div class="feature-card">
 				<div class="feature-icon">
-					<!-- Signal-off icon -->
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-						<line x1="2" y1="2" x2="22" y2="22"></line>
-						<path d="M8.5 16.5A5 5 0 0 1 4 12c0-1.4.6-2.8 1.5-3.8"></path>
-						<path d="M5 5C3 6.5 2 9.1 2 12a10 10 0 0 0 10 10 9.7 9.7 0 0 0 7-2.8"></path>
-						<path d="M10.7 5.1A10 10 0 0 1 22 12c0 .6-.1 1.2-.2 1.8"></path>
-						<path d="M15 9a5 5 0 0 1 1 3 5 5 0 0 1-.4 2"></path>
+					<!-- Project / schedule icon -->
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="3" y="4" width="18" height="18" rx="2"></rect>
+						<line x1="3" y1="9" x2="21" y2="9"></line>
+						<line x1="8" y1="2" x2="8" y2="6"></line>
+						<line x1="16" y1="2" x2="16" y2="6"></line>
+						<path d="M8 14l2 2 4-4"></path>
 					</svg>
 				</div>
-				<h3>Offline-First</h3>
-				<p>Works in dead zones, tunnels, and rural cuts. Install as a PWA and it loads instantly — no signal needed.</p>
+				<h3>Projects &amp; Schedule</h3>
+				<p>Every job is a project with its own config, milestones, and progress. See what's active, what's behind, and what's done at a glance.</p>
 			</div>
 			<div class="feature-card">
 				<div class="feature-icon">
-					<!-- Checkmark/spec icon -->
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-						<path d="M9 11l3 3L22 4"></path>
-						<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+					<!-- Live field / map icon -->
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M1 6v15l7-3 8 3 7-3V3l-7 3-8-3-7 3z"></path>
+						<line x1="8" y1="3" x2="8" y2="18"></line>
+						<line x1="16" y1="6" x2="16" y2="21"></line>
 					</svg>
 				</div>
-				<h3>GDOT-Spec Accurate</h3>
-				<p>Every formula is traced to verified GDOT specifications. Spread rates, tack coat targets, and compaction factors — all spec-backed.</p>
-			</div>
-			<div class="feature-card">
-				<div class="feature-icon">
-					<!-- Mobile/crew icon -->
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-						<rect x="5" y="2" width="14" height="20" rx="2"></rect>
-						<line x1="12" y1="18" x2="12.01" y2="18" stroke-width="3"></line>
-					</svg>
-				</div>
-				<h3>Built for Crews</h3>
-				<p>Large touch targets. High contrast for bright sunlight. Every screen designed for gloves-on use at 375px on an asphalt site.</p>
+				<h3>Live Field Tracking</h3>
+				<p>Crew locations, GPS stationing, truck loads, and ETAs on a live map. Know where the crew is and how the day is pacing in real time.</p>
 			</div>
 			<div class="feature-card">
 				<div class="feature-icon">
@@ -100,8 +100,25 @@
 						<line x1="9" y1="16" x2="13" y2="16"></line>
 					</svg>
 				</div>
-				<h3>Daily Log</h3>
-				<p>Log truck loads throughout the shift. Track what was laid, when, and the running tonnage total. Close out at end of day with one tap.</p>
+				<h3>Daily Logs &amp; Compliance</h3>
+				<p>Log loads all shift, capture nuclear-gauge density, and close out the day with one tap — a locked, GDOT-spec record for every project.</p>
+			</div>
+			<div class="feature-card">
+				<div class="feature-icon">
+					<!-- Calculator icon -->
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="4" y="2" width="16" height="20" rx="2"></rect>
+						<line x1="8" y1="6" x2="16" y2="6"></line>
+						<line x1="8" y1="11" x2="8" y2="11"></line>
+						<line x1="12" y1="11" x2="12" y2="11"></line>
+						<line x1="16" y1="11" x2="16" y2="11"></line>
+						<line x1="8" y1="15" x2="8" y2="15"></line>
+						<line x1="12" y1="15" x2="12" y2="15"></line>
+						<line x1="16" y1="15" x2="16" y2="18"></line>
+					</svg>
+				</div>
+				<h3>Calculators Built In</h3>
+				<p>Area, tonnage, spread rate, and tack are calculated automatically from each project. Need a one-off? The full GDOT-spec calculator is a tap away.</p>
 			</div>
 		</div>
 	</div>
@@ -130,27 +147,27 @@
 <!-- ─── How it works ─────────────────────────────────────────────────────── -->
 <section class="how">
 	<div class="container">
-		<h2 class="section-heading">Three steps, then pave</h2>
+		<h2 class="section-heading">From bid to close-out</h2>
 		<ol class="steps">
 			<li class="step">
 				<div class="step-num">1</div>
 				<div class="step-body">
-					<h3>Set up the job</h3>
-					<p>Enter your lift thickness, lane width, and pass length. Paverate fills in the rest from GDOT specs.</p>
+					<h3>Set up the project</h3>
+					<p>Enter the roadway, lifts, mix, and contract. Paverate calculates area, tonnage, spread targets, and cost automatically — straight from GDOT specs.</p>
 				</div>
 			</li>
 			<li class="step">
 				<div class="step-num">2</div>
 				<div class="step-body">
-					<h3>Get your numbers</h3>
-					<p>Spread rate, tack coat target, and estimated tonnage display instantly. In-spec indicators turn green when you hit the target.</p>
+					<h3>Run the crew in the field</h3>
+					<p>Assign a crew, track them live on the map, and log every truck load and density reading as the day unfolds. Targets turn green when you're on pace and in spec.</p>
 				</div>
 			</li>
 			<li class="step">
 				<div class="step-num">3</div>
 				<div class="step-body">
-					<h3>Log loads all day</h3>
-					<p>Each truck gets logged with one tap. Running totals update in real time. At end of shift, your daily record is ready.</p>
+					<h3>Close out and track progress</h3>
+					<p>Lock the daily log with one tap and watch project milestones tick toward done. Every day rolls up into a clean, spec-backed record.</p>
 				</div>
 			</li>
 		</ol>
@@ -161,10 +178,10 @@
 <section class="cta-section">
 	<div class="container cta-inner">
 		<h2>Ready to run tighter jobs?</h2>
-		<p>Free for solo use. Team features available when you need them.</p>
+		<p>Free for solo use. Team and project features available when you need them.</p>
 		<div class="hero-ctas">
 			<a href="/register" class="btn btn-primary">Get Started Free</a>
-			<a href="/app" class="btn btn-ghost">Open the Calculator</a>
+			<a href="/app" class="btn btn-ghost">Try the calculator</a>
 		</div>
 	</div>
 </section>
@@ -186,8 +203,7 @@
 			<a href="/login">Sign In</a>
 			<a href="/register">Register</a>
 		</nav>
-		<p class="footer-copy">&copy; {new Date().getFullYear()} Paverate. Built for paving crews.</p>
-	</div>
+		<p class="footer-copy">&copy; {new Date().getFullYear()} Paverate. Built for paving crews.</p>	</div>
 </footer>
 
 <style>
@@ -358,6 +374,56 @@
 	.mockup-pill.good {
 		background: color-mix(in srgb, var(--good, #3fb27f) 18%, transparent);
 		color: var(--good, #3fb27f);
+	}
+	.mockup-project-head {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+	.mockup-project-name {
+		font-size: 1.125rem;
+		font-weight: 700;
+		color: var(--text, #f4f6f7);
+		line-height: 1.2;
+	}
+	.mockup-meta {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.8125rem;
+		color: var(--text-muted, #9fb0bd);
+	}
+	.mockup-crew {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.mockup-crew-dot {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		background: var(--accent, #f2c037);
+	}
+	.mockup-meta-sep {
+		opacity: 0.5;
+	}
+	.mockup-progress {
+		height: 6px;
+		border-radius: 100px;
+		background: var(--surface-alt, #2e3b46);
+		overflow: hidden;
+	}
+	.mockup-progress span {
+		display: block;
+		height: 100%;
+		background: var(--accent, #f2c037);
+		border-radius: 100px;
+	}
+	.mockup-stats {
+		display: grid;
+		grid-template-columns: 2fr 1fr;
+		gap: 0.75rem;
 	}
 
 	/* ── Features ─────────────────────────────────────────────────────────── */
