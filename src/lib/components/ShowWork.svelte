@@ -1,15 +1,39 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { slide } from 'svelte/transition';
+	import InspectorView, { type InspectorStat } from './InspectorView.svelte';
+
 	interface Props {
 		children: Snippet;
 		stepCount?: number;
+		inspectorStats?: InspectorStat[];
+		inspectorTitle?: string;
 	}
-	let { children, stepCount }: Props = $props();
+	let { children, stepCount, inspectorStats, inspectorTitle }: Props = $props();
 	let open = $state(false);
+	let inspectorOpen = $state(false);
 </script>
 
 <div class="show-work">
+	{#if inspectorStats && inspectorTitle}
+		<button
+			class="inspector-button tap-scale"
+			onclick={() => (inspectorOpen = true)}
+		>
+			<svg class="inspector-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+				<path d="M1 10C1 10 4 4 10 4C16 4 19 10 19 10C19 10 16 16 10 16C4 16 1 10 1 10Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+				<circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="2"/>
+			</svg>
+			Show to Inspector
+		</button>
+		<InspectorView
+			bind:open={inspectorOpen}
+			onclose={() => (inspectorOpen = false)}
+			title={inspectorTitle}
+			stats={inspectorStats}
+		/>
+	{/if}
+
 	<button class="toggle-link tap-scale" onclick={() => (open = !open)} aria-expanded={open}>
 		{open ? '▾' : '▸'} Show the math
 		{#if stepCount && stepCount > 0}
@@ -26,7 +50,43 @@
 <style>
 	.show-work {
 		margin-top: 12px;
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-2);
 	}
+
+	.inspector-button {
+		width: 100%;
+		min-height: var(--touch);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--sp-2);
+		padding: var(--sp-3) var(--sp-4);
+		background: var(--accent);
+		color: var(--bg);
+		border: 0;
+		border-radius: var(--radius-md);
+		font-size: var(--fs-base);
+		font-weight: var(--fw-bold);
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.inspector-button:hover {
+		background: color-mix(in srgb, var(--accent) 90%, black);
+		transform: translateY(-1px);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	}
+
+	.inspector-button:active {
+		transform: translateY(0);
+	}
+
+	.inspector-icon {
+		flex-shrink: 0;
+	}
+
 	.toggle-link {
 		background: none;
 		border: 0;

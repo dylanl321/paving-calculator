@@ -129,6 +129,41 @@
 			}
 		};
 	}
+
+	const inspectorStats = $derived.by(() => {
+		if (tons == null || lengthFt == null) return undefined;
+
+		return [
+			{
+				label: 'Tons to Order',
+				value: Math.round(displayTons ?? tons).toLocaleString(),
+				unit: UNIT_LABELS.tons[unitsStore.system],
+				highlight: true,
+				status: null as 'good' | 'warn' | 'bad' | null
+			},
+			{
+				label: 'Length',
+				value: (lengthInput ?? 0).toFixed(0),
+				unit: UNIT_LABELS.ft[unitsStore.system],
+				highlight: false,
+				status: null as 'good' | 'warn' | 'bad' | null
+			},
+			{
+				label: 'Width',
+				value: job.widthFt.toFixed(1),
+				unit: UNIT_LABELS.ft[unitsStore.system],
+				highlight: false,
+				status: null as 'good' | 'warn' | 'bad' | null
+			},
+			{
+				label: 'Spread Rate',
+				value: Math.round(rate).toString(),
+				unit: 'lbs/SY',
+				highlight: false,
+				status: null as 'good' | 'warn' | 'bad' | null
+			}
+		];
+	});
 </script>
 
 <CalcCard
@@ -148,7 +183,7 @@
 		secondary={`At ${job.widthFt} ft wide, ${job.thicknessIn}" (${Math.round(rate)} lbs/SY) · ${job.wastePct}% waste`}
 	/>
 
-	<ShowWork stepCount={4}>
+	<ShowWork stepCount={4} inspectorStats={inspectorStats} inspectorTitle="Tonnage Order">
 		{#if lengthFt && job.widthFt && rate && tons != null}
 			{@const areaYards = (lengthFt * job.widthFt) / 9}
 			{@const baseTons = (areaYards * rate) / 2000}
