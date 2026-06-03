@@ -319,25 +319,40 @@
 		max-width: 420px;
 		padding: 40px 34px 30px;
 		border-radius: 22px;
-		backdrop-filter: blur(18px) saturate(120%);
-		-webkit-backdrop-filter: blur(18px) saturate(120%);
 	}
 
-	[data-theme='light'] .auth-card {
-		background: rgba(255, 255, 255, 0.95);
+	[data-theme='light'] :global(.auth-card) {
+		background: rgba(255, 255, 255, 0.98);
 		border: 1px solid rgba(0, 0, 0, 0.12);
 		box-shadow:
 			0 28px 70px -28px rgba(0, 0, 0, 0.8),
 			inset 0 1px 0 rgba(255, 255, 255, 0.6);
 	}
 
-	[data-theme='dark'] .auth-card,
-	[data-theme='sunlight'] .auth-card {
-		background: rgba(24, 31, 37, 0.72);
+	[data-theme='dark'] :global(.auth-card),
+	[data-theme='sunlight'] :global(.auth-card) {
+		background: rgba(24, 31, 37, 0.92);
 		border: 1px solid rgba(159, 176, 189, 0.18);
 		box-shadow:
 			0 28px 70px -28px rgba(0, 0, 0, 0.8),
 			inset 0 1px 0 rgba(255, 255, 255, 0.06);
+	}
+
+	/* Frosted glass is a pure enhancement: only lean on transparency when the
+	   browser actually supports (and paints) backdrop-filter. If it drops out,
+	   the opaque backgrounds above keep the card legible over the road. */
+	@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+		.auth-card {
+			backdrop-filter: blur(18px) saturate(120%);
+			-webkit-backdrop-filter: blur(18px) saturate(120%);
+		}
+		[data-theme='light'] :global(.auth-card) {
+			background: rgba(255, 255, 255, 0.9);
+		}
+		[data-theme='dark'] :global(.auth-card),
+		[data-theme='sunlight'] :global(.auth-card) {
+			background: rgba(24, 31, 37, 0.78);
+		}
 	}
 
 	.auth-logo {
