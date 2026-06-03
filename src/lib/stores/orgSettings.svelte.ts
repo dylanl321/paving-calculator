@@ -76,6 +76,10 @@ class OrgSettingsStore {
 		return this.#resolver.tackSpec;
 	}
 
+	resolvedSpreadToleranceFor(courseId: string | null | undefined) {
+		return this.#resolver.spreadToleranceFor(courseId);
+	}
+
 	async fetch(): Promise<void> {
 		try {
 			const res = await fetch('/api/org/settings', { credentials: 'include' });
@@ -83,7 +87,13 @@ class OrgSettingsStore {
 				this.clear();
 				return;
 			}
-			const data = await res.json();
+			const data = (await res.json()) as {
+				org?: { id?: string | null; name?: string | null; slug?: string | null } | null;
+				role?: 'owner' | 'admin' | 'member' | null;
+				accentColor?: string | null;
+				hasLogo?: boolean;
+				overrides?: OrgOverrides;
+			};
 			this.#state.orgId = data.org?.id ?? null;
 			this.#state.orgName = data.org?.name ?? null;
 			this.#state.orgSlug = data.org?.slug ?? null;

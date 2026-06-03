@@ -1,13 +1,9 @@
 <script lang="ts">
-	import { toastStore, type Toast } from '$lib/stores/toast';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import { fly, fade } from 'svelte/transition';
 	import { CheckCircle2, AlertCircle, Info, X } from 'lucide-svelte';
 
-	let toasts = $state<Toast[]>([]);
-
-	toastStore.subscribe((value) => {
-		toasts = value;
-	});
+	const toasts = $derived(toastStore.toasts);
 </script>
 
 {#if toasts.length > 0}

@@ -1,11 +1,13 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
+import { DbWebhookHelper } from '$lib/server/db-webhooks';
 import { requireAuth } from '$lib/server/auth';
 
 export async function GET(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const webhookDb = new DbWebhookHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -17,7 +19,9 @@ export async function GET(event: RequestEvent) {
 			return json({ error: 'Only owners and admins can view webhook deliveries' }, { status: 403 });
 		}
 
-		const webhook = await db.getWebhookById(event.params.id);
+		const { id } = event.params;
+		if (!id) return json({ error: 'Webhook ID is required' }, { status: 400 });
+		const webhook = await webhookDb.getWebhookById(id);
 		if (!webhook) {
 			return json({ error: 'Webhook not found' }, { status: 404 });
 		}
@@ -33,7 +37,7 @@ export async function GET(event: RequestEvent) {
 			return json({ error: 'Invalid status filter. Must be pending, delivered, or failed' }, { status: 400 });
 		}
 
-		const deliveries = await db.getWebhookDeliveries(event.params.id, statusFilter, 50);
+		const deliveries = await webhookDb.getWebhookDeliveries(id, statusFilter, 50);
 
 		return json({
 			deliveries: deliveries.map((delivery) => ({
@@ -48,7 +52,7 @@ export async function GET(event: RequestEvent) {
 			}))
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get webhook deliveries error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

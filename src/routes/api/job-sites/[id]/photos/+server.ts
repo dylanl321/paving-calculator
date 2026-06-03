@@ -30,7 +30,7 @@ export async function GET(event: RequestEvent) {
 
 		return json({ photos });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get photos error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -107,7 +107,7 @@ export async function POST(event: RequestEvent) {
 			url: `/api/job-sites/${jobSiteId}/photos/${photo.id}/view`
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Upload photo error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
