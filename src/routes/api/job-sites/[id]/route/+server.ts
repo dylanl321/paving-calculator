@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { DbHelper } from '$lib/server/db';
+import { recordAudit } from '$lib/server/audit';
 
 interface RouteRequestBody {
 	waypoints?: Array<{ lat: number; lng: number }>;
@@ -64,7 +65,26 @@ export const PUT: RequestHandler = async ({ params, platform, locals, request })
 		}
 	}
 
+	// Fetch old route for audit
+	const oldRoute = await db.getJobSiteRoute(params.id);
+
 	await db.upsertJobSiteRoute(params.id, waypoints);
+
+	await recordAudit(platform!.env.DB, {
+		actorUserId: locals.user.id,
+		actorName: locals.user.name,
+		orgId: org.id,
+		resourceType: 'route',
+		resourceId: params.id,
+		action: oldRoute ? 'update' : 'create',
+		oldValue: oldRoute ? { waypoints: JSON.parse(oldRoute.waypoints) } : undefined,
+		newValue: { waypoints },
+		ipAddress:
+			request.headers.get('cf-connecting-ip') ||
+			request.headers.get('x-forwarded-for') ||
+			undefined,
+		userAgent: request.headers.get('user-agent') || undefined
+	});
 
 	return json({ success: true });
 };

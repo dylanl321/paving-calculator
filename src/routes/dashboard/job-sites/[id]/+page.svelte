@@ -17,6 +17,7 @@
 	import DailyLogTab from './_components/DailyLogTab.svelte';
 	import WorkZonesTab from './_components/WorkZonesTab.svelte';
 	import ScheduleTab from './_components/ScheduleTab.svelte';
+	import ActivityTab from './_components/ActivityTab.svelte';
 	import { haversineFeet } from '$lib/services/mapUtils';
 	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
 	import { calcContext } from '$lib/stores/calcContext.svelte';
@@ -256,6 +257,13 @@
 		>
 			Calculations{#if data.calculations.length}<span class="tab-count">{data.calculations.length}</span>{/if}
 		</button>
+		<button
+			class="tab"
+			class:active={activeTab === 'activity'}
+			onclick={() => (activeTab = 'activity')}
+		>
+			Activity
+		</button>
 	</nav>
 
 	{#if activeTab === 'overview'}
@@ -299,6 +307,8 @@
 		/>
 	{:else if activeTab === 'milestones'}
 		<ScheduleTab jobSiteId={data.jobSite.id} bind:milestones />
+	{:else if activeTab === 'activity'}
+		<ActivityTab siteId={data.jobSite.id} />
 	{/if}
 </div>
 
