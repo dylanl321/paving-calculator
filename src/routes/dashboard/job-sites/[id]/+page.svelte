@@ -618,6 +618,13 @@
 		>
 			Milestones
 		</button>
+		<button
+			class="tab"
+			class:active={activeTab === 'work_zones'}
+			onclick={() => (activeTab = 'work_zones')}
+		>
+			Work Zones
+		</button>
 	</nav>
 
 	{#if activeTab === 'overview'}
@@ -1531,6 +1538,42 @@
 					<a class="btn btn-ghost" href="/dashboard/job-sites/{data.jobSite.id}/log/history">View history</a>
 				</div>
 			</div>
+		</section>
+	{:else if activeTab === 'work_zones'}
+		<section class="section">
+			{#if data.jobSite.latitude == null || data.jobSite.longitude == null}
+				<div class="empty-state">
+					<svg
+						width="48"
+						height="48"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+						<circle cx="12" cy="10" r="3"></circle>
+					</svg>
+					<h4>Location Required</h4>
+					<p>Set a location for this job site to use work zones</p>
+					<button class="btn-primary" style="margin-top: 16px;" onclick={() => (activeTab = 'overview')}>
+						Go to Overview
+					</button>
+				</div>
+			{:else}
+				{#await import('$lib/components/WorkZoneMap.svelte')}
+					<div class="map-mini-loading">Loading work zones...</div>
+				{:then { default: WorkZoneMap }}
+					<WorkZoneMap
+						orgId={data.jobSite.org_id}
+						siteId={data.jobSite.id}
+						lat={data.jobSite.latitude}
+						lng={data.jobSite.longitude}
+					/>
+				{/await}
+			{/if}
 		</section>
 	{:else if activeTab === 'milestones'}
 		<section class="section">
