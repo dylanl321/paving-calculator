@@ -28,6 +28,23 @@
 	} | null;
 
 	let members = $state<Member[]>([]);
+
+	interface MeResponse {
+		user: { id: string };
+		org: { role: string };
+	}
+	interface MembersResponse {
+		members?: Member[];
+	}
+	interface InvitesResponse {
+		invitations?: Invitation[];
+	}
+	interface ActivityResponse {
+		activity?: Record<string, MemberActivity>;
+	}
+	interface ErrorResponse {
+		error?: string;
+	}
 	let invitations = $state<Invitation[]>([]);
 	let memberActivity = $state<Record<string, MemberActivity>>({});
 	let loading = $state(true);
@@ -96,7 +113,7 @@
 		try {
 			const res = await fetch('/api/auth/me');
 			if (res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as MeResponse;
 				currentUserId = data.user.id;
 				currentUserRole = data.org.role;
 			}
@@ -123,16 +140,16 @@
 				return;
 			}
 
-			const membersData = await membersRes.json();
+			const membersData = (await membersRes.json()) as MembersResponse;
 			members = membersData.members || [];
 
 			if (invitesRes.ok) {
-				const invitesData = await invitesRes.json();
+				const invitesData = (await invitesRes.json()) as InvitesResponse;
 				invitations = invitesData.invitations || [];
 			}
 
 			if (activityRes.ok) {
-				const activityData = await activityRes.json();
+				const activityData = (await activityRes.json()) as ActivityResponse;
 				memberActivity = activityData.activity || {};
 			}
 		} catch (e) {
@@ -157,7 +174,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as ErrorResponse;
 				toastStore.error(data.error || 'Failed to send invitation');
 				return;
 			}
@@ -191,7 +208,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as ErrorResponse;
 				toastStore.error(data.error || 'Failed to update role');
 				return;
 			}
@@ -213,7 +230,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as ErrorResponse;
 				toastStore.error(data.error || 'Failed to remove member');
 				return;
 			}
@@ -234,7 +251,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as ErrorResponse;
 				alert(data.error || 'Failed to revoke invitation');
 				return;
 			}
