@@ -3,6 +3,7 @@
 	import { BarChart } from 'layerchart';
 	import ChartMount from '$lib/components/charts/ChartMount.svelte';
 	import { formatFeet } from '$lib/utils/format';
+	import SharePDFButton from './SharePDFButton.svelte';
 
 	interface Props {
 		jobSiteId: string;
@@ -249,6 +250,26 @@
 
 			<!-- Footer -->
 			<div class="sheet-footer">
+				<SharePDFButton
+					getPdfBlob={async () => {
+						const { getWeeklyMonthlyPDFBlob } = await import('$lib/utils/pdf-export');
+						const { jobState } = await import('$lib/stores/job.svelte');
+						return await getWeeklyMonthlyPDFBlob(
+							{
+								periodType,
+								period: data.period,
+								bounds: data.bounds,
+								days: data.days,
+								totals: data.totals
+							},
+							siteName,
+							undefined,
+							jobState
+						);
+					}}
+					filename={`${periodType}-report-${data.bounds.start}.pdf`}
+					subject={`${siteName} - ${data.period} Production Report`}
+				/>
 				<button class="btn-print" onclick={() => window.print()}>
 					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 						<polyline points="6 9 6 2 18 2 18 9"></polyline>

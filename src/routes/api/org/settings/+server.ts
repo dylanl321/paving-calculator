@@ -31,6 +31,18 @@ export async function GET(event: RequestEvent) {
 		const role = await db.getUserRole(user.id, org.id);
 		const settings = await db.getOrgSettings(org.id);
 
+		const reportRecipients: string[] = [];
+		if (settings?.report_recipients) {
+			try {
+				const parsed = JSON.parse(settings.report_recipients);
+				if (Array.isArray(parsed)) {
+					reportRecipients.push(...parsed.filter((e): e is string => typeof e === 'string'));
+				}
+			} catch {
+				// Invalid JSON, return empty array
+			}
+		}
+
 		return json({
 			org: {
 				id: org.id,
@@ -45,6 +57,7 @@ export async function GET(event: RequestEvent) {
 			hasLogo: !!settings?.logo_key,
 			emailFromName: settings?.email_from_name ?? null,
 			emailReplyTo: settings?.email_reply_to ?? null,
+			reportRecipients,
 			overrides: parseOverrides(settings?.overrides ?? null),
 			updatedAt: settings?.updated_at ?? null
 		});
@@ -77,6 +90,7 @@ export async function PUT(event: RequestEvent) {
 			accentColor?: string | null;
 			emailFromName?: string | null;
 			emailReplyTo?: string | null;
+			reportRecipients?: string | null;
 			overrides?: string | null;
 			updatedBy: string;
 		} = {
@@ -121,6 +135,29 @@ export async function PUT(event: RequestEvent) {
 				update.emailReplyTo = ert;
 			} else {
 				return json({ error: 'emailReplyTo must be a string' }, { status: 400 });
+			}
+		}
+
+		if ('reportRecipients' in body) {
+			const rr = body.reportRecipients;
+			if (rr === null || (Array.isArray(rr) && rr.length === 0)) {
+				update.reportRecipients = null;
+			} else if (Array.isArray(rr)) {
+				if (rr.length > 10) {
+					return json({ error: 'Maximum 10 report recipients allowed' }, { status: 400 });
+				}
+				const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+				for (const email of rr) {
+					if (typeof email !== 'string' || !emailRegex.test(email)) {
+						return json({ error: 'All recipients must be valid email addresses' }, { status: 400 });
+					}
+					if (email.length > 100) {
+						return json({ error: 'Each email must be 100 characters or less' }, { status: 400 });
+					}
+				}
+				update.reportRecipients = JSON.stringify(rr);
+			} else {
+				return json({ error: 'reportRecipients must be an array' }, { status: 400 });
 			}
 		}
 
@@ -184,6 +221,18 @@ export async function PUT(event: RequestEvent) {
 		const settings = await db.getOrgSettings(org.id);
 		const updatedOrg = await db.getOrganizationById(org.id);
 
+		const reportRecipients: string[] = [];
+		if (settings?.report_recipients) {
+			try {
+				const parsed = JSON.parse(settings.report_recipients);
+				if (Array.isArray(parsed)) {
+					reportRecipients.push(...parsed.filter((e): e is string => typeof e === 'string'));
+				}
+			} catch {
+				// Invalid JSON, return empty array
+			}
+		}
+
 		return json({
 			org: {
 				id: org.id,
@@ -197,6 +246,7 @@ export async function PUT(event: RequestEvent) {
 			hasLogo: !!settings?.logo_key,
 			emailFromName: settings?.email_from_name ?? null,
 			emailReplyTo: settings?.email_reply_to ?? null,
+			reportRecipients,
 			overrides: parseOverrides(settings?.overrides ?? null),
 			updatedAt: settings?.updated_at ?? null
 		});
