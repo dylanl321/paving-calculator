@@ -4,9 +4,10 @@
 		message: string;
 		clause?: string;
 		clauseTitle?: string;
+		guidance?: string;
 	}
 
-	let { status, message, clause, clauseTitle }: Props = $props();
+	let { status, message, clause, clauseTitle, guidance }: Props = $props();
 
 	const statusMap = {
 		pass: 'good',
@@ -22,6 +23,9 @@
 <div class="spec-alert" class:good={resolvedStatus === 'good'} class:warn={resolvedStatus === 'warn'} class:bad={resolvedStatus === 'bad'}>
 	<div class="alert-content">
 		<div class="alert-message">{message}</div>
+		{#if guidance && (resolvedStatus === 'warn' || resolvedStatus === 'bad')}
+			<div class="alert-guidance">→ {guidance}</div>
+		{/if}
 		{#if clause}
 			<div class="clause-pill" title={clauseTitle || clause}>
 				{clause}
@@ -61,6 +65,13 @@
 	}
 	.alert-message {
 		font-weight: var(--fw-medium);
+	}
+	.alert-guidance {
+		font-size: var(--fs-xs);
+		font-style: italic;
+		opacity: 0.85;
+		line-height: 1.3;
+		margin-top: var(--sp-1);
 	}
 	.clause-pill {
 		display: inline-block;

@@ -5,6 +5,7 @@ export interface D1Database {
 	dump(): Promise<ArrayBuffer>;
 	batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]>;
 	exec(query: string): Promise<D1ExecResult>;
+	withSession(sessionToken?: string): D1Database;
 }
 
 export interface D1PreparedStatement {
@@ -23,6 +24,7 @@ export interface D1Result<T = unknown> {
 		size_after: number;
 		rows_read: number;
 		rows_written: number;
+		changes: number;
 	};
 }
 

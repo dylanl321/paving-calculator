@@ -17,6 +17,9 @@
 		try {
 			const { generateProofPDF } = await import('$lib/utils/pdf-export');
 			await generateProofPDF({
+				siteName: job.siteName,
+				siteDescription: job.siteDescription,
+				courseType: job.courseType,
 				widthFt: job.widthFt,
 				thicknessIn: job.thicknessIn,
 				machineId: job.machineId,

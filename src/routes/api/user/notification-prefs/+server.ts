@@ -22,7 +22,7 @@ export async function GET(event: RequestEvent) {
 		const prefs = await db.getNotificationPrefs(user.id);
 		return json({ prefs });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get notification prefs error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -36,7 +36,7 @@ export async function PUT(event: RequestEvent) {
 		}
 		const db = new DbHelper(event.platform.env.DB);
 
-		const body = await event.request.json();
+		const body = (await event.request.json()) as { prefs?: Record<string, boolean> };
 
 		if (!body.prefs || typeof body.prefs !== 'object') {
 			return json({ error: 'prefs object is required' }, { status: 400 });
@@ -57,7 +57,7 @@ export async function PUT(event: RequestEvent) {
 		const prefs = await db.getNotificationPrefs(user.id);
 		return json({ prefs });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Update notification prefs error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

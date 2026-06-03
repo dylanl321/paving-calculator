@@ -2,6 +2,17 @@ import { json, error } from '@sveltejs/kit';
 import { DbLogHelper } from '$lib/server/db-logs';
 import type { RequestHandler } from './$types';
 
+interface DensityRequestBody {
+	station_number?: number;
+	wet_density_pcf?: number;
+	moisture_pct?: number;
+	lane?: string | null;
+	reading_number?: number;
+	target_density_pcf?: number | null;
+	depth_in?: number | null;
+	notes?: string | null;
+}
+
 export const GET: RequestHandler = async ({ params, locals, platform }) => {
 	if (!locals.user) {
 		throw error(401, 'Unauthorized');
@@ -57,7 +68,7 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		throw error(403, 'Access denied');
 	}
 
-	const body = await request.json();
+	const body = (await request.json()) as DensityRequestBody;
 
 	if (typeof body.station_number !== 'number') {
 		throw error(400, 'station_number is required and must be a number');
