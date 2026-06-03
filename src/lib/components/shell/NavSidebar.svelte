@@ -12,6 +12,7 @@
 		Menu,
 		Calculator,
 		BookOpen,
+		BookMarked,
 		LayoutDashboard,
 		Clock,
 		Upload,
@@ -57,6 +58,7 @@
 		},
 		{ href: '/app', label: 'Quick Calc', icon: 'calc' },
 		{ href: '/reference', label: 'Reference', icon: 'book' },
+		{ href: '/dashboard/guides', label: 'Guides', icon: 'guide', authed: true },
 		{ href: '/dashboard/import', label: 'Import', icon: 'upload', authed: true },
 		{ href: '/dashboard/activity', label: 'Activity', icon: 'clock', authed: true, adminOnly: true }
 	];
@@ -257,6 +259,8 @@
 			<Calculator size={22} />
 		{:else if icon === 'book'}
 			<BookOpen size={22} />
+		{:else if icon === 'guide'}
+			<BookMarked size={22} />
 		{:else if icon === 'layout'}
 			<LayoutDashboard size={22} />
 		{:else if icon === 'upload'}
