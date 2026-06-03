@@ -9,6 +9,7 @@
 	import SpecAlert from './SpecAlert.svelte';
 	import HelpTip from './HelpTip.svelte';
 	import Tooltip from './ui/Tooltip.svelte';
+	import CalculationStep from './ui/CalculationStep.svelte';
 	import { constantMeta, placementCheck, rainCheck, spreadSpecCheck, spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -298,19 +299,60 @@
 		{/if}
 	{/if}
 
-	<ShowWork>
-		<p>Target uses the field rule-of-thumb:</p>
-		<code>rate = thickness(in) × {multMeta.value}  →  {calcContext.lift_thickness.value} × {multMeta.value} = {targetRate != null ? Math.round(targetRate) : '—'} lbs/SY</code>
-		<p>Actual converts a real load over the area paved:</p>
-		<code>rate = (tons − retained) × 2000 ÷ (length × width ÷ 9)</code>
-		<p>
-			In-spec is judged against GDOT Section 400 Table 12 — for a
-			<b>{tolerance.label}</b> the placed rate must stay within
-			<b>±{tolerance.toleranceLbsSy} lbs/SY</b> of the target.
-		</p>
-		<div class="src-row">Thickness × 110 multiplier: <SourceBadge status={multMeta.status} tier={multMeta.tier} /></div>
-		<div class="src-row">Table 12 tolerance (±{tolerance.toleranceLbsSy} lbs/SY): <SourceBadge status={tolerance.status} tier={tolerance.tier} /></div>
-		<DotTable tableId="table-12" highlightRow={calcContext.course_type.value} />
+	<ShowWork stepCount={5}>
+		{#if tons && distanceFt && calcContext.road_width.value && targetRate != null && placedRate != null}
+			{@const areaYards = (distanceFt * calcContext.road_width.value) / 9}
+			{@const pounds = tons * 2000}
+			{@const variance = placedRate - targetRate}
+
+			<CalculationStep
+				step={1}
+				label="Area in square yards"
+				formula="{distanceFt.toFixed(0)} × {calcContext.road_width.value.toFixed(0)} ÷ 9"
+				result="{areaYards.toFixed(2)} SY"
+			/>
+			<CalculationStep
+				step={2}
+				label="Pounds placed"
+				formula="{tons.toFixed(2)} × 2000"
+				result="{pounds.toFixed(0)} lbs"
+			/>
+			<CalculationStep
+				step={3}
+				label="Placed rate"
+				formula="{pounds.toFixed(0)} ÷ {areaYards.toFixed(2)}"
+				result="{Math.round(placedRate)} lbs/SY"
+			/>
+			<CalculationStep
+				step={4}
+				label="Target rate"
+				formula="{calcContext.lift_thickness.value.toFixed(2)} × 110"
+				result="{Math.round(targetRate)} lbs/SY"
+			/>
+			<CalculationStep
+				step={5}
+				label="Variance"
+				formula="{Math.round(placedRate)} − {Math.round(targetRate)}"
+				result="{variance > 0 ? '+' : ''}{variance.toFixed(1)} lbs/SY"
+			/>
+		{:else}
+			<p>Target uses the field rule-of-thumb:</p>
+			<code>rate = thickness(in) × {multMeta.value}</code>
+			<p>Actual converts a real load over the area paved:</p>
+			<code>rate = (tons × 2000) ÷ (length × width ÷ 9)</code>
+			<p>Enter values above to see step-by-step calculation.</p>
+		{/if}
+
+		<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+			<p>
+				In-spec is judged against GDOT Section 400 Table 12 — for a
+				<b>{tolerance.label}</b> the placed rate must stay within
+				<b>±{tolerance.toleranceLbsSy} lbs/SY</b> of the target.
+			</p>
+			<div class="src-row">Thickness × 110 multiplier: <SourceBadge status={multMeta.status} tier={multMeta.tier} /></div>
+			<div class="src-row">Table 12 tolerance (±{tolerance.toleranceLbsSy} lbs/SY): <SourceBadge status={tolerance.status} tier={tolerance.tier} /></div>
+			<DotTable tableId="table-12" highlightRow={calcContext.course_type.value} />
+		</div>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>

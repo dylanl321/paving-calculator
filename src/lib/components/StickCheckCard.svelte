@@ -7,6 +7,7 @@
 	import DotTable from './DotTable.svelte';
 	import CrossSectionDiagram from './CrossSectionDiagram.svelte';
 	import Tooltip from './ui/Tooltip.svelte';
+	import CalculationStep from './ui/CalculationStep.svelte';
 	import { constantMeta } from '$lib/config';
 	import { stickCheck } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
@@ -59,11 +60,24 @@
 		<CrossSectionDiagram compactedIn={target} looseIn={loose} />
 	{/if}
 
-	<ShowWork>
-		<code>loose = compacted × {factorMeta.value}</code>
-		<div class="src-row">Compaction factor: <SourceBadge status={factorMeta.status} tier={factorMeta.tier} /></div>
-		<p>Stick check uses GDOT §400.3.05.C (spreading & finishing). STICK_FACTOR 1.25 is the loose-to-compacted ratio applied to target depth to get the screed setting.</p>
-		<DotTable tableId="table-4" />
+	<ShowWork stepCount={1}>
+		{#if target != null && target > 0 && loose != null}
+			<CalculationStep
+				step={1}
+				label="Loose height"
+				formula="{target.toFixed(2)} × {factorMeta.value}"
+				result="{loose.toFixed(2)} in"
+			/>
+		{:else}
+			<code>loose = compacted × {factorMeta.value}</code>
+			<p>Enter target compacted thickness above to see calculation.</p>
+		{/if}
+
+		<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+			<div class="src-row">Compaction factor: <SourceBadge status={factorMeta.status} tier={factorMeta.tier} /></div>
+			<p>Stick check uses GDOT §400.3.05.C (spreading & finishing). STICK_FACTOR 1.25 is the loose-to-compacted ratio applied to target depth to get the screed setting.</p>
+			<DotTable tableId="table-4" />
+		</div>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>

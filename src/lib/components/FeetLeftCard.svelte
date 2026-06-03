@@ -7,6 +7,7 @@
 	import DotTable from './DotTable.svelte';
 	import RoadProgressBar from './RoadProgressBar.svelte';
 	import Tooltip from './ui/Tooltip.svelte';
+	import CalculationStep from './ui/CalculationStep.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { feetFromOrderedMinusPlaced, spreadRateFromThickness } from '$lib/config/formulas';
 	import { constantMeta } from '$lib/config';
@@ -124,12 +125,44 @@
 		<RoadProgressBar currentFeet={completedFeet} totalFeet={totalJobFeet} />
 	{/if}
 
-	<ShowWork>
-		<p>Tons → feet conversion:</p>
-		<code>feet = (ordered − placed) × 2000 × 9 ÷ (width × rate)</code>
-		<p>Ordered minus placed gives remaining tons available today.</p>
-		<p>Rate comes from THICK_MULT (§400 rule-of-thumb: <SourceBadge status={thickMultMeta.status} tier={thickMultMeta.tier} /> = {thickMultMeta.value} lbs/SY per inch). Actual rate shown from job settings.</p>
-		<DotTable tableId="table-12" />
+	<ShowWork stepCount={4}>
+		{#if ordered != null && placed != null && job.widthFt && rate && feet != null}
+			{@const remaining = ordered - placed}
+			{@const remainingLbs = remaining * 2000}
+
+			<CalculationStep
+				step={1}
+				label="Spread rate"
+				formula="{job.thicknessIn.toFixed(2)} × 110"
+				result="{rate.toFixed(0)} lbs/SY"
+			/>
+			<CalculationStep
+				step={2}
+				label="Remaining tons"
+				formula="{ordered.toFixed(2)} − {placed.toFixed(2)}"
+				result="{remaining.toFixed(2)} tons"
+			/>
+			<CalculationStep
+				step={3}
+				label="Remaining lbs"
+				formula="{remaining.toFixed(2)} × 2000"
+				result="{remainingLbs.toFixed(0)} lbs"
+			/>
+			<CalculationStep
+				step={4}
+				label="Feet left"
+				formula="{remainingLbs.toFixed(0)} × 9 ÷ ({job.widthFt.toFixed(0)} × {rate.toFixed(0)})"
+				result="{feet.toFixed(0)} ft"
+			/>
+		{:else}
+			<code>feet = (ordered − placed) × 2000 × 9 ÷ (width × rate)</code>
+			<p>Enter values above to see step-by-step calculation.</p>
+		{/if}
+
+		<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+			<p>Rate comes from THICK_MULT (§400 rule-of-thumb: <SourceBadge status={thickMultMeta.status} tier={thickMultMeta.tier} /> = {thickMultMeta.value} lbs/SY per inch). Actual rate shown from job settings.</p>
+			<DotTable tableId="table-12" />
+		</div>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>
