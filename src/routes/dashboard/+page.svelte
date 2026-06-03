@@ -157,6 +157,24 @@
 			<section class="section map-section">
 				<div class="section-header">
 					<h3>Job Site Locations</h3>
+					{#if data.org.role === 'owner' || data.org.role === 'admin'}
+						<a href="/dashboard/map" class="btn-secondary btn-sm">
+							<svg
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+								<circle cx="12" cy="10" r="3"></circle>
+							</svg>
+							Full Map
+						</a>
+					{/if}
 				</div>
 				{#await import('$lib/components/JobSiteMap.svelte')}
 					<div class="map-loading">Loading map&hellip;</div>
@@ -435,6 +453,16 @@
 	.btn-secondary:disabled {
 		opacity: 0.6;
 		cursor: not-allowed;
+	}
+
+	.btn-sm {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 36px;
+		padding: 0 12px;
+		font-size: 0.85rem;
+		text-decoration: none;
 	}
 
 	.create-form-card {
