@@ -3,6 +3,7 @@
 	import GpsStationButton from '$lib/components/GpsStationButton.svelte';
 	import { formatStation, type RouteWaypoint } from '$lib/services/gpsStation';
 	import { formatFeet } from '$lib/utils/format';
+	import { MapStationPicker } from '$lib/components/map';
 
 	interface Props {
 		jobSiteId: string;
@@ -21,6 +22,10 @@
 	let passNumber = $state<number | null>(null);
 	let notes = $state('');
 	let isSubmitting = $state(false);
+
+	// Map picker mode
+	let mapMode = $state(false);
+	const hasWaypoints = $derived(waypoints.length >= 2);
 
 	// Recent history (last 5 entries)
 	let recentEntries = $state<any[]>([]);
@@ -172,6 +177,33 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- MAP toggle button -->
+	<button
+		type="button"
+		class="map-toggle-btn {mapMode ? 'map-toggle-btn--active' : ''}"
+		disabled={!hasWaypoints}
+		onclick={() => { mapMode = !mapMode; }}
+		title={hasWaypoints ? 'Tap the road alignment to set stations' : 'No route defined — add waypoints first'}
+	>
+		<span class="map-toggle-icon">🗺</span>
+		{mapMode ? 'Hide Map' : 'Set via Map'}
+		{#if !hasWaypoints}
+			<span class="map-toggle-hint">(no route)</span>
+		{/if}
+	</button>
+
+	<!-- Map station picker (shown when map mode active) -->
+	{#if mapMode && hasWaypoints}
+		<div class="map-picker-wrap">
+			<MapStationPicker
+				{waypoints}
+				bind:stationStart
+				bind:stationEnd
+				height="260px"
+			/>
+		</div>
+	{/if}
 
 	{#if distanceFt != null && distanceFt > 0}
 		<div class="distance-preview">= {formatFeet(distanceFt)}</div>
@@ -486,5 +518,59 @@
 		.station-logger-card {
 			max-width: 600px;
 		}
+	}
+
+	.map-toggle-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		width: 100%;
+		min-height: 48px;
+		padding: 0 16px;
+		margin: 8px 0 4px;
+		background: var(--surface);
+		border: 1.5px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text-muted);
+		font-size: 0.9rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: border-color 0.15s, color 0.15s, background 0.15s;
+	}
+
+	.map-toggle-btn:hover:not(:disabled) {
+		border-color: var(--accent);
+		color: var(--text);
+	}
+
+	.map-toggle-btn--active {
+		border-color: var(--accent);
+		color: var(--text);
+		background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+	}
+
+	.map-toggle-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.map-toggle-icon {
+		font-size: 1.1rem;
+	}
+
+	.map-toggle-hint {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		font-weight: 400;
+	}
+
+	.map-picker-wrap {
+		margin: 8px 0 4px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		overflow: hidden;
+		padding: 12px;
+		background: var(--surface);
 	}
 </style>
