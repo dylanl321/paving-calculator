@@ -297,12 +297,19 @@ export function minAirTempForThickness(thicknessIn: number): TempEntry {
 }
 
 /** GDOT Table 12 spread-rate tolerance entry for a course-type id. */
-export function spreadToleranceFor(courseId: string | null | undefined): SpreadToleranceEntry {
-	return (
+export function spreadToleranceFor(
+	courseId: string | null | undefined,
+	overrides?: import('./overrides').OrgOverrides | null
+): SpreadToleranceEntry {
+	const yamlEntry =
 		config.spreadTolerance.find((t) => t.id === courseId) ??
 		config.spreadTolerance.find((t) => t.id === config.defaults.courseType) ??
-		config.spreadTolerance[0]
-	);
+		config.spreadTolerance[0];
+
+	if (overrides?.spreadTolerances && courseId && courseId in overrides.spreadTolerances) {
+		return { ...yamlEntry, toleranceLbsSy: overrides.spreadTolerances[courseId] };
+	}
+	return yamlEntry;
 }
 
 export type SpreadSpecStatus = 'good' | 'warn' | 'bad';
@@ -326,10 +333,11 @@ export interface SpreadSpecCheck {
 export function spreadSpecCheck(
 	placedLbsSy: number | null,
 	targetLbsSy: number | null,
-	courseId: string | null | undefined
+	courseId: string | null | undefined,
+	overrides?: import('./overrides').OrgOverrides | null
 ): SpreadSpecCheck | null {
 	if (placedLbsSy == null || targetLbsSy == null || targetLbsSy <= 0) return null;
-	const tol = spreadToleranceFor(courseId);
+	const tol = spreadToleranceFor(courseId, overrides);
 	const delta = placedLbsSy - targetLbsSy;
 	const absDelta = Math.abs(delta);
 	const direction = delta > 0 ? 'high' : 'low';

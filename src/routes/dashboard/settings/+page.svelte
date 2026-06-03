@@ -72,6 +72,9 @@
 	let tackField = $state<RangeEntry[]>(cloneRanges(ov.tack?.field ?? config.tack.field));
 	let tackSpec = $state<RangeEntry[]>(cloneRanges(ov.tack?.spec ?? config.tack.spec));
 
+	// --- Spread tolerances ---
+	let spreadTolerances = $state<Record<string, number>>(ov.spreadTolerances ?? {});
+
 	let saving = $state(false);
 	let message = $state('');
 	let messageType = $state<'ok' | 'error'>('ok');
@@ -101,6 +104,15 @@
 		if (JSON.stringify(tackField) !== JSON.stringify(config.tack.field)) tOut.field = tackField;
 		if (JSON.stringify(tackSpec) !== JSON.stringify(config.tack.spec)) tOut.spec = tackSpec;
 		if (tOut.field || tOut.spec) out.tack = tOut;
+
+		const stOut: Record<string, number> = {};
+		for (const entry of config.spreadTolerance) {
+			const val = spreadTolerances[entry.id];
+			if (val !== undefined && val !== entry.toleranceLbsSy) {
+				stOut[entry.id] = val;
+			}
+		}
+		if (Object.keys(stOut).length) out.spreadTolerances = stOut;
 
 		return out;
 	}
@@ -239,6 +251,7 @@
 			bind:constants
 			bind:tackField
 			bind:tackSpec
+			bind:spreadTolerances
 		/>
 	{:else if activeTab === 'branding'}
 		<BrandingTab

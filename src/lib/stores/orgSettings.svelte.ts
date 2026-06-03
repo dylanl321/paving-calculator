@@ -76,6 +76,10 @@ class OrgSettingsStore {
 		return this.#resolver.tackSpec;
 	}
 
+	resolvedSpreadToleranceFor(courseId: string | null | undefined) {
+		return this.#resolver.spreadToleranceFor(courseId);
+	}
+
 	async fetch(): Promise<void> {
 		try {
 			const res = await fetch('/api/org/settings', { credentials: 'include' });

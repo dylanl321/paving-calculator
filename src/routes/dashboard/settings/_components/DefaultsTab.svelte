@@ -15,7 +15,8 @@
 		mixType = $bindable(),
 		constants = $bindable(),
 		tackField = $bindable(),
-		tackSpec = $bindable()
+		tackSpec = $bindable(),
+		spreadTolerances = $bindable()
 	}: {
 		canEdit: boolean;
 		roadWidthFt: number;
@@ -29,6 +30,7 @@
 		constants: Record<string, number>;
 		tackField: RangeEntry[];
 		tackSpec: RangeEntry[];
+		spreadTolerances: Record<string, number>;
 	} = $props();
 
 	const machines = config.machines;
@@ -45,6 +47,11 @@
 
 	function resetConstant(key: string) {
 		constants[key] = constantDefault(key);
+	}
+
+	function isToleranceOverridden(courseId: string): boolean {
+		const yamlDefault = courseTypes.find((c) => c.id === courseId)?.toleranceLbsSy ?? 0;
+		return spreadTolerances[courseId] !== undefined && spreadTolerances[courseId] !== yamlDefault;
 	}
 </script>
 
@@ -132,6 +139,44 @@
 					{/if}
 				</div>
 				<span class="hint">Default {constantDefault(key)} · allowed {OVERRIDABLE_CONSTANTS[key].min}–{OVERRIDABLE_CONSTANTS[key].max}</span>
+			</div>
+		{/each}
+	</div>
+</section>
+
+<!-- Spread rate tolerances -->
+<section class="card">
+	<h3>Spread rate tolerances</h3>
+	<p class="card-desc">
+		GDOT Table 12 spread rate tolerances (lbs/SY) for each course type. Override these to
+		apply tighter or looser tolerances for your organization.
+	</p>
+
+	<div class="tolerance-grid">
+		{#each courseTypes as c (c.id)}
+			{@const current = spreadTolerances[c.id] ?? c.toleranceLbsSy}
+			<div class="tolerance-row">
+				<div class="tolerance-label">
+					<span class="tolerance-name">{c.label}</span>
+					{#if isToleranceOverridden(c.id)}
+						<span class="badge">Overridden</span>
+					{/if}
+				</div>
+				<div class="tolerance-inputs">
+					<span class="tolerance-default">Default: ±{c.toleranceLbsSy} lbs/SY</span>
+					<label class="tolerance-input-label">
+						Override (lbs/SY)
+						<input
+							type="number"
+							step="1"
+							min="1"
+							max="500"
+							bind:value={spreadTolerances[c.id]}
+							placeholder={String(c.toleranceLbsSy)}
+							disabled={!canEdit}
+						/>
+					</label>
+				</div>
 			</div>
 		{/each}
 	</div>
@@ -226,5 +271,81 @@
 	.mini input {
 		width: 92px;
 		min-height: 44px;
+	}
+
+	.tolerance-grid {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin-top: 12px;
+	}
+
+	.tolerance-row {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 12px 0;
+		border-top: 1px solid var(--border);
+	}
+
+	.tolerance-label {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.tolerance-name {
+		font-size: 0.95rem;
+		font-weight: 500;
+		color: var(--text);
+	}
+
+	.tolerance-inputs {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.tolerance-default {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.tolerance-input-label {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		font-size: 0.85rem;
+		color: var(--text-muted);
+		font-weight: 500;
+	}
+
+	.tolerance-input-label input {
+		min-height: 48px;
+		font-size: 1rem;
+	}
+
+	@media (min-width: 640px) {
+		.tolerance-row {
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+		}
+
+		.tolerance-inputs {
+			flex-direction: row;
+			align-items: center;
+			gap: 16px;
+		}
+
+		.tolerance-input-label {
+			flex-direction: row;
+			align-items: center;
+			gap: 8px;
+		}
+
+		.tolerance-input-label input {
+			width: 120px;
+		}
 	}
 </style>

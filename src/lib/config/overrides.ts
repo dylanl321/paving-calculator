@@ -29,6 +29,7 @@ export interface OrgOverrides {
 	constants?: Record<string, number>;
 	defaults?: OrgDefaultsOverride;
 	tack?: OrgTackOverride;
+	spreadTolerances?: Record<string, number>;
 }
 
 /**
@@ -164,6 +165,27 @@ export function validateOverrides(input: unknown): ValidationResult {
 		if (out.field || out.spec) cleaned.tack = out;
 	}
 
+	if (raw.spreadTolerances !== undefined) {
+		if (typeof raw.spreadTolerances !== 'object' || raw.spreadTolerances === null) {
+			return { ok: false, error: 'spreadTolerances must be an object' };
+		}
+		const out: Record<string, number> = {};
+		for (const [courseId, value] of Object.entries(raw.spreadTolerances as Record<string, unknown>)) {
+			const yamlEntry = config.spreadTolerance.find((e) => e.id === courseId);
+			if (!yamlEntry) {
+				return { ok: false, error: `Course ID "${courseId}" is not valid` };
+			}
+			if (typeof value !== 'number' || Number.isNaN(value)) {
+				return { ok: false, error: `Tolerance for "${courseId}" must be a number` };
+			}
+			if (value < 1 || value > 500) {
+				return { ok: false, error: `Tolerance for "${courseId}" must be between 1 and 500 lbs/SY` };
+			}
+			out[courseId] = value;
+		}
+		if (Object.keys(out).length > 0) cleaned.spreadTolerances = out;
+	}
+
 	return { ok: true, cleaned };
 }
 
@@ -194,6 +216,17 @@ export function makeResolver(overrides?: OrgOverrides | null) {
 		},
 		get tackSpec(): RangeEntry[] {
 			return ov.tack?.spec ?? config.tack.spec;
+		},
+		spreadToleranceFor(courseId: string | null | undefined) {
+			const yamlEntry =
+				config.spreadTolerance.find((t) => t.id === courseId) ??
+				config.spreadTolerance.find((t) => t.id === config.defaults.courseType) ??
+				config.spreadTolerance[0];
+
+			if (ov.spreadTolerances && courseId && courseId in ov.spreadTolerances) {
+				return { ...yamlEntry, toleranceLbsSy: ov.spreadTolerances[courseId] };
+			}
+			return yamlEntry;
 		}
 	};
 }

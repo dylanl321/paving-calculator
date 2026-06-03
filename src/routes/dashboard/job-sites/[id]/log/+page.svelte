@@ -7,6 +7,7 @@
 	import TimeInput from '$lib/components/TimeInput.svelte';
 	import { Droplets, FileText, Clock, ChevronLeft, ChevronRight, Calendar, FileDown } from 'lucide-svelte';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import ComplianceGauge from '$lib/components/ComplianceGauge.svelte';
 	import NuclearGaugeLog from '$lib/components/NuclearGaugeLog.svelte';
 	import StationProgressLogger from '$lib/components/StationProgressLogger.svelte';
@@ -883,6 +884,7 @@
 			entries={entries}
 			targetSpreadRate={(data.siteConfig as any)?.config?.target_spread_rate ?? null}
 			courseType={(data.siteConfig as any)?.config?.course_type ?? null}
+			overrides={orgSettingsStore.overrides}
 		/>
 
 		{#if currentLog}
