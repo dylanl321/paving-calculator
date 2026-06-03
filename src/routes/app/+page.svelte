@@ -523,6 +523,11 @@
 		justify-content: space-between;
 		gap: var(--sp-3);
 		flex-wrap: wrap;
+		min-width: 0;
+	}
+	.stage-head-row > div {
+		min-width: 0;
+		flex: 1 1 auto;
 	}
 	.stage-title {
 		margin: 2px 0 0;
@@ -656,7 +661,7 @@
 	}
 
 	/* Desktop: three columns — tool list | stage | live rates */
-	@media (min-width: 1100px) {
+	@media (min-width: 1320px) {
 		.panes {
 			display: grid;
 			grid-template-columns: var(--toollist-w) 1fr var(--context-w);
@@ -698,7 +703,7 @@
 	}
 
 	/* Tablet: tool list + stage; rates fold under the stage */
-	@media (min-width: 900px) and (max-width: 1099px) {
+	@media (min-width: 900px) and (max-width: 1319px) {
 		.panes {
 			display: grid;
 			grid-template-columns: var(--toollist-w) 1fr;

@@ -216,14 +216,8 @@
 <style>
 	.home-calcs {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 		gap: var(--sp-4);
-	}
-
-	@media (max-width: 580px) {
-		.home-calcs {
-			grid-template-columns: 1fr;
-		}
 	}
 
 	.calc-panel {
