@@ -1,5 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
+import { DbMilestoneHelper } from '$lib/server/db-milestones';
 import type { RequestHandler } from './$types';
 
 interface MilestoneCreateBody {
@@ -16,6 +17,7 @@ export const GET: RequestHandler = async ({ params, locals, platform }) => {
 	}
 
 	const db = new DbHelper(platform!.env.DB);
+	const milestoneDb = new DbMilestoneHelper(platform!.env.DB);
 
 	const jobSite = await db.getJobSiteById(params.id);
 	if (!jobSite) {
@@ -27,7 +29,7 @@ export const GET: RequestHandler = async ({ params, locals, platform }) => {
 		throw error(403, 'Access denied');
 	}
 
-	const milestones = await db.getMilestones(params.id);
+	const milestones = await milestoneDb.getMilestones(params.id);
 
 	return json({ milestones });
 };
@@ -38,6 +40,7 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 	}
 
 	const db = new DbHelper(platform!.env.DB);
+	const milestoneDb = new DbMilestoneHelper(platform!.env.DB);
 
 	const jobSite = await db.getJobSiteById(params.id);
 	if (!jobSite) {
@@ -56,7 +59,7 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		throw error(400, 'name is required');
 	}
 
-	const milestone = await db.createMilestone(params.id, {
+	const milestone = await milestoneDb.createMilestone(params.id, {
 		name,
 		description,
 		status,

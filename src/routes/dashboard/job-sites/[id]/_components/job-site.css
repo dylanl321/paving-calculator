@@ -1,0 +1,381 @@
+/*
+ * Shared styles for the job-site Project workspace and its per-tab child components.
+ * Imported once (globally) by the parent +page.svelte. These are the rules used by
+ * more than one tab/component; tab-unique rules stay scoped inside their own child.
+ */
+
+.job-site-page .section {
+	margin-bottom: 32px;
+}
+
+.job-site-page .section h3 {
+	margin: 0 0 16px;
+	font-size: 1.2rem;
+}
+
+.job-site-page .section-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 16px;
+}
+
+.job-site-page .section-header h3 {
+	margin: 0;
+	font-size: 1.2rem;
+}
+
+.job-site-page .section-intro {
+	margin: 0 0 16px;
+	font-size: 0.85rem;
+	line-height: 1.5;
+	color: var(--text-muted);
+	max-width: 60ch;
+}
+
+.job-site-page .panel {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 20px;
+	margin-bottom: 16px;
+}
+
+.job-site-page .panel-span {
+	grid-column: 1 / -1;
+}
+
+.job-site-page .panel-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 16px;
+}
+
+.job-site-page .panel-head h3 {
+	margin: 0;
+	font-size: 1.05rem;
+}
+
+.job-site-page .link-btn {
+	background: transparent;
+	border: none;
+	color: var(--accent);
+	font-size: 0.85rem;
+	font-weight: 600;
+	cursor: pointer;
+	padding: 4px 8px;
+	border-radius: 6px;
+}
+
+.job-site-page .link-btn:hover {
+	background: var(--surface-alt);
+}
+
+.job-site-page .spec-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+	gap: 16px 20px;
+	margin: 0;
+}
+
+.job-site-page .spec-item {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	min-width: 0;
+}
+
+.job-site-page .spec-item dt {
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--text-muted);
+}
+
+.job-site-page .spec-item dd {
+	margin: 0;
+	font-size: 1rem;
+	font-weight: 600;
+	color: var(--text);
+	overflow-wrap: anywhere;
+}
+
+.job-site-page .derived-row {
+	display: flex;
+	gap: 12px;
+	flex-wrap: wrap;
+	margin-top: 18px;
+	padding-top: 16px;
+	border-top: 1px solid var(--border);
+}
+
+.job-site-page .derived {
+	flex: 1;
+	min-width: 120px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.job-site-page .derived-label {
+	font-size: 0.72rem;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--text-muted);
+}
+
+.job-site-page .derived-value {
+	font-size: 1.25rem;
+	font-weight: 700;
+	color: var(--accent);
+}
+
+.job-site-page .derived-highlight .derived-value {
+	color: var(--success, #22c55e);
+}
+
+.job-site-page .derived-caption {
+	font-size: 0.72rem;
+	color: var(--text-muted);
+	margin-top: 18px;
+	font-style: italic;
+}
+
+.job-site-page .derived-caption + .derived-row {
+	margin-top: 8px;
+	padding-top: 0;
+	border-top: none;
+}
+
+.job-site-page .config-form {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+.job-site-page .form-group {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.job-site-page .hint-text {
+	font-size: 0.78rem;
+	color: var(--text-muted);
+	padding: 4px 0;
+}
+
+.job-site-page .form-row {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 16px;
+}
+
+.job-site-page label {
+	font-size: 0.85rem;
+	font-weight: 600;
+	color: var(--text-muted);
+}
+
+.job-site-page input,
+.job-site-page select,
+.job-site-page textarea {
+	padding: 12px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	font-size: 0.95rem;
+	color: var(--text);
+	min-height: 48px;
+}
+
+.job-site-page input:focus,
+.job-site-page select:focus,
+.job-site-page textarea:focus {
+	outline: 2px solid var(--accent);
+	outline-offset: 0;
+}
+
+.job-site-page textarea {
+	resize: vertical;
+	min-height: 100px;
+}
+
+.job-site-page .selector-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+	gap: 8px;
+}
+
+.job-site-page .selector-card {
+	padding: 12px;
+	background: var(--surface);
+	border: 2px solid var(--border);
+	border-radius: var(--radius);
+	font-size: 0.85rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.2s;
+	min-height: 48px;
+}
+
+.job-site-page .selector-card:hover {
+	border-color: var(--accent);
+}
+
+.job-site-page .selector-card.active {
+	background: var(--accent);
+	color: var(--accent-text);
+	border-color: var(--accent);
+}
+
+.job-site-page .form-section-title {
+	margin: 0 0 16px;
+	font-size: 1.2rem;
+}
+
+.job-site-page .btn-primary {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 48px;
+	padding: 0 16px;
+	background: var(--accent);
+	color: var(--accent-text);
+	border: none;
+	border-radius: var(--radius);
+	font-size: 0.9rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: opacity 0.2s;
+}
+
+.job-site-page .btn-primary:hover:not(:disabled) {
+	opacity: 0.9;
+}
+
+.job-site-page .btn-primary:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.job-site-page .btn.btn-ghost {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 48px;
+	padding: 0 16px;
+	background: transparent;
+	color: var(--text-muted);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	font-size: 0.9rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: border-color 0.2s, color 0.2s;
+}
+
+.job-site-page .btn.btn-ghost:hover:not(:disabled) {
+	border-color: var(--accent);
+	color: var(--accent);
+}
+
+.job-site-page .btn-remove {
+	width: 40px;
+	height: 40px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	color: var(--text-muted);
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.job-site-page .btn-remove:hover:not(:disabled) {
+	background: var(--warn);
+	border-color: var(--warn);
+	color: white;
+}
+
+.job-site-page .btn-remove:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.job-site-page .status-badge {
+	padding: 6px 12px;
+	border-radius: 999px;
+	font-size: 0.7rem;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	white-space: nowrap;
+}
+
+.job-site-page .status-active {
+	background: var(--good);
+	color: var(--accent-text);
+}
+
+.job-site-page .status-completed {
+	background: var(--text-muted);
+	color: var(--bg);
+}
+
+.job-site-page .status-archived {
+	background: var(--surface-hover);
+	color: var(--text-muted);
+}
+
+.job-site-page .empty-state {
+	text-align: center;
+	padding: 48px 20px;
+	color: var(--text-muted);
+}
+
+.job-site-page .empty-state svg {
+	opacity: 0.5;
+	margin-bottom: 16px;
+}
+
+.job-site-page .empty-state h4 {
+	margin: 0 0 8px;
+	font-size: 1.1rem;
+	color: var(--text);
+}
+
+.job-site-page .empty-state p {
+	margin: 0;
+	font-size: 0.9rem;
+}
+
+.job-site-page .empty-state-mini {
+	padding: 24px;
+	text-align: center;
+	color: var(--text-muted);
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+.job-site-page .empty-state-mini p {
+	margin: 0;
+	font-size: 0.9rem;
+}
+
+.job-site-page .map-mini-loading {
+	padding: 20px;
+	text-align: center;
+	color: var(--text-muted);
+	font-size: 0.875rem;
+}
+
+@media (max-width: 640px) {
+	.job-site-page .form-row {
+		grid-template-columns: 1fr;
+	}
+}

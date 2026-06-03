@@ -1,5 +1,6 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
+import { DbCrewHelper } from '$lib/server/db-crews';
 import { requireAuth } from '$lib/server/auth';
 
 // DELETE /api/org/crews/[crewId]/job-sites/[jobSiteId] - remove job site from crew
@@ -7,6 +8,7 @@ export async function DELETE(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const crewDb = new DbCrewHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -23,7 +25,7 @@ export async function DELETE(event: RequestEvent) {
 		if (!crewId || !jobSiteId) {
 			return json({ error: 'Crew ID and job site ID are required' }, { status: 400 });
 		}
-		await db.removeJobSiteFromCrew(crewId, jobSiteId);
+		await crewDb.removeJobSiteFromCrew(crewId, jobSiteId);
 
 		return json({ success: true });
 	} catch (error) {

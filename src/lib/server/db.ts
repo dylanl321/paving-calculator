@@ -21,6 +21,7 @@ export interface DbOrganization {
 	address?: string | null;
 	superintendent_email?: string | null;
 	superintendent_phone?: string | null;
+	archived_at?: number | null;
 	created_at: number;
 }
 
@@ -177,33 +178,6 @@ export interface DbRoadSection {
 	updated_at: number;
 }
 
-export interface DbWebhook {
-	id: string;
-	org_id: string;
-	url: string;
-	secret: string;
-	events: string; // JSON array of event types
-	description: string | null;
-	is_active: number;
-	created_by: string | null;
-	created_at: number;
-	updated_at: number;
-}
-
-export interface DbWebhookDelivery {
-	id: string;
-	webhook_id: string;
-	event_type: string;
-	payload: string; // JSON
-	status: 'pending' | 'delivered' | 'failed';
-	http_status: number | null;
-	response_body: string | null;
-	attempt_count: number;
-	last_attempted_at: number | null;
-	delivered_at: number | null;
-	created_at: number;
-}
-
 export interface DbLoad {
 	id: string;
 	job_site_id: string;
@@ -222,40 +196,25 @@ export interface DbLoad {
 	ticket_photo_id: string | null;
 }
 
-export interface DbCrew {
-	id: string;
-	org_id: string;
-	name: string;
-	color: string;
-	created_by: string;
-	created_at: number;
-}
-
-export interface DbCrewMember {
-	crew_id: string;
-	user_id: string;
-	org_id: string;
-	assigned_at: number;
-}
-
-export interface DbMilestone {
-	id: string;
-	job_site_id: string;
-	name: string;
-	description: string | null;
-	status: string;
-	target_date: string | null;
-	completed_at: number | null;
-	sort_order: number;
-	created_at: number;
-	updated_at: number;
-}
-
 export interface DbNotificationPref {
 	user_id: string;
 	pref_key: string;
 	enabled: number;
 	updated_at: number;
+}
+
+export interface DbEmailLog {
+	id: string;
+	to_email: string;
+	from_email: string;
+	subject: string;
+	type: string;
+	org_id: string | null;
+	user_id: string | null;
+	status: 'sent' | 'failed' | 'skipped_no_key';
+	provider_message_id: string | null;
+	error: string | null;
+	created_at: number;
 }
 
 export interface DbCrewLocation {
@@ -383,6 +342,22 @@ export class DbHelper {
 			.bind(userId, orgId)
 			.first<{ role: string }>();
 		return result?.role || null;
+	}
+
+	async getUserMemberships(
+		userId: string
+	): Promise<Array<{ org_id: string; org_name: string; role: string; invited_at: number; accepted_at: number | null }>> {
+		return await this.db
+			.prepare(
+				`SELECT om.org_id, o.name as org_name, om.role, om.invited_at, om.accepted_at
+				FROM org_members om
+				JOIN organizations o ON o.id = om.org_id
+				WHERE om.user_id = ?
+				ORDER BY om.invited_at ASC`
+			)
+			.bind(userId)
+			.all<{ org_id: string; org_name: string; role: string; invited_at: number; accepted_at: number | null }>()
+			.then((r) => r.results);
 	}
 
 	async createJobSite(
@@ -608,6 +583,14 @@ export class DbHelper {
 		await this.db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run();
 	}
 
+	async getSessionsByUserId(userId: string): Promise<DbSession[]> {
+		return await this.db
+			.prepare('SELECT * FROM sessions WHERE user_id = ? ORDER BY created_at DESC')
+			.bind(userId)
+			.all<DbSession>()
+			.then((r) => r.results);
+	}
+
 	async cleanExpiredSessions(): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		await this.db.prepare('DELETE FROM sessions WHERE expires_at < ?').bind(now).run();
@@ -634,6 +617,102 @@ export class DbHelper {
 			.prepare('SELECT * FROM organizations WHERE id = ?')
 			.bind(id)
 			.first<DbOrganization>();
+	}
+
+	async getJobSiteCountByOrgId(orgId: string): Promise<number> {
+		const row = await this.db
+			.prepare('SELECT COUNT(*) as c FROM job_sites WHERE org_id = ?')
+			.bind(orgId)
+			.first<{ c: number }>();
+		return row?.c ?? 0;
+	}
+
+	// Admin overview aggregates
+	async getAdminStats(): Promise<{
+		totalOrgs: number;
+		totalUsers: number;
+		activeUsers: number;
+		disabledUsers: number;
+		unverifiedUsers: number;
+		globalAdmins: number;
+		totalJobSites: number;
+		failedEmails: number;
+	}> {
+		const [orgs, users, jobSites, emails] = await Promise.all([
+			this.db.prepare('SELECT COUNT(*) as c FROM organizations').first<{ c: number }>(),
+			this.db
+				.prepare(
+					`SELECT
+						COUNT(*) as total,
+						SUM(CASE WHEN disabled = 1 THEN 1 ELSE 0 END) as disabled,
+						SUM(CASE WHEN email_verified = 0 THEN 1 ELSE 0 END) as unverified,
+						SUM(CASE WHEN is_global_admin = 1 THEN 1 ELSE 0 END) as admins
+					FROM users`
+				)
+				.first<{ total: number; disabled: number; unverified: number; admins: number }>(),
+			this.db.prepare('SELECT COUNT(*) as c FROM job_sites').first<{ c: number }>(),
+			this.db
+				.prepare("SELECT COUNT(*) as c FROM email_log WHERE status IN ('failed', 'skipped_no_key')")
+				.first<{ c: number }>()
+				.catch(() => ({ c: 0 }))
+		]);
+
+		const totalUsers = users?.total ?? 0;
+		const disabledUsers = users?.disabled ?? 0;
+		return {
+			totalOrgs: orgs?.c ?? 0,
+			totalUsers,
+			activeUsers: totalUsers - disabledUsers,
+			disabledUsers,
+			unverifiedUsers: users?.unverified ?? 0,
+			globalAdmins: users?.admins ?? 0,
+			totalJobSites: jobSites?.c ?? 0,
+			failedEmails: emails?.c ?? 0
+		};
+	}
+
+	async getRecentUsers(limit = 5): Promise<DbUser[]> {
+		return await this.db
+			.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT ?')
+			.bind(limit)
+			.all<DbUser>()
+			.then((r) => r.results);
+	}
+
+	async getRecentOrganizations(
+		limit = 5
+	): Promise<Array<DbOrganization & { member_count: number }>> {
+		return await this.db
+			.prepare(
+				`SELECT o.*, COUNT(om.user_id) as member_count
+				FROM organizations o
+				LEFT JOIN org_members om ON om.org_id = o.id
+				GROUP BY o.id
+				ORDER BY o.created_at DESC
+				LIMIT ?`
+			)
+			.bind(limit)
+			.all<DbOrganization & { member_count: number }>()
+			.then((r) => r.results);
+	}
+
+	/** Organizations with zero members or zero owners — surfaced as needing attention. */
+	async getOrgsNeedingAttention(): Promise<
+		Array<DbOrganization & { member_count: number; owner_count: number }>
+	> {
+		return await this.db
+			.prepare(
+				`SELECT o.*,
+					COUNT(om.user_id) as member_count,
+					SUM(CASE WHEN om.role = 'owner' THEN 1 ELSE 0 END) as owner_count
+				FROM organizations o
+				LEFT JOIN org_members om ON om.org_id = o.id
+				GROUP BY o.id
+				HAVING member_count = 0 OR owner_count = 0
+				ORDER BY o.created_at DESC`
+			)
+			.all<DbOrganization & { member_count: number; owner_count: number }>()
+			.then((r) => r.results);
 	}
 
 	async updateOrganization(id: string, updates: { name?: string; slug?: string; address?: string; superintendentEmail?: string; superintendentPhone?: string }): Promise<void> {
@@ -671,18 +750,41 @@ export class DbHelper {
 	}
 
 	async getAllUsers(): Promise<
-		Array<DbUser & { org_name: string | null; org_id: string | null; role: string | null }>
+		Array<DbUser & { org_name: string | null; org_id: string | null; role: string | null; memberships: Array<{ org_id: string; org_name: string; role: string }> }>
 	> {
-		return await this.db
-			.prepare(
-				`SELECT u.*, o.name as org_name, om.org_id, om.role
-				FROM users u
-				LEFT JOIN org_members om ON om.user_id = u.id
-				LEFT JOIN organizations o ON o.id = om.org_id
-				ORDER BY u.created_at DESC`
-			)
-			.all<DbUser & { org_name: string | null; org_id: string | null; role: string | null }>()
+		const users = await this.db
+			.prepare('SELECT * FROM users ORDER BY created_at DESC')
+			.all<DbUser>()
 			.then((r) => r.results);
+
+		const memberRows = await this.db
+			.prepare(
+				`SELECT om.user_id, om.org_id, om.role, o.name as org_name
+				FROM org_members om
+				JOIN organizations o ON o.id = om.org_id
+				ORDER BY om.invited_at ASC`
+			)
+			.all<{ user_id: string; org_id: string; role: string; org_name: string }>()
+			.then((r) => r.results);
+
+		const byUser = new Map<string, Array<{ org_id: string; org_name: string; role: string }>>();
+		for (const row of memberRows) {
+			const list = byUser.get(row.user_id) ?? [];
+			list.push({ org_id: row.org_id, org_name: row.org_name, role: row.role });
+			byUser.set(row.user_id, list);
+		}
+
+		return users.map((u) => {
+			const memberships = byUser.get(u.id) ?? [];
+			const primary = memberships[0] ?? null;
+			return {
+				...u,
+				org_name: primary?.org_name ?? null,
+				org_id: primary?.org_id ?? null,
+				role: primary?.role ?? null,
+				memberships
+			};
+		});
 	}
 
 	async updateUser(
@@ -729,6 +831,14 @@ export class DbHelper {
 		await this.db
 			.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`)
 			.bind(...values)
+			.run();
+	}
+
+	async setEmailVerified(id: string, verified: boolean): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare('UPDATE users SET email_verified = ?, updated_at = ? WHERE id = ?')
+			.bind(verified ? 1 : 0, now, id)
 			.run();
 	}
 
@@ -841,6 +951,14 @@ export class DbHelper {
 			.prepare('SELECT * FROM organizations WHERE slug = ?')
 			.bind(slug)
 			.first<DbOrganization>();
+	}
+
+	async setOrganizationArchived(id: string, archived: boolean): Promise<void> {
+		const value = archived ? Math.floor(Date.now() / 1000) : null;
+		await this.db
+			.prepare('UPDATE organizations SET archived_at = ? WHERE id = ?')
+			.bind(value, id)
+			.run();
 	}
 
 	// Invitation methods
@@ -1117,6 +1235,79 @@ export class DbHelper {
 			.run();
 	}
 
+	// Email send log
+	async logEmail(entry: {
+		to: string;
+		from: string;
+		subject: string;
+		type: string;
+		status: 'sent' | 'failed' | 'skipped_no_key';
+		orgId?: string | null;
+		userId?: string | null;
+		providerMessageId?: string | null;
+		error?: string | null;
+	}): Promise<void> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				`INSERT INTO email_log (
+					id, to_email, from_email, subject, type, org_id, user_id, status,
+					provider_message_id, error, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			)
+			.bind(
+				id,
+				entry.to,
+				entry.from,
+				entry.subject,
+				entry.type,
+				entry.orgId ?? null,
+				entry.userId ?? null,
+				entry.status,
+				entry.providerMessageId ?? null,
+				entry.error ?? null,
+				now
+			)
+			.run();
+	}
+
+	async getEmailLog(filters?: {
+		status?: string;
+		type?: string;
+		toEmail?: string;
+		failedOnly?: boolean;
+		limit?: number;
+	}): Promise<DbEmailLog[]> {
+		let query = 'SELECT * FROM email_log WHERE 1=1';
+		const bindings: (string | number)[] = [];
+
+		if (filters?.status) {
+			query += ' AND status = ?';
+			bindings.push(filters.status);
+		}
+		if (filters?.failedOnly) {
+			query += " AND status IN ('failed', 'skipped_no_key')";
+		}
+		if (filters?.type) {
+			query += ' AND type = ?';
+			bindings.push(filters.type);
+		}
+		if (filters?.toEmail) {
+			query += ' AND to_email LIKE ?';
+			bindings.push(`%${filters.toEmail}%`);
+		}
+
+		query += ' ORDER BY created_at DESC LIMIT ?';
+		bindings.push(filters?.limit ?? 100);
+
+		return await this.db
+			.prepare(query)
+			.bind(...bindings)
+			.all<DbEmailLog>()
+			.then((r) => r.results);
+	}
+
 	async getJobSiteRoute(jobSiteId: string): Promise<DbJobSiteRoute | null> {
 		return await this.db
 			.prepare('SELECT * FROM job_site_routes WHERE job_site_id = ?')
@@ -1155,396 +1346,6 @@ export class DbHelper {
 			created_at: existing?.created_at ?? now,
 			updated_at: now
 		};
-	}
-
-	// Webhook methods
-	async getWebhooksByOrgId(orgId: string): Promise<DbWebhook[]> {
-		return await this.db
-			.prepare('SELECT * FROM webhooks WHERE org_id = ? ORDER BY created_at DESC')
-			.bind(orgId)
-			.all<DbWebhook>()
-			.then((r) => r.results);
-	}
-
-	async getWebhookById(id: string): Promise<DbWebhook | null> {
-		return await this.db
-			.prepare('SELECT * FROM webhooks WHERE id = ?')
-			.bind(id)
-			.first<DbWebhook>();
-	}
-
-	async getActiveWebhooksByOrgId(orgId: string): Promise<DbWebhook[]> {
-		return await this.db
-			.prepare('SELECT * FROM webhooks WHERE org_id = ? AND is_active = 1')
-			.bind(orgId)
-			.all<DbWebhook>()
-			.then((r) => r.results);
-	}
-
-	async createWebhook(
-		orgId: string,
-		url: string,
-		secret: string,
-		events: string[],
-		description: string | null,
-		createdBy: string
-	): Promise<DbWebhook> {
-		const id = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-		const eventsJson = JSON.stringify(events);
-
-		await this.db
-			.prepare(
-				`INSERT INTO webhooks (
-					id, org_id, url, secret, events, description, is_active, created_by, created_at, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			)
-			.bind(id, orgId, url, secret, eventsJson, description, 1, createdBy, now, now)
-			.run();
-
-		return {
-			id,
-			org_id: orgId,
-			url,
-			secret,
-			events: eventsJson,
-			description,
-			is_active: 1,
-			created_by: createdBy,
-			created_at: now,
-			updated_at: now
-		};
-	}
-
-	async updateWebhook(
-		id: string,
-		updates: {
-			url?: string;
-			events?: string[];
-			description?: string | null;
-			is_active?: boolean;
-		}
-	): Promise<void> {
-		const now = Math.floor(Date.now() / 1000);
-		const fields: string[] = [];
-		const values: (string | number | null)[] = [];
-
-		if (updates.url !== undefined) {
-			fields.push('url = ?');
-			values.push(updates.url);
-		}
-		if (updates.events !== undefined) {
-			fields.push('events = ?');
-			values.push(JSON.stringify(updates.events));
-		}
-		if (updates.description !== undefined) {
-			fields.push('description = ?');
-			values.push(updates.description);
-		}
-		if (updates.is_active !== undefined) {
-			fields.push('is_active = ?');
-			values.push(updates.is_active ? 1 : 0);
-		}
-
-		if (fields.length === 0) return;
-
-		fields.push('updated_at = ?');
-		values.push(now);
-		values.push(id);
-
-		await this.db
-			.prepare(`UPDATE webhooks SET ${fields.join(', ')} WHERE id = ?`)
-			.bind(...values)
-			.run();
-	}
-
-	async deleteWebhook(id: string): Promise<void> {
-		await this.db.prepare('DELETE FROM webhook_deliveries WHERE webhook_id = ?').bind(id).run();
-		await this.db.prepare('DELETE FROM webhooks WHERE id = ?').bind(id).run();
-	}
-
-	async createWebhookDelivery(
-		webhookId: string,
-		eventType: string,
-		payload: string,
-		status: 'pending' | 'delivered' | 'failed',
-		httpStatus: number | null,
-		responseBody: string | null
-	): Promise<void> {
-		const id = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-
-		await this.db
-			.prepare(
-				`INSERT INTO webhook_deliveries (
-					id, webhook_id, event_type, payload, status, http_status, response_body,
-					attempt_count, last_attempted_at, delivered_at, created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			)
-			.bind(
-				id,
-				webhookId,
-				eventType,
-				payload,
-				status,
-				httpStatus,
-				responseBody,
-				1,
-				now,
-				status === 'delivered' ? now : null,
-				now
-			)
-			.run();
-	}
-
-	async getWebhookDeliveries(
-		webhookId: string,
-		statusFilter?: string,
-		limit = 50
-	): Promise<DbWebhookDelivery[]> {
-		let query = 'SELECT * FROM webhook_deliveries WHERE webhook_id = ?';
-		const bindings: (string | number)[] = [webhookId];
-
-		if (statusFilter) {
-			query += ' AND status = ?';
-			bindings.push(statusFilter);
-		}
-
-		query += ' ORDER BY created_at DESC LIMIT ?';
-		bindings.push(limit);
-
-		return await this.db
-			.prepare(query)
-			.bind(...bindings)
-			.all<DbWebhookDelivery>()
-			.then((r) => r.results);
-	}
-
-	// Crew management methods
-	async listCrews(orgId: string): Promise<{ id: string; name: string; color: string; created_by: string; created_at: number; }[]> {
-		return await this.db
-			.prepare('SELECT id, name, color, created_by, created_at FROM crews WHERE org_id = ? ORDER BY name ASC')
-			.bind(orgId)
-			.all<{ id: string; name: string; color: string; created_by: string; created_at: number }>()
-			.then(r => r.results);
-	}
-
-	async getCrewMembers(crewId: string): Promise<{ user_id: string; org_id: string; assigned_at: number; name?: string; email?: string; }[]> {
-		return await this.db
-			.prepare(`
-				SELECT cm.user_id, cm.org_id, cm.assigned_at, u.name, u.email
-				FROM crew_members cm
-				JOIN users u ON u.id = cm.user_id
-				WHERE cm.crew_id = ?
-				ORDER BY u.name ASC
-			`)
-			.bind(crewId)
-			.all<{ user_id: string; org_id: string; assigned_at: number; name: string; email: string }>()
-			.then(r => r.results);
-	}
-
-	async getCrewJobSites(crewId: string): Promise<{ id: string; name: string; status: string; location_description: string | null; }[]> {
-		return await this.db
-			.prepare(`
-				SELECT js.id, js.name, js.status, js.location_description
-				FROM crew_job_sites cjs
-				JOIN job_sites js ON js.id = cjs.job_site_id
-				WHERE cjs.crew_id = ?
-				ORDER BY js.name ASC
-			`)
-			.bind(crewId)
-			.all<{ id: string; name: string; status: string; location_description: string | null }>()
-			.then(r => r.results);
-	}
-
-	async assignJobSiteToCrew(crewId: string, jobSiteId: string, orgId: string, assignedBy: string): Promise<void> {
-		const now = Math.floor(Date.now() / 1000);
-		await this.db
-			.prepare(`
-				INSERT OR IGNORE INTO crew_job_sites (crew_id, job_site_id, org_id, assigned_at, assigned_by)
-				VALUES (?, ?, ?, ?, ?)
-			`)
-			.bind(crewId, jobSiteId, orgId, now, assignedBy)
-			.run();
-	}
-
-	async removeJobSiteFromCrew(crewId: string, jobSiteId: string): Promise<void> {
-		await this.db
-			.prepare('DELETE FROM crew_job_sites WHERE crew_id = ? AND job_site_id = ?')
-			.bind(crewId, jobSiteId)
-			.run();
-	}
-
-	async createCrew(orgId: string, name: string, color: string, createdBy: string): Promise<{ id: string; name: string; color: string; org_id: string; created_by: string; created_at: number; }> {
-		const id = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-		await this.db
-			.prepare('INSERT INTO crews (id, org_id, name, color, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-			.bind(id, orgId, name, color, createdBy, now)
-			.run();
-		return { id, name, color, org_id: orgId, created_by: createdBy, created_at: now };
-	}
-
-	async deleteCrew(crewId: string): Promise<void> {
-		await this.db.prepare('DELETE FROM crews WHERE id = ?').bind(crewId).run();
-	}
-
-	async setCrewMember(crewId: string, userId: string, orgId: string): Promise<void> {
-		const now = Math.floor(Date.now() / 1000);
-		// remove from any existing crew in this org first (one crew per member per org)
-		await this.db
-			.prepare('DELETE FROM crew_members WHERE user_id = ? AND org_id = ?')
-			.bind(userId, orgId)
-			.run();
-		await this.db
-			.prepare('INSERT INTO crew_members (crew_id, user_id, org_id, assigned_at) VALUES (?, ?, ?, ?)')
-			.bind(crewId, userId, orgId, now)
-			.run();
-	}
-
-	async removeCrewMember(userId: string, orgId: string): Promise<void> {
-		await this.db
-			.prepare('DELETE FROM crew_members WHERE user_id = ? AND org_id = ?')
-			.bind(userId, orgId)
-			.run();
-	}
-
-	async getJobSitesByForeman(userId: string, orgId: string): Promise<DbJobSite[]> {
-		return await this.db
-			.prepare(
-				`SELECT DISTINCT js.* FROM job_sites js
-				JOIN crew_job_sites cjs ON cjs.job_site_id = js.id
-				JOIN crew_members cm ON cm.crew_id = cjs.crew_id
-				WHERE cm.user_id = ? AND js.org_id = ?
-				ORDER BY js.created_at DESC`
-			)
-			.bind(userId, orgId)
-			.all<DbJobSite>()
-			.then((r) => r.results);
-	}
-
-	// Milestones
-	async getMilestones(jobSiteId: string): Promise<DbMilestone[]> {
-		return await this.db
-			.prepare(
-				'SELECT * FROM job_site_milestones WHERE job_site_id = ? ORDER BY sort_order ASC, created_at ASC'
-			)
-			.bind(jobSiteId)
-			.all<DbMilestone>()
-			.then((r) => r.results);
-	}
-
-	async createMilestone(
-		jobSiteId: string,
-		data: {
-			name: string;
-			description?: string | null;
-			status?: string;
-			target_date?: string | null;
-			sort_order?: number;
-		}
-	): Promise<DbMilestone> {
-		const id = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-		const status = data.status ?? 'pending';
-		const sortOrder = data.sort_order ?? 0;
-
-		await this.db
-			.prepare(
-				`INSERT INTO job_site_milestones (
-					id, job_site_id, name, description, status, target_date, completed_at, sort_order, created_at, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			)
-			.bind(
-				id,
-				jobSiteId,
-				data.name,
-				data.description ?? null,
-				status,
-				data.target_date ?? null,
-				null,
-				sortOrder,
-				now,
-				now
-			)
-			.run();
-
-		return {
-			id,
-			job_site_id: jobSiteId,
-			name: data.name,
-			description: data.description ?? null,
-			status,
-			target_date: data.target_date ?? null,
-			completed_at: null,
-			sort_order: sortOrder,
-			created_at: now,
-			updated_at: now
-		};
-	}
-
-	async updateMilestone(
-		milestoneId: string,
-		updates: {
-			name?: string;
-			description?: string | null;
-			status?: string;
-			target_date?: string | null;
-			sort_order?: number;
-			completed_at?: number | null;
-		}
-	): Promise<DbMilestone | null> {
-		const now = Math.floor(Date.now() / 1000);
-		const fields: string[] = [];
-		const values: (string | number | null)[] = [];
-
-		if (updates.name !== undefined) {
-			fields.push('name = ?');
-			values.push(updates.name);
-		}
-		if (updates.description !== undefined) {
-			fields.push('description = ?');
-			values.push(updates.description);
-		}
-		if (updates.status !== undefined) {
-			fields.push('status = ?');
-			values.push(updates.status);
-		}
-		if (updates.target_date !== undefined) {
-			fields.push('target_date = ?');
-			values.push(updates.target_date);
-		}
-		if (updates.sort_order !== undefined) {
-			fields.push('sort_order = ?');
-			values.push(updates.sort_order);
-		}
-		if (updates.completed_at !== undefined) {
-			fields.push('completed_at = ?');
-			values.push(updates.completed_at);
-		}
-
-		if (fields.length > 0) {
-			fields.push('updated_at = ?');
-			values.push(now);
-			values.push(milestoneId);
-
-			await this.db
-				.prepare(`UPDATE job_site_milestones SET ${fields.join(', ')} WHERE id = ?`)
-				.bind(...values)
-				.run();
-		}
-
-		return await this.db
-			.prepare('SELECT * FROM job_site_milestones WHERE id = ?')
-			.bind(milestoneId)
-			.first<DbMilestone>();
-	}
-
-	async deleteMilestone(milestoneId: string): Promise<void> {
-		await this.db
-			.prepare('DELETE FROM job_site_milestones WHERE id = ?')
-			.bind(milestoneId)
-			.run();
 	}
 
 	// Notification preferences

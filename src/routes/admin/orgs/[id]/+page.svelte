@@ -8,18 +8,53 @@
 		name: string;
 		slug: string;
 		created_at: number;
+		archived_at?: number | null;
 	}
+
+	type OrgRole =
+		| 'owner'
+		| 'admin'
+		| 'member'
+		| 'foreman'
+		| 'operator'
+		| 'inspector'
+		| 'office'
+		| 'laborer'
+		| 'screed_man';
+
+	const ROLES: OrgRole[] = [
+		'owner',
+		'admin',
+		'member',
+		'foreman',
+		'operator',
+		'inspector',
+		'office',
+		'laborer',
+		'screed_man'
+	];
 
 	interface Member {
 		user_id: string;
 		user_name: string;
 		user_email: string;
-		role: 'owner' | 'admin' | 'member';
+		role: OrgRole;
 		invited_at: number;
+	}
+
+	interface Invitation {
+		id: string;
+		email: string;
+		role: OrgRole;
+		invited_by_name: string;
+		created_at: number;
+		expires_at: number;
 	}
 
 	let org = $state<Org | null>(null);
 	let members = $state<Member[]>([]);
+	let invitations = $state<Invitation[]>([]);
+	let jobSiteCount = $state(0);
 	let loading = $state(true);
 	let error = $state('');
 	let editingOrg = $state(false);
@@ -27,6 +62,7 @@
 	let editOrgSlug = $state('');
 	let statusMessage = $state('');
 	let editingMember = $state<{ userId: string; role: string } | null>(null);
+	let archiving = $state(false);
 
 	$effect(() => {
 		if ($page.params.id) {
@@ -44,9 +80,16 @@
 				return;
 			}
 
-			const data = (await res.json()) as { org: Org; members: Member[] };
+			const data = (await res.json()) as {
+				org: Org;
+				members: Member[];
+				invitations: Invitation[];
+				jobSiteCount: number;
+			};
 			org = data.org;
 			members = data.members;
+			invitations = data.invitations ?? [];
+			jobSiteCount = data.jobSiteCount ?? 0;
 		} catch (e) {
 			error = 'Failed to load organization';
 		} finally {
@@ -156,6 +199,38 @@
 		}
 	}
 
+	async function toggleArchive() {
+		if (!org || archiving) return;
+		const wantArchived = !org.archived_at;
+		if (
+			!confirm(
+				wantArchived
+					? 'Archive this organization? Members keep access but it is hidden from active lists.'
+					: 'Unarchive this organization?'
+			)
+		)
+			return;
+		archiving = true;
+		try {
+			const res = await fetch(`/api/admin/orgs/${org.id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: wantArchived ? 'archive' : 'unarchive' })
+			});
+			if (!res.ok) {
+				const data = (await res.json()) as { error?: string };
+				toastStore.error(data.error || 'Failed to update archive state');
+				return;
+			}
+			await loadOrg();
+			toastStore.success(wantArchived ? 'Organization archived' : 'Organization unarchived');
+		} catch {
+			toastStore.error('Failed to update archive state');
+		} finally {
+			archiving = false;
+		}
+	}
+
 	function formatDate(timestamp: number): string {
 		return new Date(timestamp * 1000).toLocaleDateString();
 	}
@@ -209,9 +284,61 @@
 					<dd>{formatDate(org.created_at)}</dd>
 					<dt>Members</dt>
 					<dd>{members.length}</dd>
+					<dt>Job Sites</dt>
+					<dd>{jobSiteCount}</dd>
+					<dt>Pending Invites</dt>
+					<dd>{invitations.length}</dd>
+					<dt>Status</dt>
+					<dd>
+						<span class="role-badge" class:owner={!org.archived_at}>
+							{org.archived_at ? 'Archived' : 'Active'}
+						</span>
+					</dd>
 				</dl>
+				<div class="org-actions">
+					<button
+						class="action-btn"
+						class:danger={!org.archived_at}
+						onclick={toggleArchive}
+						disabled={archiving}
+					>
+						{org.archived_at ? 'Unarchive Organization' : 'Archive Organization'}
+					</button>
+				</div>
 			{/if}
 		</section>
+
+		{#if invitations.length > 0}
+			<section class="invitations">
+				<h2>Pending Invitations</h2>
+				<div class="members-table-wrapper">
+					<table class="members-table">
+						<thead>
+							<tr>
+								<th>Email</th>
+								<th>Role</th>
+								<th>Invited By</th>
+								<th>Sent</th>
+								<th>Expires</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each invitations as inv}
+								<tr>
+									<td data-label="Email">{inv.email}</td>
+									<td data-label="Role">
+										<span class="role-badge">{inv.role}</span>
+									</td>
+									<td data-label="Invited By">{inv.invited_by_name}</td>
+									<td data-label="Sent">{formatDate(inv.created_at)}</td>
+									<td data-label="Expires">{formatDate(inv.expires_at)}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		{/if}
 
 		<section class="members">
 			<h2>Members</h2>
@@ -262,9 +389,9 @@
 			<label>
 				New Role
 				<select bind:value={editingMember.role} required>
-					<option value="member">Member</option>
-					<option value="admin">Admin</option>
-					<option value="owner">Owner</option>
+					{#each ROLES as r}
+						<option value={r}>{r}</option>
+					{/each}
 				</select>
 			</label>
 			<div class="modal-actions">
@@ -394,6 +521,17 @@
 	.info-list dd {
 		margin: 0;
 		color: var(--text);
+	}
+
+	.org-actions {
+		margin-top: 1.25rem;
+		padding-top: 1.25rem;
+		border-top: 1px solid var(--border);
+	}
+
+	.org-actions .action-btn {
+		min-height: var(--touch);
+		padding: 0.5rem 1rem;
 	}
 
 	.edit-form label {

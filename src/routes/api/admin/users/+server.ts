@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireGlobalAdmin, hashPassword } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
+import { recordAudit } from '$lib/server/audit';
 
 type OrgRole =
 	| 'owner'
@@ -41,7 +42,7 @@ export async function GET(event: RequestEvent) {
 
 export async function POST(event: RequestEvent) {
 	try {
-		await requireGlobalAdmin(event);
+		const admin = await requireGlobalAdmin(event);
 		const body = (await event.request.json()) as CreateUserBody;
 		const { email, password, name, org_id, role, phone, is_global_admin } = body;
 
@@ -77,6 +78,21 @@ export async function POST(event: RequestEvent) {
 		if (org_id && role) {
 			await db.addOrgMember(user.id, org_id, role);
 		}
+
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: admin.id,
+			actorName: admin.name,
+			orgId: org_id || 'global',
+			resourceType: 'user',
+			resourceId: user.id,
+			action: 'created',
+			newValue: { email, name, role: role ?? null, is_global_admin: !!is_global_admin },
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		const { password_hash, ...sanitized } = user;
 		return json({ user: sanitized }, { status: 201 });

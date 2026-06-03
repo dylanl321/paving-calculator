@@ -4,7 +4,7 @@ import { requireAuth } from '$lib/server/auth';
 interface WorkZone {
 	id: number;
 	org_id: string;
-	job_site_id: number;
+	job_site_id: string;
 	name: string;
 	zone_type: 'paving' | 'milling' | 'tack' | 'base' | 'other';
 	status: 'pending' | 'active' | 'complete' | 'hold';
@@ -50,7 +50,7 @@ export async function PATCH(event: RequestEvent): Promise<Response> {
 		// Verify zone exists and belongs to org
 		const existingZone = await db
 			.prepare('SELECT * FROM work_zones WHERE id = ? AND org_id = ? AND job_site_id = ?')
-			.bind(parseInt(zoneId), orgId, parseInt(siteId))
+			.bind(parseInt(zoneId), orgId, siteId)
 			.first<WorkZone>();
 
 		if (!existingZone) {
@@ -138,7 +138,7 @@ export async function DELETE(event: RequestEvent): Promise<Response> {
 		// Verify zone exists and belongs to org
 		const existingZone = await db
 			.prepare('SELECT id FROM work_zones WHERE id = ? AND org_id = ? AND job_site_id = ?')
-			.bind(parseInt(zoneId), orgId, parseInt(siteId))
+			.bind(parseInt(zoneId), orgId, siteId)
 			.first();
 
 		if (!existingZone) {

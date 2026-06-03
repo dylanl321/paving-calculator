@@ -95,13 +95,24 @@
 
 	function handleDrawingChange(geojson: string) {
 		drawnGeoJson = geojson;
-		if (geojson && selectedType) {
-			// Polygon completed, show form
-			showZoneForm = true;
-			drawingMode = 'none';
-			zoneForm.zone_type = selectedType;
-			zoneForm.name = '';
-			zoneForm.notes = '';
+		if (!geojson || !selectedType) return;
+
+		// Drawing emits in-progress geometry (properties.inProgress) on each point
+		// and final geometry on finish. Only open the form for a finished polygon.
+		try {
+			const parsed = JSON.parse(geojson);
+			const finished = (parsed.features || []).find(
+				(f: any) => f?.geometry?.type === 'Polygon' && !f?.properties?.inProgress
+			);
+			if (finished) {
+				showZoneForm = true;
+				drawingMode = 'none';
+				zoneForm.zone_type = selectedType;
+				zoneForm.name = '';
+				zoneForm.notes = '';
+			}
+		} catch {
+			// ignore malformed progress payloads
 		}
 	}
 
@@ -236,7 +247,7 @@
 			{/each}
 
 			{#if drawingMode !== 'none'}
-				<MapDrawing {map} mode={drawingMode} onchange={handleDrawingChange} />
+				<MapDrawing mode={drawingMode} onchange={handleDrawingChange} />
 			{/if}
 		{/if}
 	</MapContainer>
@@ -292,7 +303,8 @@
 
 		{#if drawingMode !== 'none'}
 			<div class="drawing-hint">
-				Tap the map to add points. Double-tap to finish the polygon.
+				Tap the map (or use Add Point) to drop polygon corners, then tap Finish. Double-tap also
+				finishes on desktop.
 				<button class="btn-cancel" onclick={cancelDrawing}>Cancel</button>
 			</div>
 		{/if}

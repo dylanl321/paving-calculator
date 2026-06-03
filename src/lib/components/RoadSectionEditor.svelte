@@ -3,6 +3,7 @@
 	import L from 'leaflet';
 	import { MapContainer, MapPolyline, MapMarker } from '$lib/components/map';
 	import { constant } from '$lib/config';
+	import { metersToFeet, haversineFeet } from '$lib/services/mapUtils';
 
 	interface Waypoint {
 		lat: number;
@@ -156,10 +157,10 @@
 
 		let distanceFt = 0;
 		for (let i = 0; i < nearestSegmentIdx; i++) {
-			distanceFt += routePoints[i].distanceTo(routePoints[i + 1]) * 3.28084;
+			distanceFt += metersToFeet(routePoints[i].distanceTo(routePoints[i + 1]));
 		}
 
-		distanceFt += routePoints[nearestSegmentIdx].distanceTo(nearestPointOnSegment) * 3.28084;
+		distanceFt += metersToFeet(routePoints[nearestSegmentIdx].distanceTo(nearestPointOnSegment));
 
 		return distanceFt / FT_PER_STATION;
 	}
@@ -227,6 +228,29 @@
 			return null;
 		}
 		return null;
+	}
+
+	/** Length of a section's polyline geometry in feet. */
+	function sectionLengthFt(section: RoadSection): number {
+		const pts = getSectionGeometry(section);
+		if (!pts || pts.length < 2) return 0;
+		let ft = 0;
+		for (let i = 0; i < pts.length - 1; i++) {
+			ft += haversineFeet(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]);
+		}
+		return ft;
+	}
+
+	const completedLengthFt = $derived(
+		sections.filter((s) => s.status === 'completed').reduce((sum, s) => sum + sectionLengthFt(s), 0)
+	);
+
+	const remainingLengthFt = $derived(
+		totalLengthFt != null ? Math.max(0, totalLengthFt - completedLengthFt) : null
+	);
+
+	function formatFt(ft: number): string {
+		return `${Math.round(ft).toLocaleString()} ft`;
 	}
 
 	function handleMapReady(m: L.Map) {
@@ -314,6 +338,24 @@
 
 	<div class="section-panel">
 		<div class="panel-header">
+			{#if totalLengthFt != null && totalLengthFt > 0}
+				<div class="length-summary">
+					<div class="length-item">
+						<span class="length-label">Total</span>
+						<span class="length-value">{formatFt(totalLengthFt)}</span>
+					</div>
+					<div class="length-item">
+						<span class="length-label">Completed</span>
+						<span class="length-value done">{formatFt(completedLengthFt)}</span>
+					</div>
+					<div class="length-item">
+						<span class="length-label">Remaining</span>
+						<span class="length-value remaining"
+							>{remainingLengthFt != null ? formatFt(remainingLengthFt) : '—'}</span
+						>
+					</div>
+				</div>
+			{/if}
 			<button class="btn-add" onclick={startAddSection} disabled={drawMode !== 'idle'}>
 				<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M10 5v10M5 10h10" />
@@ -430,6 +472,45 @@
 	.panel-header {
 		padding: 12px;
 		border-bottom: 1px solid var(--border, #333);
+	}
+
+	.length-summary {
+		display: flex;
+		gap: 8px;
+		margin-bottom: 12px;
+	}
+
+	.length-item {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 8px 10px;
+		background: var(--surface-alt, #2a2a2a);
+		border: 1px solid var(--border, #333);
+		border-radius: 8px;
+	}
+
+	.length-label {
+		font-size: 11px;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--text-muted, #999);
+	}
+
+	.length-value {
+		font-size: 15px;
+		font-weight: 700;
+		color: var(--text, #fff);
+		font-family: 'SF Mono', 'Consolas', monospace;
+	}
+
+	.length-value.done {
+		color: #22c55e;
+	}
+
+	.length-value.remaining {
+		color: var(--accent, #f59e0b);
 	}
 
 	.btn-add {

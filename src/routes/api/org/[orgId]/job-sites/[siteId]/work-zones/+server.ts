@@ -4,7 +4,7 @@ import { requireAuth } from '$lib/server/auth';
 interface WorkZone {
 	id: number;
 	org_id: string;
-	job_site_id: number;
+	job_site_id: string;
 	name: string;
 	zone_type: 'paving' | 'milling' | 'tack' | 'base' | 'other';
 	status: 'pending' | 'active' | 'complete' | 'hold';
@@ -51,7 +51,7 @@ export async function GET(event: RequestEvent): Promise<Response> {
 			.prepare(
 				'SELECT * FROM work_zones WHERE org_id = ? AND job_site_id = ? ORDER BY created_at DESC'
 			)
-			.bind(orgId, parseInt(siteId))
+			.bind(orgId, siteId)
 			.all<WorkZone>();
 
 		return json({ work_zones: zones.results || [] });
@@ -92,7 +92,7 @@ export async function POST(event: RequestEvent): Promise<Response> {
 		// Verify job site exists and belongs to org
 		const jobSite = await db
 			.prepare('SELECT id FROM job_sites WHERE id = ? AND org_id = ?')
-			.bind(parseInt(siteId), orgId)
+			.bind(siteId, orgId)
 			.first();
 
 		if (!jobSite) {
@@ -109,7 +109,7 @@ export async function POST(event: RequestEvent): Promise<Response> {
 			)
 			.bind(
 				orgId,
-				parseInt(siteId),
+				siteId,
 				body.name,
 				body.zone_type,
 				body.status || 'pending',

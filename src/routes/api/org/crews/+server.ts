@@ -1,23 +1,25 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
+import { DbCrewHelper } from '$lib/server/db-crews';
 import { requireAuth } from '$lib/server/auth';
 
 export async function GET(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const crewDb = new DbCrewHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
 			return json({ error: 'Organization not found' }, { status: 404 });
 		}
 
-		const crews = await db.listCrews(org.id);
+		const crews = await crewDb.listCrews(org.id);
 
 		// Fetch member counts and member details for each crew
 		const crewsWithMembers = await Promise.all(
 			crews.map(async (crew) => {
-				const members = await db.getCrewMembers(crew.id);
+				const members = await crewDb.getCrewMembers(crew.id);
 				return {
 					id: crew.id,
 					name: crew.name,
@@ -40,6 +42,7 @@ export async function POST(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const crewDb = new DbCrewHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -64,7 +67,7 @@ export async function POST(event: RequestEvent) {
 			return json({ error: 'Invalid color' }, { status: 400 });
 		}
 
-		const crew = await db.createCrew(org.id, name.trim(), color, user.id);
+		const crew = await crewDb.createCrew(org.id, name.trim(), color, user.id);
 
 		return json({ crew }, { status: 201 });
 	} catch (error) {

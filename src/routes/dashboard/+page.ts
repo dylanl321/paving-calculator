@@ -2,7 +2,16 @@ import { redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import type { DbJobSite } from '$lib/server/db';
 
-export const load: PageLoad = async ({ fetch }) => {
+interface LiveSite {
+	id: string;
+	today_tons: number;
+	today_loads: number;
+	today_log_open: boolean;
+	crew_name: string | null;
+	crew_color: string | null;
+}
+
+export const load: PageLoad = async ({ fetch, url }) => {
 	try {
 		const authRes = await fetch('/api/auth/me', { credentials: 'include' });
 		if (!authRes.ok) {
@@ -21,6 +30,20 @@ export const load: PageLoad = async ({ fetch }) => {
 
 		const jobSitesData: { job_sites: DbJobSite[] } = await jobSitesRes.json();
 
+		// Best-effort live status enrichment (crew, today's tons/loads, live status).
+		// map-sites is owner/admin-only and only covers sites with coordinates; degrade gracefully.
+		let liveSites: LiveSite[] = [];
+		try {
+			const mapRes = await fetch('/api/org/map-sites', { credentials: 'include' });
+			if (mapRes.ok) {
+				const mapData = (await mapRes.json()) as { sites?: LiveSite[] };
+				liveSites = mapData.sites ?? [];
+			}
+		} catch {
+			liveSites = [];
+		}
+		const liveById = new Map(liveSites.map((s) => [s.id, s]));
+
 		// Get calculation counts for each job site
 		const jobSitesWithCounts = await Promise.all(
 			jobSitesData.job_sites.map(async (site) => {
@@ -28,9 +51,15 @@ export const load: PageLoad = async ({ fetch }) => {
 					credentials: 'include'
 				});
 				const calcData = (await calcRes.json()) as { calculations?: unknown[] };
+				const live = liveById.get(site.id);
 				return {
 					...site,
-					calculation_count: calcData.calculations?.length || 0
+					calculation_count: calcData.calculations?.length || 0,
+					today_tons: live?.today_tons ?? null,
+					today_loads: live?.today_loads ?? null,
+					today_log_open: live?.today_log_open ?? false,
+					crew_name: live?.crew_name ?? null,
+					crew_color: live?.crew_color ?? null
 				};
 			})
 		);
@@ -38,7 +67,9 @@ export const load: PageLoad = async ({ fetch }) => {
 		return {
 			user: authData.user,
 			org: authData.org,
-			jobSites: jobSitesWithCounts
+			jobSites: jobSitesWithCounts,
+			verified: url.searchParams.get('verified'),
+			verifyError: url.searchParams.get('verify_error')
 		};
 	} catch (err) {
 		if (err instanceof Response) throw err;

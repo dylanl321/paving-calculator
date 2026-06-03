@@ -1,4 +1,5 @@
 import type { RequestEvent } from '@sveltejs/kit';
+import { dev } from '$app/environment';
 import { DbHelper, type DbUser } from './db';
 import { toHex } from '$lib/utils/format';
 
@@ -82,7 +83,9 @@ export function setSessionCookie(cookies: RequestEvent['cookies'], token: string
 	cookies.set(SESSION_COOKIE, token, {
 		path: '/',
 		httpOnly: true,
-		secure: true,
+		// Secure cookies are dropped over plain http://localhost, which would
+		// break every authenticated flow under `vite dev`. Stay Secure in prod.
+		secure: !dev,
 		sameSite: 'lax',
 		maxAge: SESSION_DURATION_SECONDS
 	});

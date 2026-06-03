@@ -1,5 +1,6 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
+import { DbWebhookHelper } from '$lib/server/db-webhooks';
 import { requireAuth } from '$lib/server/auth';
 
 const VALID_EVENT_TYPES = [
@@ -17,6 +18,7 @@ export async function GET(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const webhookDb = new DbWebhookHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -30,7 +32,7 @@ export async function GET(event: RequestEvent) {
 
 		const { id } = event.params;
 		if (!id) return json({ error: 'Webhook ID is required' }, { status: 400 });
-		const webhook = await db.getWebhookById(id);
+		const webhook = await webhookDb.getWebhookById(id);
 		if (!webhook) {
 			return json({ error: 'Webhook not found' }, { status: 404 });
 		}
@@ -67,6 +69,7 @@ export async function PATCH(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const webhookDb = new DbWebhookHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -80,7 +83,7 @@ export async function PATCH(event: RequestEvent) {
 
 		const { id } = event.params;
 		if (!id) return json({ error: 'Webhook ID is required' }, { status: 400 });
-		const webhook = await db.getWebhookById(id);
+		const webhook = await webhookDb.getWebhookById(id);
 		if (!webhook) {
 			return json({ error: 'Webhook not found' }, { status: 404 });
 		}
@@ -117,7 +120,7 @@ export async function PATCH(event: RequestEvent) {
 		}
 
 		// Update webhook
-		await db.updateWebhook(id, {
+		await webhookDb.updateWebhook(id, {
 			url: body.url,
 			events: body.events,
 			description: body.description,
@@ -125,7 +128,7 @@ export async function PATCH(event: RequestEvent) {
 		});
 
 		// Fetch updated webhook
-		const updatedWebhook = await db.getWebhookById(id);
+		const updatedWebhook = await webhookDb.getWebhookById(id);
 		if (!updatedWebhook) {
 			return json({ error: 'Webhook not found after update' }, { status: 500 });
 		}
@@ -149,6 +152,7 @@ export async function DELETE(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const webhookDb = new DbWebhookHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -162,7 +166,7 @@ export async function DELETE(event: RequestEvent) {
 
 		const { id } = event.params;
 		if (!id) return json({ error: 'Webhook ID is required' }, { status: 400 });
-		const webhook = await db.getWebhookById(id);
+		const webhook = await webhookDb.getWebhookById(id);
 		if (!webhook) {
 			return json({ error: 'Webhook not found' }, { status: 404 });
 		}
@@ -173,7 +177,7 @@ export async function DELETE(event: RequestEvent) {
 		}
 
 		// Delete webhook (and its deliveries via cascade or explicit)
-		await db.deleteWebhook(id);
+		await webhookDb.deleteWebhook(id);
 
 		return json({ success: true });
 	} catch (error) {

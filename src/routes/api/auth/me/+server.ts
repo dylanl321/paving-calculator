@@ -14,6 +14,9 @@ export async function GET(event: RequestEvent) {
 		}
 		const db = new DbHelper(event.platform.env.DB);
 
+		// Pull the full user row so the client gets verification state.
+		const fullUser = await db.getUserById(user.id);
+
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
 			return json({ error: 'Organization not found' }, { status: 404 });
@@ -26,7 +29,8 @@ export async function GET(event: RequestEvent) {
 				id: user.id,
 				email: user.email,
 				name: user.name,
-				isGlobalAdmin: user.isGlobalAdmin
+				isGlobalAdmin: user.isGlobalAdmin,
+				email_verified: !!fullUser?.email_verified
 			},
 			org: {
 				id: org.id,

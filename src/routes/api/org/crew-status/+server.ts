@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbLogHelper } from '$lib/server/db-logs';
+import { DbCrewHelper } from '$lib/server/db-crews';
 import { requireAuth } from '$lib/server/auth';
 
 export async function GET(event: RequestEvent) {
@@ -8,6 +9,7 @@ export async function GET(event: RequestEvent) {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
 		const logDb = new DbLogHelper(event.platform!.env.DB);
+		const crewDb = new DbCrewHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) return json({ error: 'Organization not found' }, { status: 404 });
@@ -18,12 +20,12 @@ export async function GET(event: RequestEvent) {
 		}
 
 		const today = new Date().toISOString().split('T')[0];
-		const crews = await db.listCrews(org.id);
+		const crews = await crewDb.listCrews(org.id);
 
 		const crewStatuses = await Promise.all(
 			crews.map(async (crew) => {
-				const members = await db.getCrewMembers(crew.id);
-				const jobSites = await db.getCrewJobSites(crew.id);
+				const members = await crewDb.getCrewMembers(crew.id);
+				const jobSites = await crewDb.getCrewJobSites(crew.id);
 
 				const siteStatuses = await Promise.all(
 					jobSites.map(async (site) => {

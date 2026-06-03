@@ -5,7 +5,7 @@
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
-	const token = $page.url.searchParams.get('token') || '';
+	const token = $derived($page.url.searchParams.get('token') ?? '');
 
 	let password = $state('');
 	let confirmPassword = $state('');

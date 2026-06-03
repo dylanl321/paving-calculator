@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbLogHelper } from '$lib/server/db-logs';
+import { DbCrewHelper } from '$lib/server/db-crews';
 import { requireAuth } from '$lib/server/auth';
 
 interface CrewProductivity {
@@ -23,6 +24,7 @@ export async function GET(event: RequestEvent) {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
 		const logDb = new DbLogHelper(event.platform!.env.DB);
+		const crewDb = new DbCrewHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) return json({ error: 'Organization not found' }, { status: 404 });
@@ -41,13 +43,13 @@ export async function GET(event: RequestEvent) {
 			startDateParam ||
 			new Date(new Date(endDate).getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-		const crews = await db.listCrews(org.id);
+		const crews = await crewDb.listCrews(org.id);
 		const allJobSites = await db.getJobSitesByOrgId(org.id);
 
 		const crewProductivityList: CrewProductivity[] = await Promise.all(
 			crews.map(async (crew) => {
-				const members = await db.getCrewMembers(crew.id);
-				const jobSites = await db.getCrewJobSites(crew.id);
+				const members = await crewDb.getCrewMembers(crew.id);
+				const jobSites = await crewDb.getCrewJobSites(crew.id);
 				const jobSiteIds = jobSites.map((site) => site.id);
 
 				let totalTons = 0;
@@ -170,7 +172,7 @@ export async function GET(event: RequestEvent) {
 
 		const assignedSiteIds = new Set<string>();
 		for (const crew of crews) {
-			const sites = await db.getCrewJobSites(crew.id);
+			const sites = await crewDb.getCrewJobSites(crew.id);
 			for (const site of sites) {
 				assignedSiteIds.add(site.id);
 			}

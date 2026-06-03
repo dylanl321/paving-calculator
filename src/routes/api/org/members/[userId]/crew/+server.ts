@@ -1,11 +1,13 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
+import { DbCrewHelper } from '$lib/server/db-crews';
 import { requireAuth } from '$lib/server/auth';
 
 export async function PATCH(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
 		const db = new DbHelper(event.platform!.env.DB);
+		const crewDb = new DbCrewHelper(event.platform!.env.DB);
 
 		const org = await db.getOrgByUserId(user.id);
 		if (!org) {
@@ -25,10 +27,10 @@ export async function PATCH(event: RequestEvent) {
 
 		if (crew_id === null || crew_id === undefined || crew_id === '') {
 			// Remove member from crew
-			await db.removeCrewMember(userId, org.id);
+			await crewDb.removeCrewMember(userId, org.id);
 		} else {
 			// Assign member to crew
-			await db.setCrewMember(crew_id, userId, org.id);
+			await crewDb.setCrewMember(crew_id, userId, org.id);
 		}
 
 		return json({ success: true });
