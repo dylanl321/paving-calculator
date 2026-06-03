@@ -6,6 +6,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import { navCollapsedStore } from '$lib/stores/navCollapsed.svelte';
+	import { triggerOnboarding } from '$lib/stores/onboarding';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import UserMenu from '$lib/components/UserMenu.svelte';
 	import { fade } from 'svelte/transition';
@@ -64,6 +65,7 @@
 		},
 		{ href: '/app', label: 'Quick Calc', icon: 'calc' },
 		{ href: '/reference', label: 'Reference', icon: 'book' },
+		{ href: '/glossary', label: 'Glossary', icon: 'book' },
 		{ href: '/dashboard/guides', label: 'Guides', icon: 'guide', authed: true },
 		{ href: '/dashboard/import', label: 'Import', icon: 'upload', authed: true },
 		{ href: '/dashboard/activity', label: 'Activity', icon: 'clock', authed: true, adminOnly: true }
@@ -375,6 +377,19 @@
 			<ThemeToggle />
 			<UserMenu direction="up" align="left" />
 		</div>
+		{#if authStore.isAuthenticated}
+			<button
+				class="tutorial-btn"
+				onclick={triggerOnboarding}
+				title="Replay tutorial"
+			>
+				<svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+					<circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5" />
+					<path d="M8 5V8L10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+				</svg>
+				<span class="tutorial-label">Replay Tutorial</span>
+			</button>
+		{/if}
 		<div class="footer-tools">
 			<button
 				class="cmd-trigger-btn"
@@ -761,6 +776,34 @@
 		flex-shrink: 0;
 	}
 
+	.tutorial-btn {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		min-height: 40px;
+		padding: 0 12px;
+		background: transparent;
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		color: var(--text-muted);
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		margin-top: 8px;
+	}
+
+	.tutorial-btn:hover {
+		background: var(--surface-hover);
+		color: var(--text);
+		border-color: var(--accent);
+	}
+
+	.tutorial-btn svg {
+		flex-shrink: 0;
+	}
+
 	.footer-tools {
 		display: none;
 	}
@@ -894,6 +937,15 @@
 
 		.powered-by span {
 			display: inline;
+		}
+
+		.tutorial-label {
+			display: inline;
+		}
+
+		.tutorial-btn {
+			justify-content: flex-start;
+			padding: 0 12px;
 		}
 
 		.footer-tools {
@@ -1036,6 +1088,16 @@
 
 		.sidebar.nav-collapsed .powered-by span {
 			display: none;
+		}
+
+		.sidebar.nav-collapsed .tutorial-label {
+			display: none;
+		}
+
+		.sidebar.nav-collapsed .tutorial-btn {
+			justify-content: center;
+			min-width: 40px;
+			padding: 0;
 		}
 	}
 </style>

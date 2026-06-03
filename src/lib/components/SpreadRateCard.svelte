@@ -8,6 +8,7 @@
 	import DotTable from './DotTable.svelte';
 	import SpecAlert from './SpecAlert.svelte';
 	import HelpTip from './HelpTip.svelte';
+	import Tooltip from './ui/Tooltip.svelte';
 	import { constantMeta, placementCheck, rainCheck, spreadSpecCheck, spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -30,6 +31,7 @@
 	let distanceInput = $state<number | null>(null);
 	let customTargetRateInput = $state<number | null>(null);
 	let overrideExpanded = $state(false);
+	let guidanceExpanded = $state(false);
 
 	// Guard: if override section is collapsed, clear custom rate immediately
 	$effect(() => {
@@ -155,7 +157,7 @@
 		<div class="col">
 			<div class="col-head label-row">
 				Target (from job thickness)
-				<HelpTip text="Pounds of asphalt per square yard. GDOT spec requires this within tolerance for your mix type." />
+				<Tooltip term="lbs/SY" definition="Pounds per Square Yard. Standard unit for spread rate (how much asphalt per area). Controls thickness and density of the asphalt mat." />
 			</div>
 
 			<button
@@ -254,13 +256,44 @@
 		<SpreadRateGauge actual={placedRate} target={targetRate} toleranceLbsSy={tolerance.toleranceLbsSy} />
 		{#if spec}
 			<SpecAlert status={spec.status} message={spec.message} clause={spec.clause} clauseTitle={spec.clauseTitle} guidance={spec.guidance} />
-			{#if (spec.status === 'warn' || spec.status === 'bad') && distanceFt && calcContext.road_width.value}
-				<button type="button" class="snap-btn" onclick={snapToTarget}>
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+			{#if spec.status === 'warn' || spec.status === 'bad'}
+				<button
+					type="button"
+					class="guidance-toggle"
+					onclick={() => { guidanceExpanded = !guidanceExpanded; }}
+					aria-expanded={guidanceExpanded}
+				>
+					<svg
+						class="chevron"
+						class:expanded={guidanceExpanded}
+						width="16"
+						height="16"
+						viewBox="0 0 16 16"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 					</svg>
-					Snap to spec
+					What should I do?
 				</button>
+				{#if guidanceExpanded}
+					<div class="guidance-section">
+						<ul class="guidance-list">
+							<li>Notify foreman immediately</li>
+							<li>Check screed settings and verify proper float</li>
+							<li>Verify mix ticket matches job specs</li>
+							<li>Adjust paver speed if laying too thick or thin</li>
+						</ul>
+					</div>
+				{/if}
+				{#if distanceFt && calcContext.road_width.value}
+					<button type="button" class="snap-btn" onclick={snapToTarget}>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+						</svg>
+						Snap to spec
+					</button>
+				{/if}
 			{/if}
 		{/if}
 	{/if}
@@ -424,6 +457,59 @@
 	.snap-btn svg {
 		width: 16px;
 		height: 16px;
+	}
+	.guidance-toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		min-height: var(--touch);
+		width: 100%;
+		padding: var(--sp-3);
+		margin-top: var(--sp-2);
+		background: transparent;
+		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+		border-radius: var(--radius-sm);
+		color: var(--warn);
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+	.guidance-toggle:hover {
+		background: color-mix(in srgb, var(--warn) 12%, transparent);
+		border-color: var(--warn);
+	}
+	.guidance-toggle:active {
+		transform: scale(0.98);
+	}
+	.guidance-section {
+		margin-top: var(--sp-2);
+		padding: var(--sp-3);
+		background: color-mix(in srgb, var(--warn) 12%, transparent);
+		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+		border-radius: var(--radius-sm);
+	}
+	.guidance-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-2);
+	}
+	.guidance-list li {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--sp-2);
+		font-size: var(--fs-sm);
+		line-height: 1.4;
+		color: var(--text);
+	}
+	.guidance-list li:before {
+		content: '•';
+		color: var(--warn);
+		font-weight: var(--fw-bold);
+		flex-shrink: 0;
 	}
 	@media (max-width: 460px) {
 		.two-up {

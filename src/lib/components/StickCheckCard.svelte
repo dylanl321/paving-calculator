@@ -6,6 +6,7 @@
 	import SourceBadge from './SourceBadge.svelte';
 	import DotTable from './DotTable.svelte';
 	import CrossSectionDiagram from './CrossSectionDiagram.svelte';
+	import Tooltip from './ui/Tooltip.svelte';
 	import { constantMeta } from '$lib/config';
 	import { stickCheck } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
@@ -44,7 +45,10 @@
 	hideTitle
 	purpose="Loose material height to look for behind the screed for a target compacted thickness."
 >
-	<NumberField label="Target compacted thickness" unit="in" step={0.25} bind:value={target} />
+	<div class="label-with-tooltip">
+		<NumberField label="Target compacted thickness" unit="in" step={0.25} bind:value={target} />
+		<Tooltip term="Stick Check" definition="Manual thickness measurement of asphalt mat behind the screed. Measures loose material height to verify proper compacted thickness (loose height = compacted × 1.25)." />
+	</div>
 
 	<ResultStat
 		value={loose != null ? Number(loose.toFixed(2)) : null}
