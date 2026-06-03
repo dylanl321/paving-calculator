@@ -272,6 +272,10 @@ export class DbHelper {
 		};
 	}
 
+	async deleteUser(id: string): Promise<void> {
+		await this.db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+	}
+
 	async createOrganization(name: string, slug: string): Promise<DbOrganization> {
 		const id = crypto.randomUUID();
 		const now = Math.floor(Date.now() / 1000);

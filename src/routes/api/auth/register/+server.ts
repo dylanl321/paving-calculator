@@ -61,8 +61,35 @@ export async function POST(event: RequestEvent) {
 		const passwordHash = await hashPassword(body.password);
 		const user = await db.createUser(email, passwordHash, name);
 
-		const orgSlug = slugify(orgName);
-		const org = await db.createOrganization(orgName, orgSlug);
+		// Resolve org slug with collision handling (up to 3 retries with random suffix)
+		let orgSlug = slugify(orgName);
+		let org;
+		try {
+			const existing = await db.getOrgBySlug(orgSlug);
+			if (existing) {
+				let resolved = false;
+				for (let i = 0; i < 3; i++) {
+					const suffix = Math.random().toString(36).slice(2, 6);
+					const candidate = `${orgSlug}-${suffix}`;
+					const collision = await db.getOrgBySlug(candidate);
+					if (!collision) {
+						orgSlug = candidate;
+						resolved = true;
+						break;
+					}
+				}
+				if (!resolved) {
+					// Compensating delete for orphaned user
+					try { await db.deleteUser(user.id); } catch (_) { /* best effort */ }
+					return json({ error: 'Organization name is unavailable, please choose a different one' }, { status: 409 });
+				}
+			}
+			org = await db.createOrganization(orgName, orgSlug);
+		} catch (orgError) {
+			// Org creation failed — compensating delete of orphaned user
+			try { await db.deleteUser(user.id); } catch (_) { /* best effort */ }
+			throw orgError;
+		}
 
 		await db.addOrgMember(user.id, org.id, 'owner');
 
