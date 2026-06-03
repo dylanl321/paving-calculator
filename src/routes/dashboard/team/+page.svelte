@@ -265,13 +265,14 @@
 
 			if (!res.ok) {
 				const data = (await res.json()) as ErrorResponse;
-				alert(data.error || 'Failed to revoke invitation');
+				toastStore.error(data.error || 'Failed to revoke invitation');
 				return;
 			}
 
 			await loadTeam();
+			toastStore.success('Invitation revoked');
 		} catch (e) {
-			alert('Failed to revoke invitation');
+			toastStore.error('Failed to revoke invitation');
 		}
 	}
 

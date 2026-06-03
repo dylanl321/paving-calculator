@@ -613,12 +613,17 @@
 				laneWidthFt={data.config?.lane_width_ft}
 				height="400px"
 				onRouteSave={async (waypoints) => {
-					await fetch(`/api/job-sites/${data.jobSite.id}/route`, {
+					const res = await fetch(`/api/job-sites/${data.jobSite.id}/route`, {
 						method: 'PUT',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ waypoints }),
 						credentials: 'include'
 					});
+					if (res.ok) {
+						toastStore.success('Route saved');
+					} else {
+						toastStore.error('Failed to save route');
+					}
 				}}
 			/>
 		{/await}
