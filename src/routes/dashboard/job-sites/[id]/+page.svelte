@@ -55,6 +55,53 @@
 	let locationSaving = $state(false);
 	let showLocationSearch = $state(false);
 
+	// Plant location state (stored in localStorage)
+	let plantForm = $state({
+		name: '',
+		latitude: null as number | null,
+		longitude: null as number | null
+	});
+	let plantSaved = $state(false);
+
+	// Load plant location from localStorage
+	function loadPlantLocation() {
+		if (typeof localStorage === 'undefined') return { name: '', latitude: null, longitude: null };
+		const key = `plant_${data.jobSite.id}`;
+		const stored = localStorage.getItem(key);
+		if (!stored) return { name: '', latitude: null, longitude: null };
+		try {
+			return JSON.parse(stored);
+		} catch {
+			return { name: '', latitude: null, longitude: null };
+		}
+	}
+
+	let plantLocation = $state(loadPlantLocation());
+
+	function savePlantLocation() {
+		if (typeof localStorage === 'undefined') return;
+		const key = `plant_${data.jobSite.id}`;
+		const location = {
+			name: plantForm.name,
+			latitude: plantForm.latitude,
+			longitude: plantForm.longitude
+		};
+		localStorage.setItem(key, JSON.stringify(location));
+		plantLocation = location;
+		plantSaved = true;
+		setTimeout(() => {
+			plantSaved = false;
+		}, 2000);
+	}
+
+	function clearPlantLocation() {
+		if (typeof localStorage === 'undefined') return;
+		const key = `plant_${data.jobSite.id}`;
+		localStorage.removeItem(key);
+		plantLocation = { name: '', latitude: null, longitude: null };
+		plantForm = { name: '', latitude: null, longitude: null };
+	}
+
 	async function handleLocationChange(lat: number | null, lng: number | null) {
 		locationSaving = true;
 		try {
@@ -811,6 +858,88 @@
 					{data.jobSite.latitude.toFixed(5)}, {data.jobSite.longitude?.toFixed(5)}
 					<button class="link-btn-sm" onclick={clearCoordinates}>Clear</button>
 				</p>
+
+				<div class="progress-map-section">
+					<div class="progress-map-head">
+						<h4>Haul Route</h4>
+						<span class="progress-map-sub">Distance from asphalt plant to job site</span>
+					</div>
+					{#await import('$lib/components/HaulRouteMap.svelte')}
+						<div class="map-mini-loading">Loading haul route&hellip;</div>
+					{:then { default: HaulRouteMap }}
+						<HaulRouteMap
+							site={{
+								id: data.jobSite.id,
+								name: data.jobSite.name,
+								latitude: data.jobSite.latitude,
+								longitude: data.jobSite.longitude
+							}}
+							plant={plantLocation}
+							avgSpeedMph={30}
+							height="280px"
+						/>
+					{/await}
+					{#if !plantLocation.latitude || !plantLocation.longitude}
+						<div class="plant-form">
+							<h5>Set Plant Location</h5>
+							<div class="form-row">
+								<div class="form-group">
+									<label for="plant_name">Plant Name</label>
+									<input
+										type="text"
+										id="plant_name"
+										bind:value={plantForm.name}
+										placeholder="e.g., Metro Asphalt Plant"
+									/>
+								</div>
+							</div>
+							<div class="form-row">
+								<div class="form-group">
+									<label for="plant_lat">Latitude</label>
+									<input
+										type="number"
+										id="plant_lat"
+										bind:value={plantForm.latitude}
+										step="0.000001"
+										placeholder="e.g., 39.7392"
+									/>
+								</div>
+								<div class="form-group">
+									<label for="plant_lng">Longitude</label>
+									<input
+										type="number"
+										id="plant_lng"
+										bind:value={plantForm.longitude}
+										step="0.000001"
+										placeholder="e.g., -104.9903"
+									/>
+								</div>
+							</div>
+							<button
+								class="btn-primary"
+								onclick={savePlantLocation}
+								disabled={!plantForm.name || plantForm.latitude == null || plantForm.longitude == null}
+							>
+								Set Plant Location
+							</button>
+							{#if plantSaved}
+								<div class="plant-saved">Plant location saved</div>
+							{/if}
+						</div>
+					{:else}
+						<div class="plant-info">
+							<div class="plant-info-row">
+								<span class="plant-info-label">Plant:</span>
+								<span class="plant-info-value">{plantLocation.name}</span>
+							</div>
+							<div class="plant-info-row">
+								<span class="plant-info-label">Location:</span>
+								<span class="plant-info-value">{plantLocation.latitude?.toFixed(5)}, {plantLocation.longitude?.toFixed(5)}</span>
+							</div>
+							<button class="link-btn" onclick={clearPlantLocation}>Change Plant</button>
+						</div>
+					{/if}
+				</div>
 
 				{#if data.routeWaypoints.length >= 2}
 					<div class="progress-map-section">
@@ -2835,6 +2964,62 @@
 	.milestone-status-select:focus {
 		outline: 2px solid var(--accent);
 		outline-offset: 0;
+	}
+
+	/* Plant location form */
+	.plant-form {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md, 12px);
+		padding: 16px;
+		margin-top: 12px;
+	}
+
+	.plant-form h5 {
+		margin: 0 0 12px;
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.plant-saved {
+		margin-top: 8px;
+		padding: 8px;
+		background: rgba(34, 197, 94, 0.1);
+		color: var(--good, #22c55e);
+		border-radius: var(--radius);
+		font-size: 0.85rem;
+		text-align: center;
+	}
+
+	.plant-info {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md, 12px);
+		padding: 12px 16px;
+		margin-top: 12px;
+	}
+
+	.plant-info-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 6px;
+	}
+
+	.plant-info-row:last-child {
+		margin-bottom: 8px;
+	}
+
+	.plant-info-label {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		font-weight: 600;
+	}
+
+	.plant-info-value {
+		font-size: 0.85rem;
+		color: var(--text);
 	}
 
 	@media (max-width: 768px) {
