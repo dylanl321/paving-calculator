@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbMilestoneHelper } from '$lib/server/db-milestones';
+import { recordAudit } from '$lib/server/audit';
 import type { RequestHandler } from './$types';
 
 interface MilestoneCreateBody {
@@ -65,6 +66,21 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		status,
 		target_date,
 		sort_order
+	});
+
+	await recordAudit(platform!.env.DB, {
+		actorUserId: locals.user.id,
+		actorName: locals.user.name,
+		orgId: org.id,
+		resourceType: 'milestone',
+		resourceId: milestone.id,
+		action: 'create',
+		newValue: milestone,
+		ipAddress:
+			request.headers.get('cf-connecting-ip') ||
+			request.headers.get('x-forwarded-for') ||
+			undefined,
+		userAgent: request.headers.get('user-agent') || undefined
 	});
 
 	return json({ milestone });

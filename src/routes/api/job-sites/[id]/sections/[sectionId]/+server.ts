@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper, type DbRoadSection } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
+import { recordAudit } from '$lib/server/audit';
 
 export async function PATCH(event: RequestEvent) {
 	try {
@@ -98,6 +99,22 @@ export async function PATCH(event: RequestEvent) {
 			.bind(sectionId)
 			.first<DbRoadSection>();
 
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'section',
+			resourceId: sectionId,
+			action: 'update',
+			oldValue: section,
+			newValue: updatedSection,
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
+
 		return json(updatedSection);
 	} catch (error) {
 		if (error instanceof Response) return error;
@@ -143,6 +160,21 @@ export async function DELETE(event: RequestEvent) {
 		await event.platform!.env.DB.prepare('DELETE FROM road_sections WHERE id = ?')
 			.bind(sectionId)
 			.run();
+
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'section',
+			resourceId: sectionId,
+			action: 'delete',
+			oldValue: section,
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		return json({ ok: true });
 	} catch (error) {

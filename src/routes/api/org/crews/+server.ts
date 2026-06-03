@@ -79,7 +79,10 @@ export async function POST(event: RequestEvent) {
 			resourceId: crew.id,
 			action: 'created',
 			newValue: { name: crew.name, color: crew.color },
-			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				event.getClientAddress(),
 			userAgent: event.request.headers.get('user-agent') || undefined
 		});
 

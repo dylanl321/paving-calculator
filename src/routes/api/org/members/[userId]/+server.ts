@@ -45,8 +45,9 @@ export async function PATCH(event: RequestEvent) {
 			return json({ error: 'Owner cannot change their own role' }, { status: 403 });
 		}
 
-		// Get old role before updating
+		// Get old role before update for audit
 		const oldRole = await db.getUserRole(userId, org.id);
+		const targetUser = await db.getUserById(userId);
 
 		// Update member role
 		await db.updateOrgMemberRole(userId, org.id, role);
@@ -59,9 +60,12 @@ export async function PATCH(event: RequestEvent) {
 			resourceType: 'org_member',
 			resourceId: userId,
 			action: 'role_changed',
-			oldValue: { userId, role: oldRole },
-			newValue: { userId, role },
-			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
+			oldValue: { role: oldRole, user_name: targetUser?.name },
+			newValue: { role, user_name: targetUser?.name },
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				event.getClientAddress(),
 			userAgent: event.request.headers.get('user-agent') || undefined
 		});
 
@@ -103,6 +107,10 @@ export async function DELETE(event: RequestEvent) {
 			return json({ error: 'Cannot remove yourself from the organization' }, { status: 400 });
 		}
 
+		// Get member info before removal for audit
+		const targetUser = await db.getUserById(userId);
+		const targetRole = await db.getUserRole(userId, org.id);
+
 		// Remove member
 		await db.removeOrgMember(userId, org.id);
 
@@ -114,8 +122,11 @@ export async function DELETE(event: RequestEvent) {
 			resourceType: 'org_member',
 			resourceId: userId,
 			action: 'removed',
-			oldValue: { userId },
-			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
+			oldValue: { userId, role: targetRole, user_name: targetUser?.name },
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				event.getClientAddress(),
 			userAgent: event.request.headers.get('user-agent') || undefined
 		});
 

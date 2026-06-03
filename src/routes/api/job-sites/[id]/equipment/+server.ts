@@ -1,5 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper, type DbJobSiteEquipment } from '$lib/server/db';
+import { recordAudit } from '$lib/server/audit';
 import type { RequestHandler } from './$types';
 
 interface EquipmentRequestBody {
@@ -62,6 +63,21 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		capacity || null,
 		notes || null
 	);
+
+	await recordAudit(platform!.env.DB, {
+		actorUserId: locals.user.id,
+		actorName: locals.user.name,
+		orgId: org.id,
+		resourceType: 'equipment',
+		resourceId: equipment.id,
+		action: 'create',
+		newValue: equipment,
+		ipAddress:
+			request.headers.get('cf-connecting-ip') ||
+			request.headers.get('x-forwarded-for') ||
+			undefined,
+		userAgent: request.headers.get('user-agent') || undefined
+	});
 
 	return json({ equipment });
 };

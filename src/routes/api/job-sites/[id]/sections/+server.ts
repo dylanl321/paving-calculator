@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper, type DbRoadSection } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
+import { recordAudit } from '$lib/server/audit';
 
 export async function GET(event: RequestEvent) {
 	try {
@@ -116,6 +117,21 @@ export async function POST(event: RequestEvent) {
 				section.updated_at
 			)
 			.run();
+
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'section',
+			resourceId: section.id,
+			action: 'create',
+			newValue: section,
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		return json(section);
 	} catch (error) {

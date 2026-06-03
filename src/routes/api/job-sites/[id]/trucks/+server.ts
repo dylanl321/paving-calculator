@@ -1,5 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
+import { recordAudit } from '$lib/server/audit';
 import type { RequestHandler } from './$types';
 
 export interface DbTruck {
@@ -116,6 +117,21 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		created_at: now,
 		updated_at: now
 	};
+
+	await recordAudit(platform!.env.DB, {
+		actorUserId: locals.user.id,
+		actorName: locals.user.name,
+		orgId: org.id,
+		resourceType: 'truck',
+		resourceId: id,
+		action: 'create',
+		newValue: truck,
+		ipAddress:
+			request.headers.get('cf-connecting-ip') ||
+			request.headers.get('x-forwarded-for') ||
+			undefined,
+		userAgent: request.headers.get('user-agent') || undefined
+	});
 
 	return json({ truck }, { status: 201 });
 };

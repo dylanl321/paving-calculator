@@ -58,7 +58,10 @@ export async function PATCH(event: RequestEvent) {
 			resourceId: crewId,
 			action: 'updated',
 			newValue: updates,
-			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				event.getClientAddress(),
 			userAgent: event.request.headers.get('user-agent') || undefined
 		});
 
@@ -90,6 +93,12 @@ export async function DELETE(event: RequestEvent) {
 		const { crewId } = event.params;
 		if (!crewId) return json({ error: 'Crew ID is required' }, { status: 400 });
 
+		// Fetch crew info before deletion for audit
+		const crew = await event.platform!.env.DB
+			.prepare('SELECT id, name, color FROM crews WHERE id = ?')
+			.bind(crewId)
+			.first<{ id: string; name: string; color: string }>();
+
 		await crewDb.deleteCrew(crewId);
 
 		// Record audit log
@@ -100,7 +109,11 @@ export async function DELETE(event: RequestEvent) {
 			resourceType: 'crew',
 			resourceId: crewId,
 			action: 'deleted',
-			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
+			oldValue: crew || undefined,
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				event.getClientAddress(),
 			userAgent: event.request.headers.get('user-agent') || undefined
 		});
 

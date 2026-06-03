@@ -1,5 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
+import { recordAudit } from '$lib/server/audit';
 import type { RequestHandler } from './$types';
 import type { DbTruck } from '../+server';
 
@@ -54,6 +55,22 @@ export const PATCH: RequestHandler = async ({ params, locals, platform, request 
 			arrived_at: arrivedAt,
 			updated_at: now
 		};
+
+		await recordAudit(platform!.env.DB, {
+			actorUserId: locals.user.id,
+			actorName: locals.user.name,
+			orgId: org.id,
+			resourceType: 'truck',
+			resourceId: params.truckId,
+			action: 'update',
+			oldValue: truck,
+			newValue: updatedTruck,
+			ipAddress:
+				request.headers.get('cf-connecting-ip') ||
+				request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: request.headers.get('user-agent') || undefined
+		});
 
 		return json({ truck: updatedTruck });
 	}
