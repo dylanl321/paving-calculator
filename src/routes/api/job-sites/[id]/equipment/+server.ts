@@ -1,6 +1,13 @@
 import { json, error } from '@sveltejs/kit';
-import { DbHelper } from '$lib/server/db';
+import { DbHelper, type DbJobSiteEquipment } from '$lib/server/db';
 import type { RequestHandler } from './$types';
+
+interface EquipmentRequestBody {
+	equipment_type?: DbJobSiteEquipment['equipment_type'];
+	name?: string;
+	capacity?: string | null;
+	notes?: string | null;
+}
 
 export const GET: RequestHandler = async ({ params, locals, platform }) => {
 	if (!locals.user) {
@@ -41,7 +48,7 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		throw error(403, 'Access denied');
 	}
 
-	const body = await request.json();
+	const body = (await request.json()) as EquipmentRequestBody;
 	const { equipment_type, name, capacity, notes } = body;
 
 	if (!equipment_type || !name) {

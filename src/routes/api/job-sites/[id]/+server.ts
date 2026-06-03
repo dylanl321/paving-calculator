@@ -36,7 +36,7 @@ export async function GET(event: RequestEvent) {
 			updated_at: jobSite.updated_at
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get job site error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
@@ -127,7 +127,7 @@ export async function PATCH(event: RequestEvent) {
 			updated_at: updatedJobSite!.updated_at
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Update job site error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}

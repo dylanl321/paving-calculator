@@ -1,6 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
+	const ROLES = [
+		'owner',
+		'admin',
+		'member',
+		'foreman',
+		'operator',
+		'inspector',
+		'office',
+		'laborer',
+		'screed_man'
+	] as const;
+
 	interface User {
 		id: string;
 		email: string;
@@ -14,8 +26,14 @@
 		created_at: number;
 	}
 
+	interface OrgOption {
+		id: string;
+		name: string;
+	}
+
 	let users = $state<User[]>([]);
 	let filteredUsers = $state<User[]>([]);
+	let orgs = $state<OrgOption[]>([]);
 	let searchQuery = $state('');
 	let filterStatus = $state('all');
 	let loading = $state(true);
@@ -30,9 +48,33 @@
 		disabled: false
 	});
 
-	onMount(async () => {
-		await loadUsers();
+	let showCreate = $state(false);
+	let createSaving = $state(false);
+	let createError = $state('');
+	let createForm = $state({
+		name: '',
+		email: '',
+		password: '',
+		phone: '',
+		org_id: '',
+		role: 'member' as (typeof ROLES)[number],
+		is_global_admin: false
 	});
+
+	onMount(async () => {
+		await Promise.all([loadUsers(), loadOrgs()]);
+	});
+
+	async function loadOrgs() {
+		try {
+			const res = await fetch('/api/admin/orgs');
+			if (!res.ok) return;
+			const data = (await res.json()) as { orgs: OrgOption[] };
+			orgs = data.orgs;
+		} catch {
+			// non-fatal; org dropdown will just be empty
+		}
+	}
 
 	async function loadUsers() {
 		try {
@@ -43,7 +85,7 @@
 				return;
 			}
 
-			const data = await res.json();
+			const data = (await res.json()) as { users: User[] };
 			users = data.users;
 			applyFilters();
 		} catch (e) {
@@ -75,6 +117,54 @@
 		filteredUsers = filtered;
 	}
 
+	function openCreate() {
+		createForm = {
+			name: '',
+			email: '',
+			password: '',
+			phone: '',
+			org_id: '',
+			role: 'member',
+			is_global_admin: false
+		};
+		createError = '';
+		showCreate = true;
+	}
+
+	async function createUser() {
+		if (createSaving) return;
+		createError = '';
+		createSaving = true;
+		try {
+			const res = await fetch('/api/admin/users', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					name: createForm.name.trim(),
+					email: createForm.email.trim(),
+					password: createForm.password,
+					phone: createForm.phone.trim() || null,
+					org_id: createForm.org_id || undefined,
+					role: createForm.org_id ? createForm.role : undefined,
+					is_global_admin: createForm.is_global_admin
+				})
+			});
+
+			if (!res.ok) {
+				const data = (await res.json()) as { error?: string };
+				createError = data.error || 'Failed to create user';
+				return;
+			}
+
+			await loadUsers();
+			showCreate = false;
+		} catch (e) {
+			createError = 'Failed to create user';
+		} finally {
+			createSaving = false;
+		}
+	}
+
 	function startEdit(user: User) {
 		editingUser = user;
 		editForm = {
@@ -104,7 +194,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { error?: string };
 				statusMessage = data.error || 'Failed to update user';
 				return;
 			}
@@ -133,7 +223,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { error?: string };
 				statusMessage = data.error || `Failed to ${action} user`;
 				return;
 			}
@@ -161,7 +251,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { error?: string };
 				statusMessage = data.error || `Failed to update admin status`;
 				return;
 			}
@@ -181,7 +271,10 @@
 <div class="admin-users">
 	<header>
 		<h1>Users</h1>
-		<a href="/admin">Back to Admin</a>
+		<div class="header-actions">
+			<button class="primary-btn" onclick={openCreate}>New User</button>
+			<a href="/admin">Back to Admin</a>
+		</div>
 	</header>
 
 	{#if statusMessage}
@@ -239,6 +332,7 @@
 								</span>
 							</td>
 							<td data-label="Actions" class="actions-cell">
+								<a class="action-btn" href="/admin/users/{user.id}">Manage</a>
 								<button class="action-btn" onclick={() => toggleGlobalAdmin(user)}>
 									{user.is_global_admin ? 'Remove Admin' : 'Make Admin'}
 								</button>
@@ -293,6 +387,61 @@
 	</div>
 {/if}
 
+{#if showCreate}
+	<div class="modal-overlay" onclick={() => (showCreate = false)}></div>
+	<div class="modal">
+		<h2>New User</h2>
+		{#if createError}
+			<div class="status-message error">{createError}</div>
+		{/if}
+		<form onsubmit={(e) => { e.preventDefault(); createUser(); }}>
+			<label>
+				Name
+				<input type="text" bind:value={createForm.name} required />
+			</label>
+			<label>
+				Email
+				<input type="email" bind:value={createForm.email} required />
+			</label>
+			<label>
+				Temporary Password
+				<input type="text" bind:value={createForm.password} required minlength="8" />
+			</label>
+			<label>
+				Phone
+				<input type="tel" bind:value={createForm.phone} />
+			</label>
+			<label>
+				Organization (optional)
+				<select bind:value={createForm.org_id}>
+					<option value="">— None —</option>
+					{#each orgs as org}
+						<option value={org.id}>{org.name}</option>
+					{/each}
+				</select>
+			</label>
+			{#if createForm.org_id}
+				<label>
+					Role
+					<select bind:value={createForm.role}>
+						{#each ROLES as r}
+							<option value={r}>{r}</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
+			<label class="checkbox">
+				<input type="checkbox" bind:checked={createForm.is_global_admin} />
+				<span>Global Admin</span>
+			</label>
+			<div class="modal-actions">
+				<button type="button" onclick={() => (showCreate = false)}>Cancel</button>
+				<button type="submit" disabled={createSaving}>{createSaving ? 'Creating…' : 'Create'}</button>
+			</div>
+		</form>
+	</div>
+{/if}
+
 <style>
 	.admin-users {
 		padding: 1rem;
@@ -331,6 +480,29 @@
 
 	header a:hover {
 		background: var(--surface-hover);
+	}
+
+	.header-actions {
+		display: flex;
+		gap: 0.75rem;
+		align-items: center;
+		flex-wrap: wrap;
+	}
+
+	.primary-btn {
+		padding: 0.5rem 1rem;
+		min-height: var(--touch);
+		background: var(--accent);
+		color: var(--accent-text);
+		border: 1px solid var(--accent);
+		border-radius: var(--radius);
+		font-size: 1rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+
+	.primary-btn:hover {
+		filter: brightness(1.05);
 	}
 
 	.status-message {
@@ -471,6 +643,12 @@
 		background: var(--surface-hover);
 	}
 
+	a.action-btn {
+		display: inline-flex;
+		align-items: center;
+		text-decoration: none;
+	}
+
 	.action-btn.danger {
 		background: rgba(var(--bad-rgb), 0.1);
 		color: var(--bad);
@@ -553,6 +731,24 @@
 		border-radius: var(--radius);
 		background: var(--bg);
 		color: var(--text);
+	}
+
+	.modal select {
+		display: block;
+		width: 100%;
+		margin-top: 0.5rem;
+		padding: 0.75rem;
+		font-size: 1rem;
+		min-height: var(--touch);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--bg);
+		color: var(--text);
+	}
+
+	.modal-actions button[type='submit']:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 
 	.modal-actions {
