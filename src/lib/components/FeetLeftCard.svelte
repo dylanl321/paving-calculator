@@ -8,6 +8,8 @@
 	import RoadProgressBar from './RoadProgressBar.svelte';
 	import Tooltip from './ui/Tooltip.svelte';
 	import CalculationStep from './ui/CalculationStep.svelte';
+	import CalcProofButton from './CalcProofButton.svelte';
+	import type { CalcProofData } from '$lib/utils/pdf-export';
 	import { job } from '$lib/stores/job.svelte';
 	import { feetFromOrderedMinusPlaced, spreadRateFromThickness } from '$lib/config/formulas';
 	import { constantMeta } from '$lib/config';
@@ -87,6 +89,61 @@
 	);
 
 	const thickMultMeta = constantMeta('CONST.THICK_MULT');
+
+	function getProofData(): CalcProofData | null {
+		if (ordered == null || placed == null || !job.widthFt || !rate || feet == null) {
+			return null;
+		}
+
+		const remaining = ordered - placed;
+		const remainingLbs = remaining * 2000;
+
+		return {
+			title: 'Feet Left Today',
+			inputs: {
+				'Tons ordered': `${ordered.toFixed(2)} tons`,
+				'Tons placed': `${placed.toFixed(2)} tons`,
+				'Mat width': `${job.widthFt.toFixed(0)} ft`,
+				'Target thickness': `${job.thicknessIn.toFixed(2)}"`
+			},
+			steps: [
+				{
+					step: 1,
+					label: 'Spread rate',
+					formula: `${job.thicknessIn.toFixed(2)} × 110`,
+					result: `${rate.toFixed(0)} lbs/SY`
+				},
+				{
+					step: 2,
+					label: 'Remaining tons',
+					formula: `${ordered.toFixed(2)} − ${placed.toFixed(2)}`,
+					result: `${remaining.toFixed(2)} tons`
+				},
+				{
+					step: 3,
+					label: 'Remaining lbs',
+					formula: `${remaining.toFixed(2)} × 2000`,
+					result: `${remainingLbs.toFixed(0)} lbs`
+				},
+				{
+					step: 4,
+					label: 'Feet left',
+					formula: `${remainingLbs.toFixed(0)} × 9 ÷ (${job.widthFt.toFixed(0)} × ${rate.toFixed(0)})`,
+					result: `${feet.toFixed(0)} ft`
+				}
+			],
+			result: {
+				value: feet.toFixed(0),
+				unit: 'feet'
+			},
+			notes: `Spread rate calculated from thickness × 110 rule.`,
+			jobContext: {
+				width: job.widthFt,
+				thickness: job.thicknessIn,
+				rate: Math.round(rate)
+			}
+		};
+	}
 </script>
 
 <CalcCard
@@ -154,6 +211,8 @@
 				formula="{remainingLbs.toFixed(0)} × 9 ÷ ({job.widthFt.toFixed(0)} × {rate.toFixed(0)})"
 				result="{feet.toFixed(0)} ft"
 			/>
+
+			<CalcProofButton title="Feet Left Today" getData={getProofData} />
 		{:else}
 			<code>feet = (ordered − placed) × 2000 × 9 ÷ (width × rate)</code>
 			<p>Enter values above to see step-by-step calculation.</p>

@@ -9,6 +9,8 @@
 	import HelpTip from './HelpTip.svelte';
 	import Tooltip from './ui/Tooltip.svelte';
 	import CalculationStep from './ui/CalculationStep.svelte';
+	import CalcProofButton from './CalcProofButton.svelte';
+	import type { CalcProofData } from '$lib/utils/pdf-export';
 	import { tack, tackMid, rainCheck, tackTempCheck, weatherConfig } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -72,7 +74,54 @@
 			logDraft.clearFor('tack');
 		}
 	});
-	onDestroy(() => logDraft.clearFor('tack'));</script>
+	onDestroy(() => logDraft.clearFor('tack'));
+
+	function getProofData(): CalcProofData | null {
+		if (!lengthFt || !job.widthFt || !gallons) {
+			return null;
+		}
+
+		const areaYards = (lengthFt * job.widthFt) / 9;
+		const midRate = tackMid(selected);
+
+		return {
+			title: 'Tack Rate',
+			inputs: {
+				'Length to shoot': `${lengthFt.toFixed(0)} ft`,
+				'Mat width': `${job.widthFt.toFixed(0)} ft`,
+				'Application type': selected.label
+			},
+			steps: [
+				{
+					step: 1,
+					label: 'Area in square yards',
+					formula: `${lengthFt.toFixed(0)} × ${job.widthFt.toFixed(0)} ÷ 9`,
+					result: `${areaYards.toFixed(2)} SY`
+				},
+				{
+					step: 2,
+					label: 'Mid rate',
+					formula: `(${selected.min.toFixed(2)} + ${selected.max.toFixed(2)}) ÷ 2`,
+					result: `${midRate.toFixed(3)} gal/SY`
+				},
+				{
+					step: 3,
+					label: 'Gallons',
+					formula: `${areaYards.toFixed(2)} × ${midRate.toFixed(3)}`,
+					result: `${Math.round(gallons.mid)} gal`
+				}
+			],
+			result: {
+				value: Math.round(gallons.mid).toString(),
+				unit: 'gallons'
+			},
+			notes: `${selected.label} tack application. Rate range: ${selected.min}–${selected.max} gal/SY. Using mid-rate (${midRate.toFixed(3)} gal/SY).`,
+			jobContext: {
+				width: job.widthFt,
+				tackApplication: selected.label
+			}
+		};
+	}</script>
 
 <CalcCard
 	title="Tack Rate"
@@ -167,6 +216,8 @@
 				formula="{areaYards.toFixed(2)} × {midRate.toFixed(3)}"
 				result="{Math.round(gallons.mid)} gal"
 			/>
+
+			<CalcProofButton title="Tack Rate" getData={getProofData} />
 		{:else}
 			<code>gallons = (length × width ÷ 9) × shot rate (gal/SY)</code>
 			<p>Enter length above to see step-by-step calculation.</p>

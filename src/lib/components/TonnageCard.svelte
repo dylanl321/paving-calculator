@@ -7,6 +7,8 @@
 	import DotTable from './DotTable.svelte';
 	import Tooltip from './ui/Tooltip.svelte';
 	import CalculationStep from './ui/CalculationStep.svelte';
+	import CalcProofButton from './CalcProofButton.svelte';
+	import type { CalcProofData } from '$lib/utils/pdf-export';
 	import { job } from '$lib/stores/job.svelte';
 	import { spreadRateFromThickness, tonnageToOrder } from '$lib/config/formulas';
 	import { constantMeta } from '$lib/config';
@@ -71,6 +73,62 @@
 	);
 
 	const thickMultMeta = constantMeta('CONST.THICK_MULT');
+
+	function getProofData(): CalcProofData | null {
+		if (!lengthFt || !job.widthFt || !rate || tons == null) {
+			return null;
+		}
+
+		const areaYards = (lengthFt * job.widthFt) / 9;
+		const baseTons = (areaYards * rate) / 2000;
+		const wasteFactor = 1 + (job.wastePct / 100);
+
+		return {
+			title: 'Tonnage to Order',
+			inputs: {
+				'Length of job': `${lengthFt.toFixed(0)} ft`,
+				'Mat width': `${job.widthFt.toFixed(0)} ft`,
+				'Target thickness': `${job.thicknessIn.toFixed(2)}"`
+			},
+			steps: [
+				{
+					step: 1,
+					label: 'Area in square yards',
+					formula: `${lengthFt.toFixed(0)} × ${job.widthFt.toFixed(0)} ÷ 9`,
+					result: `${areaYards.toFixed(2)} SY`
+				},
+				{
+					step: 2,
+					label: 'Spread rate',
+					formula: `${job.thicknessIn.toFixed(2)} × 110`,
+					result: `${rate.toFixed(0)} lbs/SY`
+				},
+				{
+					step: 3,
+					label: 'Base tons',
+					formula: `${areaYards.toFixed(2)} × ${rate.toFixed(0)} ÷ 2000`,
+					result: `${baseTons.toFixed(2)} tons`
+				},
+				{
+					step: 4,
+					label: 'With waste',
+					formula: `${baseTons.toFixed(2)} × ${wasteFactor.toFixed(2)}`,
+					result: `${tons.toFixed(2)} tons`
+				}
+			],
+			result: {
+				value: Math.round(tons).toString(),
+				unit: 'tons'
+			},
+			notes: `Calculation includes ${job.wastePct}% waste allowance. Spread rate from thickness × 110 rule.`,
+			jobContext: {
+				width: job.widthFt,
+				thickness: job.thicknessIn,
+				rate: Math.round(rate),
+				wastePct: job.wastePct
+			}
+		};
+	}
 </script>
 
 <CalcCard
@@ -120,6 +178,8 @@
 				formula="{baseTons.toFixed(2)} × {wasteFactor.toFixed(2)}"
 				result="{tons.toFixed(2)} tons"
 			/>
+
+			<CalcProofButton title="Tonnage to Order" getData={getProofData} />
 		{:else}
 			<code>tons = (length × width ÷ 9 × rate) ÷ 2000 × (1 + waste%)</code>
 			<p>Enter length above to see step-by-step calculation.</p>

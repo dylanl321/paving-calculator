@@ -8,6 +8,8 @@
 	import CrossSectionDiagram from './CrossSectionDiagram.svelte';
 	import Tooltip from './ui/Tooltip.svelte';
 	import CalculationStep from './ui/CalculationStep.svelte';
+	import CalcProofButton from './CalcProofButton.svelte';
+	import type { CalcProofData } from '$lib/utils/pdf-export';
 	import { constantMeta } from '$lib/config';
 	import { stickCheck } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
@@ -39,6 +41,32 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('stick-check'));
+
+	function getProofData(): CalcProofData | null {
+		if (target == null || target <= 0 || loose == null) {
+			return null;
+		}
+
+		return {
+			title: 'Stick Check',
+			inputs: {
+				'Target compacted thickness': `${target.toFixed(2)}"`
+			},
+			steps: [
+				{
+					step: 1,
+					label: 'Loose height',
+					formula: `${target.toFixed(2)} × ${factorMeta.value}`,
+					result: `${loose.toFixed(2)} in`
+				}
+			],
+			result: {
+				value: loose.toFixed(2),
+				unit: 'inches loose behind screed'
+			},
+			notes: `Compaction factor of ${factorMeta.value} is the loose-to-compacted ratio from GDOT §400.3.05.C.`
+		};
+	}
 </script>
 
 <CalcCard
@@ -68,6 +96,8 @@
 				formula="{target.toFixed(2)} × {factorMeta.value}"
 				result="{loose.toFixed(2)} in"
 			/>
+
+			<CalcProofButton title="Stick Check" getData={getProofData} />
 		{:else}
 			<code>loose = compacted × {factorMeta.value}</code>
 			<p>Enter target compacted thickness above to see calculation.</p>

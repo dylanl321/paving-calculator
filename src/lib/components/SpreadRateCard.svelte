@@ -10,6 +10,8 @@
 	import HelpTip from './HelpTip.svelte';
 	import Tooltip from './ui/Tooltip.svelte';
 	import CalculationStep from './ui/CalculationStep.svelte';
+	import CalcProofButton from './CalcProofButton.svelte';
+	import type { CalcProofData } from '$lib/utils/pdf-export';
 	import { constantMeta, placementCheck, rainCheck, spreadSpecCheck, spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -146,6 +148,67 @@
 			tonsInput =
 				unitsStore.system === 'metric' ? toMetricTonnes(adjustedTons) : adjustedTons;
 		}
+	}
+
+	function getProofData(): CalcProofData | null {
+		if (!tons || !distanceFt || !calcContext.road_width.value || targetRate == null || placedRate == null) {
+			return null;
+		}
+
+		const areaYards = (distanceFt * calcContext.road_width.value) / 9;
+		const pounds = tons * 2000;
+		const variance = placedRate - targetRate;
+
+		return {
+			title: 'Spread Rate',
+			inputs: {
+				'Tons placed': `${tons.toFixed(2)} tons`,
+				'Distance covered': `${distanceFt.toFixed(0)} ft`,
+				'Mat width': `${calcContext.road_width.value.toFixed(0)} ft`
+			},
+			steps: [
+				{
+					step: 1,
+					label: 'Area in square yards',
+					formula: `${distanceFt.toFixed(0)} × ${calcContext.road_width.value.toFixed(0)} ÷ 9`,
+					result: `${areaYards.toFixed(2)} SY`
+				},
+				{
+					step: 2,
+					label: 'Pounds placed',
+					formula: `${tons.toFixed(2)} × 2000`,
+					result: `${pounds.toFixed(0)} lbs`
+				},
+				{
+					step: 3,
+					label: 'Placed rate',
+					formula: `${pounds.toFixed(0)} ÷ ${areaYards.toFixed(2)}`,
+					result: `${Math.round(placedRate)} lbs/SY`
+				},
+				{
+					step: 4,
+					label: 'Target rate',
+					formula: `${calcContext.lift_thickness.value.toFixed(2)} × 110`,
+					result: `${Math.round(targetRate)} lbs/SY`
+				},
+				{
+					step: 5,
+					label: 'Variance',
+					formula: `${Math.round(placedRate)} − ${Math.round(targetRate)}`,
+					result: `${variance > 0 ? '+' : ''}${variance.toFixed(1)} lbs/SY`
+				}
+			],
+			result: {
+				value: Math.round(placedRate).toString(),
+				unit: 'lbs/SY'
+			},
+			notes: `Target uses thickness × 110 rule. In-spec tolerance: ±${tolerance.toleranceLbsSy} lbs/SY for ${tolerance.label}.`,
+			jobContext: {
+				width: calcContext.road_width.value,
+				thickness: calcContext.lift_thickness.value,
+				rate: Math.round(targetRate)
+			}
+		};
 	}
 </script>
 
@@ -335,6 +398,8 @@
 				formula="{Math.round(placedRate)} − {Math.round(targetRate)}"
 				result="{variance > 0 ? '+' : ''}{variance.toFixed(1)} lbs/SY"
 			/>
+
+			<CalcProofButton title="Spread Rate" getData={getProofData} />
 		{:else}
 			<p>Target uses the field rule-of-thumb:</p>
 			<code>rate = thickness(in) × {multMeta.value}</code>
