@@ -274,6 +274,21 @@
 					{/if}
 
 					<div class="log-actions">
+						<a href="/app/site-replay/{data.jobSite.id}/{log.id}" class="btn-ghost">
+							<svg
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<polygon points="5 3 19 12 5 21 5 3"></polygon>
+							</svg>
+							Replay
+						</a>
 						<button class="btn-primary" onclick={() => openSummary(log)}>View Summary</button>
 						<button class="btn-secondary" onclick={() => viewLog(log.id)}>Open Log</button>
 					</div>
@@ -514,8 +529,32 @@
 
 	.log-actions {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		grid-template-columns: auto 1fr 1fr;
 		gap: 12px;
+	}
+
+	.btn-ghost {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		min-height: 48px;
+		padding: 0 16px;
+		background: transparent;
+		color: var(--text);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		font-size: 0.9rem;
+		font-weight: 600;
+		cursor: pointer;
+		text-decoration: none;
+		transition: border-color 0.2s, color 0.2s;
+		white-space: nowrap;
+	}
+
+	.btn-ghost:hover {
+		border-color: var(--accent);
+		color: var(--accent);
 	}
 
 	.btn-primary {
