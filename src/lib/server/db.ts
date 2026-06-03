@@ -1,6 +1,7 @@
 import type { D1Database } from '../../cloudflare';
 import { toHex } from '$lib/utils/format';
 import type { DbDotRoadSegment, DbDotSyncLog } from '$lib/types/dot';
+export type { DbDotRoadSegment, DbDotSyncLog } from '$lib/types/dot';
 
 export interface DbUser {
 	id: string;
