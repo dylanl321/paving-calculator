@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	const ROLES = [
 		'owner',
@@ -154,13 +155,16 @@
 			if (!res.ok) {
 				const data = (await res.json()) as { error?: string };
 				createError = data.error || 'Failed to create user';
+				toastStore.error(createError);
 				return;
 			}
 
 			await loadUsers();
 			showCreate = false;
+			toastStore.success('User created successfully');
 		} catch (e) {
 			createError = 'Failed to create user';
+			toastStore.error(createError);
 		} finally {
 			createSaving = false;
 		}
@@ -197,14 +201,17 @@
 			if (!res.ok) {
 				const data = (await res.json()) as { error?: string };
 				statusMessage = data.error || 'Failed to update user';
+				toastStore.error(statusMessage);
 				return;
 			}
 
 			await loadUsers();
 			editingUser = null;
 			statusMessage = '';
+			toastStore.success('User updated successfully');
 		} catch (e) {
 			statusMessage = 'Failed to update user';
+			toastStore.error(statusMessage);
 		}
 	}
 
@@ -230,13 +237,16 @@
 			if (!res.ok) {
 				const data = (await res.json()) as { error?: string };
 				statusMessage = data.error || `Failed to ${action} user`;
+				toastStore.error(statusMessage);
 				return;
 			}
 
 			await loadUsers();
 			statusMessage = '';
+			toastStore.success(`User ${action}d successfully`);
 		} catch (e) {
 			statusMessage = `Failed to ${action} user`;
+			toastStore.error(statusMessage);
 		}
 	}
 
@@ -262,13 +272,16 @@
 			if (!res.ok) {
 				const data = (await res.json()) as { error?: string };
 				statusMessage = data.error || `Failed to update admin status`;
+				toastStore.error(statusMessage);
 				return;
 			}
 
 			await loadUsers();
 			statusMessage = '';
+			toastStore.success(`Admin status updated successfully`);
 		} catch (e) {
 			statusMessage = `Failed to update admin status`;
+			toastStore.error(statusMessage);
 		}
 	}
 

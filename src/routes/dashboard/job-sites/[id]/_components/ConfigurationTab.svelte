@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { roadTypeLabels, scopeOfWorkLabels, tackTypeLabels, fmt, type ConfigForm } from './shared';
 	import AutoSaveStatus from '$lib/components/AutoSaveStatus.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	let {
 		jobSiteId,
@@ -24,13 +25,19 @@
 				body: JSON.stringify(configForm)
 			});
 
-			if (!res.ok) throw new Error('Failed to save');
+			if (!res.ok) {
+				toastStore.error('Failed to save configuration');
+				saveStatus = 'error';
+				throw new Error('Failed to save');
+			}
+			toastStore.success('Configuration saved');
 			saveStatus = 'saved';
 			setTimeout(() => {
 				if (saveStatus === 'saved') saveStatus = 'idle';
 			}, 2300);
 		} catch (err) {
 			console.error(err);
+			toastStore.error('Failed to save configuration');
 			saveStatus = 'error';
 		}
 	}

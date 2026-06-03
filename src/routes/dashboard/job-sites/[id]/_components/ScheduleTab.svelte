@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Milestone } from '../$types';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	interface MilestoneResponse {
 		milestone: Milestone;
@@ -34,7 +35,10 @@
 				body: JSON.stringify(milestoneForm)
 			});
 
-			if (!res.ok) throw new Error('Failed to create milestone');
+			if (!res.ok) {
+				toastStore.error('Failed to create milestone');
+				throw new Error('Failed to create milestone');
+			}
 
 			const { milestone } = (await res.json()) as MilestoneResponse;
 			milestones = [...milestones, milestone];
@@ -46,8 +50,10 @@
 				target_date: ''
 			};
 			showMilestoneForm = false;
+			toastStore.success('Milestone created');
 		} catch (err) {
 			console.error(err);
+			toastStore.error('Failed to create milestone');
 		} finally {
 			milestoneSaving = false;
 		}
@@ -63,12 +69,17 @@
 				body: JSON.stringify({ status })
 			});
 
-			if (!res.ok) throw new Error('Failed to update milestone');
+			if (!res.ok) {
+				toastStore.error('Failed to update milestone');
+				throw new Error('Failed to update milestone');
+			}
 
 			const { milestone } = (await res.json()) as MilestoneResponse;
 			milestones = milestones.map((m) => (m.id === id ? milestone : m));
+			toastStore.success('Milestone updated');
 		} catch (err) {
 			console.error(err);
+			toastStore.error('Failed to update milestone');
 		} finally {
 			milestoneSaving = false;
 		}
@@ -82,11 +93,16 @@
 				credentials: 'include'
 			});
 
-			if (!res.ok) throw new Error('Failed to delete milestone');
+			if (!res.ok) {
+				toastStore.error('Failed to delete milestone');
+				throw new Error('Failed to delete milestone');
+			}
 
 			milestones = milestones.filter((m) => m.id !== id);
+			toastStore.success('Milestone deleted');
 		} catch (err) {
 			console.error(err);
+			toastStore.error('Failed to delete milestone');
 		} finally {
 			milestoneSaving = false;
 		}

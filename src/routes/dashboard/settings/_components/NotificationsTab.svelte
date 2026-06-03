@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { NotificationPrefsResult } from './shared';
 	import { onMount } from 'svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	let { initialPrefs }: { initialPrefs: Record<string, boolean> } = $props();
 
@@ -46,14 +47,17 @@
 			if (!res.ok) {
 				notificationMessage = result.error || 'Failed to save preferences';
 				notificationMessageType = 'error';
+				toastStore.error(notificationMessage);
 				return;
 			}
 			notificationPrefs = result.prefs ?? notificationPrefs;
 			notificationMessage = 'Notification preferences saved';
 			notificationMessageType = 'ok';
+			toastStore.success('Notification preferences saved');
 		} catch (e) {
 			notificationMessage = 'Network error while saving';
 			notificationMessageType = 'error';
+			toastStore.error('Failed to save preferences');
 		} finally {
 			savingNotifications = false;
 		}
@@ -112,11 +116,13 @@
 			if (!res.ok) {
 				recipientsMessage = result.error || 'Failed to save recipients';
 				recipientsMessageType = 'error';
+				toastStore.error(recipientsMessage);
 				return;
 			}
 			reportRecipients = result.reportRecipients || reportRecipients;
 			recipientsMessage = 'Recipients saved successfully';
 			recipientsMessageType = 'ok';
+			toastStore.success('Recipients saved successfully');
 
 			// Clear message after 3 seconds
 			setTimeout(() => {
@@ -127,6 +133,7 @@
 		} catch (e) {
 			recipientsMessage = 'Network error while saving';
 			recipientsMessageType = 'error';
+			toastStore.error('Failed to save recipients');
 		} finally {
 			savingRecipients = false;
 		}

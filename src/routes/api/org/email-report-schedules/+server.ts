@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper, type DbEmailReportSchedule } from '$lib/server/db';
 import { requireAuth, requireOrgRole } from '$lib/server/auth';
+import { recordAudit } from '$lib/server/audit';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -112,6 +113,19 @@ export async function POST(event: RequestEvent) {
 			created_by: user.id
 		});
 
+		// Record audit log
+		recordAudit(event.platform.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'email_schedule',
+			resourceId: id,
+			action: 'upserted',
+			newValue: { reportType, frequency },
+			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
+
 		return json({ ok: true, id });
 	} catch (error) {
 		if (error instanceof Response) return error;
@@ -143,6 +157,18 @@ export async function DELETE(event: RequestEvent) {
 		}
 
 		await db.deleteEmailReportSchedule(id, org.id);
+
+		// Record audit log
+		recordAudit(event.platform.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'email_schedule',
+			resourceId: id,
+			action: 'deleted',
+			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		return json({ ok: true });
 	} catch (error) {

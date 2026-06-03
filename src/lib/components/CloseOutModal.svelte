@@ -3,6 +3,7 @@
 	import TimeInput from './TimeInput.svelte';
 	import { formatFeet } from '$lib/utils/format';
 	import { actualSpreadRate } from '$lib/config/formulas';
+	import { toastStore } from '$lib/stores/toast.svelte';
 
 	interface Props {
 		jobSiteId: string;
@@ -71,6 +72,7 @@
 			});
 
 			if (!updateRes.ok) {
+				toastStore.error('Failed to update log');
 				throw new Error('Failed to update log');
 			}
 
@@ -82,8 +84,10 @@
 			});
 
 			if (!closeRes.ok) {
+				toastStore.error('Failed to close out log');
 				throw new Error('Failed to close out log');
 			}
+			toastStore.success('Day closed successfully');
 
 			// Generate PDF if requested
 			if (withPDF) {

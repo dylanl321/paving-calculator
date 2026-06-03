@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
+import { recordAudit } from '$lib/server/audit';
 
 export async function GET(event: RequestEvent) {
 	try {
@@ -89,6 +90,26 @@ export async function POST(event: RequestEvent) {
 		}
 
 		await db.assignUserToJobSite(jobSiteId, body.user_id, body.role);
+
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'assignment',
+			resourceId: `${jobSiteId}_${body.user_id}`,
+			action: 'create',
+			newValue: {
+				job_site_id: jobSiteId,
+				user_id: body.user_id,
+				user_name: targetUser.name,
+				role: body.role
+			},
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		return json({
 			job_site_id: jobSiteId,

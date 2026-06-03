@@ -84,6 +84,40 @@ export class DbCrewHelper {
 		return { id, name, color, org_id: orgId, created_by: createdBy, created_at: now };
 	}
 
+	async updateCrew(crewId: string, orgId: string, updates: { name?: string; color?: string }): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		const parts: string[] = [];
+		const values: unknown[] = [];
+
+		if (updates.name !== undefined) {
+			parts.push('name = ?');
+			values.push(updates.name);
+		}
+		if (updates.color !== undefined) {
+			parts.push('color = ?');
+			values.push(updates.color);
+		}
+
+		if (parts.length === 0) return;
+
+		parts.push('updated_at = ?');
+		values.push(now);
+
+		values.push(crewId, orgId);
+
+		await this.db
+			.prepare(`UPDATE crews SET ${parts.join(', ')} WHERE id = ? AND org_id = ?`)
+			.bind(...values)
+			.run();
+	}
+
+	async getCrew(crewId: string, orgId: string): Promise<DbCrew | null> {
+		return await this.db
+			.prepare('SELECT * FROM crews WHERE id = ? AND org_id = ?')
+			.bind(crewId, orgId)
+			.first<DbCrew>();
+	}
+
 	async deleteCrew(crewId: string): Promise<void> {
 		await this.db.prepare('DELETE FROM crews WHERE id = ?').bind(crewId).run();
 	}

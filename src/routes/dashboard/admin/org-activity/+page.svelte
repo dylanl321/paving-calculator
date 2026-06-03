@@ -1,7 +1,5 @@
 <script lang="ts">
 	import { config } from '$lib/config';
-	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -9,73 +7,40 @@
 	let entries = $state(data.entries);
 	let nextCursor = $state(data.nextCursor);
 	let loading = $state(false);
+	let selectedCategory = $state('');
 
-	let selectedUser = $state($page.url.searchParams.get('actor_user_id') || '');
-	let selectedAction = $state($page.url.searchParams.get('action') || '');
-	let fromDate = $state($page.url.searchParams.get('from_ts') || '');
-	let toDate = $state($page.url.searchParams.get('to_ts') || '');
-
-	const uniqueActors = $derived.by(() => {
-		const seen = new Map<string, string>();
-		for (const entry of entries) {
-			if (entry.actor_user_id && entry.actor_name) {
-				seen.set(entry.actor_user_id, entry.actor_name);
-			}
-		}
-		return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
-	});
-
-	const actionTypes = [
-		'created',
-		'updated',
-		'deleted',
-		'invited',
-		'login',
-		'removed',
-		'role_changed'
+	const categories = [
+		{ value: '', label: 'All' },
+		{ value: 'org_member', label: 'Members' },
+		{ value: 'crew', label: 'Crews' },
+		{ value: 'org_branding', label: 'Settings' },
+		{ value: 'email_schedule', label: 'Schedules' },
+		{ value: 'notification_prefs', label: 'Notifications' }
 	];
 
-	async function applyFilters() {
-		const params = new URLSearchParams();
-		params.set('limit', '50');
-		if (selectedUser) params.set('actor_user_id', selectedUser);
-		if (selectedAction) params.set('action', selectedAction);
-		if (fromDate) params.set('from_ts', String(new Date(fromDate).getTime() / 1000));
-		if (toDate) params.set('to_ts', String(new Date(toDate).getTime() / 1000));
-
+	async function onCategoryChange() {
 		loading = true;
 		try {
+			const params = new URLSearchParams();
+			params.set('limit', '50');
+			if (selectedCategory) {
+				params.set('resource_type', selectedCategory);
+			}
+
 			const res = await fetch(`/api/audit?${params.toString()}`, {
 				credentials: 'include'
 			});
 
 			if (res.ok) {
-				const result = (await res.json()) as { entries: typeof data.entries; next_cursor: typeof data.nextCursor };
+				const result = await res.json();
 				entries = result.entries;
 				nextCursor = result.next_cursor;
-
-				const urlParams = new URLSearchParams();
-				if (selectedUser) urlParams.set('actor_user_id', selectedUser);
-				if (selectedAction) urlParams.set('action', selectedAction);
-				if (fromDate) urlParams.set('from_ts', fromDate);
-				if (toDate) urlParams.set('to_ts', toDate);
-				goto(`?${urlParams.toString()}`, { replaceState: true, noScroll: true });
 			}
 		} catch (err) {
-			console.error('Failed to apply filters', err);
+			console.error('Failed to filter by category', err);
 		} finally {
 			loading = false;
 		}
-	}
-
-	function clearFilters() {
-		selectedUser = '';
-		selectedAction = '';
-		fromDate = '';
-		toDate = '';
-		goto('/dashboard/activity', { replaceState: true, noScroll: true });
-		entries = data.entries;
-		nextCursor = data.nextCursor;
 	}
 
 	async function loadMore() {
@@ -86,17 +51,16 @@
 			const params = new URLSearchParams();
 			params.set('limit', '50');
 			params.set('before', String(nextCursor));
-			if (selectedUser) params.set('actor_user_id', selectedUser);
-			if (selectedAction) params.set('action', selectedAction);
-			if (fromDate) params.set('from_ts', String(new Date(fromDate).getTime() / 1000));
-			if (toDate) params.set('to_ts', String(new Date(toDate).getTime() / 1000));
+			if (selectedCategory) {
+				params.set('resource_type', selectedCategory);
+			}
 
 			const res = await fetch(`/api/audit?${params.toString()}`, {
 				credentials: 'include'
 			});
 
 			if (res.ok) {
-				const result = (await res.json()) as { entries: typeof data.entries; next_cursor: typeof data.nextCursor };
+				const result = await res.json();
 				entries = [...entries, ...result.entries];
 				nextCursor = result.next_cursor;
 			}
@@ -136,9 +100,9 @@
 	}
 
 	function getActionBadgeClass(action: string): string {
-		if (action === 'created') return 'badge-created';
-		if (action === 'updated') return 'badge-updated';
-		if (action === 'deleted' || action === 'removed') return 'badge-deleted';
+		if (action === 'created' || action === 'upserted' || action === 'logo_uploaded') return 'badge-created';
+		if (action === 'updated' || action === 'role_changed') return 'badge-updated';
+		if (action === 'deleted' || action === 'removed' || action === 'logo_removed') return 'badge-deleted';
 		return 'badge-other';
 	}
 
@@ -149,53 +113,29 @@
 </script>
 
 <svelte:head>
-	<title>Activity — {config.app.name}</title>
+	<title>Org Activity — {config.app.name}</title>
 </svelte:head>
 
 <div class="activity-page">
 	<div class="page-header">
-		<h2 class="page-title">Activity</h2>
-		<p class="page-subtitle">Activity history for your organization</p>
-		<a href="/dashboard/admin/org-activity" class="btn-org-changes">Org Changes</a>
+		<h2 class="page-title">Org Activity</h2>
+		<p class="page-subtitle">Member, crew, settings, and schedule changes for your org.</p>
 	</div>
 
 	<div class="filters">
-		<div class="filter-row">
-			<div class="filter-group">
-				<label for="user-filter">User</label>
-				<select id="user-filter" bind:value={selectedUser}>
-					<option value="">All users</option>
-					{#each uniqueActors as actor}
-						<option value={actor.id}>{actor.name}</option>
-					{/each}
-				</select>
-			</div>
-
-			<div class="filter-group">
-				<label for="action-filter">Action</label>
-				<select id="action-filter" bind:value={selectedAction}>
-					<option value="">All actions</option>
-					{#each actionTypes as action}
-						<option value={action}>{action}</option>
-					{/each}
-				</select>
-			</div>
-
-			<div class="filter-group">
-				<label for="from-date">From</label>
-				<input id="from-date" type="date" bind:value={fromDate} />
-			</div>
-
-			<div class="filter-group">
-				<label for="to-date">To</label>
-				<input id="to-date" type="date" bind:value={toDate} />
-			</div>
+		<div class="filter-group">
+			<label for="category-filter">Category</label>
+			<select
+				id="category-filter"
+				bind:value={selectedCategory}
+				onchange={onCategoryChange}
+			>
+				{#each categories as cat}
+					<option value={cat.value}>{cat.label}</option>
+				{/each}
+			</select>
 		</div>
-
-		<div class="filter-actions">
-			<button class="btn-apply" onclick={applyFilters} disabled={loading}>Apply Filters</button>
-			<button class="btn-clear" onclick={clearFilters} disabled={loading}>Clear</button>
-		</div>
+		<a href="/dashboard/activity" class="btn-full-activity">View Full Activity</a>
 	</div>
 
 	{#if entries.length === 0}
@@ -216,8 +156,8 @@
 					<circle cx="12" cy="15" r="1.5" fill="var(--accent)"></circle>
 				</svg>
 			</div>
-			<h4>No activity logged yet</h4>
-			<p>No activity logged yet. Complete a daily log to see entries here.</p>
+			<h4>No org activity yet</h4>
+			<p>No organization-level changes have been logged yet.</p>
 			<a href="/dashboard" class="btn-primary">Go to Dashboard</a>
 		</div>
 	{:else}
@@ -237,7 +177,6 @@
 							>{truncateId(entry.resource_id)}</span
 						>
 					</div>
-					<div class="activity-ip">{entry.ip_address || '—'}</div>
 				</div>
 			{/each}
 		</div>
@@ -261,30 +200,6 @@
 
 	.page-header {
 		margin-bottom: 24px;
-		display: flex;
-		flex-direction: column;
-		gap: 12px;
-	}
-
-	.btn-org-changes {
-		min-height: 48px;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		padding: 0 20px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		text-decoration: none;
-		color: var(--text);
-		font-weight: 600;
-		font-size: 0.9rem;
-		width: fit-content;
-		transition: background 0.2s;
-	}
-
-	.btn-org-changes:hover {
-		background: var(--bg);
 	}
 
 	.page-title {
@@ -304,19 +219,16 @@
 		border-radius: var(--radius);
 		padding: 20px;
 		margin-bottom: 20px;
-	}
-
-	.filter-row {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+		display: flex;
 		gap: 16px;
-		margin-bottom: 16px;
+		align-items: flex-end;
 	}
 
 	.filter-group {
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
+		flex: 1;
 	}
 
 	.filter-group label {
@@ -325,8 +237,7 @@
 		color: var(--text-muted);
 	}
 
-	.filter-group select,
-	.filter-group input {
+	.filter-group select {
 		min-height: 48px;
 		padding: 0 12px;
 		background: var(--bg);
@@ -337,52 +248,29 @@
 		font-family: inherit;
 	}
 
-	.filter-group select:focus,
-	.filter-group input:focus {
+	.filter-group select:focus {
 		outline: 2px solid var(--accent);
 		outline-offset: -2px;
 	}
 
-	.filter-actions {
-		display: flex;
-		gap: 10px;
-	}
-
-	.btn-apply,
-	.btn-clear {
+	.btn-full-activity {
 		min-height: 48px;
-		padding: 0 24px;
+		padding: 0 20px;
+		background: var(--surface);
+		color: var(--text);
+		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		font-size: 0.9rem;
 		font-weight: 600;
-		cursor: pointer;
+		text-decoration: none;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 		transition: background 0.2s;
-		border: 1px solid var(--border);
 	}
 
-	.btn-apply {
-		background: var(--accent);
-		color: var(--accent-text);
-		border-color: var(--accent);
-	}
-
-	.btn-apply:hover:not(:disabled) {
-		opacity: 0.9;
-	}
-
-	.btn-clear {
-		background: var(--surface);
-		color: var(--text);
-	}
-
-	.btn-clear:hover:not(:disabled) {
-		background: var(--surface-hover);
-	}
-
-	.btn-apply:disabled,
-	.btn-clear:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
+	.btn-full-activity:hover {
+		background: var(--bg);
 	}
 
 	.empty-state {
@@ -429,11 +317,13 @@
 		align-items: center;
 		justify-content: center;
 		padding: 12px 24px;
-		min-height: 44px;
-		border-radius: 6px;
+		min-height: 48px;
+		border-radius: var(--radius);
 		font-size: 0.95rem;
 		font-weight: 500;
 		text-decoration: none;
+		background: var(--accent);
+		color: var(--accent-text);
 		border: none;
 		cursor: pointer;
 		transition: all 0.2s;
@@ -453,7 +343,7 @@
 
 	.activity-row {
 		display: grid;
-		grid-template-columns: 100px 1fr auto 1fr 120px;
+		grid-template-columns: 100px 1fr auto 1fr;
 		gap: 12px;
 		padding: 14px 16px;
 		border-bottom: 1px solid var(--border);
@@ -536,13 +426,6 @@
 		cursor: help;
 	}
 
-	.activity-ip {
-		font-family: monospace;
-		font-size: 0.8rem;
-		color: var(--text-muted);
-		text-align: right;
-	}
-
 	.load-more-container {
 		display: flex;
 		justify-content: center;
@@ -563,7 +446,7 @@
 	}
 
 	.btn-load-more:hover:not(:disabled) {
-		background: var(--surface-hover);
+		background: var(--bg);
 	}
 
 	.btn-load-more:disabled {
@@ -572,12 +455,9 @@
 	}
 
 	@media (max-width: 768px) {
-		.filter-row {
-			grid-template-columns: 1fr;
-		}
-
-		.filter-actions {
+		.filters {
 			flex-direction: column;
+			align-items: stretch;
 		}
 
 		.activity-row {
@@ -596,11 +476,6 @@
 
 		.activity-resource {
 			order: -1;
-		}
-
-		.activity-ip {
-			text-align: left;
-			font-size: 0.75rem;
 		}
 	}
 </style>

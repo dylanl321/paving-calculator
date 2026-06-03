@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { requireAuth, requireOrgRole } from '$lib/server/auth';
+import { recordAudit } from '$lib/server/audit';
 
 const MAX_LOGO_BYTES = 512 * 1024; // 512 KB
 const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']);
@@ -160,6 +161,18 @@ export async function POST(event: RequestEvent) {
 			updatedBy: user.id
 		});
 
+		// Record audit log
+		recordAudit(event.platform.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'org_branding',
+			resourceId: org.id,
+			action: 'logo_uploaded',
+			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
+
 		return json({ success: true, hasLogo: true });
 	} catch (error) {
 		if (error instanceof Response) return error;
@@ -192,6 +205,18 @@ export async function DELETE(event: RequestEvent) {
 			logoKey: null,
 			logoContentType: null,
 			updatedBy: user.id
+		});
+
+		// Record audit log
+		recordAudit(event.platform.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'org_branding',
+			resourceId: org.id,
+			action: 'logo_removed',
+			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
+			userAgent: event.request.headers.get('user-agent') || undefined
 		});
 
 		return json({ success: true, hasLogo: false });
