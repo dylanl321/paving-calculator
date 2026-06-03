@@ -1,6 +1,28 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireGlobalAdmin, hashPassword } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
+import { recordAudit } from '$lib/server/audit';
+
+type OrgRole =
+	| 'owner'
+	| 'admin'
+	| 'member'
+	| 'foreman'
+	| 'operator'
+	| 'inspector'
+	| 'office'
+	| 'laborer'
+	| 'screed_man';
+
+interface CreateUserBody {
+	email?: string;
+	password?: string;
+	name?: string;
+	org_id?: string;
+	role?: OrgRole;
+	phone?: string | null;
+	is_global_admin?: boolean;
+}
 
 export async function GET(event: RequestEvent) {
 	try {
@@ -12,7 +34,7 @@ export async function GET(event: RequestEvent) {
 		const sanitized = users.map(({ password_hash, ...user }) => user);
 		return json({ users: sanitized });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error fetching users:', error);
 		return json({ error: 'Failed to fetch users' }, { status: 500 });
 	}
@@ -20,8 +42,8 @@ export async function GET(event: RequestEvent) {
 
 export async function POST(event: RequestEvent) {
 	try {
-		await requireGlobalAdmin(event);
-		const body = await event.request.json();
+		const admin = await requireGlobalAdmin(event);
+		const body = (await event.request.json()) as CreateUserBody;
 		const { email, password, name, org_id, role, phone, is_global_admin } = body;
 
 		if (!email || !password || !name) {
@@ -57,10 +79,25 @@ export async function POST(event: RequestEvent) {
 			await db.addOrgMember(user.id, org_id, role);
 		}
 
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: admin.id,
+			actorName: admin.name,
+			orgId: org_id || 'global',
+			resourceType: 'user',
+			resourceId: user.id,
+			action: 'created',
+			newValue: { email, name, role: role ?? null, is_global_admin: !!is_global_admin },
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
+
 		const { password_hash, ...sanitized } = user;
 		return json({ user: sanitized }, { status: 201 });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error creating user:', error);
 		return json({ error: 'Failed to create user' }, { status: 500 });
 	}
