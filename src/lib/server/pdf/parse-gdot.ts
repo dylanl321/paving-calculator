@@ -1,4 +1,4 @@
-import { extractText, getDocumentProxy } from 'unpdf';
+import { getDocument } from 'pdfjs-serverless';
 
 /**
  * Parser for GDOT-style paving documents:
@@ -105,11 +105,26 @@ function emptyResult(): ParsedGdotJob {
 	};
 }
 
-/** Extract plain text from a PDF (works in the Workers runtime via unpdf). */
+/** Extract plain text from a PDF (works in the Workers runtime via pdfjs-serverless). */
 export async function pdfToText(bytes: ArrayBuffer): Promise<string> {
-	const doc = await getDocumentProxy(new Uint8Array(bytes));
-	const { text } = await extractText(doc, { mergePages: true });
-	return Array.isArray(text) ? text.join('\n') : text;
+	const doc = await getDocument({
+		data: new Uint8Array(bytes),
+		useSystemFonts: true,
+		// Workers has no DOM/canvas; disabling these avoids touching browser-only globals.
+		disableFontFace: true,
+		isEvalSupported: false
+	}).promise;
+
+	const pages: string[] = [];
+	for (let i = 1; i <= doc.numPages; i++) {
+		const page = await doc.getPage(i);
+		const content = await page.getTextContent();
+		const text = content.items
+			.map((item: unknown) => (item && typeof item === 'object' && 'str' in item ? (item as { str: string }).str : ''))
+			.join(' ');
+		pages.push(text);
+	}
+	return pages.join('\n');
 }
 
 function toNumber(raw: string | null | undefined): number | null {
