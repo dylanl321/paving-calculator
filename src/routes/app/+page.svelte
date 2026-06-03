@@ -16,6 +16,7 @@
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import ScreedManView from '$lib/components/ScreedManView.svelte';
+	import CalcHistoryLog from '$lib/components/CalcHistoryLog.svelte';
 
 	const isScreedMan = $derived(authStore.org?.role === 'screed_man');
 
@@ -55,6 +56,7 @@
 	// Mobile swipe state
 	let swipeOffset = $state(0);
 	let showHints = $state(false);
+	let historyOpen = $state(false);
 	let hintTimeout: number | undefined;
 	let isDraggingStage = $state(false);
 
@@ -274,6 +276,34 @@
 
 				<div class="stage-body">
 					<HomePrimaryCalcs />
+
+					<section class="history-section">
+						<button
+							class="history-toggle"
+							onclick={() => (historyOpen = !historyOpen)}
+							aria-expanded={historyOpen}
+						>
+							<span>Recent Calculations</span>
+							<svg
+								width="18"
+								height="18"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2.5"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								style="transition:transform 0.2s;transform:rotate({historyOpen ? 180 : 0}deg);flex-shrink:0;"
+							>
+								<polyline points="6 9 12 15 18 9" />
+							</svg>
+						</button>
+						{#if historyOpen}
+							<div class="history-panel">
+								<CalcHistoryLog />
+							</div>
+						{/if}
+					</section>
 				</div>
 			</section>
 
@@ -378,6 +408,37 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--sp-4);
+	}
+
+	/* ── Calc History Section ───────────────────────────────────────────── */
+	.history-section {
+		margin-top: 1.5rem;
+	}
+
+	.history-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+		min-height: 48px;
+		padding: 0.75rem 1rem;
+		background: var(--surface-2, #1a1a1a);
+		border: 1px solid var(--border-subtle, #2e2e2e);
+		border-radius: 8px;
+		color: var(--text, #f0f0f0);
+		font-size: 0.9rem;
+		font-weight: 600;
+		cursor: pointer;
+		text-align: left;
+		transition: background 0.15s, border-color 0.15s;
+	}
+	.history-toggle:hover {
+		background: var(--surface-3, #242424);
+		border-color: var(--border, #444);
+	}
+
+	.history-panel {
+		margin-top: 0.5rem;
 	}
 
 	.panes {

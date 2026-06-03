@@ -18,6 +18,7 @@
 	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { spreadRateFromThickness, spreadRatePlaced } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { calcHistory } from '$lib/stores/calcHistory.svelte';
 	import { onDestroy } from 'svelte';
 	import { unitsStore } from '$lib/stores/units.svelte';
 	import {
@@ -178,6 +179,22 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('spread-rate'));
+
+	// ── History recording ─────────────────────────────────────────────────
+	let _lastSpreadRecorded = $state<string | null>(null);
+	$effect(() => {
+		if (placedRate == null) return;
+		const resultStr = `${Math.round(placedRate)} lbs/SY placed`;
+		if (resultStr === _lastSpreadRecorded) return;
+		_lastSpreadRecorded = resultStr;
+		const w = calcContext.road_width.value;
+		calcHistory.add({
+			toolId: 'spread-rate',
+			toolLabel: 'Spread Rate',
+			result: resultStr,
+			summary: `${tonsInput ?? '?'} tons \u00b7 ${distanceInput ?? '?'}ft \u00b7 ${w}ft wide`
+		});
+	});
 
 	function snapToTarget() {
 		if (targetRate != null && distanceFt && calcContext.road_width.value) {

@@ -16,6 +16,7 @@
 	import { weather } from '$lib/stores/weather.svelte';
 	import { tackGallons } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { calcHistory } from '$lib/stores/calcHistory.svelte';
 	import { onDestroy } from 'svelte';
 
 	let lengthFt = $state<number | null>(null);
@@ -75,6 +76,21 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('tack'));
+
+	// ── History recording ─────────────────────────────────────────────────
+	let _lastTackRecorded = $state<string | null>(null);
+	$effect(() => {
+		if (gallons == null) return;
+		const resultStr = `${Math.round(gallons.mid)} gal`;
+		if (resultStr === _lastTackRecorded) return;
+		_lastTackRecorded = resultStr;
+		calcHistory.add({
+			toolId: 'tack',
+			toolLabel: 'Tack Rate',
+			result: resultStr,
+			summary: `${lengthFt ?? '?'}ft \u00d7 ${job.widthFt}ft wide`
+		});
+	});
 
 	function getProofData(): CalcProofData | null {
 		if (!lengthFt || !job.widthFt || !gallons) {

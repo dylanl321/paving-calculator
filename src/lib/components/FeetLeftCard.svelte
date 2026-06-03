@@ -14,6 +14,7 @@
 	import { feetFromOrderedMinusPlaced, spreadRateFromThickness } from '$lib/config/formulas';
 	import { constantMeta } from '$lib/config';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { calcHistory } from '$lib/stores/calcHistory.svelte';
 	import { onDestroy } from 'svelte';
 	import { unitsStore } from '$lib/stores/units.svelte';
 	import {
@@ -83,6 +84,21 @@
 		}
 	});
 	onDestroy(() => logDraft.clearFor('feet-left'));
+
+	// ── History recording ─────────────────────────────────────────────────
+	let _lastFeetRecorded = $state<string | null>(null);
+	$effect(() => {
+		if (feet == null) return;
+		const resultStr = `${Math.round(feet).toLocaleString()} ft remaining`;
+		if (resultStr === _lastFeetRecorded) return;
+		_lastFeetRecorded = resultStr;
+		calcHistory.add({
+			toolId: 'feet-left',
+			toolLabel: 'Feet Left',
+			result: resultStr,
+			summary: `${orderedInput ?? '?'} tons ordered, ${placedInput ?? '?'} placed`
+		});
+	});
 
 	const displayFeet = $derived(
 		feet != null && unitsStore.system === 'metric' ? toMeters(feet) : feet
