@@ -4,7 +4,7 @@
 	import { config } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { spreadRateFromThickness, stickCheck } from '$lib/config/formulas';
-	import { findTool, allTools } from '$lib/workspace/tools';
+	import { findTool, allTools, toolGroups } from '$lib/workspace/tools';
 	import JobBar from '$lib/components/workspace/JobBar.svelte';
 	import ToolList from '$lib/components/workspace/ToolList.svelte';
 	import SpreadRateChart from '$lib/components/charts/SpreadRateChart.svelte';
@@ -23,6 +23,7 @@
 	const activeTool = $derived(findTool($page.url.searchParams.get('tool')));
 	const isHome = $derived(!isToday && activeTool == null);
 	const ActiveComponent = $derived(activeTool?.component);
+	const activeToolGroup = $derived(toolGroups.find(g => g.tools.some(t => t.id === activeTool?.id)) ?? null);
 
 	function selectTool(id: string) {
 		logDraft.set(null);
@@ -307,6 +308,25 @@
 					<div class="swipe-hint swipe-hint-right">›</div>
 				{/if}
 				<header class="stage-head">
+					<!-- Desktop/tablet breadcrumb -->
+					<nav class="breadcrumb" aria-label="Breadcrumb">
+						<button type="button" class="breadcrumb-link" onclick={selectHome}>Home</button>
+						<span class="breadcrumb-sep">/</span>
+						{#if activeToolGroup}
+							<span class="breadcrumb-group">{activeToolGroup.label}</span>
+							<span class="breadcrumb-sep">/</span>
+						{/if}
+						<span class="breadcrumb-current">{activeTool?.label ?? ''}</span>
+					</nav>
+
+					<!-- Mobile back button -->
+					<button type="button" class="back-btn" onclick={selectHome} aria-label="Back to home">
+						<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+							<path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+						</svg>
+						Back
+					</button>
+
 					<div class="stage-head-row">
 						<div>
 							<div class="eyebrow">Calculator</div>
@@ -448,6 +468,89 @@
 		font-size: var(--fs-xl);
 		font-weight: var(--fw-heavy);
 		letter-spacing: 0.2px;
+	}
+
+	/* Breadcrumb navigation */
+	.breadcrumb {
+		display: none;
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+		margin-bottom: var(--sp-3);
+		line-height: 1.4;
+	}
+
+	.breadcrumb-link {
+		background: none;
+		border: none;
+		padding: 0;
+		color: var(--text-muted);
+		cursor: pointer;
+		font-size: inherit;
+		text-decoration: none;
+		transition: color 0.15s ease;
+	}
+
+	.breadcrumb-link:hover {
+		color: var(--text);
+		text-decoration: underline;
+	}
+
+	.breadcrumb-sep {
+		margin: 0 var(--sp-2);
+		color: var(--text-muted);
+	}
+
+	.breadcrumb-group {
+		color: var(--text-muted);
+	}
+
+	.breadcrumb-current {
+		color: var(--text);
+	}
+
+	/* Mobile back button */
+	.back-btn {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		background: none;
+		border: none;
+		padding: var(--sp-2);
+		margin: 0 calc(-1 * var(--sp-2)) var(--sp-3);
+		color: var(--text-muted);
+		cursor: pointer;
+		font-size: var(--fs-sm);
+		min-height: 48px;
+		min-width: 48px;
+		transition: color 0.15s ease;
+	}
+
+	.back-btn:hover {
+		color: var(--text);
+	}
+
+	.back-btn svg {
+		flex-shrink: 0;
+	}
+
+	/* Show breadcrumb on desktop/tablet, hide back button */
+	@media (min-width: 768px) {
+		.breadcrumb {
+			display: block;
+		}
+		.back-btn {
+			display: none;
+		}
+	}
+
+	/* Hide breadcrumb on mobile, show back button */
+	@media (max-width: 767px) {
+		.breadcrumb {
+			display: none;
+		}
+		.back-btn {
+			display: flex;
+		}
 	}
 
 	.rate-stats {
