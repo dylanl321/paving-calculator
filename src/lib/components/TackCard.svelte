@@ -6,6 +6,7 @@
 	import SourceBadge from './SourceBadge.svelte';
 	import DotTable from './DotTable.svelte';
 	import SpecAlert from './SpecAlert.svelte';
+	import HelpTip from './HelpTip.svelte';
 	import { tack, tackMid, rainCheck, tackTempCheck, weatherConfig } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -66,6 +67,10 @@
 	hideTitle
 	purpose="Gallons of tack to shoot for an area. Shows the safe min–max window for the chosen application, with the mid-rate as the suggested amount."
 >
+	<div class="label-row tack-title">
+		<span class="tack-title-text">Tack Rate</span>
+		<HelpTip text="Gallons of tack coat to spray before paving. Too little = delamination. Too much = slipping and tracking onto equipment." />
+	</div>
 	<NumberField label="Length to shoot" unit="ft" bind:value={lengthFt} />
 
 	<div class="width-note">Using job width: <strong>{job.widthFt} ft</strong></div>
@@ -207,5 +212,18 @@
 		margin-bottom: var(--sp-3);
 		background: color-mix(in srgb, var(--warn) 14%, transparent);
 		color: var(--warn);
+	}
+	.label-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.tack-title {
+		margin-bottom: var(--sp-4);
+	}
+	.tack-title-text {
+		font-size: var(--fs-lg);
+		font-weight: var(--fw-bold);
+		color: var(--text);
 	}
 </style>

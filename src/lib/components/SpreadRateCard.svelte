@@ -7,6 +7,7 @@
 	import SpreadRateGauge from './SpreadRateGauge.svelte';
 	import DotTable from './DotTable.svelte';
 	import SpecAlert from './SpecAlert.svelte';
+	import HelpTip from './HelpTip.svelte';
 	import { constantMeta, placementCheck, rainCheck, spreadSpecCheck, spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -151,7 +152,10 @@
 >
 	<div class="two-up">
 		<div class="col">
-			<div class="col-head">Target (from job thickness)</div>
+			<div class="col-head label-row">
+				Target (from job thickness)
+				<HelpTip text="Pounds of asphalt per square yard. GDOT spec requires this within tolerance for your mix type." />
+			</div>
 
 			<button
 				type="button"
@@ -222,7 +226,10 @@
 		</div>
 
 		<div class="col">
-			<div class="col-head">Actual (from a real load)</div>
+			<div class="col-head label-row">
+				Actual (from a real load)
+				<HelpTip text="How many pounds of asphalt you actually laid per square yard, calculated from tons placed over the area." />
+			</div>
 			<NumberField
 				label="Tons placed"
 				unit={UNIT_LABELS.tons[unitsStore.system]}
@@ -288,6 +295,11 @@
 		letter-spacing: 0.4px;
 		color: var(--text-muted);
 		margin-bottom: var(--sp-2);
+	}
+	.label-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
 	}
 	.col-note {
 		font-size: var(--fs-xs);
