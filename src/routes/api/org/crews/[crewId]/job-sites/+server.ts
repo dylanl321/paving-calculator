@@ -14,6 +14,7 @@ export async function GET(event: RequestEvent) {
 		}
 
 		const { crewId } = event.params;
+		if (!crewId) return json({ error: 'Crew ID is required' }, { status: 400 });
 		const jobSites = await db.getCrewJobSites(crewId);
 
 		return json({ job_sites: jobSites });
@@ -42,6 +43,7 @@ export async function POST(event: RequestEvent) {
 		}
 
 		const { crewId } = event.params;
+		if (!crewId) return json({ error: 'Crew ID is required' }, { status: 400 });
 		const body = await event.request.json();
 		const { job_site_id } = body;
 

@@ -2,13 +2,17 @@
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
 	import GeofenceMonitor from '$lib/components/GeofenceMonitor.svelte';
+	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
 	import type { PageData } from './$types';
+	import { formatDate } from '$lib/utils/format';
 
 	let { data }: { data: PageData } = $props();
 
 	let showCreateForm = $state(false);
 	let newSiteName = $state('');
 	let newSiteLocation = $state('');
+	let newSiteLat = $state<number | null>(null);
+	let newSiteLng = $state<number | null>(null);
 	let createError = $state('');
 	let creating = $state(false);
 
@@ -35,12 +39,14 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					name: newSiteName,
-					location_description: newSiteLocation || undefined
+					location_description: newSiteLocation || undefined,
+					latitude: newSiteLat ?? undefined,
+					longitude: newSiteLng ?? undefined
 				}),
 				credentials: 'include'
 			});
 
-			const result = await res.json();
+			const result = (await res.json()) as { error?: string; id?: string };
 
 			if (!res.ok) {
 				createError = result.error || 'Failed to create job site';
@@ -60,15 +66,9 @@
 		showCreateForm = false;
 		newSiteName = '';
 		newSiteLocation = '';
+		newSiteLat = null;
+		newSiteLng = null;
 		createError = '';
-	}
-
-	function formatDate(timestamp: number): string {
-		return new Date(timestamp * 1000).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
 	}
 </script>
 
@@ -122,6 +122,16 @@
 				</svg>
 				Audit Log
 			</a>
+			<a href="/dashboard/admin/crew-productivity" class="quick-link">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+					<circle cx="9" cy="7" r="4"></circle>
+					<path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+					<path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+					<polyline points="16 16 18 18 22 14"></polyline>
+				</svg>
+				Crew Productivity
+			</a>
 		{/if}
 		{#if data.user.isGlobalAdmin}
 			<a href="/admin" class="quick-link admin">
@@ -154,11 +164,39 @@
 			<section class="section map-section">
 				<div class="section-header">
 					<h3>Job Site Locations</h3>
+					{#if data.org.role === 'owner' || data.org.role === 'admin'}
+						<a href="/dashboard/map" class="btn-secondary btn-sm">
+							<svg
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+								<circle cx="12" cy="10" r="3"></circle>
+							</svg>
+							Full Map
+						</a>
+					{/if}
 				</div>
 				{#await import('$lib/components/JobSiteMap.svelte')}
 					<div class="map-loading">Loading map&hellip;</div>
 				{:then { default: JobSiteMap }}
 					<JobSiteMap sites={mapSites} />
+				{/await}
+			</section>
+		{/if}
+
+		{#if data.org.role === 'owner' || data.org.role === 'admin'}
+			<section class="section crew-status-section">
+				{#await import('$lib/components/LiveCrewDashboard.svelte')}
+					<div class="map-loading">Loading crew status&hellip;</div>
+				{:then { default: LiveCrewDashboard }}
+					<LiveCrewDashboard />
 				{/await}
 			</section>
 		{/if}
@@ -199,6 +237,15 @@
 							id="site-location"
 							bind:value={newSiteLocation}
 							placeholder="Mile marker 42-48"
+						/>
+					</div>
+
+					<div class="form-field">
+						<label>Map Pin <span class="optional-label">(optional)</span></label>
+						<JobSiteLocationPicker
+							bind:latitude={newSiteLat}
+							bind:longitude={newSiteLng}
+							mapHeight="220px"
 						/>
 					</div>
 
@@ -424,6 +471,16 @@
 		cursor: not-allowed;
 	}
 
+	.btn-sm {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 36px;
+		padding: 0 12px;
+		font-size: 0.85rem;
+		text-decoration: none;
+	}
+
 	.create-form-card {
 		background: var(--surface);
 		border: 1px solid var(--border);
@@ -479,6 +536,12 @@
 		display: flex;
 		gap: 10px;
 		justify-content: flex-end;
+	}
+
+	.optional-label {
+		font-size: var(--fs-xs);
+		color: var(--text-muted);
+		font-weight: 400;
 	}
 
 	.empty-state {
@@ -600,6 +663,10 @@
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md, 12px);
+	}
+
+	.crew-status-section {
+		margin-bottom: 0;
 	}
 
 	@media (min-width: 1100px) {

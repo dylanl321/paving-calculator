@@ -28,7 +28,9 @@ export async function GET(event: RequestEvent) {
 			return json({ error: 'Only owners and admins can view webhooks' }, { status: 403 });
 		}
 
-		const webhook = await db.getWebhookById(event.params.id);
+		const { id } = event.params;
+		if (!id) return json({ error: 'Webhook ID is required' }, { status: 400 });
+		const webhook = await db.getWebhookById(id);
 		if (!webhook) {
 			return json({ error: 'Webhook not found' }, { status: 404 });
 		}
@@ -76,7 +78,9 @@ export async function PATCH(event: RequestEvent) {
 			return json({ error: 'Only owners and admins can update webhooks' }, { status: 403 });
 		}
 
-		const webhook = await db.getWebhookById(event.params.id);
+		const { id } = event.params;
+		if (!id) return json({ error: 'Webhook ID is required' }, { status: 400 });
+		const webhook = await db.getWebhookById(id);
 		if (!webhook) {
 			return json({ error: 'Webhook not found' }, { status: 404 });
 		}
@@ -113,7 +117,7 @@ export async function PATCH(event: RequestEvent) {
 		}
 
 		// Update webhook
-		await db.updateWebhook(event.params.id, {
+		await db.updateWebhook(id, {
 			url: body.url,
 			events: body.events,
 			description: body.description,
@@ -121,7 +125,7 @@ export async function PATCH(event: RequestEvent) {
 		});
 
 		// Fetch updated webhook
-		const updatedWebhook = await db.getWebhookById(event.params.id);
+		const updatedWebhook = await db.getWebhookById(id);
 		if (!updatedWebhook) {
 			return json({ error: 'Webhook not found after update' }, { status: 500 });
 		}
@@ -156,7 +160,9 @@ export async function DELETE(event: RequestEvent) {
 			return json({ error: 'Only owners and admins can delete webhooks' }, { status: 403 });
 		}
 
-		const webhook = await db.getWebhookById(event.params.id);
+		const { id } = event.params;
+		if (!id) return json({ error: 'Webhook ID is required' }, { status: 400 });
+		const webhook = await db.getWebhookById(id);
 		if (!webhook) {
 			return json({ error: 'Webhook not found' }, { status: 404 });
 		}
@@ -167,7 +173,7 @@ export async function DELETE(event: RequestEvent) {
 		}
 
 		// Delete webhook (and its deliveries via cascade or explicit)
-		await db.deleteWebhook(event.params.id);
+		await db.deleteWebhook(id);
 
 		return json({ success: true });
 	} catch (error) {

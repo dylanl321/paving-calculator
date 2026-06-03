@@ -9,7 +9,10 @@ export const load: PageLoad = async ({ fetch }) => {
 			throw redirect(302, '/login');
 		}
 
-		const authData = await authRes.json();
+		const authData = (await authRes.json()) as {
+			user: unknown;
+			org: unknown;
+		};
 
 		const jobSitesRes = await fetch('/api/job-sites', { credentials: 'include' });
 		if (!jobSitesRes.ok) {
@@ -24,7 +27,7 @@ export const load: PageLoad = async ({ fetch }) => {
 				const calcRes = await fetch(`/api/calculations?job_site_id=${site.id}`, {
 					credentials: 'include'
 				});
-				const calcData = await calcRes.json();
+				const calcData = (await calcRes.json()) as { calculations?: unknown[] };
 				return {
 					...site,
 					calculation_count: calcData.calculations?.length || 0

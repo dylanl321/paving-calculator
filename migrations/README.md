@@ -26,15 +26,24 @@ This will output a database ID. Copy it and update `wrangler.jsonc`:
 
 ### 2. Run migrations locally
 
+Apply every migration in filename order (they are a strict, unique sequence
+`0001`–`0030`). For example:
+
 ```bash
 npx wrangler d1 execute paverate-db --local --file=./migrations/0001_initial_schema.sql
+# ...repeat for each file through 0030, in order...
 ```
 
 ### 3. Run migrations in production
 
 ```bash
 npx wrangler d1 execute paverate-db --remote --file=./migrations/0001_initial_schema.sql
+# ...repeat for each file through 0030, in order...
 ```
+
+> Migrations must be applied strictly in numeric order — later files depend on
+> tables/columns created by earlier ones (e.g. `0030_loads_ticket_photo.sql`
+> references `photo_attachments` from `0011`).
 
 ## Testing the API locally
 
@@ -80,5 +89,5 @@ curl http://localhost:5173/api/auth/me \
 - **job_site_assignments** — users assigned to sites with roles (foreman/operator/inspector)
 - **calculations** — saved calculations linked to job sites
 - **sessions** — user sessions for authentication
-- **crews** — named crew groups within orgs (migration 0011)
+- **crews** — named crew groups within orgs (migration 0013)
 - **crew_members** — members assigned to crews (one crew per member per org)
