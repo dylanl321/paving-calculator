@@ -7,6 +7,7 @@
 	import DotTable from './DotTable.svelte';
 	import SpecAlert from './SpecAlert.svelte';
 	import HelpTip from './HelpTip.svelte';
+	import Tooltip from './ui/Tooltip.svelte';
 	import { tack, tackMid, rainCheck, tackTempCheck, weatherConfig } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -19,6 +20,16 @@
 	function clearInputs() {
 		lengthFt = null;
 		logDraft.clearFor('tack');
+	}
+
+	function getApplicationDescription(label: string): string {
+		const descriptions: Record<string, string> = {
+			'Leveling': 'For thin leveling courses or minor surface corrections (0.04-0.06 gal/SY)',
+			'Topping': 'Standard surface course over existing pavement (0.04-0.06 gal/SY)',
+			'OGI (Open-Graded Interlayer)': 'Porous interlayer requiring higher tack rate for proper bonding (0.06-0.08 gal/SY)',
+			'Rock Chip': 'Pre-existing rock chip seal coat requiring heavy tack (0.085 gal/SY)'
+		};
+		return descriptions[label] || 'Standard tack application rate for this surface type';
 	}
 
 	const selected = $derived(
@@ -69,7 +80,7 @@
 >
 	<div class="label-row tack-title">
 		<span class="tack-title-text">Tack Rate</span>
-		<HelpTip text="Gallons of tack coat to spray before paving. Too little = delamination. Too much = slipping and tracking onto equipment." />
+		<Tooltip term="Tack Coat" definition="Asphalt emulsion sprayed on existing pavement to bond new layer. Application rate varies by surface condition (typically 0.04-0.12 gal/SY)." />
 	</div>
 	<NumberField label="Length to shoot" unit="ft" bind:value={lengthFt} />
 
@@ -103,6 +114,7 @@
 					class="chip"
 					class:active={job.tackApplication === t.id}
 					onclick={() => (job.tackApplication = t.id)}
+					title={getApplicationDescription(t.label)}
 				>
 					{t.label}
 				</button>
@@ -111,6 +123,7 @@
 		<div class="rate-display">
 			{selected.label}: <strong>{selected.min}–{selected.max} gal/SY</strong>
 		</div>
+		<p class="app-description">{getApplicationDescription(selected.label)}</p>
 	</div>
 
 	{#if job.widthFt}
@@ -168,6 +181,12 @@
 	.rate-display strong {
 		color: var(--accent);
 		font-weight: var(--fw-bold);
+	}
+	.app-description {
+		margin-top: var(--sp-3);
+		font-size: var(--fs-sm);
+		line-height: 1.4;
+		color: var(--text-muted);
 	}
 	.width-note {
 		font-size: var(--fs-sm);

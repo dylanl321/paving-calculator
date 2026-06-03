@@ -6,6 +6,7 @@
 	import SourceBadge from './SourceBadge.svelte';
 	import DotTable from './DotTable.svelte';
 	import RoadProgressBar from './RoadProgressBar.svelte';
+	import Tooltip from './ui/Tooltip.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { feetFromOrderedMinusPlaced, spreadRateFromThickness } from '$lib/config/formulas';
 	import { constantMeta } from '$lib/config';
@@ -111,11 +112,13 @@
 		hint="For progress tracking"
 	/>
 
-	<ResultStat
-		value={displayFeet != null ? Math.round(displayFeet).toLocaleString() : null}
-		unit={`${UNIT_LABELS.ft[unitsStore.system]} left today`}
-		secondary={`At ${job.widthFt} ft wide, ${Math.round(rate)} lbs/SY`}
-	/>
+	<div class="result-with-tooltip">
+		<ResultStat
+			value={displayFeet != null ? Math.round(displayFeet).toLocaleString() : null}
+			unit={`${UNIT_LABELS.ft[unitsStore.system]} left today`}
+			secondary={`At ${job.widthFt} ft wide, ${Math.round(rate)} lbs/SY`}
+		/>
+	</div>
 
 	{#if totalJobFeet != null && feet != null && totalJobFeet > 0}
 		<RoadProgressBar currentFeet={completedFeet} totalFeet={totalJobFeet} />

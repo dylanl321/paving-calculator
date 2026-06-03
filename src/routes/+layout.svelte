@@ -10,6 +10,7 @@
 	import PwaInstallPrompt from '$lib/components/PwaInstallPrompt.svelte';
 	import Toast from '$lib/components/ui/Toast.svelte';
 	import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
+	import OnboardingOverlay from '$lib/components/ui/OnboardingOverlay.svelte';
 	import { offlineStore } from '$lib/stores/offline.svelte';
 	import '../app.css';
 
@@ -108,4 +109,5 @@
 	<PwaInstallPrompt />
 	<Toast />
 	<ConfirmModal />
+	<OnboardingOverlay />
 </div>
