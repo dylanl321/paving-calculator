@@ -1,5 +1,6 @@
 import type { D1Database } from '../../cloudflare';
 import { toHex } from '$lib/utils/format';
+import type { DbDotRoadSegment, DbDotSyncLog } from '$lib/types/dot';
 
 export interface DbUser {
 	id: string;
@@ -1385,5 +1386,83 @@ export class DbHelper {
 			)
 			.bind(orgId, email)
 			.first<DbInvitation>();
+	}
+
+	// ── DOT road segment helpers (migration 0042) ────────────────────────────
+
+	async upsertDotSegment(
+		row: Omit<DbDotRoadSegment, 'id' | 'fetched_at' | 'updated_at'>
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				`INSERT INTO dot_road_segments
+					(state_dot, source, external_id, road_name, route_id, functional_class, surface_type,
+					 iri, pci, psr, begin_milepost, end_milepost, length_miles, lanes, aadt,
+					 district_code, county_code, geometry_geojson, raw_json, data_year,
+					 fetched_at, updated_at)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+				ON CONFLICT(state_dot, source, external_id)
+				DO UPDATE SET
+					road_name=excluded.road_name, route_id=excluded.route_id,
+					functional_class=excluded.functional_class, surface_type=excluded.surface_type,
+					iri=excluded.iri, pci=excluded.pci, psr=excluded.psr,
+					begin_milepost=excluded.begin_milepost, end_milepost=excluded.end_milepost,
+					length_miles=excluded.length_miles, lanes=excluded.lanes, aadt=excluded.aadt,
+					district_code=excluded.district_code, county_code=excluded.county_code,
+					geometry_geojson=excluded.geometry_geojson, raw_json=excluded.raw_json,
+					data_year=excluded.data_year, fetched_at=excluded.fetched_at,
+					updated_at=excluded.updated_at`
+			)
+			.bind(
+				row.state_dot, row.source, row.external_id, row.road_name, row.route_id,
+				row.functional_class, row.surface_type, row.iri, row.pci, row.psr,
+				row.begin_milepost, row.end_milepost, row.length_miles, row.lanes, row.aadt,
+				row.district_code, row.county_code, row.geometry_geojson, row.raw_json,
+				row.data_year, now, now
+			)
+			.run();
+	}
+
+	async getDotSegmentsByState(stateDot: string, limit = 500): Promise<DbDotRoadSegment[]> {
+		return await this.db
+			.prepare('SELECT * FROM dot_road_segments WHERE state_dot = ? LIMIT ?')
+			.bind(stateDot, limit)
+			.all<DbDotRoadSegment>()
+			.then((r) => r.results);
+	}
+
+	async getDotSegmentsByRoute(stateDot: string, routeId: string): Promise<DbDotRoadSegment[]> {
+		return await this.db
+			.prepare('SELECT * FROM dot_road_segments WHERE state_dot = ? AND route_id = ?')
+			.bind(stateDot, routeId)
+			.all<DbDotRoadSegment>()
+			.then((r) => r.results);
+	}
+
+	async logDotSync(
+		stateDot: string,
+		source: string,
+		status: 'success' | 'partial' | 'failed',
+		recordsUpserted: number,
+		errorMessage: string | null = null
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				`INSERT INTO dot_sync_log (state_dot, source, status, records_upserted, error_message, synced_at)
+				 VALUES (?, ?, ?, ?, ?, ?)`
+			)
+			.bind(stateDot, source, status, recordsUpserted, errorMessage, now)
+			.run();
+	}
+
+	async getLastDotSync(stateDot: string, source: string): Promise<DbDotSyncLog | null> {
+		return await this.db
+			.prepare(
+				'SELECT * FROM dot_sync_log WHERE state_dot = ? AND source = ? ORDER BY synced_at DESC LIMIT 1'
+			)
+			.bind(stateDot, source)
+			.first<DbDotSyncLog>();
 	}
 }
