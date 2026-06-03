@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { roadTypeLabels, scopeOfWorkLabels, tackTypeLabels, fmt, type ConfigForm } from './shared';
+	import AutoSaveStatus from '$lib/components/AutoSaveStatus.svelte';
 
 	let {
 		jobSiteId,
@@ -11,10 +12,10 @@
 		estTonnage: number | null;
 	} = $props();
 
-	let saving = $state(false);
+	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
 	async function saveConfig() {
-		saving = true;
+		saveStatus = 'saving';
 		try {
 			const res = await fetch(`/api/job-sites/${jobSiteId}/config`, {
 				method: 'PUT',
@@ -24,10 +25,13 @@
 			});
 
 			if (!res.ok) throw new Error('Failed to save');
+			saveStatus = 'saved';
+			setTimeout(() => {
+				if (saveStatus === 'saved') saveStatus = 'idle';
+			}, 2300);
 		} catch (err) {
 			console.error(err);
-		} finally {
-			saving = false;
+			saveStatus = 'error';
 		}
 	}
 </script>
@@ -270,4 +274,6 @@
 		</div>
 
 	</form>
+
+	<AutoSaveStatus status={saveStatus} onRetry={saveConfig} />
 </section>
