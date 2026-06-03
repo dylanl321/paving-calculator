@@ -4,12 +4,14 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
+	import SourceTag from './SourceTag.svelte';
 	import DotTable from './DotTable.svelte';
 	import Tooltip from './ui/Tooltip.svelte';
 	import CalculationStep from './ui/CalculationStep.svelte';
 	import CalcProofButton from './CalcProofButton.svelte';
 	import type { CalcProofData } from '$lib/utils/pdf-export';
 	import { job } from '$lib/stores/job.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { spreadRateFromThickness, tonnageToOrder } from '$lib/config/formulas';
 	import { constantMeta } from '$lib/config';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
@@ -196,8 +198,12 @@
 	<ResultStat
 		value={displayTons != null ? Math.round(displayTons).toLocaleString() : null}
 		unit={`${UNIT_LABELS.tons[unitsStore.system]} to order`}
-		secondary={`At ${job.widthFt} ft wide, ${job.thicknessIn}" (${Math.round(rate)} lbs/SY) · ${job.wastePct}% waste`}
 	/>
+	<div class="context-tags">
+		<SourceTag source={calcContext.road_width.source} updatedAt={calcContext.road_width.updatedAt} label="Width" />
+		<SourceTag source={calcContext.lift_thickness.source} updatedAt={calcContext.lift_thickness.updatedAt} label="Thickness" />
+		<span class="context-text">At {calcContext.road_width.value} ft wide, {calcContext.lift_thickness.value}" ({Math.round(rate)} lbs/SY) · {job.wastePct}% waste</span>
+	</div>
 
 	<ShowWork stepCount={4} inspectorStats={inspectorStats} inspectorTitle="Tonnage Order">
 		{#if lengthFt && job.widthFt && rate && tons != null}
@@ -246,5 +252,16 @@
 </CalcCard>
 
 <style>
-	/* Component uses global .btn-clear utility from app.css */
+	.context-tags {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		flex-wrap: wrap;
+		margin-top: var(--sp-2);
+		font-size: var(--fs-xs);
+		color: var(--text-muted);
+	}
+	.context-text {
+		color: var(--text-muted);
+	}
 </style>

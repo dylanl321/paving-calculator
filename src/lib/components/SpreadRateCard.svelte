@@ -4,6 +4,7 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
+	import SourceTag from './SourceTag.svelte';
 	import SpreadRateGauge from './SpreadRateGauge.svelte';
 	import DotTable from './DotTable.svelte';
 	import SpecAlert from './SpecAlert.svelte';
@@ -276,6 +277,7 @@
 		<div class="col">
 			<div class="col-head label-row">
 				Target (from job thickness)
+				<SourceTag source={calcContext.lift_thickness.source} updatedAt={calcContext.lift_thickness.updatedAt} label="Thickness" />
 				<Tooltip term="lbs/SY" definition="Pounds per Square Yard. Standard unit for spread rate (how much asphalt per area). Controls thickness and density of the asphalt mat." />
 			</div>
 
@@ -368,6 +370,10 @@
 				unit={UNIT_LABELS.lbsSy[unitsStore.system]}
 				badge={badge}
 			/>
+			<p class="col-note">
+				<SourceTag source={calcContext.road_width.source} updatedAt={calcContext.road_width.updatedAt} label="Width" />
+				Using job width: {calcContext.road_width.value} ft
+			</p>
 		</div>
 	</div>
 

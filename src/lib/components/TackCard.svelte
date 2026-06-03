@@ -4,6 +4,7 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
+	import SourceTag from './SourceTag.svelte';
 	import DotTable from './DotTable.svelte';
 	import SpecAlert from './SpecAlert.svelte';
 	import HelpTip from './HelpTip.svelte';
@@ -13,6 +14,7 @@
 	import type { CalcProofData } from '$lib/utils/pdf-export';
 	import { tack, tackMid, rainCheck, tackTempCheck, weatherConfig } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
 	import { tackGallons } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
@@ -40,14 +42,14 @@
 		tack.field.find((t) => t.id === job.tackApplication) ?? tack.field[0]
 	);
 
-	const area = $derived(lengthFt && job.widthFt ? (lengthFt * job.widthFt) / 9 : null);
+	const area = $derived(lengthFt && calcContext.road_width.value ? (lengthFt * calcContext.road_width.value) / 9 : null);
 
 	const gallons = $derived.by(() => {
 		if (!area) return null;
 		return {
-			min: tackGallons(lengthFt!, job.widthFt, selected.min),
-			mid: tackGallons(lengthFt!, job.widthFt, tackMid(selected)),
-			max: tackGallons(lengthFt!, job.widthFt, selected.max)
+			min: tackGallons(lengthFt!, calcContext.road_width.value, selected.min),
+			mid: tackGallons(lengthFt!, calcContext.road_width.value, tackMid(selected)),
+			max: tackGallons(lengthFt!, calcContext.road_width.value, selected.max)
 		};
 	});
 
@@ -93,25 +95,25 @@
 	});
 
 	function getProofData(): CalcProofData | null {
-		if (!lengthFt || !job.widthFt || !gallons) {
+		if (!lengthFt || !calcContext.road_width.value || !gallons) {
 			return null;
 		}
 
-		const areaYards = (lengthFt * job.widthFt) / 9;
+		const areaYards = (lengthFt * calcContext.road_width.value) / 9;
 		const midRate = tackMid(selected);
 
 		return {
 			title: 'Tack Rate',
 			inputs: {
 				'Length to shoot': `${lengthFt.toFixed(0)} ft`,
-				'Mat width': `${job.widthFt.toFixed(0)} ft`,
+				'Mat width': `${calcContext.road_width.value.toFixed(0)} ft`,
 				'Application type': selected.label
 			},
 			steps: [
 				{
 					step: 1,
 					label: 'Area in square yards',
-					formula: `${lengthFt.toFixed(0)} × ${job.widthFt.toFixed(0)} ÷ 9`,
+					formula: `${lengthFt.toFixed(0)} × ${calcContext.road_width.value.toFixed(0)} ÷ 9`,
 					result: `${areaYards.toFixed(2)} SY`
 				},
 				{
@@ -133,7 +135,7 @@
 			},
 			notes: `${selected.label} tack application. Rate range: ${selected.min}–${selected.max} gal/SY. Using mid-rate (${midRate.toFixed(3)} gal/SY).`,
 			jobContext: {
-				width: job.widthFt,
+				width: calcContext.road_width.value,
 				tackApplication: selected.label
 			}
 		};
@@ -150,7 +152,10 @@
 	</div>
 	<NumberField label="Length to shoot" unit="ft" bind:value={lengthFt} />
 
-	<div class="width-note">Using job width: <strong>{job.widthFt} ft</strong></div>
+	<div class="width-note">
+		<SourceTag source={calcContext.road_width.source} updatedAt={calcContext.road_width.updatedAt} label="Width" />
+		Using job width: <strong>{calcContext.road_width.value} ft</strong>
+	</div>
 
 	{#if tempCheck?.status === 'fail'}
 		<SpecAlert status="fail" message={tempCheck.message} clause={tempCheck.clause} clauseTitle={tempCheck.clauseTitle} guidance={tempCheck.guidance} />
@@ -192,8 +197,8 @@
 		<p class="app-description">{getApplicationDescription(selected.label)}</p>
 	</div>
 
-	{#if job.widthFt}
-		<div class="width-confirm">Using <strong>{job.widthFt} ft</strong> width</div>
+	{#if calcContext.road_width.value}
+		<div class="width-confirm">Using <strong>{calcContext.road_width.value} ft</strong> width</div>
 	{:else}
 		<div class="width-warn">Set road width in job settings to calculate tack gallons.</div>
 	{/if}
@@ -210,14 +215,14 @@
 	/>
 
 	<ShowWork stepCount={3}>
-		{#if lengthFt && job.widthFt && gallons != null}
-			{@const areaYards = (lengthFt * job.widthFt) / 9}
+		{#if lengthFt && calcContext.road_width.value && gallons != null}
+			{@const areaYards = (lengthFt * calcContext.road_width.value) / 9}
 			{@const midRate = tackMid(selected)}
 
 			<CalculationStep
 				step={1}
 				label="Area in square yards"
-				formula="{lengthFt.toFixed(0)} × {job.widthFt.toFixed(0)} ÷ 9"
+				formula="{lengthFt.toFixed(0)} × {calcContext.road_width.value.toFixed(0)} ÷ 9"
 				result="{areaYards.toFixed(2)} SY"
 			/>
 			<CalculationStep
@@ -241,7 +246,7 @@
 		{/if}
 
 		<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
-			<p>Width in use: <strong>{job.widthFt} ft</strong> (from job settings).</p>
+			<p>Width in use: <strong>{calcContext.road_width.value} ft</strong> (from job settings).</p>
 			<div class="src-row">Tack range source: <SourceBadge status={selected.status} tier={selected.tier} /></div>
 			<DotTable tableId="table-2" />
 		</div>

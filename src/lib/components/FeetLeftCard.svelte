@@ -4,6 +4,7 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
+	import SourceTag from './SourceTag.svelte';
 	import DotTable from './DotTable.svelte';
 	import RoadProgressBar from './RoadProgressBar.svelte';
 	import Tooltip from './ui/Tooltip.svelte';
@@ -11,6 +12,7 @@
 	import CalcProofButton from './CalcProofButton.svelte';
 	import type { CalcProofData } from '$lib/utils/pdf-export';
 	import { job } from '$lib/stores/job.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { feetFromOrderedMinusPlaced, spreadRateFromThickness } from '$lib/config/formulas';
 	import { constantMeta } from '$lib/config';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
@@ -190,8 +192,12 @@
 		<ResultStat
 			value={displayFeet != null ? Math.round(displayFeet).toLocaleString() : null}
 			unit={`${UNIT_LABELS.ft[unitsStore.system]} left today`}
-			secondary={`At ${job.widthFt} ft wide, ${Math.round(rate)} lbs/SY`}
 		/>
+		<div class="context-tags">
+			<SourceTag source={calcContext.road_width.source} updatedAt={calcContext.road_width.updatedAt} label="Width" />
+			<SourceTag source={calcContext.lift_thickness.source} updatedAt={calcContext.lift_thickness.updatedAt} label="Thickness" />
+			<span class="context-text">At {calcContext.road_width.value} ft wide, {Math.round(rate)} lbs/SY</span>
+		</div>
 	</div>
 
 	{#if totalJobFeet != null && feet != null && totalJobFeet > 0}
@@ -242,3 +248,18 @@
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>
 </CalcCard>
+
+<style>
+	.context-tags {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		flex-wrap: wrap;
+		margin-top: var(--sp-2);
+		font-size: var(--fs-xs);
+		color: var(--text-muted);
+	}
+	.context-text {
+		color: var(--text-muted);
+	}
+</style>
