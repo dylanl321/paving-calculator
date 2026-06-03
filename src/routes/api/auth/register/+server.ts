@@ -2,6 +2,7 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { hashPassword, slugify, createSession, setSessionCookie } from '$lib/server/auth';
 import { sendVerificationEmail, buildOrgBranding } from '$lib/server/email';
+import { checkRateLimit } from '$lib/server/rate-limit';
 
 interface RegisterRequest {
 	email: string;
@@ -12,6 +13,23 @@ interface RegisterRequest {
 
 export async function POST(event: RequestEvent) {
 	try {
+		if (!event.platform?.env?.DB) {
+			return json({ error: 'Database not available' }, { status: 503 });
+		}
+
+		// Rate limiting: 5 attempts per hour
+		const ip =
+			event.request.headers.get('CF-Connecting-IP') ||
+			event.request.headers.get('X-Forwarded-For') ||
+			'0.0.0.0';
+		const rateLimit = await checkRateLimit(event.platform.env.DB, ip, 'register', 5, 3600);
+		if (!rateLimit.allowed) {
+			return json(
+				{ error: 'Too many requests. Please try again later.' },
+				{ status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+			);
+		}
+
 		const body: RegisterRequest = await event.request.json();
 
 		if (!body.email || !body.password || !body.name || !body.orgName) {

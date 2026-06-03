@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { sendPasswordResetEmail, buildOrgBranding } from '$lib/server/email';
+import { checkRateLimit } from '$lib/server/rate-limit';
 
 interface ForgotPasswordRequest {
 	email: string;
@@ -8,13 +9,30 @@ interface ForgotPasswordRequest {
 
 export async function POST(event: RequestEvent) {
 	try {
+		if (!event.platform?.env?.DB) {
+			return json({ error: 'Database not available' }, { status: 503 });
+		}
+
+		// Rate limiting: 3 attempts per hour
+		const ip =
+			event.request.headers.get('CF-Connecting-IP') ||
+			event.request.headers.get('X-Forwarded-For') ||
+			'0.0.0.0';
+		const rateLimit = await checkRateLimit(event.platform.env.DB, ip, 'forgot-password', 3, 3600);
+		if (!rateLimit.allowed) {
+			return json(
+				{ error: 'Too many requests. Please try again later.' },
+				{ status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+			);
+		}
+
 		const body: ForgotPasswordRequest = await event.request.json();
 
 		if (!body.email) {
 			return json({ error: 'Email is required' }, { status: 400 });
 		}
 
-		const db = new DbHelper(event.platform!.env.DB);
+		const db = new DbHelper(event.platform.env.DB);
 		const user = await db.getUserByEmail(body.email);
 
 		// Always return success to prevent email enumeration
