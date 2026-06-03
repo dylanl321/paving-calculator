@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { config } from '$lib/config';
+	import { config, spreadSpecCheck, spreadToleranceFor } from '$lib/config';
 	import type { PageData } from './$types';
 	import GpsStationButton from '$lib/components/GpsStationButton.svelte';
 	import type { RouteWaypoint } from '$lib/services/gpsStation';
@@ -420,6 +420,42 @@
 			const targetRate = (data.siteConfig as any)?.config?.target_spread_rate || null;
 			const diffPct = actualRate && targetRate ? ((actualRate - targetRate) / targetRate) * 100 : null;
 
+			// Compute compliance stats
+			const courseType = (data.siteConfig as any)?.config?.course_type || null;
+			const pavingEntries = entries.filter((e: any) => e.entry_type === 'paving' && e.spread_rate_actual != null);
+			let goodCount = 0;
+			let warnCount = 0;
+			let badCount = 0;
+
+			for (const entry of pavingEntries) {
+				const check = spreadSpecCheck(
+					entry.spread_rate_actual,
+					targetRate,
+					courseType,
+					orgSettingsStore.overrides
+				);
+				if (check) {
+					if (check.status === 'good') goodCount++;
+					else if (check.status === 'warn') warnCount++;
+					else if (check.status === 'bad') badCount++;
+				}
+			}
+
+			const totalPavingEntries = pavingEntries.length;
+			const pctInSpec = totalPavingEntries > 0 ? (goodCount / totalPavingEntries) * 100 : 0;
+			const tolerance = spreadToleranceFor(courseType, orgSettingsStore.overrides);
+
+			const compliance = totalPavingEntries > 0 ? {
+				targetSpreadRate: targetRate,
+				courseType: tolerance.label,
+				totalPavingEntries,
+				goodCount,
+				warnCount,
+				badCount,
+				pctInSpec,
+				toleranceLbsSy: tolerance.toleranceLbsSy
+			} : null;
+
 			await generateDailyReportPDF(
 				{
 					widthFt: (data.siteConfig as any)?.config?.lane_width_ft || 12,
@@ -436,6 +472,7 @@
 				{
 					date: currentLog.log_date,
 					siteName: data.jobSite.name,
+					orgName: data.jobSite.organization_name || undefined,
 					weatherTempF: currentLog.weather_temp_f,
 					weatherConditions: currentLog.weather_conditions,
 					windSpeedMph: currentLog.wind_speed_mph,
@@ -469,6 +506,7 @@
 						targetRate,
 						diffPct
 					},
+					compliance,
 					loads: loads.map((l: any) => ({
 						id: l.id,
 						ticket_number: l.ticket_number,

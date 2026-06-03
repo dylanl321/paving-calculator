@@ -3,6 +3,7 @@
 import type { jsPDF as JsPDFInstance } from 'jspdf';
 import type { JobState } from '$lib/stores/job.svelte';
 import { formatFeet } from '$lib/utils/format';
+import { spreadSpecCheck } from '$lib/config';
 
 async function getJsPDF() {
 	const module = await import('jspdf');
@@ -286,6 +287,16 @@ export interface DailyReportData {
 		targetRate: number | null;
 		diffPct: number | null;
 	};
+	compliance?: {
+		targetSpreadRate: number | null;
+		courseType: string | null;
+		totalPavingEntries: number;
+		goodCount: number;
+		warnCount: number;
+		badCount: number;
+		pctInSpec: number;
+		toleranceLbsSy: number;
+	} | null;
 }
 
 async function loadImageAsDataUrl(url: string): Promise<string | null> {
@@ -445,6 +456,86 @@ export async function generateDailyReportPDF(
 	}
 	yPos += 6;
 
+	// DOT Compliance Summary
+	if (day.compliance && day.compliance.totalPavingEntries > 0) {
+		doc.setFontSize(13);
+		doc.setFont('helvetica', 'bold');
+		doc.setTextColor(0);
+		doc.text('DOT Compliance Summary', margin, yPos);
+		yPos += 6;
+		doc.setDrawColor(200);
+		doc.setLineWidth(1);
+		doc.line(margin, yPos, pageWidth - margin, yPos);
+		yPos += 18;
+
+		doc.setFontSize(10);
+		doc.setFont('helvetica', 'normal');
+
+		// Compliance bar
+		const barHeight = 8;
+		const barWidth = pageWidth - margin * 2;
+		const barY = yPos;
+
+		// Background
+		doc.setFillColor(240, 240, 240);
+		doc.rect(margin, barY, barWidth, barHeight, 'F');
+
+		// Segments
+		const total = day.compliance.totalPavingEntries;
+		let xOffset = margin;
+
+		if (day.compliance.goodCount > 0) {
+			const width = (day.compliance.goodCount / total) * barWidth;
+			doc.setFillColor(63, 178, 127); // #3fb27f
+			doc.rect(xOffset, barY, width, barHeight, 'F');
+			xOffset += width;
+		}
+
+		if (day.compliance.warnCount > 0) {
+			const width = (day.compliance.warnCount / total) * barWidth;
+			doc.setFillColor(224, 146, 47); // #e0922f
+			doc.rect(xOffset, barY, width, barHeight, 'F');
+			xOffset += width;
+		}
+
+		if (day.compliance.badCount > 0) {
+			const width = (day.compliance.badCount / total) * barWidth;
+			doc.setFillColor(216, 88, 79); // #d8584f
+			doc.rect(xOffset, barY, width, barHeight, 'F');
+		}
+
+		yPos += barHeight + 12;
+
+		// Summary text
+		doc.setFont('helvetica', 'bold');
+		doc.text(
+			`${day.compliance.goodCount} of ${total} loads in spec (${day.compliance.pctInSpec.toFixed(0)}%)`,
+			margin,
+			yPos
+		);
+		yPos += 14;
+
+		// Tolerance info
+		doc.setFont('helvetica', 'normal');
+		doc.setTextColor(100);
+		const courseLabel = day.compliance.courseType || 'Unknown';
+		doc.text(
+			`GDOT Table 12 tolerance: ±${day.compliance.toleranceLbsSy} lbs/SY (${courseLabel})`,
+			margin,
+			yPos
+		);
+		yPos += 14;
+
+		// Breakdown
+		doc.text(
+			`In spec: ${day.compliance.goodCount} | Marginal: ${day.compliance.warnCount} | Out: ${day.compliance.badCount}`,
+			margin,
+			yPos
+		);
+		yPos += 20;
+		doc.setTextColor(0);
+	}
+
 	// Entry table
 	doc.setFontSize(13);
 	doc.setFont('helvetica', 'bold');
@@ -505,7 +596,35 @@ export async function generateDailyReportPDF(
 		doc.text(station, cols[2].x, yPos);
 		doc.text(e.tons_placed != null ? String(e.tons_placed) : '—', cols[3].x, yPos);
 		doc.text(e.distance_ft != null ? formatFeet(e.distance_ft) : '—', cols[4].x, yPos);
-		doc.text(e.spread_rate_actual != null ? String(Math.round(e.spread_rate_actual)) : '—', cols[5].x, yPos);
+
+		// Spread rate with compliance indicator
+		const rateStr = e.spread_rate_actual != null ? String(Math.round(e.spread_rate_actual)) : '—';
+		doc.text(rateStr, cols[5].x, yPos);
+
+		// Add colored compliance square for paving entries with spread rate
+		if (e.entry_type === 'paving' && e.spread_rate_actual != null && day.compliance?.targetSpreadRate) {
+			const check = spreadSpecCheck(
+				e.spread_rate_actual,
+				day.compliance.targetSpreadRate,
+				day.compliance.courseType,
+				null
+			);
+			if (check) {
+				const squareSize = 4;
+				const squareX = cols[5].x + doc.getTextWidth(rateStr) + 2;
+				const squareY = yPos - 3;
+
+				if (check.status === 'good') {
+					doc.setFillColor(63, 178, 127); // #3fb27f
+				} else if (check.status === 'warn') {
+					doc.setFillColor(224, 146, 47); // #e0922f
+				} else {
+					doc.setFillColor(216, 88, 79); // #d8584f
+				}
+				doc.rect(squareX, squareY, squareSize, squareSize, 'F');
+			}
+		}
+
 		const detailLines = doc.splitTextToSize(detail || '—', pageWidth - margin - cols[6].x);
 		doc.text(detailLines, cols[6].x, yPos);
 		yPos += Math.max(14, detailLines.length * 10);
