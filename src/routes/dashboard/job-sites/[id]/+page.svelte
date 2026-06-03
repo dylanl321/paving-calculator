@@ -867,6 +867,31 @@
 							/>
 						{/await}
 					</div>
+
+					<div class="progress-map-section">
+						<div class="progress-map-head">
+							<h4>Spread Rate Map</h4>
+							<span class="progress-map-sub">Color-coded by spread rate vs target</span>
+						</div>
+						{#await import('$lib/components/SpreadRateHeatMap.svelte')}
+							<div class="map-mini-loading">Loading spread rate map&hellip;</div>
+						{:then { default: SpreadRateHeatMap }}
+							<SpreadRateHeatMap
+								site={{
+									id: data.jobSite.id,
+									name: data.jobSite.name,
+									status: data.jobSite.status,
+									latitude: data.jobSite.latitude,
+									longitude: data.jobSite.longitude,
+									location_description: data.jobSite.location_description
+								}}
+								waypoints={data.routeWaypoints}
+								targetRate={configForm.target_spread_rate}
+								toleranceLbsSy={5}
+								height="320px"
+							/>
+						{/await}
+					</div>
 				{/if}
 
 				{#if data.jobSite.latitude != null && data.jobSite.longitude != null}
