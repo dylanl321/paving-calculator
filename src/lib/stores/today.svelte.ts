@@ -9,7 +9,7 @@
 //
 // Persisted to localStorage. A single "current day" is kept; when the calendar
 // date rolls over, the previous day is archived and a fresh day starts.
-import { spreadRateFromThickness } from '$lib/config/formulas';
+import { spreadRateFromThickness, actualSpreadRate } from '$lib/config/formulas';
 
 const STORAGE_KEY = 'paverate.today.v1';
 
@@ -30,6 +30,7 @@ export interface TodayEntry {
 	tack_gallons: number | null;
 	lane: string | null;
 	notes: string | null;
+	waste_tons: number | null;
 	/** Which calculator produced this entry, if any (local-only metadata). */
 	source_calc: string | null;
 	created_at: number;
@@ -48,6 +49,10 @@ export interface TodayState {
 	start_time: string | null; // HH:MM
 	end_time: string | null; // HH:MM
 	notes: string | null;
+	target_tons: number | null;
+	target_loads: number | null;
+	plant_name: string | null;
+	mix_type: string | null;
 	entries: TodayEntry[];
 	/** Job site this day is linked to for cloud sync (set when signed in). */
 	job_site_id: string | null;
@@ -70,6 +75,10 @@ function initial(): TodayState {
 		start_time: null,
 		end_time: null,
 		notes: null,
+		target_tons: null,
+		target_loads: null,
+		plant_name: null,
+		mix_type: null,
 		entries: [],
 		job_site_id: null,
 		remote_log_id: null
@@ -171,6 +180,63 @@ class Today {
 		this.#save();
 	}
 
+	// ---- Daily targets ----
+	get targetTons() {
+		return this.#state.target_tons;
+	}
+	set targetTons(v: number | null) {
+		this.#state.target_tons = v;
+		this.#save();
+	}
+	get targetLoads() {
+		return this.#state.target_loads;
+	}
+	set targetLoads(v: number | null) {
+		this.#state.target_loads = v;
+		this.#save();
+	}
+	get plantName() {
+		return this.#state.plant_name;
+	}
+	set plantName(v: string | null) {
+		this.#state.plant_name = v;
+		this.#save();
+	}
+	get mixType() {
+		return this.#state.mix_type;
+	}
+	set mixType(v: string | null) {
+		this.#state.mix_type = v;
+		this.#save();
+	}
+
+	get targetProgress() {
+		const { total_tons, total_loads } = this.rollup;
+		const tons_pct = this.#state.target_tons && this.#state.target_tons > 0
+			? (total_tons / this.#state.target_tons) * 100
+			: null;
+		const loads_pct = this.#state.target_loads && this.#state.target_loads > 0
+			? (total_loads / this.#state.target_loads) * 100
+			: null;
+
+		let status: 'on_track' | 'behind' | 'done' | null = null;
+		if (tons_pct != null) {
+			if (tons_pct >= 100) {
+				status = 'done';
+			} else {
+				// No time tracking yet, so we can't compute behind/on_track properly
+				status = 'on_track';
+			}
+		}
+
+		return {
+			tons_pct,
+			loads_pct,
+			status,
+			time_elapsed_pct: null
+		};
+	}
+
 	// ---- Cloud-sync metadata ----
 	get jobSiteId() {
 		return this.#state.job_site_id;
@@ -213,6 +279,7 @@ class Today {
 		tack_gallons?: number | null;
 		lane?: string | null;
 		notes?: string | null;
+		waste_tons?: number | null;
 		source_calc?: string | null;
 	}): TodayEntry {
 		let distance = input.distance_ft ?? null;
@@ -234,6 +301,7 @@ class Today {
 			tack_gallons: input.tack_gallons ?? null,
 			lane: input.lane ?? null,
 			notes: input.notes ?? null,
+			waste_tons: input.waste_tons ?? null,
 			source_calc: input.source_calc ?? null,
 			created_at: Math.floor(Date.now() / 1000),
 			remote_id: null
@@ -328,8 +396,11 @@ class Today {
 
 		let actualRate: number | null = null;
 		if (total_distance_ft > 0 && widthFt > 0) {
-			const sy = (total_distance_ft * widthFt) / 9;
-			if (sy > 0) actualRate = (total_tons * 2000) / sy;
+			actualRate = actualSpreadRate({
+				tons: total_tons,
+				distanceFt: total_distance_ft,
+				widthFt
+			});
 		}
 
 		let diffPct: number | null = null;
