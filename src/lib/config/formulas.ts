@@ -201,3 +201,56 @@ export function soilCompaction(opts: {
 	else if (compactionPct >= constant('CONST.COMPACTION_MARGINAL_MIN')) status = 'marginal';
 	return { wetDensity, dryDensity, compactionPct, status };
 }
+
+/**
+ * CALC.INTERSECTION -- area of two crossing road lanes (box intersection).
+ * The overlap rectangle (road1Width x road2Width) is counted once.
+ * Total paved area = road1Length x road1Width + road2Length x road2Width
+ *                    - road1Width x road2Width  (overlap box, counted twice)
+ * Returns area in SY and tonnage at the given spread rate.
+ */
+export function intersectionArea(opts: {
+	road1LengthFt: number;
+	road1WidthFt: number;
+	road2LengthFt: number;
+	road2WidthFt: number;
+	rateLbsSy: number;
+	wastePct?: number;
+}): {
+	road1Sy: number;
+	road2Sy: number;
+	overlapSy: number;
+	totalSy: number;
+	tons: number;
+} {
+	const road1Sy = (opts.road1LengthFt * opts.road1WidthFt) / constant('CONST.SF_PER_SY');
+	const road2Sy = (opts.road2LengthFt * opts.road2WidthFt) / constant('CONST.SF_PER_SY');
+	const overlapSy = (opts.road1WidthFt * opts.road2WidthFt) / constant('CONST.SF_PER_SY');
+	const totalSy = road1Sy + road2Sy - overlapSy;
+	const baseTons = (totalSy * opts.rateLbsSy) / constant('CONST.LB_PER_TON');
+	const tons = baseTons * (1 + (opts.wastePct ?? 0) / 100);
+	return { road1Sy, road2Sy, overlapSy, totalSy, tons };
+}
+
+/**
+ * CALC.VARIABLE_WIDTH -- area of a trapezoidal section (turn lane flare).
+ * Area = length x ((startWidthFt + endWidthFt) / 2)
+ * Returns area in SY and tonnage at the given spread rate.
+ */
+export function variableWidthArea(opts: {
+	lengthFt: number;
+	startWidthFt: number;
+	endWidthFt: number;
+	rateLbsSy: number;
+	wastePct?: number;
+}): {
+	avgWidthFt: number;
+	areaSy: number;
+	tons: number;
+} {
+	const avgWidthFt = (opts.startWidthFt + opts.endWidthFt) / 2;
+	const areaSy = (opts.lengthFt * avgWidthFt) / constant('CONST.SF_PER_SY');
+	const baseTons = (areaSy * opts.rateLbsSy) / constant('CONST.LB_PER_TON');
+	const tons = baseTons * (1 + (opts.wastePct ?? 0) / 100);
+	return { avgWidthFt, areaSy, tons };
+}
