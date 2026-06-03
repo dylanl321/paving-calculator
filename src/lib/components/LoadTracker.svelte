@@ -10,6 +10,7 @@
 	import { spreadToleranceFor } from '$lib/config';
 	import TicketCapture from './TicketCapture.svelte';
 	import MaterialOrderForecast from './MaterialOrderForecast.svelte';
+	import AfternoonForecastCard from './AfternoonForecastCard.svelte';
 	import { offlineStore } from '$lib/stores/offline.svelte';
 	import { formatTime } from '$lib/utils/format';
 
@@ -539,6 +540,15 @@
 						{tonsPerHour}
 						{targetTonnage}
 						{totalTons}
+					/>
+				{/if}
+
+				{#if tonsPerHour > 0}
+					<AfternoonForecastCard
+						tonsDeliveredToday={acceptedTons}
+						{targetTonnage}
+						{tonsPerHour}
+						{avgTonsPerLoad}
 					/>
 				{/if}
 			{/if}

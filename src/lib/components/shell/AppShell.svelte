@@ -3,6 +3,7 @@
 	import NavSidebar from './NavSidebar.svelte';
 	import { APP_VERSION } from '$lib/version';
 	import { offlineStore } from '$lib/stores/offline.svelte';
+	import OfflineExportButton from '$lib/components/OfflineExportButton.svelte';
 
 	let {
 		children,
@@ -15,6 +16,7 @@
 	} = $props();
 
 	const showContext = $derived(hasContext && !!context);
+	const showExportButton = $derived(!offlineStore.isOnline || offlineStore.pendingCount > 0);
 
 	const lastSyncText = $derived.by(() => {
 		if (!offlineStore.lastSyncedAt) return null;
@@ -35,6 +37,11 @@
 	</main>
 
 	<footer class="shell-footer">
+		{#if showExportButton}
+			<div class="export-container">
+				<OfflineExportButton />
+			</div>
+		{/if}
 		<div class="offline-badge">
 			<span class="status-dot" class:status-dot--online={offlineStore.isOnline} class:status-dot--offline={!offlineStore.isOnline}></span>
 			{#if !offlineStore.isOnline}
@@ -78,10 +85,16 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 		padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
 		border-top: 1px solid var(--border);
 		background: var(--surface);
+	}
+
+	.export-container {
+		width: 100%;
+		display: flex;
+		justify-content: center;
 	}
 
 	.offline-badge {
