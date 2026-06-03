@@ -290,7 +290,7 @@
 			onGoToTab={(tab) => (activeTab = tab)}
 		/>
 	{:else if activeTab === 'configuration'}
-		<ConfigurationTab jobSiteId={data.jobSite.id} bind:configForm {estTonnage} />
+		<ConfigurationTab jobSiteId={data.jobSite.id} bind:configForm {estTonnage} lat={data.jobSite.latitude} lng={data.jobSite.longitude} />
 	{:else if activeTab === 'equipment'}
 		<EquipmentTab jobSiteId={data.jobSite.id} bind:equipmentList />
 	{:else if activeTab === 'calculations'}

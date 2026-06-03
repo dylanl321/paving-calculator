@@ -7,11 +7,15 @@
 	let {
 		jobSiteId,
 		configForm = $bindable(),
-		estTonnage
+		estTonnage,
+		lat,
+		lng
 	}: {
 		jobSiteId: string;
 		configForm: ConfigForm;
 		estTonnage: number | null;
+		lat: number | null;
+		lng: number | null;
 	} = $props();
 
 	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -142,8 +146,8 @@
 
 		<GdotPanel
 			{jobSiteId}
-			lat={null}
-			lng={null}
+			{lat}
+			{lng}
 			routeDesignation={configForm.route_designation}
 			onRouteSelect={(routeId, roadName, county, district) => {
 				configForm.route_designation = routeId;
