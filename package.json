@@ -22,7 +22,8 @@
     "kleur": "^4.1.5",
     "layerchart": "2.0.0-next.64",
     "leaflet": "^1.9.4",
-    "lucide-svelte": "^1.0.1"
+    "lucide-svelte": "^1.0.1",
+    "unpdf": "^1.6.2"
   },
   "optionalDependencies": {
     "@rolldown/binding-linux-x64-gnu": "^1.0.3"

@@ -116,6 +116,83 @@
 			});
 	});
 
+	interface ContractInfo {
+		job_number: string | null;
+		project_number: string | null;
+		contract_id: string | null;
+		work_type: string | null;
+		contract_type: string | null;
+		contract_amount: number | null;
+		retainage_pct: number | null;
+		est_start_date: string | null;
+		completion_date: string | null;
+		customer_name: string | null;
+		customer_address: string | null;
+		customer_contact: string | null;
+		customer_phone: string | null;
+		customer_email: string | null;
+		owner_name: string | null;
+		owner_address: string | null;
+		project_manager: string | null;
+		asphalt_supplier: string | null;
+	}
+
+	interface BidItem {
+		line_number: string | null;
+		item_id: string | null;
+		description: string;
+		quantity: number | null;
+		unit: string | null;
+		unit_price: number | null;
+		bid_amount: number | null;
+		section: string | null;
+		is_alternate: number;
+		selected: number;
+	}
+
+	interface ProductionMix {
+		mix_name: string;
+		unit: string | null;
+		bid_quantity: number | null;
+		takeoff_tonnage: number | null;
+		quantity_per_day: number | null;
+		est_days: number | null;
+	}
+
+	interface BidItemsResponse {
+		bid_items?: BidItem[];
+		production_mixes?: ProductionMix[];
+		scopes?: string[];
+		contract?: ContractInfo;
+	}
+
+	let contractData = $state<ContractInfo | null>(null);
+	let bidItems = $state<BidItem[]>([]);
+	let productionMixes = $state<ProductionMix[]>([]);
+	let scopes = $state<string[]>([]);
+	let contractLoading = $state(true);
+
+	$effect(() => {
+		if (!browser) return;
+		contractLoading = true;
+		fetch(`/api/job-sites/${data.jobSite.id}/bid-items`, { credentials: 'include' })
+			.then((res) => (res.ok ? res.json() : {}))
+			.then((d: BidItemsResponse) => {
+				contractData = d.contract ?? null;
+				bidItems = d.bid_items ?? [];
+				productionMixes = d.production_mixes ?? [];
+				scopes = d.scopes ?? [];
+				contractLoading = false;
+			})
+			.catch(() => {
+				contractLoading = false;
+			});
+	});
+
+	const hasContractData = $derived(
+		contractData != null && Object.values(contractData).some((v) => v != null)
+	);
+
 	// Total paving length (feet) derived from the drawn route, falling back to
 	// the configured total length.
 	const routeLengthFt = $derived.by(() => {
@@ -521,6 +598,131 @@
 			</section>
 		{/if}
 </div>
+
+{#if !contractLoading && (hasContractData || productionMixes.length > 0 || bidItems.length > 0)}
+<div class="contract-section">
+	{#if hasContractData && contractData}
+		<section class="panel panel-span">
+			<div class="panel-head">
+				<h3>Contract</h3>
+			</div>
+			<dl class="spec-list contract-grid">
+				{#if contractData.project_number}
+					<div class="spec-item"><dt>Project #</dt><dd>{contractData.project_number}</dd></div>
+				{/if}
+				{#if contractData.contract_id}
+					<div class="spec-item"><dt>Contract ID</dt><dd>{contractData.contract_id}</dd></div>
+				{/if}
+				{#if contractData.job_number}
+					<div class="spec-item"><dt>Job #</dt><dd>{contractData.job_number}</dd></div>
+				{/if}
+				{#if contractData.work_type}
+					<div class="spec-item"><dt>Work Type</dt><dd>{contractData.work_type}</dd></div>
+				{/if}
+				{#if contractData.contract_type}
+					<div class="spec-item"><dt>Contract Type</dt><dd>{contractData.contract_type}</dd></div>
+				{/if}
+				{#if contractData.contract_amount}
+					<div class="spec-item"><dt>Contract Amount</dt><dd>{fmtDollars(contractData.contract_amount)}</dd></div>
+				{/if}
+				{#if contractData.est_start_date}
+					<div class="spec-item"><dt>Start Date</dt><dd>{contractData.est_start_date}</dd></div>
+				{/if}
+				{#if contractData.completion_date}
+					<div class="spec-item"><dt>Completion</dt><dd>{contractData.completion_date}</dd></div>
+				{/if}
+				{#if contractData.customer_name}
+					<div class="spec-item"><dt>Customer</dt><dd>{contractData.customer_name}</dd></div>
+				{/if}
+				{#if contractData.customer_contact}
+					<div class="spec-item"><dt>Contact</dt><dd>{contractData.customer_contact}</dd></div>
+				{/if}
+				{#if contractData.project_manager}
+					<div class="spec-item"><dt>Project Manager</dt><dd>{contractData.project_manager}</dd></div>
+				{/if}
+				{#if contractData.asphalt_supplier}
+					<div class="spec-item"><dt>Asphalt Supplier</dt><dd>{contractData.asphalt_supplier}</dd></div>
+				{/if}
+			</dl>
+			{#if scopes.length > 0}
+				<div class="scope-tags-row">
+					{#each scopes as scope}
+						<span class="scope-tag">{scope.replace(/_/g, ' ')}</span>
+					{/each}
+				</div>
+			{/if}
+		</section>
+	{/if}
+
+	{#if productionMixes.length > 0}
+		<section class="panel panel-span">
+			<div class="panel-head">
+				<h3>Production Goals</h3>
+			</div>
+			<div class="table-scroll">
+				<table class="mini-table">
+					<thead>
+						<tr>
+							<th>Mix</th>
+							<th>Unit</th>
+							<th>Bid Qty</th>
+							<th>Takeoff</th>
+							<th>Qty/Day</th>
+							<th>Est Days</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each productionMixes as mix}
+							<tr>
+								<td class="mix-cell">{mix.mix_name}</td>
+								<td>{mix.unit ?? '—'}</td>
+								<td class="num-cell">{mix.bid_quantity != null ? fmt(mix.bid_quantity, 0) : '—'}</td>
+								<td class="num-cell">{mix.takeoff_tonnage != null ? fmt(mix.takeoff_tonnage, 0) : '—'}</td>
+								<td class="num-cell">{mix.quantity_per_day != null ? fmt(mix.quantity_per_day, 0) : '—'}</td>
+								<td class="num-cell">{mix.est_days != null ? fmt(mix.est_days, 1) : '—'}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	{/if}
+
+	{#if bidItems.length > 0}
+		<section class="panel panel-span">
+			<div class="panel-head">
+				<h3>Bid Items <span class="bid-item-count">{bidItems.filter(i => i.selected).length}/{bidItems.length}</span></h3>
+			</div>
+			<div class="table-scroll">
+				<table class="mini-table bid-items-table">
+					<thead>
+						<tr>
+							<th>Item</th>
+							<th>Description</th>
+							<th>Qty</th>
+							<th>Unit</th>
+							<th>$/Unit</th>
+							<th>Amount</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each bidItems.filter(i => i.selected) as it}
+							<tr class:alt-row={it.is_alternate}>
+								<td class="mono-cell">{it.item_id ?? ''}</td>
+								<td class="desc-cell">{it.description}</td>
+								<td class="num-cell">{it.quantity != null ? fmt(it.quantity, 1) : ''}</td>
+								<td>{it.unit ?? ''}</td>
+								<td class="num-cell">{it.unit_price != null ? fmtDollars(it.unit_price) : ''}</td>
+								<td class="num-cell">{it.bid_amount != null ? fmtDollars(it.bid_amount) : ''}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</section>
+	{/if}
+</div>
+{/if}
 
 {#if progressData !== null}
 	<section class="panel progress-map-panel">
@@ -1508,5 +1710,97 @@
 		.photo-grid {
 			grid-template-columns: repeat(2, 1fr);
 		}
+	}
+
+	/* Contract & Bid Items section */
+	.contract-section {
+		margin-bottom: 24px;
+	}
+
+	.contract-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+		gap: 8px 16px;
+	}
+
+	.scope-tags-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin-top: 14px;
+		padding-top: 12px;
+		border-top: 1px solid var(--border);
+	}
+
+	.scope-tag {
+		padding: 4px 10px;
+		background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+		color: var(--accent);
+		border-radius: 999px;
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: capitalize;
+	}
+
+	.table-scroll {
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	.mini-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.8rem;
+	}
+
+	.mini-table th,
+	.mini-table td {
+		padding: 7px 10px;
+		text-align: left;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.mini-table th {
+		font-size: 0.68rem;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--text-muted);
+		font-weight: 700;
+		white-space: nowrap;
+	}
+
+	.mini-table .mix-cell {
+		font-weight: 600;
+	}
+
+	.mini-table .num-cell {
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.mini-table .mono-cell {
+		font-family: monospace;
+		font-size: 0.75rem;
+	}
+
+	.mini-table .desc-cell {
+		max-width: 220px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.bid-item-count {
+		font-size: 0.72rem;
+		padding: 2px 8px;
+		background: var(--surface-alt, var(--border));
+		border-radius: 999px;
+		color: var(--text-muted);
+		font-weight: 600;
+		margin-left: 8px;
+	}
+
+	.bid-items-table .alt-row {
+		background: color-mix(in srgb, var(--accent) 4%, transparent);
 	}
 </style>

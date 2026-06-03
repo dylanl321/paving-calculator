@@ -45,8 +45,85 @@ export interface DbJobSite {
 	gdot_county: string | null;
 	gdot_district: string | null;
 	status: 'active' | 'completed' | 'archived';
+	job_number: string | null;
+	project_number: string | null;
+	contract_id: string | null;
+	work_type: string | null;
+	contract_type: string | null;
+	contract_amount: number | null;
+	retainage_pct: number | null;
+	est_start_date: string | null;
+	completion_date: string | null;
+	customer_name: string | null;
+	customer_address: string | null;
+	customer_contact: string | null;
+	customer_phone: string | null;
+	customer_email: string | null;
+	owner_name: string | null;
+	owner_address: string | null;
+	project_manager: string | null;
+	asphalt_supplier: string | null;
+	import_source_key: string | null;
+	scopes_json: string | null;
 	created_at: number;
 	updated_at: number;
+}
+
+/** Contract metadata fields settable on a job site (everything optional). */
+export type JobSiteContractMeta = Partial<
+	Pick<
+		DbJobSite,
+		| 'job_number'
+		| 'project_number'
+		| 'contract_id'
+		| 'work_type'
+		| 'contract_type'
+		| 'contract_amount'
+		| 'retainage_pct'
+		| 'est_start_date'
+		| 'completion_date'
+		| 'customer_name'
+		| 'customer_address'
+		| 'customer_contact'
+		| 'customer_phone'
+		| 'customer_email'
+		| 'owner_name'
+		| 'owner_address'
+		| 'project_manager'
+		| 'asphalt_supplier'
+		| 'import_source_key'
+		| 'scopes_json'
+	>
+>;
+
+export interface DbBidItem {
+	id: string;
+	job_site_id: string;
+	line_number: string | null;
+	item_id: string | null;
+	description: string;
+	quantity: number | null;
+	unit: string | null;
+	unit_price: number | null;
+	bid_amount: number | null;
+	section: string | null;
+	is_alternate: number;
+	selected: number;
+	sort_order: number;
+	created_at: number;
+}
+
+export interface DbProductionMix {
+	id: string;
+	job_site_id: string;
+	mix_name: string;
+	unit: string | null;
+	bid_quantity: number | null;
+	takeoff_tonnage: number | null;
+	quantity_per_day: number | null;
+	est_days: number | null;
+	sort_order: number;
+	created_at: number;
 }
 
 export interface DbJobSiteAssignment {
@@ -421,6 +498,26 @@ export class DbHelper {
 			gdot_county: null,
 			gdot_district: null,
 			status: 'active',
+			job_number: null,
+			project_number: null,
+			contract_id: null,
+			work_type: null,
+			contract_type: null,
+			contract_amount: null,
+			retainage_pct: null,
+			est_start_date: null,
+			completion_date: null,
+			customer_name: null,
+			customer_address: null,
+			customer_contact: null,
+			customer_phone: null,
+			customer_email: null,
+			owner_name: null,
+			owner_address: null,
+			project_manager: null,
+			asphalt_supplier: null,
+			import_source_key: null,
+			scopes_json: null,
 			created_at: now,
 			updated_at: now
 		};
@@ -484,6 +581,151 @@ export class DbHelper {
 		await this.db
 			.prepare(`UPDATE job_sites SET ${fields.join(', ')} WHERE id = ?`)
 			.bind(...values)
+			.run();
+	}
+
+	// Writes contract / customer metadata onto a job site. Only keys present in
+	// `meta` are updated; `undefined` values are skipped so partial imports never
+	// clobber existing data.
+	async setJobSiteContractMeta(id: string, meta: JobSiteContractMeta): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		const columns: (keyof JobSiteContractMeta)[] = [
+			'job_number',
+			'project_number',
+			'contract_id',
+			'work_type',
+			'contract_type',
+			'contract_amount',
+			'retainage_pct',
+			'est_start_date',
+			'completion_date',
+			'customer_name',
+			'customer_address',
+			'customer_contact',
+			'customer_phone',
+			'customer_email',
+			'owner_name',
+			'owner_address',
+			'project_manager',
+			'asphalt_supplier',
+			'import_source_key',
+			'scopes_json'
+		];
+
+		const fields: string[] = [];
+		const values: (string | number | null)[] = [];
+
+		for (const col of columns) {
+			const value = meta[col];
+			if (value !== undefined) {
+				fields.push(`${col} = ?`);
+				values.push(value);
+			}
+		}
+
+		if (fields.length === 0) return;
+
+		fields.push('updated_at = ?');
+		values.push(now);
+		values.push(id);
+
+		await this.db
+			.prepare(`UPDATE job_sites SET ${fields.join(', ')} WHERE id = ?`)
+			.bind(...values)
+			.run();
+	}
+
+	async getBidItems(jobSiteId: string): Promise<DbBidItem[]> {
+		return await this.db
+			.prepare('SELECT * FROM job_bid_items WHERE job_site_id = ? ORDER BY sort_order ASC, created_at ASC')
+			.bind(jobSiteId)
+			.all<DbBidItem>()
+			.then((r) => r.results);
+	}
+
+	async createBidItem(
+		jobSiteId: string,
+		item: Omit<DbBidItem, 'id' | 'job_site_id' | 'created_at'>
+	): Promise<DbBidItem> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+
+		await this.db
+			.prepare(
+				`INSERT INTO job_bid_items (
+					id, job_site_id, line_number, item_id, description, quantity,
+					unit, unit_price, bid_amount, section, is_alternate, selected,
+					sort_order, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			)
+			.bind(
+				id,
+				jobSiteId,
+				item.line_number ?? null,
+				item.item_id ?? null,
+				item.description,
+				item.quantity ?? null,
+				item.unit ?? null,
+				item.unit_price ?? null,
+				item.bid_amount ?? null,
+				item.section ?? null,
+				item.is_alternate ?? 0,
+				item.selected ?? 1,
+				item.sort_order ?? 0,
+				now
+			)
+			.run();
+
+		return { id, job_site_id: jobSiteId, created_at: now, ...item };
+	}
+
+	async deleteBidItems(jobSiteId: string): Promise<void> {
+		await this.db.prepare('DELETE FROM job_bid_items WHERE job_site_id = ?').bind(jobSiteId).run();
+	}
+
+	async getProductionMixes(jobSiteId: string): Promise<DbProductionMix[]> {
+		return await this.db
+			.prepare('SELECT * FROM job_production_mixes WHERE job_site_id = ? ORDER BY sort_order ASC, created_at ASC')
+			.bind(jobSiteId)
+			.all<DbProductionMix>()
+			.then((r) => r.results);
+	}
+
+	async createProductionMix(
+		jobSiteId: string,
+		mix: Omit<DbProductionMix, 'id' | 'job_site_id' | 'created_at'>
+	): Promise<DbProductionMix> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+
+		await this.db
+			.prepare(
+				`INSERT INTO job_production_mixes (
+					id, job_site_id, mix_name, unit, bid_quantity, takeoff_tonnage,
+					quantity_per_day, est_days, sort_order, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			)
+			.bind(
+				id,
+				jobSiteId,
+				mix.mix_name,
+				mix.unit ?? null,
+				mix.bid_quantity ?? null,
+				mix.takeoff_tonnage ?? null,
+				mix.quantity_per_day ?? null,
+				mix.est_days ?? null,
+				mix.sort_order ?? 0,
+				now
+			)
+			.run();
+
+		return { id, job_site_id: jobSiteId, created_at: now, ...mix };
+	}
+
+	async deleteProductionMixes(jobSiteId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM job_production_mixes WHERE job_site_id = ?')
+			.bind(jobSiteId)
 			.run();
 	}
 
