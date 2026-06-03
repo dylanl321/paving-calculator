@@ -11,6 +11,7 @@
 	import TicketCapture from './TicketCapture.svelte';
 	import MaterialOrderForecast from './MaterialOrderForecast.svelte';
 	import { offlineStore } from '$lib/stores/offline.svelte';
+	import { formatTime } from '$lib/utils/format';
 
 	interface Props {
 		jobSiteId: string;
@@ -310,11 +311,6 @@
 			? (unitsStore.system === 'metric' ? toMetricTonnes(remainingTons) : remainingTons)
 			: null
 	);
-
-	function formatTime(timestamp: number): string {
-		const date = new Date(timestamp * 1000);
-		return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-	}
 
 	function formatLoadTons(tons: number): number {
 		return unitsStore.system === 'metric' ? toMetricTonnes(tons) : tons;

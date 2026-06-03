@@ -1,5 +1,6 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { DbHelper, type DbUser } from './db';
+import { toHex } from '$lib/utils/format';
 
 const SESSION_COOKIE = 'paverate_session';
 const SESSION_DURATION_SECONDS = 30 * 24 * 60 * 60; // 30 days
@@ -33,8 +34,7 @@ export async function hashPassword(password: string): Promise<string> {
 		256
 	);
 
-	const hashArray = Array.from(new Uint8Array(derivedBits));
-	const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+	const hashHex = toHex(derivedBits);
 
 	return `${salt}:${hashHex}`;
 }
@@ -61,8 +61,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 		256
 	);
 
-	const hashArray = Array.from(new Uint8Array(derivedBits));
-	const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+	const hashHex = toHex(derivedBits);
 
 	return hashHex === storedHash;
 }
