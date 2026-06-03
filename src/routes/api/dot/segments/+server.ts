@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 import { requireAuth } from '$lib/server/auth';
-import { DbHelper, type DbDotRoadSegment } from '$lib/server/db';
+import type { DbDotRoadSegment } from '$lib/server/db';
 
 export async function GET(event: RequestEvent) {
 	await requireAuth(event);
@@ -25,9 +25,24 @@ export async function GET(event: RequestEvent) {
 		return json({ error: 'Limit must be between 1 and 500' }, { status: 400 });
 	}
 
-	const db = new DbHelper(event.platform.env.DB);
-
 	try {
+		// Check if the table exists yet (migration may not have been applied to remote)
+		const tableCheck = await event.platform.env.DB
+			.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='dot_road_segments'")
+			.first<{ name: string }>();
+
+		if (!tableCheck) {
+			// Migration not yet applied - return empty data instead of crashing
+			return json({
+				segments: [],
+				total: 0,
+				state,
+				limit,
+				offset,
+				migration_pending: true
+			});
+		}
+
 		// Get total count
 		const countResult = await event.platform.env.DB
 			.prepare('SELECT COUNT(*) as count FROM dot_road_segments WHERE state_dot = ?')
