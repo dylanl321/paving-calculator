@@ -2,10 +2,29 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireAuth, hashPassword } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
 
+type OrgRole =
+	| 'owner'
+	| 'admin'
+	| 'member'
+	| 'foreman'
+	| 'operator'
+	| 'inspector'
+	| 'office'
+	| 'laborer'
+	| 'screed_man';
+
+interface CreateOrgUserBody {
+	email?: string;
+	password?: string;
+	name?: string;
+	role?: OrgRole;
+	phone?: string;
+}
+
 export async function POST(event: RequestEvent) {
 	try {
 		const user = await requireAuth(event);
-		const body = await event.request.json();
+		const body = (await event.request.json()) as CreateOrgUserBody;
 		const { email, password, name, role, phone } = body;
 
 		if (!email || !password || !name || !role) {
@@ -47,7 +66,7 @@ export async function POST(event: RequestEvent) {
 		const { password_hash, ...sanitized } = newUser;
 		return json({ user: sanitized }, { status: 201 });
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error creating user:', error);
 		return json({ error: 'Failed to create user' }, { status: 500 });
 	}

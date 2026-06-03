@@ -5,11 +5,13 @@
 	interface Props {
 		activeId: string;
 		todayActive?: boolean;
+		homeActive?: boolean;
 		onselect: (id: string) => void;
 		onselecttoday?: () => void;
+		onselecthome?: () => void;
 	}
 
-	let { activeId, todayActive = false, onselect, onselecttoday }: Props = $props();
+	let { activeId, todayActive = false, homeActive = false, onselect, onselecttoday, onselecthome }: Props = $props();
 
 	// Scroll active tool into view on mobile
 	function scrollIntoView(node: HTMLElement, isActive: boolean) {
@@ -28,6 +30,21 @@
 </script>
 
 <nav class="tool-list" aria-label="Calculators">
+	{#if onselecthome}
+		<div class="group">
+			<button
+				type="button"
+				class="tool home-tool"
+				class:active={homeActive}
+				aria-current={homeActive ? 'true' : undefined}
+				onclick={onselecthome}
+				use:scrollIntoView={homeActive}
+			>
+				<span class="tool-label">Home</span>
+				<span class="tool-blurb">Spread rate &amp; tons to reach</span>
+			</button>
+		</div>
+	{/if}
 	{#if onselecttoday}
 		<div class="group">
 			<button
@@ -140,6 +157,13 @@
 		background: var(--surface);
 	}
 	.today-tool.active {
+		box-shadow: inset 3px 0 0 var(--accent);
+	}
+	.home-tool {
+		border: 1px solid var(--border);
+		background: var(--surface);
+	}
+	.home-tool.active {
 		box-shadow: inset 3px 0 0 var(--accent);
 	}
 
