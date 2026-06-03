@@ -37,7 +37,7 @@
 				body: JSON.stringify({ token, password })
 			});
 
-			const data = await response.json();
+			const data = (await response.json()) as { error?: string };
 
 			if (!response.ok) {
 				error = data.error || 'Something went wrong';

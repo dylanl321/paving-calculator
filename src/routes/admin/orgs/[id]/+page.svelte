@@ -44,7 +44,7 @@
 				return;
 			}
 
-			const data = await res.json();
+			const data = (await res.json()) as { org: Org; members: Member[] };
 			org = data.org;
 			members = data.members;
 		} catch (e) {
@@ -76,7 +76,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { error?: string };
 				statusMessage = data.error || 'Failed to update organization';
 				toastStore.error(statusMessage);
 				return;
@@ -111,7 +111,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { error?: string };
 				statusMessage = data.error || 'Failed to update member role';
 				toastStore.error(statusMessage);
 				return;
@@ -141,7 +141,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { error?: string };
 				statusMessage = data.error || 'Failed to remove member';
 				toastStore.error(statusMessage);
 				return;

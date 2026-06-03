@@ -33,7 +33,7 @@
 				})
 			});
 
-			const result = await response.json();
+			const result = (await response.json()) as { error?: string };
 
 			if (!response.ok) {
 				toastStore.error(result.error || 'Failed to accept invitation');
@@ -66,7 +66,7 @@
 				})
 			});
 
-			const result = await response.json();
+			const result = (await response.json()) as { error?: string };
 
 			if (!response.ok) {
 				toastStore.error(result.error || 'Failed to accept invitation');

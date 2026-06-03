@@ -21,7 +21,7 @@
 			});
 
 			if (!response.ok) {
-				const data = await response.json();
+				const data = (await response.json()) as { error?: string };
 				error = data.error || 'Something went wrong';
 				toastStore.error(error);
 				loading = false;

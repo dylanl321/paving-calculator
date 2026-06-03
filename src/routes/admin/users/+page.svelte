@@ -43,7 +43,7 @@
 				return;
 			}
 
-			const data = await res.json();
+			const data = (await res.json()) as { users: User[] };
 			users = data.users;
 			applyFilters();
 		} catch (e) {
@@ -104,7 +104,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { error?: string };
 				statusMessage = data.error || 'Failed to update user';
 				return;
 			}
@@ -133,7 +133,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { error?: string };
 				statusMessage = data.error || `Failed to ${action} user`;
 				return;
 			}
@@ -161,7 +161,7 @@
 			});
 
 			if (!res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { error?: string };
 				statusMessage = data.error || `Failed to update admin status`;
 				return;
 			}
