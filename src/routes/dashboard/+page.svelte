@@ -1,14 +1,84 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import { config } from '$lib/config';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import GeofenceMonitor from '$lib/components/GeofenceMonitor.svelte';
+	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import type { PageData } from './$types';
+	import { formatDate } from '$lib/utils/format';
 
 	let { data }: { data: PageData } = $props();
+
+	interface DashboardOrg {
+		name: string;
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man' | string;
+	}
+	interface DashboardUser {
+		isGlobalAdmin?: boolean;
+		email_verified?: boolean;
+	}
+	const org = $derived(data.org as DashboardOrg);
+	const user = $derived(data.user as DashboardUser);
+
+	let emailVerified = $state((data.user as DashboardUser)?.email_verified ?? true);
+	let resendingVerification = $state(false);
+
+	const VERIFY_ERROR_MESSAGES: Record<string, string> = {
+		missing_token: 'That verification link was missing its token. Try resending the email.',
+		invalid_token: 'That verification link is invalid. Try resending the email.',
+		expired: 'That verification link expired. Send yourself a fresh one below.',
+		already_used: 'That verification link was already used.'
+	};
+
+	onMount(() => {
+		if (data.verified === 'true') {
+			emailVerified = true;
+			toastStore.success('Your email has been verified.');
+			clearVerifyParams();
+		} else if (data.verifyError) {
+			toastStore.error(VERIFY_ERROR_MESSAGES[data.verifyError] ?? 'Email verification failed.');
+			clearVerifyParams();
+		}
+	});
+
+	function clearVerifyParams() {
+		// Strip the one-shot query params so a refresh doesn't re-toast.
+		const url = new URL(window.location.href);
+		url.searchParams.delete('verified');
+		url.searchParams.delete('verify_error');
+		history.replaceState(history.state, '', url.pathname + url.search);
+	}
+
+	async function resendVerification() {
+		resendingVerification = true;
+		try {
+			const res = await fetch('/api/auth/resend-verification', {
+				method: 'POST',
+				credentials: 'include'
+			});
+			const result = (await res.json()) as { error?: string; alreadyVerified?: boolean };
+			if (res.ok) {
+				toastStore.success('Verification email sent. Check your inbox.');
+			} else if (result.alreadyVerified) {
+				emailVerified = true;
+				toastStore.info('Your email is already verified.');
+			} else {
+				toastStore.error(result.error || 'Could not send verification email.');
+			}
+		} catch {
+			toastStore.error('Network error — check your connection and try again.');
+		} finally {
+			resendingVerification = false;
+		}
+	}
 
 	let showCreateForm = $state(false);
 	let newSiteName = $state('');
 	let newSiteLocation = $state('');
+	let newSiteLat = $state<number | null>(null);
+	let newSiteLng = $state<number | null>(null);
 	let createError = $state('');
 	let creating = $state(false);
 
@@ -16,8 +86,11 @@
 	const activeSites = $derived(
 		data.jobSites.filter((s: any) => s.status?.toLowerCase() === 'active').length
 	);
-	const totalCalcs = $derived(
-		data.jobSites.reduce((sum: number, s: any) => sum + (s.calculation_count || 0), 0)
+	const loggingToday = $derived(
+		data.jobSites.filter((s: any) => s.today_log_open).length
+	);
+	const totalTonsToday = $derived(
+		data.jobSites.reduce((sum: number, s: any) => sum + (s.today_tons || 0), 0)
 	);
 
 	const mapSites = $derived(
@@ -35,12 +108,14 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					name: newSiteName,
-					location_description: newSiteLocation || undefined
+					location_description: newSiteLocation || undefined,
+					latitude: newSiteLat ?? undefined,
+					longitude: newSiteLng ?? undefined
 				}),
 				credentials: 'include'
 			});
 
-			const result = await res.json();
+			const result = (await res.json()) as { error?: string; id?: string };
 
 			if (!res.ok) {
 				createError = result.error || 'Failed to create job site';
@@ -60,20 +135,14 @@
 		showCreateForm = false;
 		newSiteName = '';
 		newSiteLocation = '';
+		newSiteLat = null;
+		newSiteLng = null;
 		createError = '';
-	}
-
-	function formatDate(timestamp: number): string {
-		return new Date(timestamp * 1000).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
 	}
 </script>
 
 <svelte:head>
-	<title>Dashboard — {config.app.name}</title>
+	<title>Projects — {config.app.name}</title>
 </svelte:head>
 
 <GeofenceMonitor sites={data.jobSites} />
@@ -81,8 +150,8 @@
 <div class="dashboard">
 	<div class="page-header">
 		<div>
-			<h2 class="page-title">Dashboard</h2>
-			<p class="page-subtitle">{data.org.name}</p>
+			<h2 class="page-title">Projects</h2>
+			<p class="page-subtitle">{org.name}</p>
 		</div>
 		{#if !showCreateForm}
 			<button class="btn-primary header-btn" onclick={() => (showCreateForm = true)}>
@@ -90,10 +159,22 @@
 					<line x1="12" y1="5" x2="12" y2="19"></line>
 					<line x1="5" y1="12" x2="19" y2="12"></line>
 				</svg>
-				New Job Site
+				New Project
 			</button>
 		{/if}
 	</div>
+
+	{#if !emailVerified}
+		<div class="verify-banner" role="status">
+			<div class="verify-banner-text">
+				<strong>Verify your email</strong>
+				<span>Confirm your address to secure your account and enable all notifications.</span>
+			</div>
+			<button class="verify-resend" onclick={resendVerification} disabled={resendingVerification}>
+				{resendingVerification ? 'Sending…' : 'Resend email'}
+			</button>
+		</div>
+	{/if}
 
 	<nav class="quick-links">
 		<a href="/dashboard/team" class="quick-link">
@@ -112,8 +193,8 @@
 			</svg>
 			Settings
 		</a>
-		{#if data.org.role === 'owner' || data.org.role === 'admin'}
-			<a href="/dashboard/audit" class="quick-link">
+		{#if org.role === 'owner' || org.role === 'admin'}
+			<a href="/dashboard/activity" class="quick-link">
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
 					<polyline points="14 2 14 8 20 8"></polyline>
@@ -122,8 +203,18 @@
 				</svg>
 				Audit Log
 			</a>
+			<a href="/dashboard/admin/crew-productivity" class="quick-link">
+				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+					<circle cx="9" cy="7" r="4"></circle>
+					<path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+					<path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+					<polyline points="16 16 18 18 22 14"></polyline>
+				</svg>
+				Crew Productivity
+			</a>
 		{/if}
-		{#if data.user.isGlobalAdmin}
+		{#if user.isGlobalAdmin}
 			<a href="/admin" class="quick-link admin">
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<circle cx="12" cy="12" r="3"></circle>
@@ -137,52 +228,88 @@
 	<div class="dashboard-grid">
 		<aside class="stats-column">
 			<div class="stat-card">
-				<span class="stat-num">{totalSites}</span>
-				<span class="stat-cap">Total Sites</span>
-			</div>
-			<div class="stat-card">
 				<span class="stat-num">{activeSites}</span>
-				<span class="stat-cap">Active</span>
+				<span class="stat-cap">Active Projects</span>
 			</div>
 			<div class="stat-card">
-				<span class="stat-num">{totalCalcs}</span>
-				<span class="stat-cap">Calculations</span>
+				<span class="stat-num">{loggingToday}</span>
+				<span class="stat-cap">Logging Today</span>
+			</div>
+			<div class="stat-card">
+				<span class="stat-num">{totalTonsToday.toLocaleString()}</span>
+				<span class="stat-cap">Tons Today</span>
+			</div>
+			<div class="stat-card">
+				<span class="stat-num">{totalSites}</span>
+				<span class="stat-cap">Total Projects</span>
 			</div>
 		</aside>
 
 		{#if mapSites.length > 0}
 			<section class="section map-section">
 				<div class="section-header">
-					<h3>Job Site Locations</h3>
+					<h3>Project Locations</h3>
+					{#if org.role === 'owner' || org.role === 'admin'}
+						<a href="/dashboard/map" class="btn-secondary btn-sm">
+							<svg
+								width="16"
+								height="16"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+								<circle cx="12" cy="10" r="3"></circle>
+							</svg>
+							Full Map
+						</a>
+					{/if}
 				</div>
 				{#await import('$lib/components/JobSiteMap.svelte')}
-					<div class="map-loading">Loading map&hellip;</div>
+					<div class="map-skeleton">
+						<Skeleton width="100%" height="280px" borderRadius="var(--radius-md)" />
+					</div>
 				{:then { default: JobSiteMap }}
 					<JobSiteMap sites={mapSites} />
 				{/await}
 			</section>
 		{/if}
 
+		{#if org.role === 'owner' || org.role === 'admin'}
+			<section class="section crew-status-section">
+				{#await import('$lib/components/LiveCrewDashboard.svelte')}
+					<div class="crew-skeleton">
+						<Skeleton width="100%" height="160px" borderRadius="var(--radius-md)" />
+					</div>
+				{:then { default: LiveCrewDashboard }}
+					<LiveCrewDashboard />
+				{/await}
+			</section>
+		{/if}
+
 		<section class="main-section">
 		<div class="section-header mobile-header">
-			<h3>Active Job Sites</h3>
+			<h3>All Projects</h3>
 			{#if !showCreateForm}
 				<button class="btn-primary" onclick={() => (showCreateForm = true)}>
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<line x1="12" y1="5" x2="12" y2="19"></line>
 						<line x1="5" y1="12" x2="19" y2="12"></line>
 					</svg>
-					Create Job Site
+					Create Project
 				</button>
 			{/if}
 		</div>
 
 		{#if showCreateForm}
 			<div class="create-form-card">
-				<h4>New Job Site</h4>
+				<h4>New Project</h4>
 				<form onsubmit={handleCreateJobSite}>
 					<div class="form-field">
-						<label for="site-name">Site Name</label>
+						<label for="site-name">Project Name</label>
 						<input
 							type="text"
 							id="site-name"
@@ -199,6 +326,15 @@
 							id="site-location"
 							bind:value={newSiteLocation}
 							placeholder="Mile marker 42-48"
+						/>
+					</div>
+
+					<div class="form-field">
+						<label>Map Pin <span class="optional-label">(optional)</span></label>
+						<JobSiteLocationPicker
+							bind:latitude={newSiteLat}
+							bind:longitude={newSiteLng}
+							mapHeight="220px"
 						/>
 					</div>
 
@@ -220,13 +356,19 @@
 
 		{#if data.jobSites.length === 0}
 			<div class="empty-state">
-				<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-					<polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-					<line x1="12" y1="22.08" x2="12" y2="12"></line>
-				</svg>
-				<h4>No job sites yet</h4>
-				<p>Create your first job site to start tracking calculations</p>
+				<div class="icon-circle">
+					<svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" opacity="0.4"></path>
+						<polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+						<line x1="12" y1="22.08" x2="12" y2="12"></line>
+						<circle cx="12" cy="12" r="2" fill="var(--accent)"></circle>
+					</svg>
+				</div>
+				<h4>No projects yet</h4>
+				<p>Create your first project to start planning, tracking, and logging the work</p>
+				<button type="button" class="btn-primary" onclick={() => (showCreateForm = true)}>
+					Create your first project
+				</button>
 			</div>
 		{:else}
 			<div class="job-sites-grid">
@@ -234,18 +376,35 @@
 					<a href="/dashboard/job-sites/{site.id}" class="job-site-card">
 						<div class="site-header">
 							<h4 class="site-name">{site.name}</h4>
-							<span class="status-badge status-{site.status.toLowerCase()}">{site.status}</span>
+							<span class="status-badge status-{site.today_log_open ? 'logging' : site.status.toLowerCase()}">
+								{site.today_log_open ? 'Logging' : site.status}
+							</span>
 						</div>
 						{#if site.location_description}
 							<p class="site-location">{site.location_description}</p>
 						{/if}
-						<div class="site-footer">
-							<div class="site-stat">
-								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
-								</svg>
-								{site.calculation_count} calculation{site.calculation_count === 1 ? '' : 's'}
+						{#if site.crew_name}
+							<div class="site-crew">
+								<span class="crew-dot" style="background: {site.crew_color || 'var(--accent)'}"></span>
+								{site.crew_name}
 							</div>
+						{/if}
+						<div class="site-footer">
+							{#if site.today_tons != null && (site.today_tons > 0 || site.today_log_open)}
+								<div class="site-stat">
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M3 6h18M3 12h18M3 18h18"></path>
+									</svg>
+									{site.today_tons.toLocaleString()} t today · {site.today_loads ?? 0} loads
+								</div>
+							{:else}
+								<div class="site-stat">
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+									</svg>
+									{site.calculation_count} calculation{site.calculation_count === 1 ? '' : 's'}
+								</div>
+							{/if}
 							<div class="site-date">
 								{formatDate(site.created_at)}
 							</div>
@@ -261,6 +420,48 @@
 <style>
 	.dashboard {
 		width: 100%;
+	}
+
+	.verify-banner {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-3);
+		flex-wrap: wrap;
+		margin-bottom: var(--sp-4);
+		padding: var(--sp-3) var(--sp-4);
+		border: 1px solid var(--accent);
+		border-radius: var(--radius);
+		background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+	}
+
+	.verify-banner-text {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		color: var(--text);
+	}
+
+	.verify-banner-text span {
+		color: var(--text-muted);
+		font-size: 0.9rem;
+	}
+
+	.verify-resend {
+		min-height: var(--touch);
+		padding: 0 var(--sp-4);
+		border: none;
+		border-radius: var(--radius);
+		background: var(--accent);
+		color: var(--accent-text);
+		font-weight: 700;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.verify-resend:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 
 	.dashboard-grid {
@@ -424,6 +625,16 @@
 		cursor: not-allowed;
 	}
 
+	.btn-sm {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 36px;
+		padding: 0 12px;
+		font-size: 0.85rem;
+		text-decoration: none;
+	}
+
 	.create-form-card {
 		background: var(--surface);
 		border: 1px solid var(--border);
@@ -481,26 +692,68 @@
 		justify-content: flex-end;
 	}
 
+	.optional-label {
+		font-size: var(--fs-xs);
+		color: var(--text-muted);
+		font-weight: 400;
+	}
+
 	.empty-state {
 		text-align: center;
-		padding: 48px 20px;
-		color: var(--text-muted);
+		padding: 48px 24px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.empty-state .icon-circle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 96px;
+		height: 96px;
+		border-radius: 50%;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		margin-bottom: 24px;
 	}
 
 	.empty-state svg {
-		opacity: 0.5;
-		margin-bottom: 16px;
+		color: var(--accent);
 	}
 
 	.empty-state h4 {
 		margin: 0 0 8px;
 		font-size: 1.1rem;
 		color: var(--text);
+		font-weight: 500;
 	}
 
 	.empty-state p {
-		margin: 0;
+		margin: 0 0 24px;
 		font-size: 0.9rem;
+		color: var(--text-muted);
+		max-width: 400px;
+		line-height: 1.5;
+	}
+
+	.empty-state .btn-primary {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 12px 24px;
+		min-height: 44px;
+		border-radius: 6px;
+		font-size: 0.95rem;
+		font-weight: 500;
+		border: none;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.empty-state .btn-primary:hover {
+		opacity: 0.9;
+		transform: translateY(-1px);
 	}
 
 	.job-sites-grid {
@@ -553,9 +806,41 @@
 		color: var(--accent-text);
 	}
 
+	.status-logging {
+		background: var(--accent);
+		color: var(--accent-text);
+	}
+
+	.status-completed {
+		background: color-mix(in srgb, var(--good) 22%, transparent);
+		color: var(--good);
+	}
+
+	.status-archived {
+		background: var(--surface-hover);
+		color: var(--text-muted);
+	}
+
 	.status-inactive {
 		background: var(--text-muted);
 		color: var(--bg);
+	}
+
+	.site-crew {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--text);
+		margin-bottom: 4px;
+	}
+
+	.crew-dot {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		flex-shrink: 0;
 	}
 
 	.site-location {
@@ -592,14 +877,13 @@
 		color: var(--text-muted);
 	}
 
-	.map-loading {
-		padding: 40px 20px;
-		text-align: center;
-		color: var(--text-muted);
-		font-size: 0.875rem;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md, 12px);
+	.map-skeleton,
+	.crew-skeleton {
+		padding: 0;
+	}
+
+	.crew-status-section {
+		margin-bottom: 0;
 	}
 
 	@media (min-width: 1100px) {

@@ -107,6 +107,7 @@ export class DbPhotoHelper {
 			.prepare('DELETE FROM photo_attachments WHERE id = ? AND uploaded_by = ?')
 			.bind(id, uploadedBy)
 			.run();
-		return (result.meta?.changes ?? 0) > 0;
+		const meta = result.meta as { changes?: number } | undefined;
+		return (meta?.changes ?? 0) > 0;
 	}
 }

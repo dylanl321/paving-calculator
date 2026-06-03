@@ -50,7 +50,7 @@
 			});
 
 			if (res.ok) {
-				const result = await res.json();
+				const result = (await res.json()) as { entries: typeof data.entries; next_cursor: typeof data.nextCursor };
 				entries = result.entries;
 				nextCursor = result.next_cursor;
 
@@ -96,7 +96,7 @@
 			});
 
 			if (res.ok) {
-				const result = await res.json();
+				const result = (await res.json()) as { entries: typeof data.entries; next_cursor: typeof data.nextCursor };
 				entries = [...entries, ...result.entries];
 				nextCursor = result.next_cursor;
 			}
@@ -142,7 +142,8 @@
 		return 'badge-other';
 	}
 
-	function truncateId(id: string): string {
+	function truncateId(id: string | null): string {
+		if (id == null) return '';
 		return id.length > 8 ? id.slice(0, 8) : id;
 	}
 </script>
@@ -198,21 +199,25 @@
 
 	{#if entries.length === 0}
 		<div class="empty-state">
-			<svg
-				width="48"
-				height="48"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-			>
-				<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-				<polyline points="14 2 14 8 20 8"></polyline>
-				<line x1="12" y1="18" x2="12" y2="12"></line>
-				<line x1="9" y1="15" x2="15" y2="15"></line>
-			</svg>
-			<h4>No activity found</h4>
-			<p>No activity matches your filters</p>
+			<div class="icon-circle">
+				<svg
+					width="80"
+					height="80"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.5"
+				>
+					<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" opacity="0.4"></path>
+					<polyline points="14 2 14 8 20 8"></polyline>
+					<line x1="9" y1="15" x2="15" y2="15"></line>
+					<line x1="12" y1="18" x2="12" y2="12"></line>
+					<circle cx="12" cy="15" r="1.5" fill="var(--accent)"></circle>
+				</svg>
+			</div>
+			<h4>No activity logged yet</h4>
+			<p>No activity logged yet. Complete a daily log to see entries here.</p>
+			<a href="/dashboard" class="btn-primary">Go to Dashboard</a>
 		</div>
 	{:else}
 		<div class="activity-table">
@@ -357,24 +362,61 @@
 
 	.empty-state {
 		text-align: center;
-		padding: 64px 20px;
-		color: var(--text-muted);
+		padding: 48px 24px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.empty-state .icon-circle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 96px;
+		height: 96px;
+		border-radius: 50%;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		margin-bottom: 24px;
 	}
 
 	.empty-state svg {
-		opacity: 0.5;
-		margin-bottom: 16px;
+		color: var(--accent);
 	}
 
 	.empty-state h4 {
 		margin: 0 0 8px;
 		font-size: 1.1rem;
 		color: var(--text);
+		font-weight: 500;
 	}
 
 	.empty-state p {
-		margin: 0;
+		margin: 0 0 24px;
 		font-size: 0.9rem;
+		color: var(--text-muted);
+		max-width: 400px;
+		line-height: 1.5;
+	}
+
+	.empty-state .btn-primary {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 12px 24px;
+		min-height: 44px;
+		border-radius: 6px;
+		font-size: 0.95rem;
+		font-weight: 500;
+		text-decoration: none;
+		border: none;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.empty-state .btn-primary:hover {
+		opacity: 0.9;
+		transform: translateY(-1px);
 	}
 
 	.activity-table {

@@ -1,5 +1,11 @@
 <script lang="ts">
 	import { referenceTables } from '$lib/config';
+	import type {
+		RefTable2Row,
+		RefTable4Row,
+		RefTable5Row,
+		RefTable12Row
+	} from '$lib/config';
 
 	interface Props {
 		tableId: 'table-2' | 'table-4' | 'table-5' | 'table-12';
@@ -11,7 +17,10 @@
 
 	let open = $state(false);
 
-	const tableData = $derived(referenceTables[tableId.replace('-', '_') as keyof typeof referenceTables]);
+	const table2Rows = $derived<RefTable2Row[]>(referenceTables.table_2);
+	const table4Rows = $derived<RefTable4Row[]>(referenceTables.table_4);
+	const table5Rows = $derived<RefTable5Row[]>(referenceTables.table_5);
+	const table12Rows = $derived<RefTable12Row[]>(referenceTables.table_12);
 
 	const tableNumber = $derived(tableId.replace('table-', ''));
 
@@ -49,7 +58,7 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each tableData as row}
+							{#each table2Rows as row}
 								<tr class:highlighted={highlightRow === row.id}>
 									<td>{row.label}</td>
 									<td>{row.min_gal_yd2}<br /><span class="metric">{row.min_metric}</span></td>
@@ -67,7 +76,7 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each tableData as row}
+							{#each table4Rows as row}
 								<tr class:highlighted={highlightRow === row.id}>
 									<td>{row.label}</td>
 									<td>
@@ -91,7 +100,7 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each tableData as row}
+							{#each table5Rows as row}
 								<tr class:highlighted={highlightRow === row.id}>
 									<td>{row.label}</td>
 									<td>{row.min_layer}</td>
@@ -111,7 +120,7 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#each tableData as row}
+							{#each table12Rows as row}
 								<tr class:highlighted={highlightRow === row.id}>
 									<td>
 										{row.label}

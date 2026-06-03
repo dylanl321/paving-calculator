@@ -1,6 +1,6 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
-import { sendPasswordResetEmail } from '$lib/server/email';
+import { sendPasswordResetEmail, buildOrgBranding } from '$lib/server/email';
 
 interface ForgotPasswordRequest {
 	email: string;
@@ -23,12 +23,18 @@ export async function POST(event: RequestEvent) {
 			const resetToken = await db.createEmailToken(user.id, 'reset_password', 60 * 60);
 			const baseUrl = new URL(event.request.url).origin;
 
+			const org = await db.getOrgByUserId(user.id);
+			const settings = org ? await db.getOrgSettings(org.id) : null;
+			const branding = buildOrgBranding(org, settings);
+
 			await sendPasswordResetEmail(
 				event.platform?.env.RESEND_API_KEY,
 				user.email,
 				user.name,
 				resetToken,
-				baseUrl
+				baseUrl,
+				branding,
+				{ logger: db, orgId: org?.id ?? null, userId: user.id }
 			);
 		}
 
