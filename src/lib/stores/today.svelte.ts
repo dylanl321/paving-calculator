@@ -45,6 +45,7 @@ export interface TodayState {
 	date: string; // YYYY-MM-DD
 	site_name: string;
 	weather_temp_f: number | null;
+	weather_temp_f_source: 'auto' | 'manual' | null;
 	weather_conditions: 'clear' | 'cloudy' | 'rain' | 'wind' | 'fog' | null;
 	wind_speed_mph: number | null;
 	crew_count: number | null;
@@ -73,6 +74,7 @@ function initial(): TodayState {
 		date: todayDate(),
 		site_name: '',
 		weather_temp_f: null,
+		weather_temp_f_source: null,
 		weather_conditions: null,
 		wind_speed_mph: null,
 		crew_count: null,
@@ -123,6 +125,20 @@ class Today {
 			this.#state = load();
 		}
 
+		// Auto-fill weather_temp_f from weather store when available
+		$effect(() => {
+			const effectiveTempF = weather.effectiveTempF;
+			const currentTemp = this.#state.weather_temp_f;
+			const currentSource = this.#state.weather_temp_f_source;
+
+			// Only auto-fill if: weather has a temp AND (no temp set OR source is 'auto')
+			if (effectiveTempF != null && (currentTemp == null || currentSource === 'auto')) {
+				this.#state.weather_temp_f = effectiveTempF;
+				this.#state.weather_temp_f_source = 'auto';
+				this.#save();
+			}
+		});
+
 		// Reactive effect: auto-derive fields when entries or weather temp changes
 		let lastEntriesLength = 0;
 		let lastTempValue: number | null = null;
@@ -162,7 +178,11 @@ class Today {
 	}
 	set weatherTempF(v: number | null) {
 		this.#state.weather_temp_f = v;
+		this.#state.weather_temp_f_source = v != null ? 'manual' : null;
 		this.#save();
+	}
+	get weatherTempFSource() {
+		return this.#state.weather_temp_f_source;
 	}
 	get weatherConditions() {
 		return this.#state.weather_conditions;
