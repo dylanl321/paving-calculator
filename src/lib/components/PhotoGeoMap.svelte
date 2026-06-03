@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
-	import { Camera } from 'lucide-svelte';
+	import { onMount } from 'svelte';
+	import { MapContainer, MapMarker, MapCircleMarker } from '$lib/components/map';
 
 	interface Props {
 		jobSiteId: string;
@@ -22,89 +22,30 @@
 		taken_at: number;
 	}
 
-	let mapEl: HTMLDivElement;
-	let mapInstance: any = null;
 	let photos = $state<Photo[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
-	let markers: any[] = [];
 
 	const photosWithGPS = $derived(photos.filter((p) => p.lat != null && p.lng != null));
 
-	async function loadPhotos() {
-		loading = true;
-		error = null;
-		try {
-			const url = dailyLogId
-				? `/api/job-sites/${jobSiteId}/photos?log_id=${dailyLogId}`
-				: `/api/job-sites/${jobSiteId}/photos`;
+	const bounds = $derived.by<[[number, number], [number, number]] | undefined>(() => {
+		if (photosWithGPS.length === 0) return undefined;
+		const lats = photosWithGPS.map((p) => p.lat as number);
+		const lngs = photosWithGPS.map((p) => p.lng as number);
+		const minLat = Math.min(...lats);
+		const maxLat = Math.max(...lats);
+		const minLng = Math.min(...lngs);
+		const maxLng = Math.max(...lngs);
+		// Pad ~10% like the original featureGroup.getBounds().pad(0.1)
+		const latPad = (maxLat - minLat) * 0.1 || 0.001;
+		const lngPad = (maxLng - minLng) * 0.1 || 0.001;
+		return [
+			[minLat - latPad, minLng - lngPad],
+			[maxLat + latPad, maxLng + lngPad]
+		];
+	});
 
-			const res = await fetch(url);
-			if (!res.ok) throw new Error('Failed to load photos');
-
-			const data = await res.json();
-			photos = data.photos ?? [];
-		} catch (err) {
-			error = 'Could not load photos';
-		} finally {
-			loading = false;
-		}
-	}
-
-	onMount(async () => {
-		await loadPhotos();
-
-		if (photosWithGPS.length === 0) {
-			// No GPS photos, don't initialize map
-			return;
-		}
-
-		// Load Leaflet from CDN (same pattern as StationProgressMap)
-		if (!document.querySelector('link[href*="leaflet"]')) {
-			const link = document.createElement('link');
-			link.rel = 'stylesheet';
-			link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-			document.head.appendChild(link);
-		}
-
-		if (!(window as any).L) {
-			await new Promise<void>((resolve, reject) => {
-				const script = document.createElement('script');
-				script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-				script.onload = () => resolve();
-				script.onerror = () => reject(new Error('Failed to load Leaflet'));
-				document.head.appendChild(script);
-			});
-		}
-
-		const L = (window as any).L;
-
-		mapInstance = L.map(mapEl, { zoomControl: true, attributionControl: true }).setView([lat, lng], zoom);
-
-		L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-			attribution:
-				'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-			maxZoom: 19
-		}).addTo(mapInstance);
-
-		// Add job site center marker (subtle)
-		L.circleMarker([lat, lng], {
-			radius: 6,
-			fillColor: '#3b82f6',
-			color: '#fff',
-			weight: 2,
-			opacity: 1,
-			fillOpacity: 0.6
-		})
-			.addTo(mapInstance)
-			.bindPopup('Job Site Center');
-
-		// Add photo markers
-		for (const photo of photosWithGPS) {
-			if (photo.lat == null || photo.lng == null) continue;
-
-			// Custom camera icon
-			const iconHtml = `
+	const cameraIconHtml = `
 				<div style="
 					width: 32px;
 					height: 32px;
@@ -121,19 +62,9 @@
 				</div>
 			`;
 
-			const icon = L.divIcon({
-				html: iconHtml,
-				iconSize: [32, 32],
-				iconAnchor: [16, 16],
-				popupAnchor: [0, -16],
-				className: 'photo-marker-icon'
-			});
-
-			const marker = L.marker([photo.lat, photo.lng], { icon }).addTo(mapInstance);
-
-			// Popup with thumbnail
-			const takenDate = new Date(photo.taken_at * 1000).toLocaleString();
-			const popupContent = `
+	function photoPopup(photo: Photo): string {
+		const takenDate = new Date(photo.taken_at * 1000).toLocaleString();
+		return `
 				<div style="text-align: center; min-width: 140px;">
 					<img
 						src="/api/job-sites/${jobSiteId}/photos/${photo.id}/view"
@@ -144,23 +75,30 @@
 					<div style="font-size: 0.75rem; color: #888;">${takenDate}</div>
 				</div>
 			`;
+	}
 
-			marker.bindPopup(popupContent);
-			markers.push(marker);
-		}
+	async function loadPhotos() {
+		loading = true;
+		error = null;
+		try {
+			const url = dailyLogId
+				? `/api/job-sites/${jobSiteId}/photos?log_id=${dailyLogId}`
+				: `/api/job-sites/${jobSiteId}/photos`;
 
-		// Fit bounds to show all photos
-		if (markers.length > 0) {
-			const group = L.featureGroup(markers);
-			mapInstance.fitBounds(group.getBounds().pad(0.1));
-		}
-	});
+			const res = await fetch(url);
+			if (!res.ok) throw new Error('Failed to load photos');
 
-	onDestroy(() => {
-		if (mapInstance) {
-			mapInstance.remove();
-			mapInstance = null;
+			const data = (await res.json()) as { photos?: Photo[] };
+			photos = data.photos ?? [];
+		} catch (err) {
+			error = 'Could not load photos';
+		} finally {
+			loading = false;
 		}
+	}
+
+	onMount(async () => {
+		await loadPhotos();
 	});
 </script>
 
@@ -191,7 +129,30 @@
 			<span>No geo-tagged photos yet</span>
 		</div>
 	{:else}
-		<div bind:this={mapEl} class="map-container"></div>
+		<MapContainer class="photo-geo-container" {height} center={[lat, lng]} {zoom} bounds={bounds}>
+			<MapCircleMarker
+				{lat}
+				{lng}
+				radius={6}
+				color="#fff"
+				fillColor="#3b82f6"
+				fillOpacity={0.6}
+				weight={2}
+				popupHtml="Job Site Center"
+			/>
+			{#each photosWithGPS as photo (photo.id)}
+				<MapMarker
+					lat={photo.lat as number}
+					lng={photo.lng as number}
+					iconHtml={cameraIconHtml}
+					iconSize={[32, 32]}
+					iconAnchor={[16, 16]}
+					popupAnchor={[0, -16]}
+					popupHtml={photoPopup(photo)}
+					popupMinWidth={140}
+				/>
+			{/each}
+		</MapContainer>
 	{/if}
 </div>
 
@@ -204,9 +165,9 @@
 		border: 1px solid var(--border);
 	}
 
-	.map-container {
-		width: 100%;
+	.photo-geo-map :global(.photo-geo-container) {
 		height: 100%;
+		border-radius: 0;
 	}
 
 	.map-placeholder {
@@ -237,10 +198,5 @@
 
 	.spin {
 		animation: spin 1s linear infinite;
-	}
-
-	:global(.photo-marker-icon) {
-		background: transparent !important;
-		border: none !important;
 	}
 </style>

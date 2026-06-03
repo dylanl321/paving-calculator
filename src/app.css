@@ -707,3 +707,64 @@ textarea.input-field {
 		transition-duration: 0.01ms !important;
 	}
 }
+
+/* ---- Print Styles ---- */
+@media print {
+	/* Override CSS variables for print */
+	:root,
+	:root[data-theme='dark'],
+	:root[data-theme='light'],
+	:root[data-theme='sunlight'] {
+		--text: #111 !important;
+		--text-muted: #555 !important;
+		--border: #ccc !important;
+		--accent: #1d4ed8 !important;
+		--surface: #fff !important;
+		--bg: #fff !important;
+		--surface-alt: #f5f5f5 !important;
+	}
+
+	/* Hide UI chrome */
+	.app-nav,
+	.nav-sidebar,
+	#nav-sidebar,
+	.overlay ~ * .close-btn,
+	.fab,
+	.sheet-footer .btn-close,
+	.sheet-footer .btn-secondary:not(.btn-print-hide),
+	.modal-foot .btn-secondary,
+	.modal-foot .btn-close,
+	.modal-foot .btn-share,
+	.feature-discovery,
+	.spinner,
+	.loading-state {
+		display: none !important;
+	}
+
+	/* Sheet/modal as flat page */
+	.sheet,
+	.modal {
+		position: static !important;
+		max-height: none !important;
+		overflow: visible !important;
+		border-radius: 0 !important;
+		width: 100% !important;
+		box-shadow: none !important;
+		transform: none !important;
+	}
+
+	/* Overlay as static */
+	.overlay {
+		position: static !important;
+		background: none !important;
+	}
+
+	/* Page breaks */
+	.section {
+		page-break-inside: avoid;
+	}
+
+	.entry-card {
+		page-break-inside: avoid;
+	}
+}

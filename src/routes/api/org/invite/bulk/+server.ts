@@ -204,7 +204,7 @@ export async function POST(event: RequestEvent) {
 			errors
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Error processing bulk invitations:', error);
 		return json({ error: 'Failed to process bulk invitations' }, { status: 500 });
 	}

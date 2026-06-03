@@ -4,7 +4,7 @@
 	import { config } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { spreadRateFromThickness, stickCheck } from '$lib/config/formulas';
-	import { findTool, allTools } from '$lib/workspace/tools';
+	import { findTool, allTools, toolGroups } from '$lib/workspace/tools';
 	import JobBar from '$lib/components/workspace/JobBar.svelte';
 	import ToolList from '$lib/components/workspace/ToolList.svelte';
 	import SpreadRateChart from '$lib/components/charts/SpreadRateChart.svelte';
@@ -12,11 +12,19 @@
 	import TodaySummary from '$lib/components/workspace/TodaySummary.svelte';
 	import LogToToday from '$lib/components/workspace/LogToToday.svelte';
 	import UnitToggle from '$lib/components/UnitToggle.svelte';
+	import HomePrimaryCalcs from '$lib/components/workspace/HomePrimaryCalcs.svelte';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { authStore } from '$lib/stores/auth.svelte';
+	import ScreedManView from '$lib/components/ScreedManView.svelte';
+	import CalcHistoryLog from '$lib/components/CalcHistoryLog.svelte';
+
+	const isScreedMan = $derived(authStore.org?.role === 'screed_man');
 
 	const isToday = $derived($page.url.searchParams.get('view') === 'today');
 	const activeTool = $derived(findTool($page.url.searchParams.get('tool')));
-	const ActiveComponent = $derived(activeTool.component);
+	const isHome = $derived(!isToday && activeTool == null);
+	const ActiveComponent = $derived(activeTool?.component);
+	const activeToolGroup = $derived(toolGroups.find(g => g.tools.some(t => t.id === activeTool?.id)) ?? null);
 
 	function selectTool(id: string) {
 		logDraft.set(null);
@@ -32,6 +40,14 @@
 		goto(url, { replaceState: false, keepFocus: true, noScroll: true });
 	}
 
+	function selectHome() {
+		logDraft.set(null);
+		const url = new URL($page.url);
+		url.searchParams.delete('tool');
+		url.searchParams.delete('view');
+		goto(url, { replaceState: false, keepFocus: true, noScroll: true });
+	}
+
 	const targetRate = $derived(
 		job.thicknessIn > 0 ? Math.round(spreadRateFromThickness(job.thicknessIn)) : 0
 	);
@@ -40,6 +56,7 @@
 	// Mobile swipe state
 	let swipeOffset = $state(0);
 	let showHints = $state(false);
+	let historyOpen = $state(false);
 	let hintTimeout: number | undefined;
 	let isDraggingStage = $state(false);
 
@@ -109,20 +126,32 @@
 		}
 
 		function navigateSwipe(direction: 'prev' | 'next') {
-			const currentIndex = isToday ? -1 : allTools.findIndex((t) => t.id === activeTool.id);
+			const currentIndex = isToday ? -1 : isHome ? -2 : allTools.findIndex((t) => t.id === activeTool?.id);
 
 			if (direction === 'next') {
 				if (isToday) {
-					// From Today to first tool
+					// From Today to Home
+					const url = new URL($page.url);
+					url.searchParams.delete('view');
+					url.searchParams.delete('tool');
+					goto(url, { replaceState: false, keepFocus: true, noScroll: true });
+				} else if (isHome) {
+					// From Home to first tool
 					selectTool(allTools[0].id);
-				} else if (currentIndex < allTools.length - 1) {
+				} else if (currentIndex >= 0 && currentIndex < allTools.length - 1) {
 					selectTool(allTools[currentIndex + 1].id);
 				}
 			} else {
 				// prev
-				if (currentIndex === 0) {
-					// From first tool to Today
+				if (isHome) {
+					// From Home to Today
 					selectToday();
+				} else if (currentIndex === 0) {
+					// From first tool to Home
+					const url = new URL($page.url);
+					url.searchParams.delete('view');
+					url.searchParams.delete('tool');
+					goto(url, { replaceState: false, keepFocus: true, noScroll: true });
 				} else if (currentIndex > 0) {
 					selectTool(allTools[currentIndex - 1].id);
 				}
@@ -157,13 +186,15 @@
 	// Determine if prev/next are available
 	const canGoPrev = $derived(() => {
 		if (isToday) return false;
-		const idx = allTools.findIndex((t) => t.id === activeTool.id);
-		return idx > 0 || idx === 0; // Can go to Today from first tool
+		if (isHome) return true; // Can go to Today from Home
+		const idx = allTools.findIndex((t) => t.id === activeTool?.id);
+		return idx > 0 || idx === 0; // Can go to Home from first tool
 	});
 
 	const canGoNext = $derived(() => {
-		if (isToday) return true; // Can go to first tool from Today
-		const idx = allTools.findIndex((t) => t.id === activeTool.id);
+		if (isToday) return true; // Can go to Home from Today
+		if (isHome) return true; // Can go to first tool from Home
+		const idx = allTools.findIndex((t) => t.id === activeTool?.id);
 		return idx >= 0 && idx < allTools.length - 1;
 	});
 </script>
@@ -172,6 +203,9 @@
 	<title>{config.app.name} — Workspace</title>
 </svelte:head>
 
+{#if isScreedMan}
+	<ScreedManView />
+{:else}
 <div class="workspace">
 	<JobBar />
 
@@ -181,10 +215,12 @@
 				<div class="eyebrow">Calculators</div>
 			</div>
 			<ToolList
-				activeId={isToday ? '' : activeTool.id}
+				activeId={isToday ? '' : isHome ? '' : activeTool?.id ?? ''}
 				todayActive={isToday}
+				homeActive={isHome}
 				onselect={selectTool}
 				onselecttoday={selectToday}
+				onselecthome={selectHome}
 			/>
 		</aside>
 
@@ -215,8 +251,13 @@
 					<TodaySummary variant="compact" />
 				</div>
 			</aside>
-		{:else}
-			<section class="stage" use:swipeNav style="transform: translateX({swipeOffset}px);">
+		{:else if isHome}
+			<section
+				class="stage"
+				class:stage-dragging={isDraggingStage}
+				use:swipeNav
+				style="transform: translateX({swipeOffset}px);"
+			>
 				{#if showHints && canGoPrev()}
 					<div class="swipe-hint swipe-hint-left">‹</div>
 				{/if}
@@ -226,18 +267,112 @@
 				<header class="stage-head">
 					<div class="stage-head-row">
 						<div>
-							<div class="eyebrow">Calculator</div>
-							<h1 class="stage-title">{activeTool.label}</h1>
+							<div class="eyebrow">Workspace</div>
+							<h1 class="stage-title">Home</h1>
 						</div>
 						<UnitToggle />
 					</div>
 				</header>
 
 				<div class="stage-body">
-					{#key activeTool.id}
-						<ActiveComponent />
-						<LogToToday tool={activeTool} ongoToToday={selectToday} />
-					{/key}
+					<HomePrimaryCalcs />
+
+					<section class="history-section">
+						<button
+							class="history-toggle"
+							onclick={() => (historyOpen = !historyOpen)}
+							aria-expanded={historyOpen}
+						>
+							<span>Recent Calculations</span>
+							<svg
+								width="18"
+								height="18"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2.5"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								style="transition:transform 0.2s;transform:rotate({historyOpen ? 180 : 0}deg);flex-shrink:0;"
+							>
+								<polyline points="6 9 12 15 18 9" />
+							</svg>
+						</button>
+						{#if historyOpen}
+							<div class="history-panel">
+								<CalcHistoryLog />
+							</div>
+						{/if}
+					</section>
+				</div>
+			</section>
+
+			<aside class="rates" aria-label="Live rates">
+				<div class="rates-header">
+					<div class="eyebrow">Live Rates</div>
+				</div>
+				<div class="rate-stats">
+					<div class="rate-stat">
+						<span class="rv">{targetRate}</span>
+						<span class="ru">lbs/SY</span>
+						<span class="rl">Target spread</span>
+					</div>
+					<div class="rate-stat">
+						<span class="rv">{looseHeight.toFixed(2)}</span>
+						<span class="ru">in</span>
+						<span class="rl">Loose behind screed</span>
+					</div>
+				</div>
+
+				<div class="chart-block">
+					<div class="eyebrow">Spread Rate vs Target</div>
+					<SpreadRateChart {targetRate} />
+				</div>
+			</aside>
+		{:else}
+			<section class="stage" use:swipeNav style="transform: translateX({swipeOffset}px);">
+				{#if showHints && canGoPrev()}
+					<div class="swipe-hint swipe-hint-left">‹</div>
+				{/if}
+				{#if showHints && canGoNext()}
+					<div class="swipe-hint swipe-hint-right">›</div>
+				{/if}
+				<header class="stage-head">
+					<!-- Desktop/tablet breadcrumb -->
+					<nav class="breadcrumb" aria-label="Breadcrumb">
+						<button type="button" class="breadcrumb-link" onclick={selectHome}>Home</button>
+						<span class="breadcrumb-sep">/</span>
+						{#if activeToolGroup}
+							<span class="breadcrumb-group">{activeToolGroup.label}</span>
+							<span class="breadcrumb-sep">/</span>
+						{/if}
+						<span class="breadcrumb-current">{activeTool?.label ?? ''}</span>
+					</nav>
+
+					<!-- Mobile back button -->
+					<button type="button" class="back-btn" onclick={selectHome} aria-label="Back to home">
+						<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+							<path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+						</svg>
+						Back
+					</button>
+
+					<div class="stage-head-row">
+						<div>
+							<div class="eyebrow">Calculator</div>
+							<h1 class="stage-title">{activeTool?.label ?? ''}</h1>
+						</div>
+						<UnitToggle />
+					</div>
+				</header>
+
+				<div class="stage-body">
+					{#if activeTool && ActiveComponent}
+						{#key activeTool.id}
+							<ActiveComponent />
+							<LogToToday tool={activeTool} ongoToToday={selectToday} />
+						{/key}
+					{/if}
 				</div>
 			</section>
 
@@ -266,12 +401,44 @@
 		{/if}
 	</div>
 </div>
+{/if}
 
 <style>
 	.workspace {
 		display: flex;
 		flex-direction: column;
 		gap: var(--sp-4);
+	}
+
+	/* ── Calc History Section ───────────────────────────────────────────── */
+	.history-section {
+		margin-top: 1.5rem;
+	}
+
+	.history-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+		min-height: 48px;
+		padding: 0.75rem 1rem;
+		background: var(--surface-2, #1a1a1a);
+		border: 1px solid var(--border-subtle, #2e2e2e);
+		border-radius: 8px;
+		color: var(--text, #f0f0f0);
+		font-size: 0.9rem;
+		font-weight: 600;
+		cursor: pointer;
+		text-align: left;
+		transition: background 0.15s, border-color 0.15s;
+	}
+	.history-toggle:hover {
+		background: var(--surface-3, #242424);
+		border-color: var(--border, #444);
+	}
+
+	.history-panel {
+		margin-top: 0.5rem;
 	}
 
 	.panes {
@@ -362,6 +529,89 @@
 		font-size: var(--fs-xl);
 		font-weight: var(--fw-heavy);
 		letter-spacing: 0.2px;
+	}
+
+	/* Breadcrumb navigation */
+	.breadcrumb {
+		display: none;
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+		margin-bottom: var(--sp-3);
+		line-height: 1.4;
+	}
+
+	.breadcrumb-link {
+		background: none;
+		border: none;
+		padding: 0;
+		color: var(--text-muted);
+		cursor: pointer;
+		font-size: inherit;
+		text-decoration: none;
+		transition: color 0.15s ease;
+	}
+
+	.breadcrumb-link:hover {
+		color: var(--text);
+		text-decoration: underline;
+	}
+
+	.breadcrumb-sep {
+		margin: 0 var(--sp-2);
+		color: var(--text-muted);
+	}
+
+	.breadcrumb-group {
+		color: var(--text-muted);
+	}
+
+	.breadcrumb-current {
+		color: var(--text);
+	}
+
+	/* Mobile back button */
+	.back-btn {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		background: none;
+		border: none;
+		padding: var(--sp-2);
+		margin: 0 calc(-1 * var(--sp-2)) var(--sp-3);
+		color: var(--text-muted);
+		cursor: pointer;
+		font-size: var(--fs-sm);
+		min-height: 48px;
+		min-width: 48px;
+		transition: color 0.15s ease;
+	}
+
+	.back-btn:hover {
+		color: var(--text);
+	}
+
+	.back-btn svg {
+		flex-shrink: 0;
+	}
+
+	/* Show breadcrumb on desktop/tablet, hide back button */
+	@media (min-width: 768px) {
+		.breadcrumb {
+			display: block;
+		}
+		.back-btn {
+			display: none;
+		}
+	}
+
+	/* Hide breadcrumb on mobile, show back button */
+	@media (max-width: 767px) {
+		.breadcrumb {
+			display: none;
+		}
+		.back-btn {
+			display: flex;
+		}
 	}
 
 	.rate-stats {

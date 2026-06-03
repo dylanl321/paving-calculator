@@ -19,14 +19,7 @@ CREATE INDEX idx_audit_log_resource ON audit_log(resource_type, resource_id);
 CREATE INDEX idx_audit_log_actor ON audit_log(actor_user_id);
 
 -- Enforce immutability: prevent UPDATE and DELETE
-CREATE TRIGGER audit_log_immutable_update
-BEFORE UPDATE ON audit_log
-BEGIN
-  SELECT RAISE(ABORT, 'audit_log is immutable');
-END;
-
-CREATE TRIGGER audit_log_immutable_delete
-BEFORE DELETE ON audit_log
-BEGIN
-  SELECT RAISE(ABORT, 'audit_log is immutable');
-END;
+-- Triggers are kept on single logical lines so wrangler's semicolon-based
+-- statement splitter does not cut the BEGIN...END body into incomplete input.
+CREATE TRIGGER audit_log_immutable_update BEFORE UPDATE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is immutable'); END;
+CREATE TRIGGER audit_log_immutable_delete BEFORE DELETE ON audit_log BEGIN SELECT RAISE(ABORT, 'audit_log is immutable'); END;

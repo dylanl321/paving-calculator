@@ -1,5 +1,20 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
+import type { OrgOverrides } from '$lib/config/overrides';
+
+export interface OrgSettings {
+	role: string;
+	overrides: OrgOverrides;
+	org: { name: string } | null;
+	accentColor: string | null;
+	hasLogo: boolean;
+	emailFromName: string | null;
+	emailReplyTo: string | null;
+}
+
+interface NotificationPrefsResponse {
+	prefs: Record<string, boolean>;
+}
 
 export const load: PageLoad = async ({ fetch }) => {
 	try {
@@ -13,23 +28,46 @@ export const load: PageLoad = async ({ fetch }) => {
 			return {
 				error: true,
 				errorMessage: `Failed to load settings (${settingsRes.status})`,
-				errorStatus: settingsRes.status
+				errorStatus: settingsRes.status,
+				settings: null as OrgSettings | null,
+				notificationPrefs: {} as Record<string, boolean>,
+				emailReportSchedules: []
 			};
 		}
 
-		const settings = await settingsRes.json();
-		const notificationPrefs = notificationPrefsRes.ok
-			? await notificationPrefsRes.json()
-			: { prefs: {} };
+		const settings = (await settingsRes.json()) as OrgSettings;
+		const notificationPrefs = (
+			notificationPrefsRes.ok ? await notificationPrefsRes.json() : { prefs: {} }
+		) as NotificationPrefsResponse;
 
-		return { settings, notificationPrefs: notificationPrefs.prefs };
+		const role = settings?.role;
+		const schedulesRes =
+			role === 'owner' || role === 'admin'
+				? await fetch('/api/org/email-report-schedules', { credentials: 'include' })
+				: null;
+		const emailReportSchedules =
+			schedulesRes?.ok
+				? ((await schedulesRes.json()) as { schedules: unknown[] }).schedules
+				: [];
+
+		return {
+			error: false,
+			errorMessage: '',
+			errorStatus: 0,
+			settings,
+			notificationPrefs: notificationPrefs.prefs,
+			emailReportSchedules
+		};
 	} catch (err) {
 		// Re-throw SvelteKit redirects
 		if (err && typeof err === 'object' && 'status' in err) throw err;
 		return {
 			error: true,
 			errorMessage: 'Network error while loading settings',
-			errorStatus: 0
+			errorStatus: 0,
+			settings: null as OrgSettings | null,
+			notificationPrefs: {} as Record<string, boolean>,
+			emailReportSchedules: []
 		};
 	}
 };

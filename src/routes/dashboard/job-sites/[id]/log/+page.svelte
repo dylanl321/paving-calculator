@@ -1,16 +1,59 @@
 <script lang="ts">
 	import { goto, invalidateAll } from '$app/navigation';
-	import { config } from '$lib/config';
+	import { config, spreadSpecCheck, spreadToleranceFor } from '$lib/config';
 	import type { PageData } from './$types';
 	import GpsStationButton from '$lib/components/GpsStationButton.svelte';
 	import type { RouteWaypoint } from '$lib/services/gpsStation';
 	import TimeInput from '$lib/components/TimeInput.svelte';
-	import { Droplets, FileText, Clock, ChevronLeft, ChevronRight, Calendar } from 'lucide-svelte';
+	import { Droplets, FileText, Clock, ChevronLeft, ChevronRight, Calendar, FileDown } from 'lucide-svelte';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
+	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import ComplianceGauge from '$lib/components/ComplianceGauge.svelte';
 	import NuclearGaugeLog from '$lib/components/NuclearGaugeLog.svelte';
+	import StationProgressLogger from '$lib/components/StationProgressLogger.svelte';
+	import { formatFeet } from '$lib/utils/format';
+	import { actualSpreadRate } from '$lib/config/formulas';
+	import CloseOutModal from '$lib/components/CloseOutModal.svelte';
+	import DailySummaryReport from '$lib/components/DailySummaryReport.svelte';
+	import ComparativeDayView from '$lib/components/ComparativeDayView.svelte';
+	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
+	import CompletenessBar from '$lib/components/CompletenessBar.svelte';
+	import { today } from '$lib/stores/today.svelte';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
+	import SignatureModal from '$lib/components/SignatureModal.svelte';
 
 	let { data }: { data: PageData } = $props();
+
+	const projectSummary = $derived(data.summary as typeof data.summary & { total_days?: number });
+
+	// Reactive object for CompletenessBar from today store
+	const todayState = $derived({
+		weather_temp_f: today.weatherTempF,
+		crew_count: today.crewCount,
+		start_time: today.startTime,
+		end_time: today.endTime,
+		entries: today.entries,
+		notes: today.notes,
+		wind_speed_mph: today.windSpeedMph,
+		plant_name: today.plantName
+	});
+
+	interface LogDetailsResponse {
+		entries: any[];
+		summary: { total_distance_ft: number; total_tons: number; total_loads: number };
+	}
+	interface RouteResponse {
+		waypoints?: RouteWaypoint[];
+	}
+	interface LogResponse {
+		log: any;
+	}
+	interface LoadsResponse {
+		loads?: any[];
+	}
+	interface UnlockErrorResponse {
+		message?: string;
+	}
 
 	let isHistoricalView = $derived(!!data.isHistoricalView);
 	let viewedLog = $derived(data.activeLog ?? data.todayLog);
@@ -19,6 +62,16 @@
 	let entrySummary = $state<any>({ total_distance_ft: 0, total_tons: 0, total_loads: 0 });
 	let showEntryForm = $state(false);
 	let editingEntry = $state<any>(null);
+	let showCloseOut = $state(false);
+	let unlocking = $state(false);
+	let showSummary = $state(false);
+	let showComparison = $state(false);
+	let showCalendarPicker = $state(false);
+	let showSignatureModal = $state(false);
+
+	let isAdmin = $derived(
+		data.userRole === 'owner' || data.userRole === 'admin' || data.isGlobalAdmin
+	);
 
 	// Route waypoints for GPS station detection
 	let routeWaypoints = $state<RouteWaypoint[]>([]);
@@ -27,7 +80,7 @@
 		try {
 			const res = await fetch(`/api/job-sites/${data.jobSite.id}/route`);
 			if (res.ok) {
-				const { waypoints } = await res.json();
+				const { waypoints } = (await res.json()) as RouteResponse;
 				routeWaypoints = Array.isArray(waypoints) ? waypoints : [];
 			}
 		} catch {
@@ -65,7 +118,7 @@
 		if (!viewedLog) return;
 		const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs/${viewedLog.id}`);
 		if (res.ok) {
-			const result = await res.json();
+			const result = (await res.json()) as LogDetailsResponse;
 			entries = result.entries;
 			entrySummary = result.summary;
 		}
@@ -74,7 +127,7 @@
 	async function startLog() {
 		const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs`, { method: 'POST' });
 		if (res.ok) {
-			const { log } = await res.json();
+			const { log } = (await res.json()) as LogResponse;
 			currentLog = log;
 			await invalidateAll();
 		}
@@ -98,6 +151,8 @@
 		});
 		if (res.ok) {
 			await loadLogDetails();
+		} else if (res.status === 423) {
+			alert('This day is locked after close-out. Ask an admin to unlock it.');
 		}
 	}
 
@@ -179,6 +234,8 @@
 			if (res.ok) {
 				showEntryForm = false;
 				await loadLogDetails();
+			} else if (res.status === 423) {
+				alert('This day is locked after close-out. Ask an admin to unlock it.');
 			}
 		} else {
 			const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries`, {
@@ -189,26 +246,29 @@
 			if (res.ok) {
 				showEntryForm = false;
 				await loadLogDetails();
+			} else if (res.status === 423) {
+				alert('This day is locked after close-out. Ask an admin to unlock it.');
 			}
 		}
 	}
 
 	async function deleteEntry(entryId: string) {
-		if (!confirm('Delete this entry?')) return;
+		const confirmed = await confirmStore.ask({
+			title: 'Delete Entry',
+			message: 'Delete this entry? This cannot be undone.',
+			confirmLabel: 'Delete',
+			destructive: true
+		});
+		if (!confirmed) return;
 		const res = await fetch(
 			`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries/${entryId}`,
 			{ method: 'DELETE' }
 		);
 		if (res.ok) {
 			await loadLogDetails();
+		} else if (res.status === 423) {
+			alert('This day is locked after close-out. Ask an admin to unlock it.');
 		}
-	}
-
-	function formatDistance(ft: number): string {
-		if (ft >= 5280) {
-			return `${(ft / 5280).toFixed(2)} mi`;
-		}
-		return `${ft.toLocaleString()} ft`;
 	}
 
 	function navigateToPrevDay() {
@@ -323,94 +383,211 @@
 		targetFt && targetFt > 0 ? Math.min(100, (todayPavingFt / targetFt) * 100) : null
 	);
 
-	async function exportDailyPDF() {
+	// PDF export state
+	let pdfExporting = $state(false);
+
+	async function exportLogPDF(signatureDataUrl?: string) {
 		if (!currentLog) return;
-		const { generateDailyReportPDF } = await import('$lib/utils/pdf-export');
-
-		let loads: any[] = [];
+		pdfExporting = true;
 		try {
-			const currentDate = currentLog.log_date;
-			const res = await fetch(`/api/job-sites/${data.jobSite.id}/loads?start_date=${currentDate}`);
-			if (res.ok) {
-				const loadData = await res.json();
-				loads = loadData.loads || [];
+			const { generateDailyReportPDF } = await import('$lib/utils/pdf-export');
+
+			let loads: any[] = [];
+			try {
+				const currentDate = currentLog.log_date;
+				const res = await fetch(`/api/job-sites/${data.jobSite.id}/loads?start_date=${currentDate}`);
+				if (res.ok) {
+					const loadData = (await res.json()) as LoadsResponse;
+					loads = loadData.loads || [];
+				}
+			} catch {
+				// Non-fatal - continue without loads
 			}
-		} catch {
-			// Non-fatal - continue without loads
-		}
 
-		const hoursWorked = currentLog.start_time && currentLog.end_time
-			? (() => {
-				const [startH, startM] = currentLog.start_time.split(':').map(Number);
-				const [endH, endM] = currentLog.end_time.split(':').map(Number);
-				return Math.max(0, (endH * 60 + endM - (startH * 60 + startM)) / 60);
-			})()
-			: 0;
+			const hoursWorked = currentLog.start_time && currentLog.end_time
+				? (() => {
+					const [startH, startM] = currentLog.start_time.split(':').map(Number);
+					const [endH, endM] = currentLog.end_time.split(':').map(Number);
+					return Math.max(0, (endH * 60 + endM - (startH * 60 + startM)) / 60);
+				})()
+				: 0;
 
-		const actualRate = entrySummary.total_distance_ft > 0 && entrySummary.total_tons > 0
-			? (entrySummary.total_tons * 2000 * 9) / entrySummary.total_distance_ft
-			: null;
-		const targetRate = (data.siteConfig as any)?.config?.target_spread_rate || null;
-		const diffPct = actualRate && targetRate ? ((actualRate - targetRate) / targetRate) * 100 : null;
+			const actualRate = entrySummary.total_distance_ft > 0 && entrySummary.total_tons > 0
+				? actualSpreadRate({
+						tons: entrySummary.total_tons,
+						distanceFt: entrySummary.total_distance_ft,
+						widthFt: 1
+					})
+				: null;
+			const targetRate = (data.siteConfig as any)?.config?.target_spread_rate || null;
+			const diffPct = actualRate && targetRate ? ((actualRate - targetRate) / targetRate) * 100 : null;
 
-		await generateDailyReportPDF(
-			{
-				widthFt: (data.siteConfig as any)?.config?.lane_width_ft || 12,
-				thicknessIn: (data.siteConfig as any)?.config?.target_thickness_in || 2,
-				machineId: 'none',
-				firstPass: false,
-				truckLoadTons: 22,
-				tackApplication: 'new-to-new',
-				wastePct: 5,
-				siteName: data.jobSite.name,
-				siteDescription: data.jobSite.location_description || ''
-			},
-			{
-				date: currentLog.log_date,
-				siteName: data.jobSite.name,
-				weatherTempF: currentLog.weather_temp_f,
-				weatherConditions: currentLog.weather_conditions,
-				windSpeedMph: currentLog.wind_speed_mph,
-				crewCount: currentLog.crew_count,
-				startTime: currentLog.start_time,
-				endTime: currentLog.end_time,
-				notes: currentLog.notes,
-				entries: entries.map((e) => ({
-					entry_type: e.entry_type,
-					timestamp: e.timestamp,
-					station_start: e.station_start,
-					station_end: e.station_end,
-					distance_ft: e.distance_ft,
-					tons_placed: e.tons_placed,
-					loads_count: e.loads_count,
-					truck_tickets: null,
-					spread_rate_actual: e.spread_rate_actual,
-					tack_gallons: e.tack_gallons,
-					lane: e.lane,
-					notes: e.notes
-				})),
-				totals: {
-					totalTons: entrySummary.total_tons,
-					totalDistanceFt: entrySummary.total_distance_ft,
-					totalLoads: entrySummary.total_loads,
-					totalTackGallons: 0,
-					hoursWorked
-				},
-				yield: {
-					actualRate,
+			// Compute compliance stats
+			const courseType = (data.siteConfig as any)?.config?.course_type || null;
+			const pavingEntries = entries.filter((e: any) => e.entry_type === 'paving' && e.spread_rate_actual != null);
+			let goodCount = 0;
+			let warnCount = 0;
+			let badCount = 0;
+
+			for (const entry of pavingEntries) {
+				const check = spreadSpecCheck(
+					entry.spread_rate_actual,
 					targetRate,
-					diffPct
-				},
-				loads: loads.map(l => ({
-					id: l.id,
-					ticket_number: l.ticket_number,
-					tons: l.tons,
-					timestamp: l.timestamp,
-					spread_rate: l.spread_rate,
-					notes: l.notes
-				}))
+					courseType,
+					orgSettingsStore.overrides
+				);
+				if (check) {
+					if (check.status === 'good') goodCount++;
+					else if (check.status === 'warn') warnCount++;
+					else if (check.status === 'bad') badCount++;
+				}
 			}
-		);
+
+			const totalPavingEntries = pavingEntries.length;
+			const pctInSpec = totalPavingEntries > 0 ? (goodCount / totalPavingEntries) * 100 : 0;
+			const tolerance = spreadToleranceFor(courseType, orgSettingsStore.overrides);
+
+			const compliance = totalPavingEntries > 0 ? {
+				targetSpreadRate: targetRate,
+				courseType: tolerance.label,
+				totalPavingEntries,
+				goodCount,
+				warnCount,
+				badCount,
+				pctInSpec,
+				toleranceLbsSy: tolerance.toleranceLbsSy
+			} : null;
+
+			await generateDailyReportPDF(
+				{
+					widthFt: (data.siteConfig as any)?.config?.lane_width_ft || 12,
+					thicknessIn: (data.siteConfig as any)?.config?.target_thickness_in || 2,
+					machineId: 'none',
+					firstPass: false,
+					truckLoadTons: 22,
+					tackApplication: 'new-to-new',
+					wastePct: 5,
+					siteName: data.jobSite.name,
+					siteDescription: data.jobSite.location_description || '',
+					courseType: ''
+				},
+				{
+					date: currentLog.log_date,
+					siteName: data.jobSite.name,
+					orgName: data.jobSite.organization_name || undefined,
+					weatherTempF: currentLog.weather_temp_f,
+					weatherConditions: currentLog.weather_conditions,
+					windSpeedMph: currentLog.wind_speed_mph,
+					crewCount: currentLog.crew_count,
+					startTime: currentLog.start_time,
+					endTime: currentLog.end_time,
+					notes: currentLog.notes,
+					entries: entries.map((e) => ({
+						entry_type: e.entry_type,
+						timestamp: e.timestamp,
+						station_start: e.station_start,
+						station_end: e.station_end,
+						distance_ft: e.distance_ft,
+						tons_placed: e.tons_placed,
+						loads_count: e.loads_count,
+						truck_tickets: null,
+						spread_rate_actual: e.spread_rate_actual,
+						tack_gallons: e.tack_gallons,
+						lane: e.lane,
+						notes: e.notes
+					})),
+					totals: {
+						totalTons: entrySummary.total_tons,
+						totalDistanceFt: entrySummary.total_distance_ft,
+						totalLoads: entrySummary.total_loads,
+						totalTackGallons: 0,
+						hoursWorked
+					},
+					yield: {
+						actualRate,
+						targetRate,
+						diffPct
+					},
+					compliance,
+					loads: loads.map((l: any) => ({
+						id: l.id,
+						ticket_number: l.ticket_number,
+						tons: l.tons,
+						timestamp: l.timestamp,
+						spread_rate: l.spread_rate,
+						notes: l.notes
+					}))
+				},
+				signatureDataUrl
+			);
+		} catch (err) {
+			console.error('PDF export failed:', err);
+		} finally {
+			pdfExporting = false;
+		}
+	}
+
+	function handleSignAndExport(signatureDataUrl: string) {
+		showSignatureModal = false;
+		exportLogPDF(signatureDataUrl);
+	}
+
+	async function unlockLog() {
+		if (!currentLog) return;
+		unlocking = true;
+		try {
+			const res = await fetch(
+				`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/unlock`,
+				{ method: 'POST' }
+			);
+			if (res.ok) {
+				const { log } = (await res.json()) as LogResponse;
+				currentLog = log;
+				await invalidateAll();
+			} else {
+				const err = (await res.json()) as UnlockErrorResponse;
+				alert(err.message || 'Failed to unlock log');
+			}
+		} catch (err) {
+			alert('Failed to unlock log');
+		} finally {
+			unlocking = false;
+		}
+	}
+
+	function formatClosedDate(timestamp: number): string {
+		const date = new Date(timestamp * 1000);
+		return date.toLocaleString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit',
+			hour12: true
+		});
+	}
+
+	async function handleCloseOutComplete() {
+		await loadLogDetails();
+		await invalidateAll();
+	}
+
+	function handleCalendarSelect(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const selectedDate = input.value;
+		if (!selectedDate) return;
+
+		const matchingLog = data.logs.find((l) => l.log_date === selectedDate);
+		if (matchingLog) {
+			goto(`/dashboard/job-sites/${data.jobSite.id}/log?date=${matchingLog.id}`);
+			showCalendarPicker = false;
+		}
+	}
+
+	function handleCalendarKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
+			showCalendarPicker = false;
+		}
 	}
 </script>
 
@@ -457,28 +634,76 @@
 				class:disabled={!data.prevLogId}
 				aria-label="Previous day"
 			>
-				← Prev
+				← {data.prevLabel}
 			</a>
 			<span class="date-nav-current">
 				{formatLogDate(viewedLog?.log_date ?? data.today)}
 			</span>
+			<button
+				class="date-nav-calendar"
+				onclick={() => (showCalendarPicker = !showCalendarPicker)}
+				aria-label="Select date"
+				title="Jump to date"
+			>
+				<Calendar size={18} />
+			</button>
 			<a
 				href={data.nextLogId ? `/dashboard/job-sites/${data.jobSite.id}/log?date=${data.nextLogId}` : '#'}
 				class="date-nav-arrow"
 				class:disabled={!data.nextLogId}
 				aria-label="Next day"
 			>
-				Next →
+				{data.nextLabel} →
 			</a>
 			{#if isHistoricalView}
 				<a href="/dashboard/job-sites/{data.jobSite.id}/log" class="date-nav-today">Today</a>
 			{/if}
 		</div>
+		{#if showCalendarPicker}
+			<div class="calendar-picker-popover" onkeydown={handleCalendarKeydown}>
+				<input
+					type="date"
+					value={viewedLog?.log_date ?? data.today}
+					onchange={handleCalendarSelect}
+					onkeydown={handleCalendarKeydown}
+					class="calendar-picker-input"
+				/>
+			</div>
+		{/if}
 	{/if}
 
 	{#if isHistoricalView}
 		<div class="history-banner">
 			📖 Viewing past log — read only
+		</div>
+	{/if}
+
+	{#if currentLog?.closed_at}
+		<div class="closed-banner">
+			<div class="closed-content">
+				<svg
+					width="20"
+					height="20"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+					<path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+				</svg>
+				<div>
+					<strong>Day Closed — {currentLog.foreman_name}</strong>
+					<p>{formatClosedDate(currentLog.closed_at)}</p>
+				</div>
+			</div>
+			{#if isAdmin}
+				<button class="btn-unlock" disabled={unlocking} onclick={unlockLog}>
+					{unlocking ? 'Unlocking...' : 'Admin Unlock'}
+				</button>
+			{/if}
 		</div>
 	{/if}
 
@@ -489,9 +714,41 @@
 				{isHistoricalView && viewedLog ? formatLogDate(viewedLog.log_date) : new Date(data.today).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 			</p>
 		</div>
-		<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+		<div class="page-header-actions">
 			{#if currentLog}
-				<button class="btn-secondary" onclick={exportDailyPDF}>
+				{#if !currentLog.closed_at && !isHistoricalView}
+					<button class="btn-primary" onclick={() => (showCloseOut = true)}>
+						<svg
+							width="18"
+							height="18"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<path d="M9 11l3 3L22 4"></path>
+							<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+						</svg>
+						Close Out Day
+					</button>
+				{/if}
+				<button
+					class="btn-secondary btn-pdf"
+					onclick={() => exportLogPDF()}
+					disabled={pdfExporting}
+					title="Download daily production PDF"
+				>
+					<FileDown size={18} />
+					{pdfExporting ? 'Generating...' : 'PDF'}
+				</button>
+				<button
+					class="btn-secondary btn-sign"
+					onclick={() => (showSignatureModal = true)}
+					disabled={pdfExporting}
+					title="Sign and export PDF"
+				>
 					<svg
 						width="18"
 						height="18"
@@ -502,13 +759,11 @@
 						stroke-linecap="round"
 						stroke-linejoin="round"
 					>
-						<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-						<polyline points="14 2 14 8 20 8"></polyline>
+						<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
 					</svg>
-					PDF
+					Sign & Export
 				</button>
-			{/if}
-			<a href="/dashboard/job-sites/{data.jobSite.id}/log/history" class="btn-secondary">
+			<button class="btn-secondary" onclick={() => (showSummary = true)}>
 				<svg
 					width="18"
 					height="18"
@@ -519,21 +774,67 @@
 					stroke-linecap="round"
 					stroke-linejoin="round"
 				>
-					<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-					<line x1="16" y1="2" x2="16" y2="6"></line>
-					<line x1="8" y1="2" x2="8" y2="6"></line>
-					<line x1="3" y1="10" x2="21" y2="10"></line>
+					<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+					<line x1="9" y1="9" x2="15" y2="9"></line>
+					<line x1="9" y1="15" x2="15" y2="15"></line>
 				</svg>
-				History
-			</a>
+				Day Summary
+			</button>
+			<button class="btn-secondary" onclick={() => (showComparison = !showComparison)}>
+				<svg
+					width="18"
+					height="18"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<rect x="3" y="3" width="7" height="7"></rect>
+					<rect x="14" y="3" width="7" height="7"></rect>
+					<rect x="14" y="14" width="7" height="7"></rect>
+					<rect x="3" y="14" width="7" height="7"></rect>
+				</svg>
+				{showComparison ? 'Hide' : 'Compare'} Days
+			</button>
+			{/if}
+			<a href="/dashboard/job-sites/{data.jobSite.id}/log/history" class="btn-secondary">
+			<svg
+				width="18"
+				height="18"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="2"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+			>
+				<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+				<line x1="16" y1="2" x2="16" y2="6"></line>
+				<line x1="8" y1="2" x2="8" y2="6"></line>
+				<line x1="3" y1="10" x2="21" y2="10"></line>
+			</svg>
+			History
+		</a>
 		</div>
 	</div>
+
+	{#if showComparison && currentLog}
+		<ComparativeDayView jobSiteId={data.jobSite.id} currentLogDate={viewedLog?.log_date ?? data.today} isLogClosed={!!currentLog?.closed_at} />
+	{/if}
+
+	{#if !isHistoricalView}
+		<div class="completeness-bar-wrapper">
+			<CompletenessBar state={todayState} />
+		</div>
+	{/if}
 
 	{#if data.summary.total_distance_ft > 0}
 		<div class="project-summary">
 			<h3>Project to Date</h3>
 			<div class="summary-stat">
-				<span class="stat-value">{formatDistance(data.summary.total_distance_ft)}</span>
+				<span class="stat-value">{formatFeet(data.summary.total_distance_ft)}</span>
 				<span class="stat-label">Distance</span>
 			</div>
 			<div class="summary-stat">
@@ -541,7 +842,7 @@
 				<span class="stat-label">Material Placed</span>
 			</div>
 			<div class="summary-stat">
-				<span class="stat-value">{data.summary.total_days} days</span>
+				<span class="stat-value">{projectSummary.total_days} days</span>
 				<span class="stat-label">Work Days</span>
 			</div>
 		</div>
@@ -602,9 +903,9 @@
 
 			<div class="eta-stats">
 				<div>
-					<span>{formatDistance(todayPavingFt)}</span>
+					<span>{formatFeet(todayPavingFt)}</span>
 					{#if targetFt}
-						<span style="color: var(--text-muted)"> / {formatDistance(targetFt)}</span>
+						<span style="color: var(--text-muted)"> / {formatFeet(targetFt)}</span>
 					{/if}
 				</div>
 				{#if pavingRateFtPerHr > 0}
@@ -665,7 +966,7 @@
 				<div class="summary-item">
 					<span class="summary-label">Today</span>
 					<span class="summary-value"
-						>{formatDistance(entrySummary.total_distance_ft)} | {entrySummary.total_tons.toFixed(
+						>{formatFeet(entrySummary.total_distance_ft)} | {entrySummary.total_tons.toFixed(
 							1
 						)} tons | {entrySummary.total_loads} loads</span
 					>
@@ -677,6 +978,7 @@
 			entries={entries}
 			targetSpreadRate={(data.siteConfig as any)?.config?.target_spread_rate ?? null}
 			courseType={(data.siteConfig as any)?.config?.course_type ?? null}
+			overrides={orgSettingsStore.overrides}
 		/>
 
 		{#if currentLog}
@@ -688,6 +990,15 @@
 			/>
 		{/if}
 
+		{#if currentLog && !isHistoricalView}
+			<StationProgressLogger
+				jobSiteId={data.jobSite.id}
+				logId={currentLog.id}
+				waypoints={routeWaypoints}
+				onLogged={loadLogDetails}
+			/>
+		{/if}
+
 		<section class="section">
 			<div class="section-header">
 				<h3>Timeline</h3>
@@ -695,6 +1006,13 @@
 					<button class="btn-primary" onclick={openEntryForm}>+ Add Entry</button>
 				{/if}
 			</div>
+
+			<FeatureDiscovery
+				feature="photo"
+				condition={entrySummary.total_loads >= 3 && !entries.some((e) => e.photo_url)}
+			/>
+
+			<FeatureDiscovery feature="closeout" condition={true} />
 
 			{#if entries.length === 0}
 				<div class="empty-state-small">
@@ -722,7 +1040,7 @@
 										>
 									{/if}
 									{#if entry.distance_ft}
-										<span>{formatDistance(entry.distance_ft)}</span>
+										<span>{formatFeet(entry.distance_ft)}</span>
 									{/if}
 									{#if entry.tons_placed}
 										<span>{entry.tons_placed.toFixed(1)} tons</span>
@@ -889,6 +1207,36 @@
 	</div>
 {/if}
 
+{#if showCloseOut && currentLog}
+	<CloseOutModal
+		jobSiteId={data.jobSite.id}
+		logId={currentLog.id}
+		currentLog={currentLog}
+		entries={entries}
+		entrySummary={entrySummary}
+		siteConfig={data.siteConfig}
+		siteName={data.jobSite.name}
+		onClose={() => (showCloseOut = false)}
+		onComplete={handleCloseOutComplete}
+	/>
+{/if}
+
+{#if showSummary && currentLog}
+	<DailySummaryReport
+		jobSiteId={data.jobSite.id}
+		log={currentLog}
+		onClose={() => (showSummary = false)}
+		onGeneratePDF={() => exportLogPDF()}
+	/>
+{/if}
+
+{#if showSignatureModal}
+	<SignatureModal
+		onConfirm={handleSignAndExport}
+		onCancel={() => (showSignatureModal = false)}
+	/>
+{/if}
+
 <style>
 	.dashboard {
 		width: 100%;
@@ -1016,6 +1364,22 @@
 		align-items: flex-start;
 		gap: 16px;
 		margin-bottom: 24px;
+	}
+
+	.page-header-actions {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+		flex-shrink: 0;
+	}
+
+	.btn-pdf,
+	.btn-sign {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 48px;
+		padding: 0 14px;
 	}
 
 	.page-title {
@@ -1426,6 +1790,7 @@
 		padding: 8px 0;
 		margin-bottom: 12px;
 		flex-wrap: wrap;
+		position: relative;
 	}
 
 	.date-nav-arrow {
@@ -1463,6 +1828,55 @@
 		min-width: 120px;
 	}
 
+	.date-nav-calendar {
+		min-height: 48px;
+		min-width: 48px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: background 0.2s, color 0.2s;
+	}
+
+	.date-nav-calendar:hover {
+		background: var(--surface-alt);
+		color: var(--accent);
+	}
+
+	.calendar-picker-popover {
+		position: absolute;
+		top: 100%;
+		left: 50%;
+		transform: translateX(-50%);
+		background: var(--bg-card, var(--surface));
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 12px;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+		z-index: 100;
+		margin-top: 4px;
+	}
+
+	.calendar-picker-input {
+		min-height: 48px;
+		padding: 0 12px;
+		font-size: 1rem;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text);
+		cursor: pointer;
+	}
+
+	.calendar-picker-input::-webkit-calendar-picker-indicator {
+		filter: invert(0.7);
+		cursor: pointer;
+	}
+
 	.date-nav-today {
 		min-height: 48px;
 		display: inline-flex;
@@ -1491,6 +1905,73 @@
 		margin-bottom: 16px;
 		font-size: 0.9rem;
 		font-weight: 600;
+	}
+
+	.closed-banner {
+		background: rgba(16, 185, 129, 0.12);
+		border: 1px solid rgba(16, 185, 129, 0.3);
+		border-radius: var(--radius);
+		padding: 16px;
+		margin-bottom: 16px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+	}
+
+	.closed-content {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		color: var(--good, #10b981);
+	}
+
+	.btn-unlock {
+		background: var(--warning, #f59e0b);
+		color: var(--bg-dark, #0f172a);
+		border: none;
+		border-radius: var(--radius);
+		padding: 8px 16px;
+		min-height: 48px;
+		font-size: 0.875rem;
+		font-weight: 600;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: all 0.2s;
+	}
+
+	.btn-unlock:hover:not(:disabled) {
+		background: var(--warning-hover, #d97706);
+		transform: scale(1.02);
+	}
+
+	.btn-unlock:active:not(:disabled) {
+		transform: scale(0.98);
+	}
+
+	.btn-unlock:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.closed-content svg {
+		flex-shrink: 0;
+	}
+
+	.closed-content strong {
+		display: block;
+		font-size: 0.95rem;
+		margin-bottom: 4px;
+	}
+
+	.closed-content p {
+		margin: 0;
+		font-size: 0.85rem;
+		opacity: 0.8;
+	}
+
+	.completeness-bar-wrapper {
+		margin-bottom: 24px;
 	}
 
 	@media (min-width: 768px) {

@@ -9,6 +9,18 @@
 		Specification tables from Georgia Department of Transportation for asphalt paving operations.
 	</p>
 
+	<div class="formula-card-link">
+		<a href="/reference/formulas" class="formula-link-btn">
+			<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<polyline points="6 9 6 2 18 2 18 9"></polyline>
+				<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+				<rect x="6" y="14" width="12" height="8"></rect>
+			</svg>
+			Printable Formula Reference Cards
+		</a>
+		<p class="formula-link-desc">All core paving formulas on one printable page — take it to the job site.</p>
+	</div>
+
 	<nav class="toc">
 		<a href="#table-2">Table 2: Tack Coat Rates</a>
 		<a href="#table-4">Table 4: Lift Thickness vs Temperature</a>
@@ -241,6 +253,35 @@
 		color: var(--text-muted);
 		margin: 0 0 24px;
 		font-size: 0.95rem;
+	}
+
+	.formula-card-link {
+		background: var(--surface);
+		border: 1px solid var(--accent);
+		border-radius: var(--radius);
+		padding: 16px 20px;
+		margin-bottom: 24px;
+	}
+
+	.formula-link-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		color: var(--accent);
+		text-decoration: none;
+		font-weight: 600;
+		font-size: 1rem;
+		min-height: 48px;
+	}
+
+	.formula-link-btn:hover {
+		text-decoration: underline;
+	}
+
+	.formula-link-desc {
+		margin: 6px 0 0;
+		font-size: 0.86rem;
+		color: var(--text-muted);
 	}
 
 	.toc {
