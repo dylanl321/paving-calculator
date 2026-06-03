@@ -341,7 +341,8 @@ async function loadImageAsDataUrl(url: string): Promise<string | null> {
 
 export async function generateDailyReportPDF(
 	jobState: JobState,
-	day: DailyReportData
+	day: DailyReportData,
+	signatureDataUrl?: string
 ): Promise<void> {
 	const jsPDF = await getJsPDF();
 	const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
@@ -739,6 +740,37 @@ export async function generateDailyReportPDF(
 		doc.setFont('helvetica', 'normal');
 		const noteLines = doc.splitTextToSize(day.notes, pageWidth - margin * 2);
 		doc.text(noteLines, margin, yPos);
+	}
+
+	// Supervisor Signature section
+	if (signatureDataUrl) {
+		yPos += 20;
+		if (yPos > pageHeight - 150) {
+			doc.addPage();
+			yPos = margin;
+		}
+
+		doc.setFontSize(13);
+		doc.setFont('helvetica', 'bold');
+		doc.setTextColor(0);
+		doc.text('Supervisor Signature', margin, yPos);
+		yPos += 6;
+
+		// Horizontal line
+		doc.setDrawColor(200);
+		doc.setLineWidth(1);
+		doc.line(margin, yPos, pageWidth - margin, yPos);
+		yPos += 20;
+
+		// Add signature image
+		try {
+			const imgWidth = 200;
+			const imgHeight = 80;
+			doc.addImage(signatureDataUrl, 'PNG', margin, yPos, imgWidth, imgHeight);
+			yPos += imgHeight + 10;
+		} catch (err) {
+			console.error('Failed to add signature to PDF:', err);
+		}
 	}
 
 	// Job parameters reference footer line
