@@ -177,7 +177,8 @@
 			spread_rate_actual: null as number | null,
 			tack_gallons: null as number | null,
 			lane: '' as string,
-			notes: '' as string
+			notes: '' as string,
+			waste_tons: null as number | null
 		};
 	}
 
@@ -207,7 +208,8 @@
 			spread_rate_actual: e.spread_rate_actual,
 			tack_gallons: e.tack_gallons,
 			lane: e.lane ?? '',
-			notes: e.notes ?? ''
+			notes: e.notes ?? '',
+			waste_tons: e.waste_tons
 		};
 		editingId = id;
 		showForm = true;
@@ -230,7 +232,8 @@
 			spread_rate_actual: form.spread_rate_actual,
 			tack_gallons: form.tack_gallons,
 			lane: form.lane || null,
-			notes: form.notes || null
+			notes: form.notes || null,
+			waste_tons: form.waste_tons
 		};
 		if (editingId) {
 			today.updateEntry(editingId, payload);
@@ -317,7 +320,8 @@
 					spread_rate_actual: e.spread_rate_actual,
 					tack_gallons: e.tack_gallons,
 					lane: e.lane,
-					notes: e.notes
+					notes: e.notes,
+					waste_tons: e.waste_tons
 				})),
 				totals: {
 					totalTons: r.total_tons,
@@ -486,7 +490,10 @@
 								{:else if e.loads_count != null && e.loads_count > 0}
 									<span class="est-tons">{(e.loads_count * job.truckLoadTons).toFixed(1)}T est.</span>
 								{/if}
-								{#if e.distance_ft != null}<span>{formatFeet(e.distance_ft)}</span>{/if}
+						{#if e.waste_tons != null && e.waste_tons > 0}
+								<span class="waste-tons">{e.waste_tons}t waste</span>
+							{/if}
+							{#if e.distance_ft != null}<span>{formatFeet(e.distance_ft)}</span>{/if}
 								{#if e.station_start != null && e.station_end != null}
 									<span>{e.station_start}+00 → {e.station_end}+00</span>
 								{/if}
@@ -550,6 +557,11 @@
 						<span>Tons placed</span>
 						<input type="number" inputmode="decimal" bind:value={form.tons_placed} />
 						<div class="hint">Enter actual weight from load ticket</div>
+					</label>
+					<label class="f">
+						<span>Waste Tons</span>
+						<input type="number" inputmode="decimal" min="0" bind:value={form.waste_tons} />
+						<div class="hint">Spillage, trimming, joint waste (NOT rejected loads)</div>
 					</label>
 					<label class="f"><span>Loads</span><input type="number" inputmode="numeric" bind:value={form.loads_count} /></label>
 					{#if form.tons_placed != null && form.tons_placed > 0 && form.loads_count != null && form.loads_count > 0}
@@ -968,6 +980,10 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
+	}
+	.waste-tons {
+		color: #fbbf24;
+		font-weight: var(--fw-medium);
 	}
 	.check-inline {
 		color: var(--good);

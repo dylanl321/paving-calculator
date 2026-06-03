@@ -37,6 +37,7 @@ export interface DbLogEntry {
 	tack_gallons: number | null;
 	lane: string | null;
 	notes: string | null;
+	waste_tons: number | null;
 	created_at: number;
 }
 
@@ -45,6 +46,7 @@ export interface LogSummary {
 	total_tons: number;
 	total_loads: number;
 	total_tack_gallons: number;
+	total_waste_tons: number;
 	hours_worked: number;
 	paving_entries: number;
 	milling_entries: number;
@@ -243,6 +245,7 @@ export class DbLogHelper {
 			tack_gallons?: number | null;
 			lane?: string | null;
 			notes?: string | null;
+			waste_tons?: number | null;
 		}
 	): Promise<DbLogEntry> {
 		const id = crypto.randomUUID();
@@ -261,8 +264,8 @@ export class DbLogHelper {
 				`INSERT INTO log_entries (
 					id, daily_log_id, entry_type, timestamp, station_start, station_end,
 					distance_ft, tons_placed, loads_count, truck_tickets, spread_rate_actual,
-					tack_gallons, lane, notes, created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					tack_gallons, lane, notes, waste_tons, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.bind(
 				id,
@@ -279,6 +282,7 @@ export class DbLogHelper {
 				entry.tack_gallons ?? null,
 				entry.lane ?? null,
 				entry.notes ?? null,
+				entry.waste_tons ?? null,
 				now
 			)
 			.run();
@@ -298,6 +302,7 @@ export class DbLogHelper {
 			tack_gallons: entry.tack_gallons ?? null,
 			lane: entry.lane ?? null,
 			notes: entry.notes ?? null,
+			waste_tons: entry.waste_tons ?? null,
 			created_at: now
 		};
 	}
@@ -318,6 +323,7 @@ export class DbLogHelper {
 				| 'tack_gallons'
 				| 'lane'
 				| 'notes'
+				| 'waste_tons'
 			>
 		>
 	): Promise<void> {
@@ -368,6 +374,10 @@ export class DbLogHelper {
 			fields.push('notes = ?');
 			values.push(updates.notes);
 		}
+		if (updates.waste_tons !== undefined) {
+			fields.push('waste_tons = ?');
+			values.push(updates.waste_tons);
+		}
 
 		if (fields.length === 0) return;
 		values.push(id);
@@ -405,6 +415,7 @@ export class DbLogHelper {
 		let totalTons = 0;
 		let totalLoads = 0;
 		let totalTackGallons = 0;
+		let totalWasteTons = 0;
 		let pavingEntries = 0;
 		let millingEntries = 0;
 		let tackEntries = 0;
@@ -414,6 +425,7 @@ export class DbLogHelper {
 			if (entry.tons_placed) totalTons += entry.tons_placed;
 			if (entry.loads_count) totalLoads += entry.loads_count;
 			if (entry.tack_gallons) totalTackGallons += entry.tack_gallons;
+			if (entry.waste_tons) totalWasteTons += entry.waste_tons;
 
 			if (entry.entry_type === 'paving') pavingEntries++;
 			if (entry.entry_type === 'milling') millingEntries++;
@@ -432,6 +444,7 @@ export class DbLogHelper {
 			total_tons: totalTons,
 			total_loads: totalLoads,
 			total_tack_gallons: totalTackGallons,
+			total_waste_tons: totalWasteTons,
 			hours_worked: hoursWorked,
 			paving_entries: pavingEntries,
 			milling_entries: millingEntries,

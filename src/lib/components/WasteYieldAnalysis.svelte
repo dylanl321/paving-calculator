@@ -16,6 +16,7 @@
 	let logs = $state<DbDailyLog[]>([]);
 	let loading = $state(true);
 	let showDailyBreakdown = $state(false);
+	let fieldWasteTons = $state(0);
 
 	// Load all data on mount
 	$effect(() => {
@@ -47,6 +48,19 @@
 				const logsData = (await logsRes.json()) as { logs?: DbDailyLog[] };
 				logs = logsData.logs || [];
 			}
+
+			// Fetch field waste tonnage from log entries
+			let totalFieldWaste = 0;
+			for (const log of logs) {
+				const logRes = await fetch(`/api/job-sites/${jobSiteId}/logs/${log.id}`, {
+					credentials: 'include'
+				});
+				if (logRes.ok) {
+					const logData = await logRes.json();
+					totalFieldWaste += logData.summary?.total_waste_tons || 0;
+				}
+			}
+			fieldWasteTons = totalFieldWaste;
 		} catch (e) {
 			console.error('Failed to load waste/yield data:', e);
 		}
@@ -62,12 +76,16 @@
 		loads.filter(l => l.rejected).reduce((sum, load) => sum + load.tons, 0)
 	);
 
+	const totalWasteTons = $derived(
+		rejectedTonnage + fieldWasteTons
+	);
+
 	const netPlacedTonnage = $derived(
-		loads.filter(l => !l.rejected).reduce((sum, load) => sum + load.tons, 0)
+		actualTonnageDelivered - rejectedTonnage - fieldWasteTons
 	);
 
 	const wastePercent = $derived(
-		actualTonnageDelivered > 0 ? (rejectedTonnage / actualTonnageDelivered) * 100 : 0
+		actualTonnageDelivered > 0 ? (totalWasteTons / actualTonnageDelivered) * 100 : 0
 	);
 
 	const overUnderVsPlan = $derived(
@@ -173,6 +191,14 @@
 				<div class="stat-item stat-rejected">
 					<div class="stat-label">Rejected</div>
 					<div class="stat-value">{displayTons(rejectedTonnage).toFixed(1)}</div>
+					<div class="stat-unit">{UNIT_LABELS.tons[unitsStore.system]}</div>
+				</div>
+			{/if}
+
+			{#if fieldWasteTons > 0}
+				<div class="stat-item stat-field-waste">
+					<div class="stat-label">Field Waste</div>
+					<div class="stat-value">{displayTons(fieldWasteTons).toFixed(1)}</div>
 					<div class="stat-unit">{UNIT_LABELS.tons[unitsStore.system]}</div>
 				</div>
 			{/if}
@@ -322,6 +348,11 @@
 	.stat-rejected {
 		background: color-mix(in srgb, #ef4444 8%, transparent);
 		border-color: color-mix(in srgb, #ef4444 25%, transparent);
+	}
+
+	.stat-field-waste {
+		background: color-mix(in srgb, #fbbf24 8%, transparent);
+		border-color: color-mix(in srgb, #fbbf24 25%, transparent);
 	}
 
 	.stat-net {
