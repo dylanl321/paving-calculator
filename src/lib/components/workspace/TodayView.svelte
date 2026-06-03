@@ -9,6 +9,7 @@
 	import DailyTarget from './DailyTarget.svelte';
 	import { formatFeet } from '$lib/utils/format';
 	import EodReport from '$lib/components/EodReport.svelte';
+	import CompletenessBar from '$lib/components/CompletenessBar.svelte';
 
 	const entries = $derived(today.entries);
 
@@ -376,6 +377,8 @@
 			Read-only: viewing past day. Switch to today to add entries.
 		</div>
 	{/if}
+
+	<CompletenessBar state={today} />
 
 	<DailyTarget />
 
