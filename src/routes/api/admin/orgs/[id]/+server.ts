@@ -6,6 +6,7 @@ export async function GET(event: RequestEvent) {
 	try {
 		await requireGlobalAdmin(event);
 		const { id } = event.params;
+		if (!id) return json({ error: 'Organization ID is required' }, { status: 400 });
 		const db = new DbHelper(event.platform!.env.DB);
 
 		const org = await db.getOrganizationById(id);
@@ -26,6 +27,7 @@ export async function PATCH(event: RequestEvent) {
 	try {
 		await requireGlobalAdmin(event);
 		const { id } = event.params;
+		if (!id) return json({ error: 'Organization ID is required' }, { status: 400 });
 		const body = await event.request.json();
 		const { name, slug, action, userId, role } = body;
 

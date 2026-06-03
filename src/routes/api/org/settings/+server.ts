@@ -178,7 +178,7 @@ export async function PUT(event: RequestEvent) {
 			action: 'updated',
 			newValue: update,
 			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
-			userAgent: event.request.headers.get('user-agent') || undefined
+			userAgent: event.request.headers.get('user-agent') ?? undefined
 		});
 
 		const settings = await db.getOrgSettings(org.id);

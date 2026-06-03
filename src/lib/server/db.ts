@@ -206,6 +206,42 @@ export interface DbLoad {
 	ticket_photo_id: string | null;
 }
 
+export interface DbCrew {
+	id: string;
+	org_id: string;
+	name: string;
+	color: string;
+	created_by: string;
+	created_at: number;
+}
+
+export interface DbCrewMember {
+	crew_id: string;
+	user_id: string;
+	org_id: string;
+	assigned_at: number;
+}
+
+export interface DbMilestone {
+	id: string;
+	job_site_id: string;
+	name: string;
+	description: string | null;
+	status: string;
+	target_date: string | null;
+	completed_at: number | null;
+	sort_order: number;
+	created_at: number;
+	updated_at: number;
+}
+
+export interface DbNotificationPref {
+	user_id: string;
+	pref_key: string;
+	enabled: number;
+	updated_at: number;
+}
+
 export class DbHelper {
 	constructor(private db: D1Database) {}
 
@@ -1339,5 +1375,186 @@ export class DbHelper {
 			.prepare('DELETE FROM crew_members WHERE user_id = ? AND org_id = ?')
 			.bind(userId, orgId)
 			.run();
+	}
+
+	async getJobSitesByForeman(userId: string, orgId: string): Promise<DbJobSite[]> {
+		return await this.db
+			.prepare(
+				`SELECT DISTINCT js.* FROM job_sites js
+				JOIN crew_job_sites cjs ON cjs.job_site_id = js.id
+				JOIN crew_members cm ON cm.crew_id = cjs.crew_id
+				WHERE cm.user_id = ? AND js.org_id = ?
+				ORDER BY js.created_at DESC`
+			)
+			.bind(userId, orgId)
+			.all<DbJobSite>()
+			.then((r) => r.results);
+	}
+
+	// Milestones
+	async getMilestones(jobSiteId: string): Promise<DbMilestone[]> {
+		return await this.db
+			.prepare(
+				'SELECT * FROM job_site_milestones WHERE job_site_id = ? ORDER BY sort_order ASC, created_at ASC'
+			)
+			.bind(jobSiteId)
+			.all<DbMilestone>()
+			.then((r) => r.results);
+	}
+
+	async createMilestone(
+		jobSiteId: string,
+		data: {
+			name: string;
+			description?: string | null;
+			status?: string;
+			target_date?: string | null;
+			sort_order?: number;
+		}
+	): Promise<DbMilestone> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+		const status = data.status ?? 'pending';
+		const sortOrder = data.sort_order ?? 0;
+
+		await this.db
+			.prepare(
+				`INSERT INTO job_site_milestones (
+					id, job_site_id, name, description, status, target_date, completed_at, sort_order, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			)
+			.bind(
+				id,
+				jobSiteId,
+				data.name,
+				data.description ?? null,
+				status,
+				data.target_date ?? null,
+				null,
+				sortOrder,
+				now,
+				now
+			)
+			.run();
+
+		return {
+			id,
+			job_site_id: jobSiteId,
+			name: data.name,
+			description: data.description ?? null,
+			status,
+			target_date: data.target_date ?? null,
+			completed_at: null,
+			sort_order: sortOrder,
+			created_at: now,
+			updated_at: now
+		};
+	}
+
+	async updateMilestone(
+		milestoneId: string,
+		updates: {
+			name?: string;
+			description?: string | null;
+			status?: string;
+			target_date?: string | null;
+			sort_order?: number;
+			completed_at?: number | null;
+		}
+	): Promise<DbMilestone | null> {
+		const now = Math.floor(Date.now() / 1000);
+		const fields: string[] = [];
+		const values: (string | number | null)[] = [];
+
+		if (updates.name !== undefined) {
+			fields.push('name = ?');
+			values.push(updates.name);
+		}
+		if (updates.description !== undefined) {
+			fields.push('description = ?');
+			values.push(updates.description);
+		}
+		if (updates.status !== undefined) {
+			fields.push('status = ?');
+			values.push(updates.status);
+		}
+		if (updates.target_date !== undefined) {
+			fields.push('target_date = ?');
+			values.push(updates.target_date);
+		}
+		if (updates.sort_order !== undefined) {
+			fields.push('sort_order = ?');
+			values.push(updates.sort_order);
+		}
+		if (updates.completed_at !== undefined) {
+			fields.push('completed_at = ?');
+			values.push(updates.completed_at);
+		}
+
+		if (fields.length > 0) {
+			fields.push('updated_at = ?');
+			values.push(now);
+			values.push(milestoneId);
+
+			await this.db
+				.prepare(`UPDATE job_site_milestones SET ${fields.join(', ')} WHERE id = ?`)
+				.bind(...values)
+				.run();
+		}
+
+		return await this.db
+			.prepare('SELECT * FROM job_site_milestones WHERE id = ?')
+			.bind(milestoneId)
+			.first<DbMilestone>();
+	}
+
+	async deleteMilestone(milestoneId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM job_site_milestones WHERE id = ?')
+			.bind(milestoneId)
+			.run();
+	}
+
+	// Notification preferences
+	async getNotificationPrefs(userId: string): Promise<DbNotificationPref[]> {
+		return await this.db
+			.prepare('SELECT * FROM user_notification_prefs WHERE user_id = ?')
+			.bind(userId)
+			.all<DbNotificationPref>()
+			.then((r) => r.results);
+	}
+
+	async bulkSetNotificationPrefs(
+		userId: string,
+		prefs: Record<string, boolean>
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		for (const [key, enabled] of Object.entries(prefs)) {
+			await this.db
+				.prepare(
+					`INSERT INTO user_notification_prefs (user_id, pref_key, enabled, updated_at)
+					VALUES (?, ?, ?, ?)
+					ON CONFLICT(user_id, pref_key) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at`
+				)
+				.bind(userId, key, enabled ? 1 : 0, now)
+				.run();
+		}
+	}
+
+	// Invitations
+	async getInvitationById(id: string): Promise<DbInvitation | null> {
+		return await this.db
+			.prepare('SELECT * FROM invitations WHERE id = ?')
+			.bind(id)
+			.first<DbInvitation>();
+	}
+
+	async getInvitationByEmail(orgId: string, email: string): Promise<DbInvitation | null> {
+		return await this.db
+			.prepare(
+				'SELECT * FROM invitations WHERE org_id = ? AND email = ? COLLATE NOCASE AND accepted_at IS NULL'
+			)
+			.bind(orgId, email)
+			.first<DbInvitation>();
 	}
 }

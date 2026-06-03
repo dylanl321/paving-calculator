@@ -120,7 +120,11 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		notes: body.notes || null,
 		lane_number: body.lane_number || null,
 		pass_number: body.pass_number || null,
-		created_at: now
+		created_at: now,
+		rejected: 0,
+		rejection_reason: null,
+		rejection_notes: null,
+		ticket_photo_id: null
 	};
 
 	return json({ load }, { status: 201 });
