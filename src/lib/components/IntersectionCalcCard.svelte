@@ -3,6 +3,7 @@
 	import NumberField from './NumberField.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import { job } from '$lib/stores/job.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { intersectionArea, spreadRateFromThickness } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
@@ -21,12 +22,15 @@
 		return unitsStore.system === 'metric' ? fromMeters(v) : v;
 	}
 
-	const road1LengthFt = $derived(toFt(road1LengthInput));
-	const road1WidthFt = $derived(toFt(road1WidthInput) ?? job.widthFt);
-	const road2LengthFt = $derived(toFt(road2LengthInput));
-	const road2WidthFt = $derived(toFt(road2WidthInput) ?? job.widthFt);
+	const widthFt = $derived(calcContext.road_width.value);
+	const thicknessIn = $derived(calcContext.lift_thickness.value);
 
-	const rate = $derived(job.thicknessIn > 0 ? spreadRateFromThickness(job.thicknessIn) : 0);
+	const road1LengthFt = $derived(toFt(road1LengthInput));
+	const road1WidthFt = $derived(toFt(road1WidthInput) ?? widthFt);
+	const road2LengthFt = $derived(toFt(road2LengthInput));
+	const road2WidthFt = $derived(toFt(road2WidthInput) ?? widthFt);
+
+	const rate = $derived(thicknessIn > 0 ? spreadRateFromThickness(thicknessIn) : 0);
 
 	const result = $derived.by(() => {
 		if (
@@ -97,7 +101,7 @@
 				label="Width"
 				unit={UNIT_LABELS.ft[unitsStore.system]}
 				bind:value={road1WidthInput}
-				hint="Leave blank to use job width ({job.widthFt} ft)"
+				hint="Leave blank to use job width ({widthFt} ft)"
 				step={0.5}
 			/>
 		</div>
@@ -116,7 +120,7 @@
 				label="Width"
 				unit={UNIT_LABELS.ft[unitsStore.system]}
 				bind:value={road2WidthInput}
-				hint="Leave blank to use job width ({job.widthFt} ft)"
+				hint="Leave blank to use job width ({widthFt} ft)"
 				step={0.5}
 			/>
 		</div>

@@ -4,7 +4,7 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import DotTable from './DotTable.svelte';
-	import { job } from '$lib/stores/job.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { feetFromTons, spreadRateFromThickness } from '$lib/config/formulas';
 	import { constant } from '$lib/config';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
@@ -46,7 +46,9 @@
 		logDraft.clearFor('distance-planner');
 	}
 
-	const rate = $derived(job.thicknessIn > 0 ? spreadRateFromThickness(job.thicknessIn) : 0);
+	const widthFt = $derived(calcContext.road_width.value);
+	const thicknessIn = $derived(calcContext.lift_thickness.value);
+	const rate = $derived(thicknessIn > 0 ? spreadRateFromThickness(thicknessIn) : 0);
 
 	const availableTons = $derived.by(() => {
 		if (tonsInSilo == null || tonsInTrucks == null) return null;
@@ -54,14 +56,14 @@
 	});
 
 	const availableDistance = $derived.by(() => {
-		if (availableTons == null || rate <= 0 || job.widthFt <= 0) return null;
-		return feetFromTons(availableTons, job.widthFt, rate);
+		if (availableTons == null || rate <= 0 || widthFt <= 0) return null;
+		return feetFromTons(availableTons, widthFt, rate);
 	});
 
 	// Reverse formula: tons = feet × width × rate / (LB_PER_TON × SF_PER_SY)
 	const tonnageNeeded = $derived.by(() => {
-		if (desiredDistanceFt == null || rate <= 0 || job.widthFt <= 0) return null;
-		return (desiredDistanceFt * job.widthFt * rate) / (constant('CONST.LB_PER_TON') * constant('CONST.SF_PER_SY'));
+		if (desiredDistanceFt == null || rate <= 0 || widthFt <= 0) return null;
+		return (desiredDistanceFt * widthFt * rate) / (constant('CONST.LB_PER_TON') * constant('CONST.SF_PER_SY'));
 	});
 
 	$effect(() => {
@@ -158,7 +160,7 @@
 		<code>feet = (plant silo + trucks) × 2000 × 9 ÷ (width × rate)</code>
 		<p>Tonnage needed reverses it:</p>
 		<code>tons = desired feet × width × rate ÷ (2000 × 9)</code>
-		<p>Uses job width ({job.widthFt} ft) and target rate ({Math.round(rate)} lbs/SY).</p>
+		<p>Uses job width ({widthFt} ft) and target rate ({Math.round(rate)} lbs/SY).</p>
 		<p>Spread rate derived from GDOT §400 Table 12 tolerance bands. See Table 12 for course-type tolerances.</p>
 		<DotTable tableId="table-12" />
 	</ShowWork>

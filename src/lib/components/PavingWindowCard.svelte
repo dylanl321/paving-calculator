@@ -5,21 +5,25 @@
 	import SourceBadge from './SourceBadge.svelte';
 	import SpecAlert from './SpecAlert.svelte';
 	import { placementCheck, weatherConfig, temperature } from '$lib/config';
-	import { job } from '$lib/stores/job.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
 
+	// Shared inputs from calc context (manual override → job-site → job).
+	const thicknessIn = $derived(calcContext.lift_thickness.value);
+	const courseTypeCtx = $derived(calcContext.course_type.value);
+
 	const check = $derived.by(() => {
 		const temp = weather.effectiveTempF;
-		const thickness = job.thicknessIn;
+		const thickness = thicknessIn;
 		if (temp == null || thickness <= 0) return null;
 		return placementCheck(temp, thickness);
 	});
 
 	const ogfcCheck = $derived.by(() => {
 		const temp = weather.effectiveTempF;
-		const courseType = job.courseType;
+		const courseType = courseTypeCtx;
 		if (temp == null || (courseType !== 'ogfc' && courseType !== 'pem')) return null;
 		const minTemp = weatherConfig.ogfcMinAirTempF;
 		if (temp >= minTemp) {
@@ -32,7 +36,7 @@
 	});
 
 	const badge = $derived.by(() => {
-		if (job.thicknessIn <= 0) return null;
+		if (thicknessIn <= 0) return null;
 		if (check == null) return null;
 		if (check.status === 'pass') return { kind: 'good' as const, text: 'Safe to pave' };
 		if (check.status === 'warn') return { kind: 'warn' as const, text: 'Borderline' };
@@ -40,23 +44,23 @@
 	});
 
 	const minTempDisplay = $derived.by(() => {
-		if (job.thicknessIn <= 0) return null;
+		if (thicknessIn <= 0) return null;
 		if (check == null) return null;
 		return `${check.minTempF}°F`;
 	});
 
 	const matchedEntry = $derived.by(() => {
-		if (job.thicknessIn <= 0) return null;
+		if (thicknessIn <= 0) return null;
 		const sorted = [...temperature].sort((a, b) => a.maxThicknessIn - b.maxThicknessIn);
-		return sorted.find((t) => job.thicknessIn <= t.maxThicknessIn) ?? sorted[sorted.length - 1];
+		return sorted.find((t) => thicknessIn <= t.maxThicknessIn) ?? sorted[sorted.length - 1];
 	});
 
 	$effect(() => {
-		if (check != null && job.thicknessIn > 0 && weather.effectiveTempF != null) {
+		if (check != null && thicknessIn > 0 && weather.effectiveTempF != null) {
 			logDraft.set({
 				toolId: 'paving-window',
 				entryType: 'note',
-				summary: `Paving window: ${check.minTempF}°F min for ${job.thicknessIn}" lift (current ${weather.effectiveTempF}°F)`,
+				summary: `Paving window: ${check.minTempF}°F min for ${thicknessIn}" lift (current ${weather.effectiveTempF}°F)`,
 				fields: {
 					notes: check.message
 				}
@@ -83,10 +87,10 @@
 				<span class="label">Current air temp</span>
 				<span class="value">{weather.effectiveTempF}°F</span>
 			</div>
-			{#if job.thicknessIn > 0}
+			{#if thicknessIn > 0}
 				<div class="lift-info">
 					<span class="label">Lift thickness</span>
-					<span class="value">{job.thicknessIn}"</span>
+					<span class="value">{thicknessIn}"</span>
 				</div>
 			{/if}
 		</div>
@@ -103,7 +107,7 @@
 
 		{#if ogfcCheck != null}
 			<div class="ogfc-check" class:pass={ogfcCheck.status === 'pass'} class:warn={ogfcCheck.status === 'warn'} class:fail={ogfcCheck.status === 'fail'}>
-				<strong>{job.courseType.toUpperCase()} check:</strong> {ogfcCheck.message}
+				<strong>{courseTypeCtx.toUpperCase()} check:</strong> {ogfcCheck.message}
 			</div>
 		{/if}
 	{/if}

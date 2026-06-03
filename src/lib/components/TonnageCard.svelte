@@ -28,6 +28,10 @@
 
 	let lengthInput = $state<number | null>(null);
 
+	// Shared inputs from calc context (manual override → job-site → job).
+	const widthFt = $derived(calcContext.road_width.value);
+	const thicknessIn = $derived(calcContext.lift_thickness.value);
+
 	// Convert input to imperial for formula
 	const lengthFt = $derived(
 		lengthInput != null && unitsStore.system === 'metric'
@@ -40,13 +44,13 @@
 		logDraft.clearFor('tonnage');
 	}
 
-	const rate = $derived(job.thicknessIn > 0 ? spreadRateFromThickness(job.thicknessIn) : 0);
+	const rate = $derived(thicknessIn > 0 ? spreadRateFromThickness(thicknessIn) : 0);
 
 	const tons = $derived(
-		lengthFt && rate > 0 && job.widthFt > 0
+		lengthFt && rate > 0 && widthFt > 0
 			? tonnageToOrder({
 					lengthFt,
-					widthFt: job.widthFt,
+					widthFt: widthFt,
 					rateLbsSy: rate,
 					wastePct: job.wastePct
 				})
@@ -82,7 +86,7 @@
 			toolId: 'tonnage',
 			toolLabel: 'Tonnage',
 			result: resultStr,
-			summary: `${lengthInput ?? '?'}ft \u00d7 ${job.widthFt}ft wide \u00d7 ${job.thicknessIn}in`
+			summary: `${lengthInput ?? '?'}ft \u00d7 ${widthFt}ft wide \u00d7 ${thicknessIn}in`
 		});
 	});
 
@@ -93,11 +97,11 @@
 	const thickMultMeta = constantMeta('CONST.THICK_MULT');
 
 	function getProofData(): CalcProofData | null {
-		if (!lengthFt || !job.widthFt || !rate || tons == null) {
+		if (!lengthFt || !widthFt || !rate || tons == null) {
 			return null;
 		}
 
-		const areaYards = (lengthFt * job.widthFt) / 9;
+		const areaYards = (lengthFt * widthFt) / 9;
 		const baseTons = (areaYards * rate) / 2000;
 		const wasteFactor = 1 + (job.wastePct / 100);
 
@@ -105,20 +109,20 @@
 			title: 'Tonnage to Order',
 			inputs: {
 				'Length of job': `${lengthFt.toFixed(0)} ft`,
-				'Mat width': `${job.widthFt.toFixed(0)} ft`,
-				'Target thickness': `${job.thicknessIn.toFixed(2)}"`
+				'Mat width': `${widthFt.toFixed(0)} ft`,
+				'Target thickness': `${thicknessIn.toFixed(2)}"`
 			},
 			steps: [
 				{
 					step: 1,
 					label: 'Area in square yards',
-					formula: `${lengthFt.toFixed(0)} × ${job.widthFt.toFixed(0)} ÷ 9`,
+					formula: `${lengthFt.toFixed(0)} × ${widthFt.toFixed(0)} ÷ 9`,
 					result: `${areaYards.toFixed(2)} SY`
 				},
 				{
 					step: 2,
 					label: 'Spread rate',
-					formula: `${job.thicknessIn.toFixed(2)} × 110`,
+					formula: `${thicknessIn.toFixed(2)} × 110`,
 					result: `${rate.toFixed(0)} lbs/SY`
 				},
 				{
@@ -140,8 +144,8 @@
 			},
 			notes: `Calculation includes ${job.wastePct}% waste allowance. Spread rate from thickness × 110 rule.`,
 			jobContext: {
-				width: job.widthFt,
-				thickness: job.thicknessIn,
+				width: widthFt,
+				thickness: thicknessIn,
 				rate: Math.round(rate),
 				wastePct: job.wastePct
 			}
@@ -168,7 +172,7 @@
 			},
 			{
 				label: 'Width',
-				value: job.widthFt.toFixed(1),
+				value: widthFt.toFixed(1),
 				unit: UNIT_LABELS.ft[unitsStore.system],
 				highlight: false,
 				status: null as 'good' | 'warn' | 'bad' | null
@@ -206,21 +210,21 @@
 	</div>
 
 	<ShowWork stepCount={4} inspectorStats={inspectorStats} inspectorTitle="Tonnage Order">
-		{#if lengthFt && job.widthFt && rate && tons != null}
-			{@const areaYards = (lengthFt * job.widthFt) / 9}
+		{#if lengthFt && widthFt && rate && tons != null}
+			{@const areaYards = (lengthFt * widthFt) / 9}
 			{@const baseTons = (areaYards * rate) / 2000}
 			{@const wasteFactor = 1 + (job.wastePct / 100)}
 
 			<CalculationStep
 				step={1}
 				label="Area in square yards"
-				formula="{lengthFt.toFixed(0)} × {job.widthFt.toFixed(0)} ÷ 9"
+				formula="{lengthFt.toFixed(0)} × {widthFt.toFixed(0)} ÷ 9"
 				result="{areaYards.toFixed(2)} SY"
 			/>
 			<CalculationStep
 				step={2}
 				label="Spread rate"
-				formula="{job.thicknessIn.toFixed(2)} × 110"
+				formula="{thicknessIn.toFixed(2)} × 110"
 				result="{rate.toFixed(0)} lbs/SY"
 			/>
 			<CalculationStep

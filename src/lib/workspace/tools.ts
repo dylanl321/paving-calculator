@@ -14,16 +14,12 @@ import SlopeGradeCard from '$lib/components/SlopeGradeCard.svelte';
 import IntersectionCalcCard from '$lib/components/IntersectionCalcCard.svelte';
 import VariableWidthCard from '$lib/components/VariableWidthCard.svelte';
 
-import type { EntryType } from '$lib/stores/today.svelte';
-
 export interface Tool {
 	id: string;
 	label: string;
 	/** one-line description for the tool list */
 	blurb: string;
 	component: Component;
-	/** Which kind of Today entry this tool's result logs into, if loggable. */
-	logsAs?: EntryType;
 }
 
 export interface ToolGroup {
@@ -41,50 +37,43 @@ export const toolGroups: ToolGroup[] = [
 				id: 'spread-rate',
 				label: 'Spread Rate',
 				blurb: 'Target vs. actual lbs/SY',
-				component: SpreadRateCard,
-				logsAs: 'paving'
+				component: SpreadRateCard
 			},
 			{
 				id: 'feet-left',
 				label: 'Feet Left Today',
 				blurb: 'Remaining length from tonnage',
-				component: FeetLeftCard,
-				logsAs: 'paving'
+				component: FeetLeftCard
 			},
 			{
 				id: 'distance-planner',
 				label: 'Distance Planner',
 				blurb: 'How far your tons will reach',
-				component: DistancePlannerCard,
-				logsAs: 'paving'
+				component: DistancePlannerCard
 			},
 			{
 				id: 'tonnage',
 				label: 'Tonnage to Order',
 				blurb: 'Tons to order for a length',
-				component: TonnageCard,
-				logsAs: 'paving'
+				component: TonnageCard
 			},
 			{
 				id: 'tack',
 				label: 'Tack Rate',
 				blurb: 'Gallons of tack to shoot',
-				component: TackCard,
-				logsAs: 'tack'
+				component: TackCard
 			},
 			{
 				id: 'stick-check',
 				label: 'Stick Check',
 				blurb: 'Loose height behind the screed',
-				component: StickCheckCard,
-				logsAs: 'note'
+				component: StickCheckCard
 			},
 			{
 				id: 'paving-window',
 				label: 'Paving Window',
 				blurb: 'Table 4 min temp for your lift thickness',
-				component: PavingWindowCard,
-				logsAs: 'note'
+				component: PavingWindowCard
 			}
 		]
 	},
@@ -96,15 +85,13 @@ export const toolGroups: ToolGroup[] = [
 				id: 'soil-compaction',
 				label: 'Soil Compaction',
 				blurb: 'Density and % compaction',
-				component: SoilCompactionCard,
-				logsAs: 'note'
+				component: SoilCompactionCard
 			},
 			{
 				id: 'subgrade',
 				label: 'Base Stone',
 				blurb: 'Tonnage for a base layer',
-				component: SubgradeCalcCard,
-				logsAs: 'note'
+				component: SubgradeCalcCard
 			}
 		]
 	},
@@ -116,8 +103,7 @@ export const toolGroups: ToolGroup[] = [
 				id: 'concrete-volume',
 				label: 'Concrete Volume',
 				blurb: 'Yards, bags, and truckloads',
-				component: ConcreteVolumeCard,
-				logsAs: 'note'
+				component: ConcreteVolumeCard
 			},
 			{
 				id: 'concrete-psi',
@@ -135,8 +121,7 @@ export const toolGroups: ToolGroup[] = [
 				id: 'slope-grade',
 				label: 'Slope / Grade',
 				blurb: 'Grade %, ratio, and angle',
-				component: SlopeGradeCard,
-				logsAs: 'note'
+				component: SlopeGradeCard
 			}
 		]
 	},
@@ -148,15 +133,13 @@ export const toolGroups: ToolGroup[] = [
 				id: 'intersection-calc',
 				label: 'Intersection',
 				blurb: 'Two crossing roads — net area & tonnage',
-				component: IntersectionCalcCard,
-				logsAs: 'paving'
+				component: IntersectionCalcCard
 			},
 			{
 				id: 'variable-width',
 				label: 'Variable Width',
 				blurb: 'Turn lane flare — trapezoidal area & tons',
-				component: VariableWidthCard,
-				logsAs: 'paving'
+				component: VariableWidthCard
 			}
 		]
 	}

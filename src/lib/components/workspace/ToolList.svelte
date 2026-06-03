@@ -1,17 +1,14 @@
 <script lang="ts">
 	import { toolGroups } from '$lib/workspace/tools';
-	import { today } from '$lib/stores/today.svelte';
 
 	interface Props {
 		activeId: string;
-		todayActive?: boolean;
 		homeActive?: boolean;
 		onselect: (id: string) => void;
-		onselecttoday?: () => void;
 		onselecthome?: () => void;
 	}
 
-	let { activeId, todayActive = false, homeActive = false, onselect, onselecttoday, onselecthome }: Props = $props();
+	let { activeId, homeActive = false, onselect, onselecthome }: Props = $props();
 
 	// Scroll active tool into view on mobile
 	function scrollIntoView(node: HTMLElement, isActive: boolean) {
@@ -42,25 +39,6 @@
 			>
 				<span class="tool-label">Home</span>
 				<span class="tool-blurb">Spread rate &amp; tons to reach</span>
-			</button>
-		</div>
-	{/if}
-	{#if onselecttoday}
-		<div class="group">
-			<button
-				type="button"
-				class="tool today-tool"
-				class:active={todayActive}
-				aria-current={todayActive ? 'true' : undefined}
-				onclick={onselecttoday}
-				use:scrollIntoView={todayActive}
-			>
-				<span class="tool-label">Today</span>
-				<span class="tool-blurb">
-					{today.entryCount > 0
-						? `${today.entryCount} ${today.entryCount === 1 ? 'entry' : 'entries'} logged`
-						: "Today's production record"}
-				</span>
 			</button>
 		</div>
 	{/if}
@@ -152,13 +130,6 @@
 		color: var(--accent);
 	}
 
-	.today-tool {
-		border: 1px solid var(--border);
-		background: var(--surface);
-	}
-	.today-tool.active {
-		box-shadow: inset 3px 0 0 var(--accent);
-	}
 	.home-tool {
 		border: 1px solid var(--border);
 		background: var(--surface);
@@ -227,9 +198,6 @@
 		}
 		/* The blurb is too verbose for chips — show labels only on mobile */
 		.tool-blurb {
-			display: none;
-		}
-		.today-tool .tool-blurb {
 			display: none;
 		}
 	}

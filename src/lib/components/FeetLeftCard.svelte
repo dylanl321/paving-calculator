@@ -31,6 +31,10 @@
 	let placedInput = $state<number | null>(null);
 	let totalJobInput = $state<number | null>(null);
 
+	// Shared inputs from calc context (manual override → job-site → job).
+	const widthFt = $derived(calcContext.road_width.value);
+	const thicknessIn = $derived(calcContext.lift_thickness.value);
+
 	// Convert inputs to imperial for formula
 	const ordered = $derived(
 		orderedInput != null && unitsStore.system === 'metric'
@@ -55,14 +59,14 @@
 		logDraft.clearFor('feet-left');
 	}
 
-	const rate = $derived(job.thicknessIn > 0 ? spreadRateFromThickness(job.thicknessIn) : 0);
+	const rate = $derived(thicknessIn > 0 ? spreadRateFromThickness(thicknessIn) : 0);
 
 	const feet = $derived.by(() => {
-		if (rate <= 0 || job.widthFt <= 0 || ordered == null || placed == null) return null;
+		if (rate <= 0 || widthFt <= 0 || ordered == null || placed == null) return null;
 		return feetFromOrderedMinusPlaced({
 			tonsOrdered: ordered,
 			tonsPlaced: placed,
-			widthFt: job.widthFt,
+			widthFt: widthFt,
 			rateLbsSy: rate
 		});
 	});
@@ -109,7 +113,7 @@
 	const thickMultMeta = constantMeta('CONST.THICK_MULT');
 
 	function getProofData(): CalcProofData | null {
-		if (ordered == null || placed == null || !job.widthFt || !rate || feet == null) {
+		if (ordered == null || placed == null || !widthFt || !rate || feet == null) {
 			return null;
 		}
 
@@ -121,14 +125,14 @@
 			inputs: {
 				'Tons ordered': `${ordered.toFixed(2)} tons`,
 				'Tons placed': `${placed.toFixed(2)} tons`,
-				'Mat width': `${job.widthFt.toFixed(0)} ft`,
-				'Target thickness': `${job.thicknessIn.toFixed(2)}"`
+				'Mat width': `${widthFt.toFixed(0)} ft`,
+				'Target thickness': `${thicknessIn.toFixed(2)}"`
 			},
 			steps: [
 				{
 					step: 1,
 					label: 'Spread rate',
-					formula: `${job.thicknessIn.toFixed(2)} × 110`,
+					formula: `${thicknessIn.toFixed(2)} × 110`,
 					result: `${rate.toFixed(0)} lbs/SY`
 				},
 				{
@@ -146,7 +150,7 @@
 				{
 					step: 4,
 					label: 'Feet left',
-					formula: `${remainingLbs.toFixed(0)} × 9 ÷ (${job.widthFt.toFixed(0)} × ${rate.toFixed(0)})`,
+					formula: `${remainingLbs.toFixed(0)} × 9 ÷ (${widthFt.toFixed(0)} × ${rate.toFixed(0)})`,
 					result: `${feet.toFixed(0)} ft`
 				}
 			],
@@ -156,8 +160,8 @@
 			},
 			notes: `Spread rate calculated from thickness × 110 rule.`,
 			jobContext: {
-				width: job.widthFt,
-				thickness: job.thicknessIn,
+				width: widthFt,
+				thickness: thicknessIn,
 				rate: Math.round(rate)
 			}
 		};
@@ -205,14 +209,14 @@
 	{/if}
 
 	<ShowWork stepCount={4}>
-		{#if ordered != null && placed != null && job.widthFt && rate && feet != null}
+		{#if ordered != null && placed != null && widthFt && rate && feet != null}
 			{@const remaining = ordered - placed}
 			{@const remainingLbs = remaining * 2000}
 
 			<CalculationStep
 				step={1}
 				label="Spread rate"
-				formula="{job.thicknessIn.toFixed(2)} × 110"
+				formula="{thicknessIn.toFixed(2)} × 110"
 				result="{rate.toFixed(0)} lbs/SY"
 			/>
 			<CalculationStep
@@ -230,7 +234,7 @@
 			<CalculationStep
 				step={4}
 				label="Feet left"
-				formula="{remainingLbs.toFixed(0)} × 9 ÷ ({job.widthFt.toFixed(0)} × {rate.toFixed(0)})"
+				formula="{remainingLbs.toFixed(0)} × 9 ÷ ({widthFt.toFixed(0)} × {rate.toFixed(0)})"
 				result="{feet.toFixed(0)} ft"
 			/>
 

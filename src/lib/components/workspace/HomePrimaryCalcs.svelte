@@ -2,6 +2,7 @@
 	import NumberField from '$lib/components/NumberField.svelte';
 	import ResultStat from '$lib/components/ResultStat.svelte';
 	import { job } from '$lib/stores/job.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { spreadRateFromThickness, spreadRatePlaced, feetFromTons } from '$lib/config/formulas';
 	import { constant, spreadSpecCheck } from '$lib/config';
 	import { unitsStore } from '$lib/stores/units.svelte';
@@ -13,6 +14,12 @@
 		toMetricTonnes,
 		toMeters
 	} from '$lib/utils/unitConvert';
+
+	// Shared inputs come from the calc context (manual override → job-site → job)
+	// so a value set once is used by every calculator.
+	const widthFt = $derived(calcContext.road_width.value);
+	const thicknessIn = $derived(calcContext.lift_thickness.value);
+	const courseType = $derived(calcContext.course_type.value);
 
 	// ── Spread Rate inputs ──────────────────────────────────────────────────
 	let tonsInput = $state<number | null>(null);
@@ -30,15 +37,15 @@
 	);
 
 	const targetRate = $derived(
-		job.thicknessIn > 0 ? spreadRateFromThickness(job.thicknessIn) : null
+		thicknessIn > 0 ? spreadRateFromThickness(thicknessIn) : null
 	);
 
 	const placedRate = $derived(
-		tons && distanceFt && job.widthFt
+		tons && distanceFt && widthFt
 			? spreadRatePlaced({
 					tons,
 					lengthFt: distanceFt,
-					widthFt: job.widthFt,
+					widthFt: widthFt,
 					machineId: job.machineId,
 					firstPass: job.firstPass
 				})
@@ -52,7 +59,7 @@
 		placedRate != null && unitsStore.system === 'metric' ? toKgPerM2(placedRate) : placedRate
 	);
 
-	const spec = $derived(spreadSpecCheck(placedRate, targetRate, job.courseType));
+	const spec = $derived(spreadSpecCheck(placedRate, targetRate, courseType));
 	const specBadge = $derived(
 		spec ? ({ kind: spec.status, text: spec.label } as const) : null
 	);
@@ -66,12 +73,12 @@
 			: reachDistanceInput
 	);
 
-	const rate = $derived(job.thicknessIn > 0 ? spreadRateFromThickness(job.thicknessIn) : 0);
+	const rate = $derived(thicknessIn > 0 ? spreadRateFromThickness(thicknessIn) : 0);
 
 	// tons = distance * width * rate / (LB_PER_TON * SF_PER_SY)
 	const tonsNeeded = $derived(
-		reachDistanceFt != null && rate > 0 && job.widthFt > 0
-			? (reachDistanceFt * job.widthFt * rate) /
+		reachDistanceFt != null && rate > 0 && widthFt > 0
+			? (reachDistanceFt * widthFt * rate) /
 					(constant('CONST.LB_PER_TON') * constant('CONST.SF_PER_SY'))
 			: null
 	);
@@ -88,8 +95,8 @@
 			: availableTonsInput
 	);
 	const availableReachFt = $derived(
-		availableTons != null && rate > 0 && job.widthFt > 0
-			? feetFromTons(availableTons, job.widthFt, rate)
+		availableTons != null && rate > 0 && widthFt > 0
+			? feetFromTons(availableTons, widthFt, rate)
 			: null
 	);
 	const displayAvailableReach = $derived(

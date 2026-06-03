@@ -4,6 +4,7 @@
 	import ResultStat from './ResultStat.svelte';
 	import ShowWork from './ShowWork.svelte';
 	import { job } from '$lib/stores/job.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { variableWidthArea, spreadRateFromThickness } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
@@ -19,11 +20,14 @@
 		return unitsStore.system === 'metric' ? fromMeters(v) : v;
 	}
 
-	const lengthFt = $derived(toFt(lengthInput));
-	const startWidthFt = $derived(toFt(startWidthInput) ?? job.widthFt);
-	const endWidthFt = $derived(toFt(endWidthInput) ?? job.widthFt);
+	const widthFt = $derived(calcContext.road_width.value);
+	const thicknessIn = $derived(calcContext.lift_thickness.value);
 
-	const rate = $derived(job.thicknessIn > 0 ? spreadRateFromThickness(job.thicknessIn) : 0);
+	const lengthFt = $derived(toFt(lengthInput));
+	const startWidthFt = $derived(toFt(startWidthInput) ?? widthFt);
+	const endWidthFt = $derived(toFt(endWidthInput) ?? widthFt);
+
+	const rate = $derived(thicknessIn > 0 ? spreadRateFromThickness(thicknessIn) : 0);
 
 	const result = $derived.by(() => {
 		if (lengthFt == null || lengthFt <= 0 || startWidthFt <= 0 || endWidthFt <= 0 || rate <= 0)
@@ -83,14 +87,14 @@
 			label="Start width (narrow end)"
 			unit={UNIT_LABELS.ft[unitsStore.system]}
 			bind:value={startWidthInput}
-			hint="Blank = job width ({job.widthFt} ft)"
+			hint="Blank = job width ({widthFt} ft)"
 			step={0.5}
 		/>
 		<NumberField
 			label="End width (wide end)"
 			unit={UNIT_LABELS.ft[unitsStore.system]}
 			bind:value={endWidthInput}
-			hint="Blank = job width ({job.widthFt} ft)"
+			hint="Blank = job width ({widthFt} ft)"
 			step={0.5}
 		/>
 	</div>

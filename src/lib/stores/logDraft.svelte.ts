@@ -1,7 +1,7 @@
-// Shared "loggable result" channel between a calculator and the workspace's
-// Log to Today action. Each calculator publishes its current result here; the
-// stage's LogToToday button reads the draft for the active tool and commits it
-// to the Today session. Decouples the one-tap bridge from each card's internals.
+// Shared "loggable result" channel between a calculator and the job-site daily
+// log. Each calculator publishes its current result here; the job-site log page's
+// "fill from calculator" action reads the draft for the active tool and prefills
+// a log entry. Decouples the bridge from each card's internals.
 import type { EntryType } from './today.svelte';
 
 export interface LogDraft {
