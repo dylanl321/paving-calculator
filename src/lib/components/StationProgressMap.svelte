@@ -392,7 +392,7 @@
 					{waypoints}
 					entries={enhancedEntries}
 					visible={showStationMarkers}
-					stationIntervalFt={500}
+					interval_ft={500}
 				/>
 			</MapContainer>
 			{#if loading}

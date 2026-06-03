@@ -109,7 +109,7 @@
 		fetch(`/api/job-sites/${data.jobSite.id}/progress`)
 			.then((res) => (res.ok ? res.json() : null))
 			.then((d) => {
-				progressData = d;
+				progressData = d as ProgressData | null;
 			})
 			.catch(() => {
 				progressData = null;
@@ -297,12 +297,12 @@
 				credentials: 'include'
 			});
 			if (res.ok) {
-				const result = await res.json();
-				data.jobSite.gdot_county = result.county;
-				data.jobSite.gdot_district = result.district;
+				const result = (await res.json()) as { county?: string | null; district?: string | null };
+				data.jobSite.gdot_county = result.county ?? null;
+				data.jobSite.gdot_district = result.district ?? null;
 				toastStore.success('GDOT information updated');
 			} else {
-				const errorData = await res.json();
+				const errorData = (await res.json()) as { error?: string };
 				toastStore.error(errorData.error || 'Failed to lookup GDOT information');
 			}
 		} catch (error) {
@@ -543,21 +543,23 @@
 			])}
 				<div class="map-mini-loading">Loading progress map&hellip;</div>
 			{:then [{ default: MapContainer }, { default: ProgressPolyline }, { default: StationMarkers }, { default: ProgressOverlay }]}
-				{@const coords = progressData.geometry.coordinates}
+				{@const pd = progressData!}
+				{@const geom = pd.geometry!}
+				{@const coords = geom.coordinates}
 				{@const midIndex = Math.floor(coords.length / 2)}
 				{@const center = [coords[midIndex][1], coords[midIndex][0]] as [number, number]}
 				<MapContainer {center} zoom={14} height="360px">
 					{#snippet children()}
 						<ProgressPolyline
-							geometry={progressData.geometry}
-							logEntries={progressData.logEntries}
-							totalLength={progressData.totalLengthFt}
+							geometry={geom}
+							logEntries={pd.logEntries}
+							totalLength={pd.totalLengthFt}
 						/>
-						<StationMarkers geometry={progressData.geometry} logEntries={progressData.logEntries} />
+						<StationMarkers geometry={geom} logEntries={pd.logEntries} />
 						<ProgressOverlay
-							logEntries={progressData.logEntries}
-							totalLengthFt={progressData.totalLengthFt}
-							today={progressData.today}
+							logEntries={pd.logEntries}
+							totalLengthFt={pd.totalLengthFt}
+							today={pd.today}
 						/>
 					{/snippet}
 				</MapContainer>

@@ -43,30 +43,37 @@ This will output a database ID. Copy it and update `wrangler.jsonc`:
 npm run db:local
 ```
 
-This applies every top-level migration in `migrations/0*.sql` to the **local**
-D1 in sorted order, one file at a time. To rebuild from scratch:
+This uses wrangler's migration tracking to apply every migration in
+`migrations/*.sql` to the **local** D1 in numeric order, recording each in the
+`d1_migrations` table. Running it again is a no-op once everything is applied:
+
+```bash
+npx wrangler d1 migrations apply paverate-db --local
+```
+
+To rebuild the local DB from scratch (drops all objects, then re-applies
+`0001..NNNN`):
 
 ```bash
 npm run db:local:reset
 ```
 
-> Why a script and not `wrangler d1 migrations apply`: two migration numbers are
-> duplicated (`0024_*`, `0025_*`) and a nested `migrations/migrations/` folder is
-> leftover cruft, so the standard migrations command is unreliable here. The
-> script applies each top-level file once, in filename order, and ignores the
-> nested folder. The duplicate-numbered files touch disjoint tables, so order
-> between them does not matter.
+> Migrations are numbered sequentially with no duplicate numbers. They must run
+> in strict numeric order — later files depend on tables/columns created by
+> earlier ones (e.g. `0030_loads_ticket_photo.sql` references
+> `photo_attachments` from `0011`, and `0039_screed_man_role.sql` drops/recreates
+> the cascade trigger added in `0038`).
 
-To apply migrations in production instead:
+### Applying migrations to remote (dev / prod)
 
 ```bash
-npx wrangler d1 execute paverate-db --remote --file=./migrations/0001_initial_schema.sql
-# ...repeat for each file through 0033, in order...
+npm run db:migrate:list      # show pending remote migrations
+npm run db:migrate:remote    # apply them (tracked in d1_migrations)
 ```
 
-> Migrations must be applied strictly in numeric order — later files depend on
-> tables/columns created by earlier ones (e.g. `0030_loads_ticket_photo.sql`
-> references `photo_attachments` from `0011`).
+Requires an authenticated wrangler session (`wrangler login`). Use the same
+`wrangler d1 migrations apply paverate-db --remote` command for prod once the
+prod database is wired up.
 
 ### 3. (Optional) Load real dev data into local
 

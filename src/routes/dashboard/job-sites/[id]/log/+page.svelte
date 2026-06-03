@@ -490,7 +490,7 @@
 				{
 					date: currentLog.log_date,
 					siteName: data.jobSite.name,
-					orgName: data.jobSite.organization_name || undefined,
+					orgName: undefined,
 					weatherTempF: currentLog.weather_temp_f,
 					weatherConditions: currentLog.weather_conditions,
 					windSpeedMph: currentLog.wind_speed_mph,
@@ -843,7 +843,7 @@
 
 	{#if !isHistoricalView}
 		<div class="completeness-bar-wrapper">
-			<CompletenessBar state={todayState} />
+			<CompletenessBar data={todayState} />
 		</div>
 	{/if}
 

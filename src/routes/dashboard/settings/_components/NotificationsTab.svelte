@@ -23,7 +23,7 @@
 		try {
 			const res = await fetch('/api/org/settings', { credentials: 'include' });
 			if (res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { reportRecipients?: string[] };
 				reportRecipients = data.reportRecipients || [];
 				// Check if user can edit (owner/admin only)
 				// For simplicity, we'll allow editing for now and rely on API to enforce
@@ -112,7 +112,7 @@
 				credentials: 'include',
 				body: JSON.stringify({ reportRecipients })
 			});
-			const result = await res.json();
+			const result = (await res.json()) as { error?: string; reportRecipients?: string[] };
 			if (!res.ok) {
 				recipientsMessage = result.error || 'Failed to save recipients';
 				recipientsMessageType = 'error';

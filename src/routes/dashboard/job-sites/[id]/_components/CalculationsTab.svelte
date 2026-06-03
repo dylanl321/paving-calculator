@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { formatDate } from './shared';
-	import type { Calculation } from '../$types';
+	import type { Calculation } from '../+page';
 	import { calcContext } from '$lib/stores/calcContext.svelte';
-	import SourceBadge from '$lib/components/SourceBadge.svelte';
+	import SourceTag from '$lib/components/SourceTag.svelte';
 
 	let {
 		calculations,
@@ -79,7 +79,7 @@
 			<div class="context-item">
 				<span class="context-label">Road Width:</span>
 				<span class="context-value">{calcContext.road_width.value} ft</span>
-				<SourceBadge
+				<SourceTag
 					source={calcContext.road_width.source}
 					updatedAt={calcContext.road_width.updatedAt}
 					label="Road Width"
@@ -88,7 +88,7 @@
 			<div class="context-item">
 				<span class="context-label">Lift Thickness:</span>
 				<span class="context-value">{calcContext.lift_thickness.value} in</span>
-				<SourceBadge
+				<SourceTag
 					source={calcContext.lift_thickness.source}
 					updatedAt={calcContext.lift_thickness.updatedAt}
 					label="Lift Thickness"
@@ -97,7 +97,7 @@
 			<div class="context-item">
 				<span class="context-label">Course Type:</span>
 				<span class="context-value">{calcContext.course_type.value}</span>
-				<SourceBadge
+				<SourceTag
 					source={calcContext.course_type.source}
 					updatedAt={calcContext.course_type.updatedAt}
 					label="Course Type"

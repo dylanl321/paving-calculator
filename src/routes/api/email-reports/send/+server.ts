@@ -123,7 +123,7 @@ async function getReportStats(
 	const jobSites = await db.getJobSitesByOrgId(orgId);
 	const activeJobSites = jobSites.filter((js) => js.status === 'active').length;
 
-	const loadsQuery = await db.db
+	const loadsQuery = await db
 		.prepare(
 			`SELECT COUNT(*) as count, SUM(tons) as totalTons
        FROM loads l
@@ -146,7 +146,7 @@ async function sendReportEmail(
 	schedule: { org_id: string; report_type: string; recipients: string[] },
 	baseUrl: string
 ): Promise<void> {
-	const org = await db.getOrgById(schedule.org_id);
+	const org = await db.getOrganizationById(schedule.org_id);
 	if (!org) return;
 
 	const settings = await db.getOrgSettings(org.id);
@@ -286,7 +286,7 @@ export async function POST(event: RequestEvent) {
 		const currentHour = now.getUTCHours();
 		const currentDayOfWeek = now.getUTCDay();
 
-		const allSchedules = await db.db
+		const allSchedules = await db
 			.prepare(
 				'SELECT * FROM email_report_schedules WHERE enabled = 1 ORDER BY created_at DESC'
 			)

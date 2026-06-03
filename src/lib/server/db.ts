@@ -261,6 +261,11 @@ export interface DbEmailReportSchedule {
 export class DbHelper {
 	constructor(private db: D1Database) {}
 
+	/** Public passthrough for raw queries from route handlers that need ad-hoc SQL. */
+	prepare(query: string) {
+		return this.db.prepare(query);
+	}
+
 	async getUserByEmail(email: string): Promise<DbUser | null> {
 		return await this.db
 			.prepare('SELECT * FROM users WHERE email = ? COLLATE NOCASE')
@@ -413,6 +418,8 @@ export class DbHelper {
 			location_description: locationDescription,
 			latitude,
 			longitude,
+			gdot_county: null,
+			gdot_district: null,
 			status: 'active',
 			created_at: now,
 			updated_at: now

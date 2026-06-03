@@ -202,11 +202,11 @@
 	function setMarkersVisible(show: boolean) {
 		const style = show ? '' : 'none';
 		for (const m of visualMarkers) {
-			const el = m.getElement();
+			const el = m.getElement() as HTMLElement | null;
 			if (el) el.style.display = style;
 		}
 		for (const m of touchMarkers) {
-			const el = m.getElement();
+			const el = m.getElement() as HTMLElement | null;
 			if (el) el.style.display = style;
 		}
 	}
@@ -261,9 +261,9 @@
 				touchMarkers.push(touch);
 
 				if (!shouldShow) {
-					const vel = visual.getElement();
+					const vel = visual.getElement() as HTMLElement | null;
 					if (vel) vel.style.display = 'none';
-					const tel = touch.getElement();
+					const tel = touch.getElement() as HTMLElement | null;
 					if (tel) tel.style.display = 'none';
 				}
 			}
@@ -274,6 +274,7 @@
 	$effect(() => {
 		const map = ctx?.map;
 		if (!map) return;
+		const activeMap = map;
 
 		clearAllMarkers(map);
 		if (!visible) return;
@@ -295,7 +296,7 @@
 
 		// Zoom listener: show/hide based on zoom level
 		function onZoomEnd() {
-			const zoom = map.getZoom();
+			const zoom = activeMap.getZoom();
 			setMarkersVisible(zoom >= MIN_ZOOM);
 		}
 

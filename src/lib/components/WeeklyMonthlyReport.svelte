@@ -43,7 +43,7 @@
 				data = await rollupRes.json();
 			}
 			if (siteRes.ok) {
-				const siteData = await siteRes.json();
+				const siteData = (await siteRes.json()) as { name?: string };
 				siteName = siteData.name || 'Job Site';
 			}
 		} finally {
@@ -56,7 +56,7 @@
 		generatingPDF = true;
 		try {
 			const { generateWeeklyMonthlyPDF } = await import('$lib/utils/pdf-export');
-			const { jobState } = await import('$lib/stores/job.svelte');
+			const { job: jobState } = await import('$lib/stores/job.svelte');
 			await generateWeeklyMonthlyPDF(
 				{
 					periodType,
@@ -253,7 +253,7 @@
 				<SharePDFButton
 					getPdfBlob={async () => {
 						const { getWeeklyMonthlyPDFBlob } = await import('$lib/utils/pdf-export');
-						const { jobState } = await import('$lib/stores/job.svelte');
+						const { job: jobState } = await import('$lib/stores/job.svelte');
 						return await getWeeklyMonthlyPDFBlob(
 							{
 								periodType,

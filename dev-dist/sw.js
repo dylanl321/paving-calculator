@@ -67,34 +67,21 @@ if (!self.define) {
     });
   };
 }
-define(['./workbox-080b30b9'], (function (workbox) { 'use strict';
+define(['./workbox-8114e936'], (function (workbox) { 'use strict';
 
-  self.skipWaiting();
-  workbox.clientsClaim();
-  /**
-   * The precacheAndRoute() method efficiently caches and responds to
-   * requests for URLs in the manifest.
-   * See https://goo.gl/S9QRab
-   */
-  workbox.precacheAndRoute([{
-    "url": "/",
-    "revision": "0.781amsqhlis"
-  }], {});
-  workbox.cleanupOutdatedCaches();
-  workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("/"), {
-    allowlist: [/^\/$/]
-  }));
-  workbox.registerRoute(/^https:\/\/fonts\.googleapis\.com/, new workbox.StaleWhileRevalidate({
-    "cacheName": "google-fonts-stylesheets",
-    plugins: []
-  }), 'GET');
-  workbox.registerRoute(/^\/api\//, new workbox.NetworkFirst({
-    "cacheName": "api-cache",
-    "networkTimeoutSeconds": 5,
-    plugins: [new workbox.ExpirationPlugin({
-      maxEntries: 50,
-      maxAgeSeconds: 300
-    })]
-  }), 'GET');
+	self.skipWaiting();
+	workbox.clientsClaim();
+	workbox.registerRoute(/^https:\/\/fonts\.googleapis\.com/, new workbox.StaleWhileRevalidate({
+	  "cacheName": "google-fonts-stylesheets",
+	  plugins: []
+	}), 'GET');
+	workbox.registerRoute(/^\/api\//, new workbox.NetworkFirst({
+	  "cacheName": "api-cache",
+	  "networkTimeoutSeconds": 5,
+	  plugins: [new workbox.ExpirationPlugin({
+	    maxEntries: 50,
+	    maxAgeSeconds: 300
+	  })]
+	}), 'GET');
 
 }));

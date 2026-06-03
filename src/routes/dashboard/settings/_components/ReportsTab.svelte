@@ -1,16 +1,6 @@
 <script lang="ts">
 	import { toastStore } from '$lib/stores/toast.svelte';
-
-	interface EmailReportSchedule {
-		id: string;
-		reportType: 'daily_summary' | 'weekly_rollup' | 'monthly_rollup';
-		frequency: 'daily' | 'weekly' | 'monthly';
-		sendHour: number;
-		dayOfWeek: number | null;
-		recipients: string[];
-		enabled: boolean;
-		lastSentAt: number | null;
-	}
+	import type { EmailReportSchedule } from './shared';
 
 	let { initialSchedules }: { initialSchedules: EmailReportSchedule[] } = $props();
 
@@ -115,7 +105,7 @@
 			});
 
 			if (!res.ok) {
-				const error = await res.json();
+				const error = (await res.json()) as { error?: string };
 				message = error.error || 'Failed to save schedule';
 				messageType = 'error';
 				toastStore.error(message);

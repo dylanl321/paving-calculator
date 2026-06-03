@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Milestone } from '../$types';
+	import type { Milestone } from '../+page';
 	import { toastStore } from '$lib/stores/toast.svelte';
 
 	interface MilestoneResponse {

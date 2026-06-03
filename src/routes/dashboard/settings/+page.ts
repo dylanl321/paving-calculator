@@ -1,6 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import type { OrgOverrides } from '$lib/config/overrides';
+import type { EmailReportSchedule } from './_components/shared';
 
 export interface OrgSettings {
 	role: string;
@@ -47,8 +48,8 @@ export const load: PageLoad = async ({ fetch }) => {
 				: null;
 		const emailReportSchedules =
 			schedulesRes?.ok
-				? ((await schedulesRes.json()) as { schedules: unknown[] }).schedules
-				: [];
+				? ((await schedulesRes.json()) as { schedules: EmailReportSchedule[] }).schedules
+				: ([] as EmailReportSchedule[]);
 
 		return {
 			error: false,

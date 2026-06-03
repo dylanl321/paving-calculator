@@ -32,9 +32,9 @@
 			});
 
 			if (res.ok) {
-				const result = await res.json();
-				entries = result.entries;
-				nextCursor = result.next_cursor;
+				const result = (await res.json()) as { entries?: typeof entries; next_cursor?: number | null };
+				entries = result.entries ?? [];
+				nextCursor = result.next_cursor ?? null;
 			}
 		} catch (err) {
 			console.error('Failed to filter by category', err);
@@ -60,9 +60,9 @@
 			});
 
 			if (res.ok) {
-				const result = await res.json();
-				entries = [...entries, ...result.entries];
-				nextCursor = result.next_cursor;
+				const result = (await res.json()) as { entries?: typeof entries; next_cursor?: number | null };
+				entries = [...entries, ...(result.entries ?? [])];
+				nextCursor = result.next_cursor ?? null;
 			}
 		} catch (err) {
 			console.error('Failed to load more entries', err);

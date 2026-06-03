@@ -57,7 +57,7 @@
 				})
 			});
 
-			const result = await response.json();
+			const result = (await response.json()) as { error?: string; sent?: number };
 
 			if (!response.ok) {
 				message = result.error || 'Failed to send';

@@ -1,6 +1,11 @@
 -- Migration: add screed_man role to org_members and invitations
 -- SQLite does not support ALTER COLUMN, so we recreate tables to update CHECK constraints
 
+-- Drop the cascade trigger from 0038 that references org_members; recreated below.
+-- (Rebuilding org_members while a trigger body references it raises
+--  "no such table" during the DROP/RENAME, so it must be removed first.)
+DROP TRIGGER IF EXISTS trg_cascade_delete_org_members;
+
 -- 1. Add screed_man to org_members role constraint
 CREATE TABLE org_members_new3 (
     user_id TEXT NOT NULL,
@@ -35,3 +40,11 @@ CREATE TABLE invitations_new3 (
 INSERT INTO invitations_new3 SELECT * FROM invitations;
 DROP TABLE invitations;
 ALTER TABLE invitations_new3 RENAME TO invitations;
+
+-- 3. Recreate the org_members cascade trigger (dropped above before the rebuild)
+CREATE TRIGGER IF NOT EXISTS trg_cascade_delete_org_members
+  BEFORE DELETE ON organizations
+  FOR EACH ROW
+BEGIN
+  DELETE FROM org_members WHERE org_id = OLD.id;
+END;

@@ -14,6 +14,7 @@ declare global {
 				ASSETS_BUCKET: R2Bucket;
 				SUPER_ADMIN_EMAILS?: string;
 				RESEND_API_KEY?: string;
+				CRON_SECRET?: string;
 			};
 			ctx: ExecutionContext;
 			caches: CacheStorage;

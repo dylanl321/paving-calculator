@@ -387,7 +387,18 @@
 		</div>
 	{/if}
 
-	<CompletenessBar state={today} />
+	<CompletenessBar
+		data={{
+			weather_temp_f: today.weatherTempF,
+			crew_count: today.crewCount,
+			start_time: today.startTime,
+			end_time: today.endTime,
+			entries: today.entries,
+			notes: today.notes,
+			wind_speed_mph: today.windSpeedMph,
+			plant_name: today.plantName
+		}}
+	/>
 
 	<DailyTarget />
 

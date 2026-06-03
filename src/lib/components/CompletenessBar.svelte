@@ -1,6 +1,6 @@
 <script lang="ts">
 	interface Props {
-		state: {
+		data: {
 			weather_temp_f: number | null;
 			crew_count: number | null;
 			start_time: string | null;
@@ -12,7 +12,7 @@
 		};
 	}
 
-	let { state }: Props = $props();
+	let { data }: Props = $props();
 
 	// Mobile-first: collapsed on <640px, expanded on desktop
 	let expanded = $state(false);
@@ -33,17 +33,17 @@
 	// Completeness score
 	const score = $derived(() => {
 		const required = [
-			{ key: "weather_temp_f", label: "Temperature", check: state.weather_temp_f != null },
-			{ key: "crew_count", label: "Crew Count", check: state.crew_count != null },
-			{ key: "start_time", label: "Start Time", check: state.start_time != null && state.start_time !== "" },
-			{ key: "end_time", label: "End Time", check: state.end_time != null && state.end_time !== "" },
-			{ key: "has_entries", label: "Log Entry", check: state.entries.length > 0 }
+			{ key: "weather_temp_f", label: "Temperature", check: data.weather_temp_f != null },
+			{ key: "crew_count", label: "Crew Count", check: data.crew_count != null },
+			{ key: "start_time", label: "Start Time", check: data.start_time != null && data.start_time !== "" },
+			{ key: "end_time", label: "End Time", check: data.end_time != null && data.end_time !== "" },
+			{ key: "has_entries", label: "Log Entry", check: data.entries.length > 0 }
 		];
 
 		const optional = [
-			{ key: "notes", label: "Notes", check: state.notes != null && state.notes !== "" },
-			{ key: "wind_speed_mph", label: "Wind Speed", check: state.wind_speed_mph != null },
-			{ key: "plant_name", label: "Plant Name", check: state.plant_name != null && state.plant_name !== "" }
+			{ key: "notes", label: "Notes", check: data.notes != null && data.notes !== "" },
+			{ key: "wind_speed_mph", label: "Wind Speed", check: data.wind_speed_mph != null },
+			{ key: "plant_name", label: "Plant Name", check: data.plant_name != null && data.plant_name !== "" }
 		];
 
 		const requiredComplete = required.filter((f) => f.check).length;

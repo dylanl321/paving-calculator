@@ -25,3 +25,14 @@ export interface EmailPreviewResult {
 	subject: string;
 	from: string;
 }
+
+export interface EmailReportSchedule {
+	id: string;
+	reportType: 'daily_summary' | 'weekly_rollup' | 'monthly_rollup';
+	frequency: 'daily' | 'weekly' | 'monthly';
+	sendHour: number;
+	dayOfWeek: number | null;
+	recipients: string[];
+	enabled: boolean;
+	lastSentAt: number | null;
+}

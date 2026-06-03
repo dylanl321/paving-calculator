@@ -56,7 +56,9 @@
 					credentials: 'include'
 				});
 				if (logRes.ok) {
-					const logData = await logRes.json();
+					const logData = (await logRes.json()) as {
+						summary?: { total_waste_tons?: number };
+					};
 					totalFieldWaste += logData.summary?.total_waste_tons || 0;
 				}
 			}

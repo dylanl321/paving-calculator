@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { equipmentTypeLabels } from './shared';
-	import type { Equipment } from '../$types';
+	import type { Equipment } from '../+page';
 	import { toastStore } from '$lib/stores/toast.svelte';
 
 	interface EquipmentItem {

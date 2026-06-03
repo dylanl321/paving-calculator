@@ -61,7 +61,7 @@
 		try {
 			const res = await fetch('/api/org/settings');
 			if (res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { reportRecipients?: unknown[] };
 				recipientCount = data.reportRecipients?.length ?? 0;
 			}
 		} catch {
@@ -181,7 +181,7 @@
 
 	async function getPdfBlob(): Promise<Blob> {
 		const { generateDailyReportPDFBlob } = await import('$lib/utils/pdf-export');
-		const { jobState } = await import('$lib/stores/job.svelte');
+		const { job: jobState } = await import('$lib/stores/job.svelte');
 
 		// Build report data
 		const reportData = {
@@ -466,7 +466,7 @@
 				<SharePDFButton
 					getPdfBlob={async () => {
 						const { getDailyReportPDFBlob } = await import('$lib/utils/pdf-export');
-						const { jobState } = await import('$lib/stores/job.svelte');
+						const { job: jobState } = await import('$lib/stores/job.svelte');
 						return await getDailyReportPDFBlob(
 							jobState,
 							{
