@@ -9,7 +9,9 @@
 //
 // Persisted to localStorage. A single "current day" is kept; when the calendar
 // date rolls over, the previous day is archived and a fresh day starts.
-import { spreadRateFromThickness } from '$lib/config/formulas';
+import { spreadRateFromThickness, actualSpreadRate } from '$lib/config/formulas';
+import { deriveFields } from '$lib/services/autoDerive';
+import { weather } from '$lib/stores/weather.svelte';
 
 const STORAGE_KEY = 'paverate.today.v1';
 
@@ -30,6 +32,7 @@ export interface TodayEntry {
 	tack_gallons: number | null;
 	lane: string | null;
 	notes: string | null;
+	waste_tons: number | null;
 	/** Which calculator produced this entry, if any (local-only metadata). */
 	source_calc: string | null;
 	created_at: number;
@@ -48,11 +51,17 @@ export interface TodayState {
 	start_time: string | null; // HH:MM
 	end_time: string | null; // HH:MM
 	notes: string | null;
+	target_tons: number | null;
+	target_loads: number | null;
+	plant_name: string | null;
+	mix_type: string | null;
 	entries: TodayEntry[];
 	/** Job site this day is linked to for cloud sync (set when signed in). */
 	job_site_id: string | null;
 	/** Server daily_log id once synced (local-only metadata). */
 	remote_log_id: string | null;
+	/** Which fields were auto-derived (local-only metadata). */
+	derived_fields: string[];
 }
 
 function todayDate(): string {
@@ -70,9 +79,14 @@ function initial(): TodayState {
 		start_time: null,
 		end_time: null,
 		notes: null,
+		target_tons: null,
+		target_loads: null,
+		plant_name: null,
+		mix_type: null,
 		entries: [],
 		job_site_id: null,
-		remote_log_id: null
+		remote_log_id: null,
+		derived_fields: []
 	};
 }
 
@@ -108,6 +122,28 @@ class Today {
 		if (typeof localStorage !== 'undefined') {
 			this.#state = load();
 		}
+
+		// Reactive effect: auto-derive fields when entries or weather temp changes
+		let lastEntriesLength = 0;
+		let lastTempValue: number | null = null;
+
+		$effect(() => {
+			const entriesLength = this.#state.entries.length;
+			const tempValue = weather.effectiveTempF;
+
+			// Only derive if something actually changed
+			if (entriesLength !== lastEntriesLength || tempValue !== lastTempValue) {
+				lastEntriesLength = entriesLength;
+				lastTempValue = tempValue;
+
+				if (entriesLength > 0 || tempValue != null) {
+					// Call deriveFromWeather without tracking its state changes
+					queueMicrotask(() => {
+						this.deriveFromWeather();
+					});
+				}
+			}
+		});
 	}
 
 	// ---- Day header ----
@@ -171,6 +207,63 @@ class Today {
 		this.#save();
 	}
 
+	// ---- Daily targets ----
+	get targetTons() {
+		return this.#state.target_tons;
+	}
+	set targetTons(v: number | null) {
+		this.#state.target_tons = v;
+		this.#save();
+	}
+	get targetLoads() {
+		return this.#state.target_loads;
+	}
+	set targetLoads(v: number | null) {
+		this.#state.target_loads = v;
+		this.#save();
+	}
+	get plantName() {
+		return this.#state.plant_name;
+	}
+	set plantName(v: string | null) {
+		this.#state.plant_name = v;
+		this.#save();
+	}
+	get mixType() {
+		return this.#state.mix_type;
+	}
+	set mixType(v: string | null) {
+		this.#state.mix_type = v;
+		this.#save();
+	}
+
+	get targetProgress() {
+		const { total_tons, total_loads } = this.rollup;
+		const tons_pct = this.#state.target_tons && this.#state.target_tons > 0
+			? (total_tons / this.#state.target_tons) * 100
+			: null;
+		const loads_pct = this.#state.target_loads && this.#state.target_loads > 0
+			? (total_loads / this.#state.target_loads) * 100
+			: null;
+
+		let status: 'on_track' | 'behind' | 'done' | null = null;
+		if (tons_pct != null) {
+			if (tons_pct >= 100) {
+				status = 'done';
+			} else {
+				// No time tracking yet, so we can't compute behind/on_track properly
+				status = 'on_track';
+			}
+		}
+
+		return {
+			tons_pct,
+			loads_pct,
+			status,
+			time_elapsed_pct: null
+		};
+	}
+
 	// ---- Cloud-sync metadata ----
 	get jobSiteId() {
 		return this.#state.job_site_id;
@@ -185,6 +278,70 @@ class Today {
 	set remoteLogId(v: string | null) {
 		this.#state.remote_log_id = v;
 		this.#save();
+	}
+
+	// ---- Derived fields tracking ----
+	get derivedFields() {
+		return this.#state.derived_fields;
+	}
+	set derivedFields(v: string[]) {
+		this.#state.derived_fields = v;
+		this.#save();
+	}
+
+	/**
+	 * Auto-derive fields from weather and entry data.
+	 * Runs deriveFields() on each entry, merges derived values where field is null,
+	 * and tracks which fields were auto-derived.
+	 */
+	deriveFromWeather(): void {
+		let anyChanges = false;
+		const changedFields = new Set<string>();
+
+		// Process each entry
+		const updatedEntries = this.#state.entries.map((entry) => {
+			const { entryPatch, statePatch } = deriveFields(
+				entry,
+				this.#state,
+				{ road_width: null }, // No job config available in this context
+				weather.effectiveTempF
+			);
+
+			// Apply entry patches where field is null
+			let entryChanged = false;
+			const updatedEntry = { ...entry };
+			for (const [key, value] of Object.entries(entryPatch)) {
+				const fieldKey = key as keyof TodayEntry;
+				if (entry[fieldKey] == null && value != null) {
+					(updatedEntry as any)[fieldKey] = value;
+					changedFields.add(`entry.${key}`);
+					entryChanged = true;
+				}
+			}
+
+			// Apply state patches where field is null
+			for (const [key, value] of Object.entries(statePatch)) {
+				const fieldKey = key as keyof TodayState;
+				if (this.#state[fieldKey] == null && value != null) {
+					(this.#state as any)[fieldKey] = value;
+					changedFields.add(`state.${key}`);
+					anyChanges = true;
+				}
+			}
+
+			if (entryChanged) {
+				anyChanges = true;
+			}
+
+			return entryChanged ? updatedEntry : entry;
+		});
+
+		// Update entries if any changed
+		if (anyChanges) {
+			this.#state.entries = updatedEntries;
+			this.#state.derived_fields = Array.from(changedFields);
+			this.#save();
+		}
 	}
 
 	// ---- Entries ----
@@ -213,6 +370,7 @@ class Today {
 		tack_gallons?: number | null;
 		lane?: string | null;
 		notes?: string | null;
+		waste_tons?: number | null;
 		source_calc?: string | null;
 	}): TodayEntry {
 		let distance = input.distance_ft ?? null;
@@ -234,6 +392,7 @@ class Today {
 			tack_gallons: input.tack_gallons ?? null,
 			lane: input.lane ?? null,
 			notes: input.notes ?? null,
+			waste_tons: input.waste_tons ?? null,
 			source_calc: input.source_calc ?? null,
 			created_at: Math.floor(Date.now() / 1000),
 			remote_id: null
@@ -328,8 +487,11 @@ class Today {
 
 		let actualRate: number | null = null;
 		if (total_distance_ft > 0 && widthFt > 0) {
-			const sy = (total_distance_ft * widthFt) / 9;
-			if (sy > 0) actualRate = (total_tons * 2000) / sy;
+			actualRate = actualSpreadRate({
+				tons: total_tons,
+				distanceFt: total_distance_ft,
+				widthFt
+			});
 		}
 
 		let diffPct: number | null = null;

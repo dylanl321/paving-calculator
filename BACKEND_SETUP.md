@@ -87,23 +87,47 @@ Copy the database ID from output and update `wrangler.jsonc`:
 
 ### 2. Run Migrations
 
-**Local:**
+PaveRate has three D1 environments, all named `paverate-db`:
+
+- **local** — SQLite under `.wrangler/` used automatically by `vite dev`
+- **dev** — remote D1 behind `dev.paverate.com` (real data)
+- **prod** — production D1
+
+**Local (one command):**
 ```bash
-npx wrangler d1 execute paverate-db --local --file=./migrations/0001_initial_schema.sql
+npm run db:local        # apply all migrations to the local D1
+npm run db:local:reset  # wipe local D1 and re-apply from scratch
 ```
+
+This applies every `migrations/0*.sql` file in sorted order via
+`wrangler d1 execute --local`. It deliberately avoids
+`wrangler d1 migrations apply` because two migration numbers are duplicated
+(`0024_*`, `0025_*`) and the nested `migrations/migrations/` folder is leftover
+cruft.
 
 **Production:**
 ```bash
 npx wrangler d1 execute paverate-db --remote --file=./migrations/0001_initial_schema.sql
 ```
 
+### 2b. (Optional) Load real dev data into local
+
+```bash
+npm run db:pull-dev
+```
+
+Exports the remote dev D1 to `.wrangler/dev-snapshot.sql` and loads it into the
+local D1 so you can test against real captured data. Requires `wrangler login`.
+
 ### 3. Test Locally
 
 ```bash
+npm run db:local   # one-time: bootstrap the local D1
 npm run dev
 ```
 
-Register a user:
+Then use the dev-only login button on `/login` (seeds a known dev user + org),
+or register a user via the API:
 ```bash
 curl -X POST http://localhost:5173/api/auth/register \
   -H "Content-Type: application/json" \

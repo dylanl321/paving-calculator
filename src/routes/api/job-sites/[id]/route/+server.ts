@@ -2,6 +2,10 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { DbHelper } from '$lib/server/db';
 
+interface RouteRequestBody {
+	waypoints?: Array<{ lat: number; lng: number }>;
+}
+
 export const GET: RequestHandler = async ({ params, platform, locals }) => {
 	if (!locals.user) {
 		throw error(401, 'Unauthorized');
@@ -47,7 +51,7 @@ export const PUT: RequestHandler = async ({ params, platform, locals, request })
 		throw error(403, 'Access denied');
 	}
 
-	const body = await request.json();
+	const body = (await request.json()) as RouteRequestBody;
 	const { waypoints } = body;
 
 	if (!Array.isArray(waypoints)) {

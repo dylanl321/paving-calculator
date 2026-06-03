@@ -1,0 +1,718 @@
+<script lang="ts">
+	import { browser } from '$app/environment';
+	import L from 'leaflet';
+	import { MapContainer, MapPolyline, MapMarker } from '$lib/components/map';
+	import { constant } from '$lib/config';
+	import { metersToFeet, haversineFeet } from '$lib/services/mapUtils';
+
+	interface Waypoint {
+		lat: number;
+		lng: number;
+	}
+
+	interface RoadSection {
+		id: string;
+		name: string;
+		lane: string;
+		station_start: number | null;
+		station_end: number | null;
+		status: 'active' | 'completed' | 'skipped';
+		geometry_geojson: string | null;
+		notes: string | null;
+		sort_order: number;
+	}
+
+	interface Props {
+		siteId: string;
+		waypoints?: Waypoint[];
+		numLanes?: number | null;
+		totalLengthFt?: number | null;
+		height?: string;
+	}
+
+	let {
+		siteId,
+		waypoints = [],
+		numLanes = null,
+		totalLengthFt = null,
+		height = '50vh'
+	}: Props = $props();
+
+	let sections = $state<RoadSection[]>([]);
+	let map: L.Map | null = $state(null);
+	let drawMode: 'idle' | 'pick-start' | 'pick-end' = $state('idle');
+	let tempStart: [number, number] | null = $state(null);
+	let nextSectionNumber = $state(1);
+	let editingSectionId: string | null = $state(null);
+
+	const FT_PER_STATION = constant('CONST.FT_PER_STATION');
+
+	const STATUS_COLORS = {
+		active: '#f59e0b',
+		completed: '#22c55e',
+		skipped: '#6b7280'
+	};
+
+	$effect(() => {
+		if (browser && siteId) {
+			loadSections();
+		}
+	});
+
+	async function loadSections() {
+		try {
+			const res = await fetch(`/api/job-sites/${siteId}/sections`);
+			if (res.ok) {
+				const data = (await res.json()) as { sections: RoadSection[] };
+				sections = data.sections || [];
+				nextSectionNumber = sections.length + 1;
+			}
+		} catch (err) {
+			console.error('Failed to load sections:', err);
+		}
+	}
+
+	function startAddSection() {
+		drawMode = 'pick-start';
+		tempStart = null;
+		editingSectionId = null;
+	}
+
+	function handleMapClick(e: L.LeafletMouseEvent) {
+		if (drawMode === 'pick-start') {
+			tempStart = [e.latlng.lat, e.latlng.lng];
+			drawMode = 'pick-end';
+		} else if (drawMode === 'pick-end' && tempStart) {
+			const end: [number, number] = [e.latlng.lat, e.latlng.lng];
+			createSection(tempStart, end);
+			tempStart = null;
+			drawMode = 'idle';
+		}
+	}
+
+	async function createSection(start: [number, number], end: [number, number]) {
+		const startStation = waypoints.length > 0 ? calculateStation(start) : null;
+		const endStation = waypoints.length > 0 ? calculateStation(end) : null;
+
+		const geometry = {
+			type: 'LineString' as const,
+			coordinates: [
+				[start[1], start[0]],
+				[end[1], end[0]]
+			]
+		};
+
+		const newSection = {
+			name: `Section ${nextSectionNumber}`,
+			lane: '1',
+			station_start: startStation,
+			station_end: endStation,
+			status: 'active' as const,
+			geometry_geojson: JSON.stringify(geometry),
+			notes: null,
+			sort_order: sections.length
+		};
+
+		try {
+			const res = await fetch(`/api/job-sites/${siteId}/sections`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(newSection)
+			});
+
+			if (res.ok) {
+				const created = (await res.json()) as RoadSection;
+				sections = [...sections, created];
+				nextSectionNumber++;
+			}
+		} catch (err) {
+			console.error('Failed to create section:', err);
+		}
+	}
+
+	function calculateStation(point: [number, number]): number | null {
+		if (waypoints.length < 2) return null;
+
+		const routePoints = waypoints.map((w) => L.latLng(w.lat, w.lng));
+		const clickPoint = L.latLng(point[0], point[1]);
+
+		let minDist = Infinity;
+		let nearestSegmentIdx = 0;
+		let nearestPointOnSegment: L.LatLng | null = null;
+
+		for (let i = 0; i < routePoints.length - 1; i++) {
+			const a = routePoints[i];
+			const b = routePoints[i + 1];
+			const closest = closestPointOnSegment(clickPoint, a, b);
+			const dist = clickPoint.distanceTo(closest);
+
+			if (dist < minDist) {
+				minDist = dist;
+				nearestSegmentIdx = i;
+				nearestPointOnSegment = closest;
+			}
+		}
+
+		if (!nearestPointOnSegment) return null;
+
+		let distanceFt = 0;
+		for (let i = 0; i < nearestSegmentIdx; i++) {
+			distanceFt += metersToFeet(routePoints[i].distanceTo(routePoints[i + 1]));
+		}
+
+		distanceFt += metersToFeet(routePoints[nearestSegmentIdx].distanceTo(nearestPointOnSegment));
+
+		return distanceFt / FT_PER_STATION;
+	}
+
+	function closestPointOnSegment(p: L.LatLng, a: L.LatLng, b: L.LatLng): L.LatLng {
+		const dx = b.lng - a.lng;
+		const dy = b.lat - a.lat;
+		const len2 = dx * dx + dy * dy;
+
+		if (len2 === 0) return a;
+
+		const t = Math.max(0, Math.min(1, ((p.lng - a.lng) * dx + (p.lat - a.lat) * dy) / len2));
+
+		return L.latLng(a.lat + t * dy, a.lng + t * dx);
+	}
+
+	function formatStation(station: number | null): string {
+		if (station === null) return '—';
+		const whole = Math.floor(station);
+		const frac = Math.round((station - whole) * 100);
+		return `${whole}+${String(frac).padStart(2, '0')}`;
+	}
+
+	async function updateSection(id: string, updates: Partial<RoadSection>) {
+		try {
+			const res = await fetch(`/api/job-sites/${siteId}/sections/${id}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(updates)
+			});
+
+			if (res.ok) {
+				const updated = (await res.json()) as RoadSection;
+				sections = sections.map((s) => (s.id === id ? updated : s));
+			}
+		} catch (err) {
+			console.error('Failed to update section:', err);
+		}
+	}
+
+	async function deleteSection(id: string) {
+		if (!confirm('Delete this section?')) return;
+
+		try {
+			const res = await fetch(`/api/job-sites/${siteId}/sections/${id}`, {
+				method: 'DELETE'
+			});
+
+			if (res.ok) {
+				sections = sections.filter((s) => s.id !== id);
+			}
+		} catch (err) {
+			console.error('Failed to delete section:', err);
+		}
+	}
+
+	function getSectionGeometry(section: RoadSection): [number, number][] | null {
+		if (!section.geometry_geojson) return null;
+		try {
+			const geom = JSON.parse(section.geometry_geojson);
+			if (geom.type === 'LineString' && Array.isArray(geom.coordinates)) {
+				return geom.coordinates.map((c: number[]) => [c[1], c[0]]);
+			}
+		} catch {
+			return null;
+		}
+		return null;
+	}
+
+	/** Length of a section's polyline geometry in feet. */
+	function sectionLengthFt(section: RoadSection): number {
+		const pts = getSectionGeometry(section);
+		if (!pts || pts.length < 2) return 0;
+		let ft = 0;
+		for (let i = 0; i < pts.length - 1; i++) {
+			ft += haversineFeet(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]);
+		}
+		return ft;
+	}
+
+	const completedLengthFt = $derived(
+		sections.filter((s) => s.status === 'completed').reduce((sum, s) => sum + sectionLengthFt(s), 0)
+	);
+
+	const remainingLengthFt = $derived(
+		totalLengthFt != null ? Math.max(0, totalLengthFt - completedLengthFt) : null
+	);
+
+	function formatFt(ft: number): string {
+		return `${Math.round(ft).toLocaleString()} ft`;
+	}
+
+	function handleMapReady(m: L.Map) {
+		map = m;
+		m.on('click', handleMapClick);
+	}
+
+	const mapCenter = $derived<[number, number]>(
+		waypoints.length > 0 ? [waypoints[0].lat, waypoints[0].lng] : [33.7490, -84.3880]
+	);
+
+	const routePoints = $derived<[number, number][]>(
+		waypoints.map((w) => [w.lat, w.lng])
+	);
+
+	const instructionText = $derived(() => {
+		if (drawMode === 'pick-start') return 'Tap map to set section START';
+		if (drawMode === 'pick-end') return 'Tap map to set section END';
+		return '';
+	});
+</script>
+
+<div class="road-section-editor" style="--editor-height: {height}">
+	<div class="map-panel">
+		<MapContainer
+			center={mapCenter}
+			zoom={15}
+			height="100%"
+			onready={handleMapReady}
+			style="cursor: {drawMode !== 'idle' ? 'crosshair' : 'grab'}"
+		>
+			{#if waypoints.length > 1}
+				<MapPolyline
+					points={routePoints}
+					color="#6b7280"
+					weight={3}
+					opacity={0.6}
+					dashArray="5, 10"
+				/>
+			{/if}
+
+			{#each sections as section (section.id)}
+				{@const geometry = getSectionGeometry(section)}
+				{#if geometry}
+					<MapPolyline
+						points={geometry}
+						color={STATUS_COLORS[section.status]}
+						weight={5}
+						opacity={0.9}
+					/>
+
+					<MapMarker
+						lat={geometry[0][0]}
+						lng={geometry[0][1]}
+						iconHtml={`<div style="width: 12px; height: 12px; background: ${STATUS_COLORS[section.status]}; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`}
+						iconSize={[12, 12]}
+						iconAnchor={[6, 6]}
+					/>
+
+					<MapMarker
+						lat={geometry[1][0]}
+						lng={geometry[1][1]}
+						iconHtml={`<div style="width: 12px; height: 12px; background: ${STATUS_COLORS[section.status]}; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`}
+						iconSize={[12, 12]}
+						iconAnchor={[6, 6]}
+					/>
+				{/if}
+			{/each}
+
+			{#if tempStart}
+				<MapMarker
+					lat={tempStart[0]}
+					lng={tempStart[1]}
+					iconHtml={`<div style="width: 12px; height: 12px; background: #f59e0b; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3); animation: pulse 1s infinite;"></div>`}
+					iconSize={[12, 12]}
+					iconAnchor={[6, 6]}
+				/>
+			{/if}
+		</MapContainer>
+
+		{#if instructionText()}
+			<div class="instruction-banner">{instructionText()}</div>
+		{/if}
+	</div>
+
+	<div class="section-panel">
+		<div class="panel-header">
+			{#if totalLengthFt != null && totalLengthFt > 0}
+				<div class="length-summary">
+					<div class="length-item">
+						<span class="length-label">Total</span>
+						<span class="length-value">{formatFt(totalLengthFt)}</span>
+					</div>
+					<div class="length-item">
+						<span class="length-label">Completed</span>
+						<span class="length-value done">{formatFt(completedLengthFt)}</span>
+					</div>
+					<div class="length-item">
+						<span class="length-label">Remaining</span>
+						<span class="length-value remaining"
+							>{remainingLengthFt != null ? formatFt(remainingLengthFt) : '—'}</span
+						>
+					</div>
+				</div>
+			{/if}
+			<button class="btn-add" onclick={startAddSection} disabled={drawMode !== 'idle'}>
+				<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M10 5v10M5 10h10" />
+				</svg>
+				Add Section
+			</button>
+		</div>
+
+		<div class="section-list">
+			{#if sections.length === 0}
+				<div class="empty-state">
+					<p>No sections yet</p>
+					<p class="hint">Tap the map to mark a section start point</p>
+				</div>
+			{:else}
+				{#each sections as section (section.id)}
+					<div class="section-card">
+						<div class="card-header">
+							<div class="status-dot" style="background: {STATUS_COLORS[section.status]}"></div>
+							<input
+								type="text"
+								class="section-name"
+								value={section.name}
+								onchange={(e) => updateSection(section.id, { name: e.currentTarget.value })}
+							/>
+							<span class="lane-badge">Lane {section.lane}</span>
+						</div>
+
+						<div class="card-body">
+							<div class="station-row">
+								<span class="label">Start:</span>
+								<span class="station">{formatStation(section.station_start)}</span>
+								<span class="label">End:</span>
+								<span class="station">{formatStation(section.station_end)}</span>
+							</div>
+
+							<div class="status-buttons">
+								<button
+									class="status-btn"
+									class:active={section.status === 'active'}
+									onclick={() => updateSection(section.id, { status: 'active' })}
+								>
+									Active
+								</button>
+								<button
+									class="status-btn"
+									class:active={section.status === 'completed'}
+									onclick={() => updateSection(section.id, { status: 'completed' })}
+								>
+									Done
+								</button>
+								<button
+									class="status-btn"
+									class:active={section.status === 'skipped'}
+									onclick={() => updateSection(section.id, { status: 'skipped' })}
+								>
+									Skip
+								</button>
+							</div>
+						</div>
+
+						<button class="btn-delete" onclick={() => deleteSection(section.id)}>
+							<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+								<path d="M4 6h8M6 6V4h4v2M5 6v8h6V6" />
+							</svg>
+						</button>
+					</div>
+				{/each}
+			{/if}
+		</div>
+	</div>
+</div>
+
+<style>
+	.road-section-editor {
+		display: flex;
+		flex-direction: column;
+		height: var(--editor-height);
+		background: var(--surface, #1e1e1e);
+		border-radius: 8px;
+		overflow: hidden;
+	}
+
+	.map-panel {
+		flex: 1;
+		position: relative;
+		min-height: 0;
+	}
+
+	.instruction-banner {
+		position: absolute;
+		top: 12px;
+		left: 50%;
+		transform: translateX(-50%);
+		background: var(--accent, #f59e0b);
+		color: var(--bg, #000);
+		padding: 12px 24px;
+		border-radius: 24px;
+		font-weight: 600;
+		font-size: 14px;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+		z-index: 1000;
+		pointer-events: none;
+	}
+
+	.section-panel {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		border-top: 1px solid var(--border, #333);
+		min-height: 0;
+	}
+
+	.panel-header {
+		padding: 12px;
+		border-bottom: 1px solid var(--border, #333);
+	}
+
+	.length-summary {
+		display: flex;
+		gap: 8px;
+		margin-bottom: 12px;
+	}
+
+	.length-item {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 8px 10px;
+		background: var(--surface-alt, #2a2a2a);
+		border: 1px solid var(--border, #333);
+		border-radius: 8px;
+	}
+
+	.length-label {
+		font-size: 11px;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--text-muted, #999);
+	}
+
+	.length-value {
+		font-size: 15px;
+		font-weight: 700;
+		color: var(--text, #fff);
+		font-family: 'SF Mono', 'Consolas', monospace;
+	}
+
+	.length-value.done {
+		color: #22c55e;
+	}
+
+	.length-value.remaining {
+		color: var(--accent, #f59e0b);
+	}
+
+	.btn-add {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		min-height: 48px;
+		padding: 12px 16px;
+		background: var(--accent, #f59e0b);
+		color: var(--bg, #000);
+		border: none;
+		border-radius: 8px;
+		font-weight: 600;
+		font-size: 16px;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.btn-add:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.btn-add:hover:not(:disabled) {
+		transform: translateY(-1px);
+		box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+	}
+
+	.section-list {
+		flex: 1;
+		overflow-y: auto;
+		padding: 12px;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.empty-state {
+		text-align: center;
+		padding: 48px 24px;
+		color: var(--text-muted, #999);
+	}
+
+	.empty-state p {
+		margin: 0 0 8px 0;
+	}
+
+	.empty-state .hint {
+		font-size: 14px;
+		opacity: 0.7;
+	}
+
+	.section-card {
+		position: relative;
+		background: var(--surface-alt, #2a2a2a);
+		border: 1px solid var(--border, #333);
+		border-radius: 8px;
+		padding: 12px;
+		padding-right: 48px;
+	}
+
+	.card-header {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 12px;
+	}
+
+	.status-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.section-name {
+		flex: 1;
+		background: transparent;
+		border: none;
+		color: var(--text, #fff);
+		font-size: 16px;
+		font-weight: 600;
+		padding: 4px 8px;
+		border-radius: 4px;
+		min-height: 32px;
+	}
+
+	.section-name:focus {
+		outline: none;
+		background: var(--surface, #1e1e1e);
+	}
+
+	.lane-badge {
+		background: var(--surface, #1e1e1e);
+		color: var(--text-muted, #999);
+		padding: 4px 12px;
+		border-radius: 12px;
+		font-size: 13px;
+		font-weight: 500;
+		white-space: nowrap;
+	}
+
+	.card-body {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.station-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 14px;
+	}
+
+	.station-row .label {
+		color: var(--text-muted, #999);
+		font-weight: 500;
+	}
+
+	.station-row .station {
+		color: var(--text, #fff);
+		font-weight: 600;
+		font-family: 'SF Mono', 'Consolas', monospace;
+	}
+
+	.status-buttons {
+		display: flex;
+		gap: 6px;
+	}
+
+	.status-btn {
+		flex: 1;
+		min-height: 48px;
+		padding: 12px;
+		background: var(--surface, #1e1e1e);
+		color: var(--text-muted, #999);
+		border: 1px solid var(--border, #333);
+		border-radius: 6px;
+		font-weight: 600;
+		font-size: 14px;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.status-btn.active {
+		background: var(--accent, #f59e0b);
+		color: var(--bg, #000);
+		border-color: var(--accent, #f59e0b);
+	}
+
+	.status-btn:hover:not(.active) {
+		background: var(--surface-hover, #333);
+	}
+
+	.btn-delete {
+		position: absolute;
+		top: 12px;
+		right: 12px;
+		width: 48px;
+		height: 48px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: transparent;
+		color: var(--bad, #ef4444);
+		border: none;
+		border-radius: 6px;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.btn-delete:hover {
+		background: rgba(239, 68, 68, 0.1);
+	}
+
+	@keyframes pulse {
+		0%,
+		100% {
+			transform: scale(1);
+			opacity: 1;
+		}
+		50% {
+			transform: scale(1.2);
+			opacity: 0.7;
+		}
+	}
+
+	@media (min-width: 768px) {
+		.road-section-editor {
+			flex-direction: row;
+		}
+
+		.map-panel {
+			flex: 2;
+		}
+
+		.section-panel {
+			flex: 1;
+			border-top: none;
+			border-left: 1px solid var(--border, #333);
+		}
+	}
+</style>
