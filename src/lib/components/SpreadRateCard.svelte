@@ -7,9 +7,15 @@
 	import SpreadRateGauge from './SpreadRateGauge.svelte';
 	import DotTable from './DotTable.svelte';
 	import SpecAlert from './SpecAlert.svelte';
+	import HelpTip from './HelpTip.svelte';
+	import Tooltip from './ui/Tooltip.svelte';
+	import CalculationStep from './ui/CalculationStep.svelte';
+	import CalcProofButton from './CalcProofButton.svelte';
+	import type { CalcProofData } from '$lib/utils/pdf-export';
 	import { constantMeta, placementCheck, rainCheck, spreadSpecCheck, spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { spreadRateFromThickness, spreadRatePlaced } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
@@ -28,6 +34,7 @@
 	let distanceInput = $state<number | null>(null);
 	let customTargetRateInput = $state<number | null>(null);
 	let overrideExpanded = $state(false);
+	let guidanceExpanded = $state(false);
 
 	// Guard: if override section is collapsed, clear custom rate immediately
 	$effect(() => {
@@ -62,17 +69,17 @@
 	const targetRate = $derived(
 		customTargetRate != null && customTargetRate > 0
 			? customTargetRate
-			: job.thicknessIn > 0
-				? spreadRateFromThickness(job.thicknessIn)
+			: calcContext.lift_thickness.value > 0
+				? spreadRateFromThickness(calcContext.lift_thickness.value)
 				: null
 	);
 
 	const placedRate = $derived(
-		tons && distanceFt && job.widthFt
+		tons && distanceFt && calcContext.road_width.value
 			? spreadRatePlaced({
 					tons,
 					lengthFt: distanceFt,
-					widthFt: job.widthFt,
+					widthFt: calcContext.road_width.value,
 					machineId: job.machineId,
 					firstPass: job.firstPass
 				})
@@ -86,15 +93,15 @@
 		placedRate != null && unitsStore.system === 'metric' ? toKgPerM2(placedRate) : placedRate
 	);
 
-	const tolerance = $derived(spreadToleranceFor(job.courseType));
-	const spec = $derived(spreadSpecCheck(placedRate, targetRate, job.courseType));
+	const tolerance = $derived(spreadToleranceFor(calcContext.course_type.value));
+	const spec = $derived(spreadSpecCheck(placedRate, targetRate, calcContext.course_type.value));
 
 	const badge = $derived(
 		spec ? { kind: spec.status, text: spec.label } : null
 	);
 
 	const multMeta = constantMeta('CONST.THICK_MULT');
-	const placement = $derived(placementCheck(weather.effectiveTempF, job.thicknessIn));
+	const placement = $derived(placementCheck(weather.effectiveTempF, calcContext.lift_thickness.value));
 	const rain = $derived(rainCheck(weather.rainNext24hIn));
 
 	const targetBadge = $derived.by(() => {
@@ -135,12 +142,73 @@
 	onDestroy(() => logDraft.clearFor('spread-rate'));
 
 	function snapToTarget() {
-		if (targetRate != null && distanceFt && job.widthFt) {
-			const areaYards = (distanceFt * job.widthFt) / 9;
+		if (targetRate != null && distanceFt && calcContext.road_width.value) {
+			const areaYards = (distanceFt * calcContext.road_width.value) / 9;
 			const adjustedTons = Math.round(((targetRate * areaYards) / 2000) * 100) / 100;
 			tonsInput =
 				unitsStore.system === 'metric' ? toMetricTonnes(adjustedTons) : adjustedTons;
 		}
+	}
+
+	function getProofData(): CalcProofData | null {
+		if (!tons || !distanceFt || !calcContext.road_width.value || targetRate == null || placedRate == null) {
+			return null;
+		}
+
+		const areaYards = (distanceFt * calcContext.road_width.value) / 9;
+		const pounds = tons * 2000;
+		const variance = placedRate - targetRate;
+
+		return {
+			title: 'Spread Rate',
+			inputs: {
+				'Tons placed': `${tons.toFixed(2)} tons`,
+				'Distance covered': `${distanceFt.toFixed(0)} ft`,
+				'Mat width': `${calcContext.road_width.value.toFixed(0)} ft`
+			},
+			steps: [
+				{
+					step: 1,
+					label: 'Area in square yards',
+					formula: `${distanceFt.toFixed(0)} × ${calcContext.road_width.value.toFixed(0)} ÷ 9`,
+					result: `${areaYards.toFixed(2)} SY`
+				},
+				{
+					step: 2,
+					label: 'Pounds placed',
+					formula: `${tons.toFixed(2)} × 2000`,
+					result: `${pounds.toFixed(0)} lbs`
+				},
+				{
+					step: 3,
+					label: 'Placed rate',
+					formula: `${pounds.toFixed(0)} ÷ ${areaYards.toFixed(2)}`,
+					result: `${Math.round(placedRate)} lbs/SY`
+				},
+				{
+					step: 4,
+					label: 'Target rate',
+					formula: `${calcContext.lift_thickness.value.toFixed(2)} × 110`,
+					result: `${Math.round(targetRate)} lbs/SY`
+				},
+				{
+					step: 5,
+					label: 'Variance',
+					formula: `${Math.round(placedRate)} − ${Math.round(targetRate)}`,
+					result: `${variance > 0 ? '+' : ''}${variance.toFixed(1)} lbs/SY`
+				}
+			],
+			result: {
+				value: Math.round(placedRate).toString(),
+				unit: 'lbs/SY'
+			},
+			notes: `Target uses thickness × 110 rule. In-spec tolerance: ±${tolerance.toleranceLbsSy} lbs/SY for ${tolerance.label}.`,
+			jobContext: {
+				width: calcContext.road_width.value,
+				thickness: calcContext.lift_thickness.value,
+				rate: Math.round(targetRate)
+			}
+		};
 	}
 </script>
 
@@ -151,7 +219,10 @@
 >
 	<div class="two-up">
 		<div class="col">
-			<div class="col-head">Target (from job thickness)</div>
+			<div class="col-head label-row">
+				Target (from job thickness)
+				<Tooltip term="lbs/SY" definition="Pounds per Square Yard. Standard unit for spread rate (how much asphalt per area). Controls thickness and density of the asphalt mat." />
+			</div>
 
 			<button
 				type="button"
@@ -222,7 +293,10 @@
 		</div>
 
 		<div class="col">
-			<div class="col-head">Actual (from a real load)</div>
+			<div class="col-head label-row">
+				Actual (from a real load)
+				<HelpTip text="How many pounds of asphalt you actually laid per square yard, calculated from tons placed over the area." />
+			</div>
 			<NumberField
 				label="Tons placed"
 				unit={UNIT_LABELS.tons[unitsStore.system]}
@@ -245,31 +319,105 @@
 	{#if placedRate != null && targetRate != null}
 		<SpreadRateGauge actual={placedRate} target={targetRate} toleranceLbsSy={tolerance.toleranceLbsSy} />
 		{#if spec}
-			<SpecAlert status={spec.status} message={spec.message} clause={spec.clause} clauseTitle={spec.clauseTitle} />
-			{#if (spec.status === 'warn' || spec.status === 'bad') && distanceFt && job.widthFt}
-				<button type="button" class="snap-btn" onclick={snapToTarget}>
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+			<SpecAlert status={spec.status} message={spec.message} clause={spec.clause} clauseTitle={spec.clauseTitle} guidance={spec.guidance} />
+			{#if spec.status === 'warn' || spec.status === 'bad'}
+				<button
+					type="button"
+					class="guidance-toggle"
+					onclick={() => { guidanceExpanded = !guidanceExpanded; }}
+					aria-expanded={guidanceExpanded}
+				>
+					<svg
+						class="chevron"
+						class:expanded={guidanceExpanded}
+						width="16"
+						height="16"
+						viewBox="0 0 16 16"
+						fill="none"
+						xmlns="http://www.w3.org/2000/svg"
+					>
+						<path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 					</svg>
-					Snap to spec
+					What should I do?
 				</button>
+				{#if guidanceExpanded}
+					<div class="guidance-section">
+						<ul class="guidance-list">
+							<li>Notify foreman immediately</li>
+							<li>Check screed settings and verify proper float</li>
+							<li>Verify mix ticket matches job specs</li>
+							<li>Adjust paver speed if laying too thick or thin</li>
+						</ul>
+					</div>
+				{/if}
+				{#if distanceFt && calcContext.road_width.value}
+					<button type="button" class="snap-btn" onclick={snapToTarget}>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+						</svg>
+						Snap to spec
+					</button>
+				{/if}
 			{/if}
 		{/if}
 	{/if}
 
-	<ShowWork>
-		<p>Target uses the field rule-of-thumb:</p>
-		<code>rate = thickness(in) × {multMeta.value}  →  {job.thicknessIn} × {multMeta.value} = {targetRate != null ? Math.round(targetRate) : '—'} lbs/SY</code>
-		<p>Actual converts a real load over the area paved:</p>
-		<code>rate = (tons − retained) × 2000 ÷ (length × width ÷ 9)</code>
-		<p>
-			In-spec is judged against GDOT Section 400 Table 12 — for a
-			<b>{tolerance.label}</b> the placed rate must stay within
-			<b>±{tolerance.toleranceLbsSy} lbs/SY</b> of the target.
-		</p>
-		<div class="src-row">Thickness × 110 multiplier: <SourceBadge status={multMeta.status} tier={multMeta.tier} /></div>
-		<div class="src-row">Table 12 tolerance (±{tolerance.toleranceLbsSy} lbs/SY): <SourceBadge status={tolerance.status} tier={tolerance.tier} /></div>
-		<DotTable tableId="table-12" highlightRow={job.courseType} />
+	<ShowWork stepCount={5}>
+		{#if tons && distanceFt && calcContext.road_width.value && targetRate != null && placedRate != null}
+			{@const areaYards = (distanceFt * calcContext.road_width.value) / 9}
+			{@const pounds = tons * 2000}
+			{@const variance = placedRate - targetRate}
+
+			<CalculationStep
+				step={1}
+				label="Area in square yards"
+				formula="{distanceFt.toFixed(0)} × {calcContext.road_width.value.toFixed(0)} ÷ 9"
+				result="{areaYards.toFixed(2)} SY"
+			/>
+			<CalculationStep
+				step={2}
+				label="Pounds placed"
+				formula="{tons.toFixed(2)} × 2000"
+				result="{pounds.toFixed(0)} lbs"
+			/>
+			<CalculationStep
+				step={3}
+				label="Placed rate"
+				formula="{pounds.toFixed(0)} ÷ {areaYards.toFixed(2)}"
+				result="{Math.round(placedRate)} lbs/SY"
+			/>
+			<CalculationStep
+				step={4}
+				label="Target rate"
+				formula="{calcContext.lift_thickness.value.toFixed(2)} × 110"
+				result="{Math.round(targetRate)} lbs/SY"
+			/>
+			<CalculationStep
+				step={5}
+				label="Variance"
+				formula="{Math.round(placedRate)} − {Math.round(targetRate)}"
+				result="{variance > 0 ? '+' : ''}{variance.toFixed(1)} lbs/SY"
+			/>
+
+			<CalcProofButton title="Spread Rate" getData={getProofData} />
+		{:else}
+			<p>Target uses the field rule-of-thumb:</p>
+			<code>rate = thickness(in) × {multMeta.value}</code>
+			<p>Actual converts a real load over the area paved:</p>
+			<code>rate = (tons × 2000) ÷ (length × width ÷ 9)</code>
+			<p>Enter values above to see step-by-step calculation.</p>
+		{/if}
+
+		<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+			<p>
+				In-spec is judged against GDOT Section 400 Table 12 — for a
+				<b>{tolerance.label}</b> the placed rate must stay within
+				<b>±{tolerance.toleranceLbsSy} lbs/SY</b> of the target.
+			</p>
+			<div class="src-row">Thickness × 110 multiplier: <SourceBadge status={multMeta.status} tier={multMeta.tier} /></div>
+			<div class="src-row">Table 12 tolerance (±{tolerance.toleranceLbsSy} lbs/SY): <SourceBadge status={tolerance.status} tier={tolerance.tier} /></div>
+			<DotTable tableId="table-12" highlightRow={calcContext.course_type.value} />
+		</div>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>
@@ -288,6 +436,11 @@
 		letter-spacing: 0.4px;
 		color: var(--text-muted);
 		margin-bottom: var(--sp-2);
+	}
+	.label-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
 	}
 	.col-note {
 		font-size: var(--fs-xs);
@@ -411,6 +564,59 @@
 	.snap-btn svg {
 		width: 16px;
 		height: 16px;
+	}
+	.guidance-toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		min-height: var(--touch);
+		width: 100%;
+		padding: var(--sp-3);
+		margin-top: var(--sp-2);
+		background: transparent;
+		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+		border-radius: var(--radius-sm);
+		color: var(--warn);
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+	.guidance-toggle:hover {
+		background: color-mix(in srgb, var(--warn) 12%, transparent);
+		border-color: var(--warn);
+	}
+	.guidance-toggle:active {
+		transform: scale(0.98);
+	}
+	.guidance-section {
+		margin-top: var(--sp-2);
+		padding: var(--sp-3);
+		background: color-mix(in srgb, var(--warn) 12%, transparent);
+		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+		border-radius: var(--radius-sm);
+	}
+	.guidance-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-2);
+	}
+	.guidance-list li {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--sp-2);
+		font-size: var(--fs-sm);
+		line-height: 1.4;
+		color: var(--text);
+	}
+	.guidance-list li:before {
+		content: '•';
+		color: var(--warn);
+		font-weight: var(--fw-bold);
+		flex-shrink: 0;
 	}
 	@media (max-width: 460px) {
 		.two-up {

@@ -128,6 +128,48 @@ constants:
     tier: 1
     status: UNVERIFIED
     note: Project-specific; 95-100% typical
+  COMPACTION_MARGINAL_MIN:
+    value: 92
+    unit: '% max dry density'
+    tier: 5
+    status: FIELD_ESTIMATE
+    note: Below target but workable; field threshold for "marginal"
+  BAGS_PER_CF_80LB:
+    value: 0.45
+    unit: bags / cu ft
+    tier: 5
+    status: FIELD_ESTIMATE
+    note: 80lb concrete bags per cubic foot (rule-of-thumb)
+  CONCRETE_TRUCK_YD3:
+    value: 9
+    unit: cu yd / truck
+    tier: 5
+    status: FIELD_ESTIMATE
+    note: Standard ready-mix truck capacity
+  STONE_TRUCK_TONS:
+    value: 18
+    unit: tons / truck
+    tier: 5
+    status: FIELD_ESTIMATE
+    note: Standard dump-truck aggregate capacity
+  FT_PER_M:
+    value: 3.28084
+    unit: ft / m
+    tier: ~
+    status: NA
+    note: Universal length conversion
+  EARTH_RADIUS_M:
+    value: 6371000
+    unit: m
+    tier: ~
+    status: NA
+    note: Mean Earth radius (haversine)
+  FT_PER_STATION:
+    value: 100
+    unit: ft / station
+    tier: ~
+    status: NA
+    note: Survey station = 100 ft
 
 # ---------------------------------------------------------------------------
 # Remembered defaults (Job Setup). Pre-filled every job; user-editable.
@@ -418,24 +460,32 @@ spreadTolerance:
     note: Asphaltic concrete base course (also any combination of base + surface)
     tier: 1
     status: VERIFIED
+    specRef: 'SS-400.3.03'
+    validationId: 'SR-003'
   - id: TOLERANCE.INTERMEDIATE_WEARING
     label: Intermediate / wearing course
     toleranceLbsSy: 27.5
     note: Intermediate and/or wearing course
     tier: 1
     status: VERIFIED
+    specRef: 'SS-400.3.03'
+    validationId: 'SR-004'
   - id: TOLERANCE.OGFC
     label: OGFC (9.5 / 12.5 mm)
     toleranceLbsSy: 7
     note: Control spread rate per lot within 7 lbs/yd2 of the designated rate
     tier: 1
     status: VERIFIED
+    specRef: 'SS-400.3.03'
+    validationId: 'SR-005'
   - id: TOLERANCE.PEM
     label: 12.5 mm PEM
     toleranceLbsSy: 10
     note: Control spread rate per lot within 10 lbs/yd2 of the designated rate
     tier: 1
     status: VERIFIED
+    specRef: 'SS-400.3.03'
+    validationId: 'SR-006'
 
 # ---------------------------------------------------------------------------
 # Soil / aggregate reference densities (DENSITY.*) -- field rules-of-thumb
@@ -591,18 +641,24 @@ reference_tables:
       max_gal_yd2: 0.08
       min_metric: 0.23 L/m²
       max_metric: 0.36 L/m²
+      specRef: 'SS-400.2.02'
+      validationId: 'TC-001'
     - id: TACK.AGED_LE25RAP
       label: New AC (≤25% RAP) to Aged/Milled
       min_gal_yd2: 0.06
       max_gal_yd2: 0.10
       min_metric: 0.27 L/m²
       max_metric: 0.45 L/m²
+      specRef: 'SS-400.2.02'
+      validationId: 'TC-002'
     - id: TACK.AGED_GT25RAP
       label: New AC (>25% RAP) to Aged/Milled
       min_gal_yd2: 0.08
       max_gal_yd2: 0.12
       min_metric: 0.36 L/m²
       max_metric: 0.54 L/m²
+      specRef: 'SS-400.2.02'
+      validationId: 'TC-003'
   table_4:
     - id: TEMP.LE_1IN
       label: 1 in. (25 mm) or less

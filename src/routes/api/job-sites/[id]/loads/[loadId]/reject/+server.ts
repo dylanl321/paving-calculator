@@ -13,6 +13,11 @@ const VALID_REASONS = [
 	'other'
 ] as const;
 
+interface RejectRequestBody {
+	reason?: (typeof VALID_REASONS)[number];
+	notes?: string | null;
+}
+
 export const POST: RequestHandler = async ({ params, locals, platform, request }) => {
 	if (!locals.user) {
 		throw error(401, 'Unauthorized');
@@ -39,7 +44,7 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		throw error(403, 'Access denied');
 	}
 
-	const body = await request.json();
+	const body = (await request.json()) as RejectRequestBody;
 
 	if (!body.reason || !VALID_REASONS.includes(body.reason)) {
 		throw error(400, 'Invalid rejection reason');

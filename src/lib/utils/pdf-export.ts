@@ -1,15 +1,37 @@
 // PDF proof sheet generator for PaveRate calculations.
 // Captures job setup parameters and provides templates for calculator sections.
+import type { jsPDF as JsPDFInstance } from 'jspdf';
 import type { JobState } from '$lib/stores/job.svelte';
+import { formatFeet } from '$lib/utils/format';
+import { spreadSpecCheck } from '$lib/config';
 
 async function getJsPDF() {
-	try {
-		const module = await import('jspdf');
-		return module.jsPDF;
-	} catch {
-		const stub = await import('./jspdf-stub');
-		return stub.jsPDF;
-	}
+	const module = await import('jspdf');
+	return module.jsPDF;
+}
+
+// Single-calculator proof data
+export interface CalcProofData {
+	title: string;
+	inputs: Record<string, string | number>;
+	steps: Array<{
+		step: number;
+		label: string;
+		formula: string;
+		result: string;
+	}>;
+	result: {
+		value: string;
+		unit: string;
+	};
+	notes?: string;
+	jobContext?: {
+		width?: number;
+		thickness?: number;
+		rate?: number;
+		wastePct?: number;
+		tackApplication?: string;
+	};
 }
 
 export async function generateProofPDF(jobState: JobState): Promise<void> {
@@ -202,7 +224,7 @@ export async function generateProofPDF(jobState: JobState): Promise<void> {
 }
 
 function addSection(
-	doc: jsPDF,
+	doc: JsPDFInstance,
 	title: string,
 	yPos: number,
 	pageWidth: number,
@@ -255,9 +277,19 @@ export interface DailyReportEntry {
 	notes: string | null;
 }
 
+export interface LoadRecord {
+	id: string;
+	ticket_number: string | null;
+	tons: number;
+	timestamp: number;
+	spread_rate: number | null;
+	notes: string | null;
+}
+
 export interface DailyReportData {
 	date: string; // YYYY-MM-DD
 	siteName: string;
+	orgName?: string;
 	weatherTempF: number | null;
 	weatherConditions: string | null;
 	windSpeedMph: number | null;
@@ -266,6 +298,7 @@ export interface DailyReportData {
 	endTime: string | null;
 	notes: string | null;
 	entries: DailyReportEntry[];
+	loads?: LoadRecord[];
 	totals: {
 		totalTons: number;
 		totalDistanceFt: number;
@@ -278,20 +311,16 @@ export interface DailyReportData {
 		targetRate: number | null;
 		diffPct: number | null;
 	};
-	loads?: Array<{
-		id: string;
-		ticket_number: string | null;
-		tons: number;
-		timestamp: number;
-		spread_rate: number | null;
-		notes: string | null;
-	}>;
-}
-
-function fmtFeet(ft: number | null): string {
-	if (ft == null) return '—';
-	if (ft >= 5280) return `${(ft / 5280).toFixed(2)} mi`;
-	return `${Math.round(ft).toLocaleString()} ft`;
+	compliance?: {
+		targetSpreadRate: number | null;
+		courseType: string | null;
+		totalPavingEntries: number;
+		goodCount: number;
+		warnCount: number;
+		badCount: number;
+		pctInSpec: number;
+		toleranceLbsSy: number;
+	} | null;
 }
 
 async function loadImageAsDataUrl(url: string): Promise<string | null> {
@@ -329,36 +358,68 @@ export async function generateDailyReportPDF(
 		day: 'numeric'
 	});
 
-	// Header with branding
-	const logoData = await loadImageAsDataUrl('/static/logo-wordmark.png');
-	if (logoData) {
-		try {
-			doc.addImage(logoData, 'PNG', margin, yPos, 120, 36);
-			yPos += 46;
-		} catch {
-			doc.setFontSize(20);
-			doc.setFont('helvetica', 'bold');
-			doc.setTextColor(0);
-			doc.text('PaveRate — Daily Production Report', margin, yPos);
-			yPos += 26;
+	// Load logo
+	let logoDataUrl: string | null = null;
+	try {
+		const logoResponse = await fetch('/logo-wordmark.png');
+		if (logoResponse.ok) {
+			const logoBuffer = await logoResponse.arrayBuffer();
+			const logoBase64 = btoa(
+				new Uint8Array(logoBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+			);
+			logoDataUrl = `data:image/png;base64,${logoBase64}`;
 		}
-	} else {
-		doc.setFontSize(20);
-		doc.setFont('helvetica', 'bold');
-		doc.setTextColor(0);
-		doc.text('PaveRate — Daily Production Report', margin, yPos);
-		yPos += 26;
+	} catch {
+		// Logo loading failed, continue without it
 	}
+
+	// Dark header banner
+	const bannerHeight = 55;
+	doc.setFillColor(26, 26, 26);
+	doc.rect(margin - 5, yPos - 12, pageWidth - margin * 2 + 10, bannerHeight, 'F');
+
+	// Add logo if loaded (top right of banner)
+	if (logoDataUrl) {
+		try {
+			const logoWidth = 80;
+			const logoHeight = 24;
+			doc.addImage(
+				logoDataUrl,
+				'PNG',
+				pageWidth - margin - logoWidth,
+				yPos - 6,
+				logoWidth,
+				logoHeight
+			);
+		} catch {
+			// Image add failed, continue without logo
+		}
+	}
+
+	// Title in banner
+	doc.setFontSize(18);
+	doc.setFont('helvetica', 'bold');
+	doc.setTextColor(255, 255, 255);
+	doc.text('Daily Production Report', margin, yPos + 8);
 
 	doc.setFontSize(11);
 	doc.setFont('helvetica', 'normal');
-	doc.setTextColor(60);
-	doc.text(dateLabel, margin, yPos);
-	if (day.siteName) {
-		doc.text(day.siteName, pageWidth - margin, yPos, { align: 'right' });
-	}
-	yPos += 22;
+	doc.text(dateLabel, margin, yPos + 26);
 
+	yPos += bannerHeight + 8;
+
+	// Site name and org name below banner
+	doc.setTextColor(60);
+	doc.setFontSize(10);
+	if (day.siteName) {
+		doc.text(day.siteName, margin, yPos);
+	}
+	if (day.orgName) {
+		doc.text(day.orgName, pageWidth - margin, yPos, { align: 'right' });
+	}
+	yPos += 20;
+
+	// Yellow accent line
 	doc.setDrawColor(242, 192, 55);
 	doc.setLineWidth(2);
 	doc.line(margin, yPos, pageWidth - margin, yPos);
@@ -392,7 +453,7 @@ export async function generateDailyReportPDF(
 	const t = day.totals;
 	const totalsLine = [
 		`Tons placed: ${t.totalTons.toLocaleString(undefined, { maximumFractionDigits: 1 })}`,
-		`Paved: ${fmtFeet(t.totalDistanceFt)}`,
+		`Paved: ${formatFeet(t.totalDistanceFt)}`,
 		`Loads: ${t.totalLoads}`,
 		`Tack: ${Math.round(t.totalTackGallons)} gal`
 	];
@@ -418,6 +479,86 @@ export async function generateDailyReportPDF(
 		yPos += 18;
 	}
 	yPos += 6;
+
+	// DOT Compliance Summary
+	if (day.compliance && day.compliance.totalPavingEntries > 0) {
+		doc.setFontSize(13);
+		doc.setFont('helvetica', 'bold');
+		doc.setTextColor(0);
+		doc.text('DOT Compliance Summary', margin, yPos);
+		yPos += 6;
+		doc.setDrawColor(200);
+		doc.setLineWidth(1);
+		doc.line(margin, yPos, pageWidth - margin, yPos);
+		yPos += 18;
+
+		doc.setFontSize(10);
+		doc.setFont('helvetica', 'normal');
+
+		// Compliance bar
+		const barHeight = 8;
+		const barWidth = pageWidth - margin * 2;
+		const barY = yPos;
+
+		// Background
+		doc.setFillColor(240, 240, 240);
+		doc.rect(margin, barY, barWidth, barHeight, 'F');
+
+		// Segments
+		const total = day.compliance.totalPavingEntries;
+		let xOffset = margin;
+
+		if (day.compliance.goodCount > 0) {
+			const width = (day.compliance.goodCount / total) * barWidth;
+			doc.setFillColor(63, 178, 127); // #3fb27f
+			doc.rect(xOffset, barY, width, barHeight, 'F');
+			xOffset += width;
+		}
+
+		if (day.compliance.warnCount > 0) {
+			const width = (day.compliance.warnCount / total) * barWidth;
+			doc.setFillColor(224, 146, 47); // #e0922f
+			doc.rect(xOffset, barY, width, barHeight, 'F');
+			xOffset += width;
+		}
+
+		if (day.compliance.badCount > 0) {
+			const width = (day.compliance.badCount / total) * barWidth;
+			doc.setFillColor(216, 88, 79); // #d8584f
+			doc.rect(xOffset, barY, width, barHeight, 'F');
+		}
+
+		yPos += barHeight + 12;
+
+		// Summary text
+		doc.setFont('helvetica', 'bold');
+		doc.text(
+			`${day.compliance.goodCount} of ${total} loads in spec (${day.compliance.pctInSpec.toFixed(0)}%)`,
+			margin,
+			yPos
+		);
+		yPos += 14;
+
+		// Tolerance info
+		doc.setFont('helvetica', 'normal');
+		doc.setTextColor(100);
+		const courseLabel = day.compliance.courseType || 'Unknown';
+		doc.text(
+			`GDOT Table 12 tolerance: ±${day.compliance.toleranceLbsSy} lbs/SY (${courseLabel})`,
+			margin,
+			yPos
+		);
+		yPos += 14;
+
+		// Breakdown
+		doc.text(
+			`In spec: ${day.compliance.goodCount} | Marginal: ${day.compliance.warnCount} | Out: ${day.compliance.badCount}`,
+			margin,
+			yPos
+		);
+		yPos += 20;
+		doc.setTextColor(0);
+	}
 
 	// Entry table
 	doc.setFontSize(13);
@@ -478,8 +619,36 @@ export async function generateDailyReportPDF(
 		doc.text(e.entry_type, cols[1].x, yPos);
 		doc.text(station, cols[2].x, yPos);
 		doc.text(e.tons_placed != null ? String(e.tons_placed) : '—', cols[3].x, yPos);
-		doc.text(e.distance_ft != null ? fmtFeet(e.distance_ft) : '—', cols[4].x, yPos);
-		doc.text(e.spread_rate_actual != null ? String(Math.round(e.spread_rate_actual)) : '—', cols[5].x, yPos);
+		doc.text(e.distance_ft != null ? formatFeet(e.distance_ft) : '—', cols[4].x, yPos);
+
+		// Spread rate with compliance indicator
+		const rateStr = e.spread_rate_actual != null ? String(Math.round(e.spread_rate_actual)) : '—';
+		doc.text(rateStr, cols[5].x, yPos);
+
+		// Add colored compliance square for paving entries with spread rate
+		if (e.entry_type === 'paving' && e.spread_rate_actual != null && day.compliance?.targetSpreadRate) {
+			const check = spreadSpecCheck(
+				e.spread_rate_actual,
+				day.compliance.targetSpreadRate,
+				day.compliance.courseType,
+				null
+			);
+			if (check) {
+				const squareSize = 4;
+				const squareX = cols[5].x + doc.getTextWidth(rateStr) + 2;
+				const squareY = yPos - 3;
+
+				if (check.status === 'good') {
+					doc.setFillColor(63, 178, 127); // #3fb27f
+				} else if (check.status === 'warn') {
+					doc.setFillColor(224, 146, 47); // #e0922f
+				} else {
+					doc.setFillColor(216, 88, 79); // #d8584f
+				}
+				doc.rect(squareX, squareY, squareSize, squareSize, 'F');
+			}
+		}
+
 		const detailLines = doc.splitTextToSize(detail || '—', pageWidth - margin - cols[6].x);
 		doc.text(detailLines, cols[6].x, yPos);
 		yPos += Math.max(14, detailLines.length * 10);
@@ -488,14 +657,14 @@ export async function generateDailyReportPDF(
 	// Per-Load Tickets section
 	if (day.loads && day.loads.length > 0) {
 		yPos += 10;
-		if (yPos > pageHeight - 80) {
+		if (yPos > pageHeight - 120) {
 			doc.addPage();
 			yPos = margin;
 		}
 		doc.setFontSize(13);
 		doc.setFont('helvetica', 'bold');
 		doc.setTextColor(0);
-		doc.text('Per-Load Tickets', margin, yPos);
+		doc.text('Load Tickets', margin, yPos);
 		yPos += 6;
 		doc.setDrawColor(242, 192, 55);
 		doc.setLineWidth(2);
@@ -590,5 +759,163 @@ export async function generateDailyReportPDF(
 	}
 
 	const filename = `paverate-daily-${day.date}.pdf`;
+	doc.save(filename);
+}
+
+// ---- Single Calculation Proof PDF ----
+
+export async function generateCalcProofPDF(data: CalcProofData): Promise<void> {
+	const jsPDF = await getJsPDF();
+	const doc = new jsPDF({
+		orientation: 'portrait',
+		unit: 'pt',
+		format: 'letter'
+	});
+
+	const pageWidth = doc.internal.pageSize.getWidth();
+	const margin = 40;
+	let yPos = margin;
+
+	const timestamp = new Date().toLocaleString('en-US', {
+		dateStyle: 'medium',
+		timeStyle: 'short'
+	});
+
+	// Header
+	doc.setFontSize(18);
+	doc.setFont('helvetica', 'bold');
+	doc.setTextColor(0);
+	doc.text('PaveRate — Calculation Proof', margin, yPos);
+	yPos += 25;
+
+	// Timestamp
+	doc.setFontSize(9);
+	doc.setFont('helvetica', 'normal');
+	doc.setTextColor(100);
+	doc.text(`Generated: ${timestamp}`, margin, yPos);
+	yPos += 25;
+
+	// Calculation title
+	doc.setFontSize(14);
+	doc.setFont('helvetica', 'bold');
+	doc.setTextColor(0);
+	doc.text(`Calculation: ${data.title}`, margin, yPos);
+	yPos += 5;
+
+	// Yellow underline
+	doc.setDrawColor(242, 192, 55);
+	doc.setLineWidth(2);
+	doc.line(margin, yPos, margin + 180, yPos);
+	yPos += 20;
+
+	// Job context (if provided)
+	if (data.jobContext) {
+		doc.setFontSize(11);
+		doc.setFont('helvetica', 'bold');
+		doc.text('Job Context', margin, yPos);
+		yPos += 15;
+
+		doc.setFontSize(9);
+		doc.setFont('helvetica', 'normal');
+		if (data.jobContext.width != null) {
+			doc.text(`Mat Width: ${data.jobContext.width} ft`, margin + 10, yPos);
+			yPos += 12;
+		}
+		if (data.jobContext.thickness != null) {
+			doc.text(`Target Thickness: ${data.jobContext.thickness}"`, margin + 10, yPos);
+			yPos += 12;
+		}
+		if (data.jobContext.rate != null) {
+			doc.text(`Target Spread Rate: ${data.jobContext.rate} lbs/SY`, margin + 10, yPos);
+			yPos += 12;
+		}
+		if (data.jobContext.wastePct != null) {
+			doc.text(`Waste Allowance: ${data.jobContext.wastePct}%`, margin + 10, yPos);
+			yPos += 12;
+		}
+		if (data.jobContext.tackApplication) {
+			doc.text(`Tack Application: ${data.jobContext.tackApplication}`, margin + 10, yPos);
+			yPos += 12;
+		}
+		yPos += 10;
+	}
+
+	// Input values
+	doc.setFontSize(11);
+	doc.setFont('helvetica', 'bold');
+	doc.text('Input Values', margin, yPos);
+	yPos += 15;
+
+	doc.setFontSize(9);
+	doc.setFont('helvetica', 'normal');
+	Object.entries(data.inputs).forEach(([key, value]) => {
+		doc.text(`${key}: ${value}`, margin + 10, yPos);
+		yPos += 12;
+	});
+	yPos += 10;
+
+	// Calculation steps
+	doc.setFontSize(11);
+	doc.setFont('helvetica', 'bold');
+	doc.text('Calculation Steps', margin, yPos);
+	yPos += 5;
+
+	// Underline
+	doc.setDrawColor(200);
+	doc.setLineWidth(1);
+	doc.line(margin, yPos, pageWidth - margin, yPos);
+	yPos += 15;
+
+	data.steps.forEach((step) => {
+		doc.setFontSize(9);
+		doc.setFont('helvetica', 'bold');
+		doc.setTextColor(0);
+		doc.text(`${step.step}. ${step.label}`, margin, yPos);
+		yPos += 14;
+
+		doc.setFont('helvetica', 'normal');
+		doc.setTextColor(60);
+		doc.text(`${step.formula} = ${step.result}`, margin + 20, yPos);
+		yPos += 16;
+	});
+
+	yPos += 5;
+
+	// Final result (highlighted)
+	doc.setFillColor(242, 192, 55, 30);
+	doc.roundedRect(margin - 5, yPos - 10, pageWidth - margin * 2 + 10, 35, 4, 4, 'F');
+
+	doc.setFontSize(12);
+	doc.setFont('helvetica', 'bold');
+	doc.setTextColor(0);
+	doc.text('Final Result:', margin, yPos);
+	yPos += 18;
+
+	doc.setFontSize(14);
+	doc.setTextColor(242, 192, 55);
+	doc.text(`${data.result.value} ${data.result.unit}`, margin, yPos);
+	yPos += 25;
+
+	// Notes (if provided)
+	if (data.notes) {
+		doc.setFontSize(9);
+		doc.setFont('helvetica', 'italic');
+		doc.setTextColor(100);
+		const noteLines = doc.splitTextToSize(data.notes, pageWidth - margin * 2);
+		doc.text(noteLines, margin, yPos);
+	}
+
+	// Footer
+	const footerY = doc.internal.pageSize.getHeight() - 30;
+	doc.setFontSize(8);
+	doc.setFont('helvetica', 'italic');
+	doc.setTextColor(150);
+	doc.text('Generated by PaveRate (paverate.com)', margin, footerY);
+	doc.text('Values based on GDOT specifications', pageWidth - margin, footerY, { align: 'right' });
+
+	// Save with filename based on calc name and date
+	const calcSlug = data.title.toLowerCase().replace(/\s+/g, '-');
+	const dateStr = new Date().toISOString().split('T')[0];
+	const filename = `paverate-proof-${calcSlug}-${dateStr}.pdf`;
 	doc.save(filename);
 }

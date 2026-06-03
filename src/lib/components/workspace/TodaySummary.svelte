@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { today } from '$lib/stores/today.svelte';
 	import { job } from '$lib/stores/job.svelte';
+	import { formatFeet } from '$lib/utils/format';
 
 	interface Props {
 		/** compact = side-pane variant (stacked), full = stage variant (grid) */
@@ -10,11 +11,6 @@
 
 	const r = $derived(today.rollup);
 	const y = $derived(today.yieldVsTarget(job.widthFt, job.thicknessIn));
-
-	function fmtFeet(ft: number): string {
-		if (ft >= 5280) return `${(ft / 5280).toFixed(2)} mi`;
-		return `${Math.round(ft).toLocaleString()} ft`;
-	}
 </script>
 
 <div class="summary" class:compact={variant === 'compact'}>
@@ -24,7 +20,7 @@
 			<span class="tl">tons placed</span>
 		</div>
 		<div class="tile">
-			<span class="tv">{fmtFeet(r.total_distance_ft)}</span>
+			<span class="tv">{formatFeet(r.total_distance_ft)}</span>
 			<span class="tl">paved today</span>
 		</div>
 		<div class="tile">
