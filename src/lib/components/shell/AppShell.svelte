@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import NavSidebar from './NavSidebar.svelte';
 	import CommandPalette from './CommandPalette.svelte';
+	import WeatherBar from '$lib/components/WeatherBar.svelte';
 	import { APP_VERSION } from '$lib/version';
 	import { offlineStore } from '$lib/stores/offline.svelte';
 	import { navCollapsedStore } from '$lib/stores/navCollapsed.svelte';
@@ -43,6 +44,8 @@
 	class:nav-collapsed={navCollapsedStore.collapsed}
 >
 	<NavSidebar {onOpenPalette} />
+
+	<WeatherBar />
 
 	<main class="shell-main">
 		{@render children()}
