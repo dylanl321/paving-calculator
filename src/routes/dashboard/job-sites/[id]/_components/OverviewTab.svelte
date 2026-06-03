@@ -685,6 +685,29 @@
 			{/if}
 		</div>
 
+		{#if configForm.route_designation}
+			<div class="route-designation-section">
+				<h4>Route Designation</h4>
+				<div class="route-badge">{configForm.route_designation}</div>
+				{#if configForm.route_county || configForm.route_district}
+					<div class="route-info-rows">
+						{#if configForm.route_county}
+							<div class="info-row">
+								<span class="info-label">County:</span>
+								<span>{configForm.route_county}</span>
+							</div>
+						{/if}
+						{#if configForm.route_district}
+							<div class="info-row">
+								<span class="info-label">District:</span>
+								<span>{configForm.route_district}</span>
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
+		{/if}
+
 		{#if data.routeWaypoints.length >= 2}
 			<div class="progress-map-section">
 				<div class="progress-map-head">
@@ -1336,6 +1359,51 @@
 	.plant-info-value {
 		font-size: 0.85rem;
 		color: var(--text);
+	}
+
+	/* Route designation section */
+	.route-designation-section {
+		margin-top: 20px;
+		padding: 16px;
+		background: var(--surface-alt);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+	}
+
+	.route-designation-section h4 {
+		margin: 0 0 12px;
+		font-size: 0.9rem;
+		color: var(--text);
+		font-weight: 600;
+	}
+
+	.route-badge {
+		display: inline-block;
+		padding: 8px 16px;
+		background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+		color: var(--accent);
+		border-radius: 999px;
+		font-size: 0.9rem;
+		font-weight: 700;
+		margin-bottom: 12px;
+	}
+
+	.route-info-rows {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.route-info-rows .info-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 0.85rem;
+	}
+
+	.route-info-rows .info-label {
+		font-weight: 600;
+		color: var(--text-muted);
 	}
 
 	/* Progress map panel */

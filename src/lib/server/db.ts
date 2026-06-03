@@ -137,6 +137,11 @@ export interface DbJobSiteConfig {
 	tack_type: 'anionic' | 'cationic' | 'polymer_modified' | 'trackless' | null;
 	target_tack_rate: number | null;
 	notes: string | null;
+	route_designation: string | null;
+	route_county: string | null;
+	route_district: string | null;
+	route_functional_class: string | null;
+	route_system_code: string | null;
 	created_at: number;
 	updated_at: number;
 }
@@ -1086,8 +1091,9 @@ export class DbHelper {
 					`INSERT INTO job_site_config (
 						job_site_id, road_type, num_lanes, lane_width_ft, total_length_ft,
 						scope_of_work, mix_type, target_thickness_in, target_spread_rate,
-						tack_type, target_tack_rate, notes, created_at, updated_at
-					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+						tack_type, target_tack_rate, notes, route_designation, route_county,
+						route_district, route_functional_class, route_system_code, created_at, updated_at
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 				)
 				.bind(
 					jobSiteId,
@@ -1102,6 +1108,11 @@ export class DbHelper {
 					config.tack_type || null,
 					config.target_tack_rate || null,
 					config.notes || null,
+					config.route_designation || null,
+					config.route_county || null,
+					config.route_district || null,
+					config.route_functional_class || null,
+					config.route_system_code || null,
 					now,
 					now
 				)
@@ -1153,6 +1164,26 @@ export class DbHelper {
 			if (config.notes !== undefined) {
 				fields.push('notes = ?');
 				values.push(config.notes);
+			}
+			if (config.route_designation !== undefined) {
+				fields.push('route_designation = ?');
+				values.push(config.route_designation);
+			}
+			if (config.route_county !== undefined) {
+				fields.push('route_county = ?');
+				values.push(config.route_county);
+			}
+			if (config.route_district !== undefined) {
+				fields.push('route_district = ?');
+				values.push(config.route_district);
+			}
+			if (config.route_functional_class !== undefined) {
+				fields.push('route_functional_class = ?');
+				values.push(config.route_functional_class);
+			}
+			if (config.route_system_code !== undefined) {
+				fields.push('route_system_code = ?');
+				values.push(config.route_system_code);
 			}
 
 			if (fields.length > 0) {

@@ -2,6 +2,7 @@
 	import { roadTypeLabels, scopeOfWorkLabels, tackTypeLabels, fmt, type ConfigForm } from './shared';
 	import AutoSaveStatus from '$lib/components/AutoSaveStatus.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import GdotPanel from '$lib/components/GdotPanel.svelte';
 
 	let {
 		jobSiteId,
@@ -126,6 +127,31 @@
 				<div class="hint-text">Auto-calculated: {fmt(estTonnage, 1)} tons</div>
 			{/if}
 		</div>
+
+		<h3 class="form-section-title">Route Designation</h3>
+
+		<div class="form-group">
+			<label for="route_designation">Route Designation</label>
+			<input
+				type="text"
+				id="route_designation"
+				bind:value={configForm.route_designation}
+				placeholder="e.g. SR 400, I-85, CR 176"
+			/>
+		</div>
+
+		<GdotPanel
+			{jobSiteId}
+			lat={null}
+			lng={null}
+			routeDesignation={configForm.route_designation}
+			onRouteSelect={(routeId, roadName, county, district) => {
+				configForm.route_designation = routeId;
+				configForm.route_county = county;
+				configForm.route_district = district;
+				saveConfig();
+			}}
+		/>
 
 		<h3 class="form-section-title">Contract Costs</h3>
 
