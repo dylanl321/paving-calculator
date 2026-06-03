@@ -8,10 +8,11 @@ export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 	const today = new Date().toISOString().split('T')[0];
 	const viewDateId = url.searchParams.get('date');
 
-	const [logsRes, summaryRes, configRes] = await Promise.all([
+	const [logsRes, summaryRes, configRes, roleRes] = await Promise.all([
 		fetch(`/api/job-sites/${params.id}/logs`),
 		fetch(`/api/job-sites/${params.id}/logs/summary`),
-		fetch(`/api/job-sites/${params.id}/config`)
+		fetch(`/api/job-sites/${params.id}/config`),
+		fetch(`/api/org/role`)
 	]);
 
 	if (!logsRes.ok) {
@@ -24,6 +25,9 @@ export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 	const { logs }: { logs: DbDailyLog[] } = await logsRes.json();
 	const { summary }: { summary: LogSummary } = await summaryRes.json();
 	const siteConfig = configRes.ok ? await configRes.json() : null;
+	const { role: userRole, isGlobalAdmin } = roleRes.ok
+		? await roleRes.json()
+		: { role: null, isGlobalAdmin: false };
 
 	const todayLog = logs.find((l) => l.log_date === today);
 
@@ -60,6 +64,8 @@ export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 		activeLog,
 		isHistoricalView,
 		prevLogId,
-		nextLogId
+		nextLogId,
+		userRole,
+		isGlobalAdmin
 	};
 };

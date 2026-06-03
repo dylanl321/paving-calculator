@@ -29,8 +29,9 @@ export const GET: RequestHandler = async ({ params, locals, platform }) => {
 
 	const entries = await logDb.getLogEntries(params.logId);
 	const summary = await logDb.getLogSummary(params.logId);
+	const densityReadings = await logDb.getDensityReadings(params.logId);
 
-	return json({ log, entries, summary });
+	return json({ log, entries, summary, densityReadings });
 };
 
 export const PATCH: RequestHandler = async ({ params, locals, platform, request }) => {
@@ -54,6 +55,15 @@ export const PATCH: RequestHandler = async ({ params, locals, platform, request 
 	const org = await db.getOrgByUserId(locals.user.id);
 	if (!org || org.id !== jobSite.org_id) {
 		throw error(403, 'Access denied');
+	}
+
+	// Check if log is locked
+	if (log.closed_at) {
+		const userRole = await db.getUserRole(locals.user.id, org.id);
+		const isAdmin = userRole === 'owner' || userRole === 'admin' || locals.user.isGlobalAdmin;
+		if (!isAdmin) {
+			throw error(423, 'Log is locked after close-out. Contact an admin to unlock.');
+		}
 	}
 
 	const body = await request.json();
