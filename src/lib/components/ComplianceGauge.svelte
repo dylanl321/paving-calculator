@@ -3,6 +3,11 @@
 	import type { OrgOverrides } from '$lib/config/overrides';
 	import HelpTip from './HelpTip.svelte';
 
+	// ComplianceGauge receives courseType as a prop from parent components.
+	// It does not use calcContext directly - the parent is responsible for
+	// passing the appropriate courseType value (whether from job site config,
+	// calcContext, or other sources).
+
 	interface Props {
 		entries: Array<{
 			spread_rate_actual: number | null;

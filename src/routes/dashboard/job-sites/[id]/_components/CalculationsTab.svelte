@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { formatDate } from './shared';
 	import type { Calculation } from '../$types';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
+	import SourceBadge from '$lib/components/SourceBadge.svelte';
 
 	let {
 		calculations,
@@ -64,6 +66,46 @@
 		automatically on the Overview tab. Use these calculators for one-off and what-if checks.
 	</p>
 
+	<div class="context-banner">
+		<div class="context-header">
+			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<circle cx="12" cy="12" r="10"></circle>
+				<line x1="12" y1="16" x2="12" y2="12"></line>
+				<line x1="12" y1="8" x2="12.01" y2="8"></line>
+			</svg>
+			<span>Calculator Context</span>
+		</div>
+		<div class="context-values">
+			<div class="context-item">
+				<span class="context-label">Road Width:</span>
+				<span class="context-value">{calcContext.road_width.value} ft</span>
+				<SourceBadge
+					source={calcContext.road_width.source}
+					updatedAt={calcContext.road_width.updatedAt}
+					label="Road Width"
+				/>
+			</div>
+			<div class="context-item">
+				<span class="context-label">Lift Thickness:</span>
+				<span class="context-value">{calcContext.lift_thickness.value} in</span>
+				<SourceBadge
+					source={calcContext.lift_thickness.source}
+					updatedAt={calcContext.lift_thickness.updatedAt}
+					label="Lift Thickness"
+				/>
+			</div>
+			<div class="context-item">
+				<span class="context-label">Course Type:</span>
+				<span class="context-value">{calcContext.course_type.value}</span>
+				<SourceBadge
+					source={calcContext.course_type.source}
+					updatedAt={calcContext.course_type.updatedAt}
+					label="Course Type"
+				/>
+			</div>
+		</div>
+	</div>
+
 	{#if calculations.length === 0}
 		<div class="empty-state">
 			<svg
@@ -125,6 +167,65 @@
 </section>
 
 <style>
+	.context-banner {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 16px;
+		margin-bottom: 20px;
+	}
+
+	.context-header {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 12px;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.context-header svg {
+		color: var(--accent);
+	}
+
+	.context-values {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.context-item {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 0.9rem;
+	}
+
+	.context-label {
+		color: var(--text-muted);
+		min-width: 120px;
+	}
+
+	.context-value {
+		font-weight: 600;
+		color: var(--text);
+		min-width: 80px;
+	}
+
+	@media (min-width: 640px) {
+		.context-values {
+			flex-direction: row;
+			justify-content: space-between;
+		}
+
+		.context-item {
+			flex: 1;
+		}
+	}
+
 	.calc-list {
 		display: flex;
 		flex-direction: column;

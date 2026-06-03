@@ -11,6 +11,7 @@
 	import { constantMeta, placementCheck, rainCheck, spreadSpecCheck, spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { spreadRateFromThickness, spreadRatePlaced } from '$lib/config/formulas';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
@@ -63,17 +64,17 @@
 	const targetRate = $derived(
 		customTargetRate != null && customTargetRate > 0
 			? customTargetRate
-			: job.thicknessIn > 0
-				? spreadRateFromThickness(job.thicknessIn)
+			: calcContext.lift_thickness.value > 0
+				? spreadRateFromThickness(calcContext.lift_thickness.value)
 				: null
 	);
 
 	const placedRate = $derived(
-		tons && distanceFt && job.widthFt
+		tons && distanceFt && calcContext.road_width.value
 			? spreadRatePlaced({
 					tons,
 					lengthFt: distanceFt,
-					widthFt: job.widthFt,
+					widthFt: calcContext.road_width.value,
 					machineId: job.machineId,
 					firstPass: job.firstPass
 				})
@@ -87,15 +88,15 @@
 		placedRate != null && unitsStore.system === 'metric' ? toKgPerM2(placedRate) : placedRate
 	);
 
-	const tolerance = $derived(spreadToleranceFor(job.courseType));
-	const spec = $derived(spreadSpecCheck(placedRate, targetRate, job.courseType));
+	const tolerance = $derived(spreadToleranceFor(calcContext.course_type.value));
+	const spec = $derived(spreadSpecCheck(placedRate, targetRate, calcContext.course_type.value));
 
 	const badge = $derived(
 		spec ? { kind: spec.status, text: spec.label } : null
 	);
 
 	const multMeta = constantMeta('CONST.THICK_MULT');
-	const placement = $derived(placementCheck(weather.effectiveTempF, job.thicknessIn));
+	const placement = $derived(placementCheck(weather.effectiveTempF, calcContext.lift_thickness.value));
 	const rain = $derived(rainCheck(weather.rainNext24hIn));
 
 	const targetBadge = $derived.by(() => {
@@ -136,8 +137,8 @@
 	onDestroy(() => logDraft.clearFor('spread-rate'));
 
 	function snapToTarget() {
-		if (targetRate != null && distanceFt && job.widthFt) {
-			const areaYards = (distanceFt * job.widthFt) / 9;
+		if (targetRate != null && distanceFt && calcContext.road_width.value) {
+			const areaYards = (distanceFt * calcContext.road_width.value) / 9;
 			const adjustedTons = Math.round(((targetRate * areaYards) / 2000) * 100) / 100;
 			tonsInput =
 				unitsStore.system === 'metric' ? toMetricTonnes(adjustedTons) : adjustedTons;
@@ -253,7 +254,7 @@
 		<SpreadRateGauge actual={placedRate} target={targetRate} toleranceLbsSy={tolerance.toleranceLbsSy} />
 		{#if spec}
 			<SpecAlert status={spec.status} message={spec.message} clause={spec.clause} clauseTitle={spec.clauseTitle} />
-			{#if (spec.status === 'warn' || spec.status === 'bad') && distanceFt && job.widthFt}
+			{#if (spec.status === 'warn' || spec.status === 'bad') && distanceFt && calcContext.road_width.value}
 				<button type="button" class="snap-btn" onclick={snapToTarget}>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
@@ -266,7 +267,7 @@
 
 	<ShowWork>
 		<p>Target uses the field rule-of-thumb:</p>
-		<code>rate = thickness(in) × {multMeta.value}  →  {job.thicknessIn} × {multMeta.value} = {targetRate != null ? Math.round(targetRate) : '—'} lbs/SY</code>
+		<code>rate = thickness(in) × {multMeta.value}  →  {calcContext.lift_thickness.value} × {multMeta.value} = {targetRate != null ? Math.round(targetRate) : '—'} lbs/SY</code>
 		<p>Actual converts a real load over the area paved:</p>
 		<code>rate = (tons − retained) × 2000 ÷ (length × width ÷ 9)</code>
 		<p>
@@ -276,7 +277,7 @@
 		</p>
 		<div class="src-row">Thickness × 110 multiplier: <SourceBadge status={multMeta.status} tier={multMeta.tier} /></div>
 		<div class="src-row">Table 12 tolerance (±{tolerance.toleranceLbsSy} lbs/SY): <SourceBadge status={tolerance.status} tier={tolerance.tier} /></div>
-		<DotTable tableId="table-12" highlightRow={job.courseType} />
+		<DotTable tableId="table-12" highlightRow={calcContext.course_type.value} />
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>

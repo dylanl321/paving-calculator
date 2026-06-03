@@ -34,6 +34,12 @@ interface ManualOverrides {
 	course_type?: { value: string; updatedAt: number };
 }
 
+interface JobSiteDefaults {
+	road_width?: number;
+	lift_thickness?: number;
+	course_type?: string;
+}
+
 function loadManuals(): ManualOverrides {
 	if (typeof localStorage === 'undefined') return {};
 	try {
@@ -47,6 +53,7 @@ function loadManuals(): ManualOverrides {
 
 class CalcContext {
 	#manuals = $state<ManualOverrides>({});
+	#jobSiteDefaults = $state<JobSiteDefaults>({});
 
 	constructor() {
 		if (typeof localStorage !== 'undefined') {
@@ -96,6 +103,14 @@ class CalcContext {
 				updatedAt: manual.updatedAt
 			};
 		}
+		const jobSiteDefault = this.#jobSiteDefaults.road_width;
+		if (jobSiteDefault != null) {
+			return {
+				value: jobSiteDefault,
+				source: 'job_site',
+				updatedAt: Date.now()
+			};
+		}
 		return {
 			value: job.widthFt,
 			source: 'job_site',
@@ -112,6 +127,14 @@ class CalcContext {
 				updatedAt: manual.updatedAt
 			};
 		}
+		const jobSiteDefault = this.#jobSiteDefaults.lift_thickness;
+		if (jobSiteDefault != null) {
+			return {
+				value: jobSiteDefault,
+				source: 'job_site',
+				updatedAt: Date.now()
+			};
+		}
 		return {
 			value: job.thicknessIn,
 			source: 'job_site',
@@ -126,6 +149,14 @@ class CalcContext {
 				value: manual.value,
 				source: 'manual',
 				updatedAt: manual.updatedAt
+			};
+		}
+		const jobSiteDefault = this.#jobSiteDefaults.course_type;
+		if (jobSiteDefault != null) {
+			return {
+				value: jobSiteDefault,
+				source: 'job_site',
+				updatedAt: Date.now()
 			};
 		}
 		return {
@@ -157,6 +188,34 @@ class CalcContext {
 
 	hasManual(field: CalcField): boolean {
 		return field in this.#manuals;
+	}
+
+	seedFromJobSite(config: {
+		lane_width_ft?: number | null;
+		target_thickness_in?: number | null;
+		// course_type is a TOLERANCE.* id (not mix_type which is a human-readable label).
+		// Only seed if the API returns it explicitly.
+		course_type?: string | null;
+	} | null) {
+		if (!config) {
+			this.clearJobSite();
+			return;
+		}
+		const defaults: JobSiteDefaults = {};
+		if (config.lane_width_ft != null && config.lane_width_ft > 0) {
+			defaults.road_width = config.lane_width_ft;
+		}
+		if (config.target_thickness_in != null && config.target_thickness_in > 0) {
+			defaults.lift_thickness = config.target_thickness_in;
+		}
+		if (config.course_type != null && config.course_type.trim() !== '') {
+			defaults.course_type = config.course_type;
+		}
+		this.#jobSiteDefaults = defaults;
+	}
+
+	clearJobSite() {
+		this.#jobSiteDefaults = {};
 	}
 
 	#save() {

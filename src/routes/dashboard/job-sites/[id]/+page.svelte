@@ -19,6 +19,7 @@
 	import ScheduleTab from './_components/ScheduleTab.svelte';
 	import { haversineFeet } from '$lib/services/mapUtils';
 	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -56,6 +57,10 @@
 			configForm.target_spread_rate =
 				configForm.target_thickness_in * orgSettingsStore.resolvedConstant('CONST.THICK_MULT');
 		}
+	});
+
+	$effect(() => {
+		calcContext.seedFromJobSite(data.config);
 	});
 
 	function handleNewCalculation() {
