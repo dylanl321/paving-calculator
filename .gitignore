@@ -5,6 +5,9 @@ node_modules
 .vercel
 .netlify
 .wrangler
+
+# Real dev D1 snapshot pulled into local (npm run db:pull-dev); never committed
+.wrangler/dev-snapshot.sql
 /.svelte-kit
 /build
 

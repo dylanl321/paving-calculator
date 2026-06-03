@@ -33,7 +33,7 @@
 				return;
 			}
 
-			const data = await res.json();
+			const data = (await res.json()) as { job_sites: JobSite[] };
 			jobSites = data.job_sites.filter((s: JobSite) => s.status === 'active');
 			loadingJobSites = false;
 		} catch (err) {
@@ -167,7 +167,7 @@
 				credentials: 'include'
 			});
 
-			const result = await res.json();
+			const result = (await res.json()) as { imported: number; dates: number; errors?: string[]; error?: string };
 
 			if (!res.ok) {
 				error = result.error || 'Import failed';

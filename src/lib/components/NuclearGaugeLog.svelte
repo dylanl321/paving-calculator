@@ -39,7 +39,7 @@
 				credentials: 'include'
 			});
 			if (res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { readings: DbDensityReading[] };
 				readings = data.readings;
 			}
 		} catch (err) {
@@ -119,7 +119,7 @@
 			});
 
 			if (res.ok) {
-				const data = await res.json();
+				const data = (await res.json()) as { reading: DbDensityReading };
 				readings = [...readings, data.reading];
 				resetForm();
 				showForm = false;
