@@ -1,7 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
-import { parseGdotDocuments, pdfToText, type ParsedGdotJob } from '$lib/server/pdf/parse-gdot';
+import { parseGdotDocuments, pdfToText, detectDocumentType, type ParsedGdotJob, type GdotDocumentType } from '$lib/server/pdf/parse-gdot';
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB per file
 
@@ -130,9 +130,16 @@ function parseMultipartFiles(raw: Uint8Array, boundary: string): UploadedFile[] 
 	return files;
 }
 
+export interface ImportedDocument {
+	filename: string;
+	source_key: string;
+	type: GdotDocumentType;
+}
+
 export interface ImportPdfResponse {
 	parsed: ParsedGdotJob;
 	source_keys: string[];
+	documents: ImportedDocument[];
 }
 
 /**
@@ -162,6 +169,7 @@ export async function POST(event: RequestEvent) {
 
 		const texts: string[] = [];
 		const sourceKeys: string[] = [];
+		const documents: ImportedDocument[] = [];
 
 		for (const file of files) {
 			const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
@@ -179,7 +187,9 @@ export async function POST(event: RequestEvent) {
 			sourceKeys.push(key);
 
 			try {
-				texts.push(await pdfToText(file.bytes));
+				const text = await pdfToText(file.bytes);
+				texts.push(text);
+				documents.push({ filename: file.name, source_key: key, type: detectDocumentType(text) });
 			} catch (err) {
 				console.error('PDF text extraction failed for', file.name, err);
 				const detail = err instanceof Error ? err.message : String(err);
@@ -195,7 +205,7 @@ export async function POST(event: RequestEvent) {
 
 		const parsed = parseGdotDocuments(texts);
 
-		return json({ parsed, source_keys: sourceKeys } satisfies ImportPdfResponse);
+		return json({ parsed, source_keys: sourceKeys, documents } satisfies ImportPdfResponse);
 	} catch (error) {
 		if (error instanceof Response) return error;
 		console.error('Import PDF error:', error);

@@ -18,6 +18,7 @@
 
 	interface ParsedMix {
 		mix_name: string;
+		mix_type: string | null;
 		unit: string | null;
 		bid_quantity: number | null;
 		takeoff_tonnage: number | null;
@@ -51,6 +52,9 @@
 		scopes: string[];
 		bid_items: ParsedBidItem[];
 		production_mixes: ParsedMix[];
+		detected_documents: string[];
+		has_contract_summary: boolean;
+		has_job_setup: boolean;
 		warnings: string[];
 	}
 
@@ -60,6 +64,8 @@
 	let parseError = $state('');
 	let parsed = $state<ParsedJob | null>(null);
 	let sourceKeys = $state<string[]>([]);
+	let documents = $state<Array<{ filename: string; source_key: string; type: string }>>([]);
+	let schematicProgress = $state('');
 
 	function handleDrop(e: DragEvent) {
 		e.preventDefault();
@@ -105,7 +111,7 @@
 				credentials: 'include'
 			});
 
-			const data = await res.json() as { parsed?: ParsedJob; source_keys?: string[]; error?: string };
+			const data = await res.json() as { parsed?: ParsedJob; source_keys?: string[]; documents?: Array<{ filename: string; source_key: string; type: string }>; error?: string };
 
 			if (!res.ok) {
 				parseError = data.error || 'Failed to parse PDF';
@@ -115,6 +121,7 @@
 
 			parsed = data.parsed ?? null;
 			sourceKeys = data.source_keys ?? [];
+			documents = data.documents ?? [];
 			step = 'review';
 		} catch {
 			parseError = 'Network error — check your connection';
@@ -141,17 +148,69 @@
 
 			const result = await res.json() as { id?: string; error?: string };
 
-			if (!res.ok) {
+			if (!res.ok || !result.id) {
 				toastStore.error(result.error || 'Failed to create project');
 				step = 'review';
 				return;
 			}
+
+			// Render contract-summary plan sheets to images (client-side; the
+			// Workers runtime can't render PDF pages). Best-effort — never blocks
+			// project creation.
+			await renderAndUploadSchematics(result.id);
 
 			toastStore.success('Project created from PDF import');
 			await goto(`/dashboard/job-sites/${result.id}`);
 		} catch {
 			toastStore.error('Network error — check your connection');
 			step = 'review';
+		}
+	}
+
+	// Renders each page of the uploaded Contract Summary PDF to a PNG and uploads
+	// it as a schematic. Uses the browser's canvas via pdfjs-serverless.
+	async function renderAndUploadSchematics(jobSiteId: string) {
+		const contractDoc = documents.find((d) => d.type === 'contract_summary');
+		if (!contractDoc) return;
+		const file = files.find((f) => f.name === contractDoc.filename);
+		if (!file) return;
+
+		try {
+			const { getDocument } = await import('pdfjs-serverless');
+			const data = new Uint8Array(await file.arrayBuffer());
+			const pdf = await getDocument({ data, useSystemFonts: true }).promise;
+			const maxPages = Math.min(pdf.numPages, 40);
+
+			for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+				schematicProgress = `Rendering plan sheet ${pageNum} of ${maxPages}…`;
+				const page = await pdf.getPage(pageNum);
+				const viewport = page.getViewport({ scale: 2 });
+				const canvas = document.createElement('canvas');
+				canvas.width = Math.floor(viewport.width);
+				canvas.height = Math.floor(viewport.height);
+				const ctx = canvas.getContext('2d');
+				if (!ctx) continue;
+				await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+
+				const blob: Blob | null = await new Promise((resolve) =>
+					canvas.toBlob((b) => resolve(b), 'image/png')
+				);
+				if (!blob) continue;
+
+				const fd = new FormData();
+				fd.append('image', blob, `page-${pageNum}.png`);
+				fd.append('page_number', String(pageNum));
+				await fetch(`/api/job-sites/${jobSiteId}/schematics`, {
+					method: 'POST',
+					body: fd,
+					credentials: 'include'
+				});
+			}
+		} catch (err) {
+			// Schematic rendering is best-effort; the project is already created.
+			console.error('Schematic render failed', err);
+		} finally {
+			schematicProgress = '';
 		}
 	}
 
@@ -253,6 +312,31 @@
 			<h2 class="page-title">Review Import</h2>
 			<p class="page-subtitle">Verify the parsed data before creating the project.</p>
 		</div>
+
+		<div class="doc-status">
+			<span class="doc-chip" class:present={parsed.has_contract_summary}>
+				{parsed.has_contract_summary ? '✓' : '○'} Contract Summary
+			</span>
+			<span class="doc-chip" class:present={parsed.has_job_setup}>
+				{parsed.has_job_setup ? '✓' : '○'} Job Setup
+			</span>
+		</div>
+
+		{#if !parsed.has_contract_summary || !parsed.has_job_setup}
+			<div class="missing-doc-banner">
+				<strong>Heads up — you're missing a document.</strong>
+				<span>
+					{#if !parsed.has_contract_summary && !parsed.has_job_setup}
+						Neither the Contract Summary nor the Job Setup was recognized.
+					{:else if !parsed.has_contract_summary}
+						The <b>Contract Summary</b> wasn't included — bid items, contract value and project geometry will be incomplete. Add it for a full picture.
+					{:else}
+						The <b>Job Setup</b> wasn't included — production goals, customer/owner and asphalt supplier will be incomplete. Add it for a full picture.
+					{/if}
+				</span>
+				<button class="btn btn-ghost btn-sm" onclick={() => { step = 'upload'; }}>Add more PDFs</button>
+			</div>
+		{/if}
 
 		{#if parsed.warnings.length > 0}
 			<div class="warnings">
@@ -361,9 +445,10 @@
 						<thead>
 							<tr>
 								<th>Mix</th>
+								<th>Type</th>
 								<th>Unit</th>
-								<th>Bid Qty</th>
-								<th>Takeoff</th>
+								<th>Allotted</th>
+								<th>Target</th>
 								<th>Qty/Day</th>
 								<th>Est Days</th>
 							</tr>
@@ -372,6 +457,7 @@
 							{#each parsed.production_mixes as mix}
 								<tr>
 									<td class="mix-name">{mix.mix_name}</td>
+									<td>{mix.mix_type ?? '—'}</td>
 									<td>{mix.unit ?? '—'}</td>
 									<td>{fmtNum(mix.bid_quantity, 0)}</td>
 									<td>{fmtNum(mix.takeoff_tonnage, 0)}</td>
@@ -382,6 +468,7 @@
 						</tbody>
 					</table>
 				</div>
+				<p class="table-note">"Allotted" is the contract/state quantity; "Target" is our internal production goal.</p>
 			</section>
 		{/if}
 
@@ -449,7 +536,7 @@
 	{:else if step === 'creating'}
 		<div class="creating-state">
 			<div class="spinner"></div>
-			<p>Creating project…</p>
+			<p>{schematicProgress || 'Creating project…'}</p>
 		</div>
 	{/if}
 </div>
@@ -594,6 +681,59 @@
 	/* Review */
 	.warnings {
 		margin-bottom: 16px;
+	}
+
+	.doc-status {
+		display: flex;
+		gap: 10px;
+		margin-bottom: 12px;
+	}
+
+	.doc-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 6px 12px;
+		border-radius: 999px;
+		font-size: 0.8rem;
+		font-weight: 600;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		color: var(--text-muted);
+	}
+
+	.doc-chip.present {
+		border-color: var(--accent);
+		color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+	}
+
+	.missing-doc-banner {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		align-items: flex-start;
+		background: rgba(234, 179, 8, 0.08);
+		border: 1px solid rgba(234, 179, 8, 0.35);
+		border-left-width: 4px;
+		border-radius: var(--radius);
+		padding: 14px 16px;
+		margin-bottom: 16px;
+	}
+
+	.missing-doc-banner span {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.missing-doc-banner .btn {
+		margin-top: 4px;
+	}
+
+	.table-note {
+		margin: 8px 0 0;
+		font-size: 0.78rem;
+		color: var(--text-muted);
 	}
 
 	.warning-item {

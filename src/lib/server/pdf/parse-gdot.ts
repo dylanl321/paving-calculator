@@ -27,12 +27,18 @@ export interface ParsedBidItem {
 
 export interface ParsedProductionMix {
 	mix_name: string;
+	/** Mapped GDOT/Superpave mix type (e.g. "Open Graded Interlayer (OGI)"). */
+	mix_type: string | null;
 	unit: string | null;
+	/** State/customer-allotted contract quantity (from the bid-quantity table). */
 	bid_quantity: number | null;
+	/** Our internal production target/takeoff (from the production-goals table). */
 	takeoff_tonnage: number | null;
 	quantity_per_day: number | null;
 	est_days: number | null;
 }
+
+export type GdotDocumentType = 'contract_summary' | 'job_setup' | 'unknown';
 
 export interface ParsedGdotJob {
 	// Identity
@@ -68,6 +74,11 @@ export interface ParsedGdotJob {
 	bid_items: ParsedBidItem[];
 	// Production goals / mixes
 	production_mixes: ParsedProductionMix[];
+	// Which GDOT document types were detected across the uploaded files.
+	detected_documents: GdotDocumentType[];
+	// True once both the contract summary and job setup have been seen.
+	has_contract_summary: boolean;
+	has_job_setup: boolean;
 	// Diagnostics
 	warnings: string[];
 }
@@ -101,8 +112,51 @@ function emptyResult(): ParsedGdotJob {
 		scopes: [],
 		bid_items: [],
 		production_mixes: [],
+		detected_documents: [],
+		has_contract_summary: false,
+		has_job_setup: false,
 		warnings: []
 	};
+}
+
+/**
+ * Maps a free-text mix name (from the job-setup tables or bid items) to a
+ * canonical GDOT/Superpave mix type used by the configuration UI. Returns null
+ * when no confident mapping exists, so we never invent a spec.
+ */
+export function mapMixType(name: string | null): string | null {
+	if (!name) return null;
+	const n = name.toUpperCase();
+	if (/\bOGI\b|OPEN GRADED|CRACK RELIEF INTERLAYER/.test(n)) return 'Open Graded Interlayer (OGI)';
+	if (/PATCH/.test(n)) return 'Patching';
+	if (/LEVEL/.test(n)) return 'Leveling';
+	if (/SMA|STONE MATRIX/.test(n)) return 'SMA (Stone Matrix Asphalt)';
+	if (/POLYMER/.test(n)) return 'Polymer Modified';
+	if (/4\.75/.test(n)) return '4.75mm Superpave';
+	if (/12\.5/.test(n)) return '12.5mm Superpave';
+	if (/9\.5/.test(n)) {
+		if (/TYPE\s*(II|2)\b/.test(n) || /\bII\b/.test(n)) return '9.5mm Superpave Type 2';
+		if (/TYPE\s*(I|1)\b/.test(n)) return '9.5mm Superpave Type 1';
+		return '9.5mm Superpave Type 2';
+	}
+	if (/SUPERPAVE/.test(n)) return '9.5mm Superpave Type 2';
+	return null;
+}
+
+/**
+ * Classify a single document's extracted text as a GDOT contract summary, an
+ * internal job-setup form, or unknown.
+ */
+export function detectDocumentType(text: string): GdotDocumentType {
+	if (/JOB SET-?UP FORM/i.test(text) || /HEAVYBID #/i.test(text) || /PRODUCTION GOALS/i.test(text)) {
+		return 'job_setup';
+	}
+	if (
+		/Contract Schedule|Proposal ID|Schedule of Items|Total Bid:|PROPOSAL INDEX/i.test(text)
+	) {
+		return 'contract_summary';
+	}
+	return 'unknown';
 }
 
 /** Extract plain text from a PDF (works in the Workers runtime via pdfjs-serverless). */
@@ -202,6 +256,7 @@ function parseProductionMixes(text: string): ParsedProductionMix[] {
 		if (!mix) {
 			mix = {
 				mix_name: name,
+				mix_type: mapMixType(name),
 				unit: null,
 				bid_quantity: null,
 				takeoff_tonnage: null,
@@ -438,13 +493,34 @@ export function parseGdotDocuments(texts: string[]): ParsedGdotJob {
 	let matchedAny = false;
 
 	for (const text of texts) {
+		const docType = detectDocumentType(text);
+		if (docType !== 'unknown' && !result.detected_documents.includes(docType)) {
+			result.detected_documents.push(docType);
+		}
 		if (parseContractSummary(text, result)) matchedAny = true;
 		if (parseJobSetup(text, result)) matchedAny = true;
 	}
 
+	result.has_contract_summary = result.detected_documents.includes('contract_summary');
+	result.has_job_setup = result.detected_documents.includes('job_setup');
+
 	if (!matchedAny) {
 		result.warnings.push(
 			'Could not recognize this as a GDOT job-setup or contract-summary document.'
+		);
+	}
+
+	// Both documents are needed for a complete picture: the contract summary
+	// gives the schedule of items / allotted quantities and project geometry; the
+	// job setup gives our production goals, customer info and supplier.
+	if (matchedAny && !result.has_contract_summary) {
+		result.warnings.push(
+			'Missing the Contract Summary PDF — bid items, contract value and project geometry will be incomplete.'
+		);
+	}
+	if (matchedAny && !result.has_job_setup) {
+		result.warnings.push(
+			'Missing the Job Setup PDF — production goals, customer/owner and asphalt supplier will be incomplete.'
 		);
 	}
 

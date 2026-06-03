@@ -259,7 +259,134 @@
 				placeholder="e.g., 2"
 			/>
 		</div>
+	</form>
+</section>
 
+<section class="section">
+	<div class="mixes-header">
+		<div>
+			<h3>Mixes &amp; Tonnage</h3>
+			<p class="mixes-sub">
+				Each mix carries its own type, tonnage and paving spec. "Allotted" is what the
+				contract/state pays for; "Target" is our internal production goal. The active mix feeds the
+				calculators and daily-log targets.
+			</p>
+		</div>
+		<button type="button" class="btn btn-primary add-mix-btn" onclick={addMix}>+ Add Mix</button>
+	</div>
+
+	{#if mixesLoading}
+		<div class="mixes-empty">Loading mixes…</div>
+	{:else if mixes.length === 0}
+		<div class="mixes-empty">
+			<p>No mixes yet. Add a mix or import a project from a contract PDF.</p>
+		</div>
+	{:else}
+		<div class="mix-cards">
+			{#each mixes as mix (mix.id)}
+				<div class="mix-card" class:active={mix.is_active === 1}>
+					<div class="mix-card-head">
+						<input
+							class="mix-name-input"
+							type="text"
+							bind:value={mix.mix_name}
+							oninput={() => saveMix(mix)}
+							placeholder="Mix name"
+						/>
+						<div class="mix-card-actions">
+							{#if mix.is_active === 1}
+								<span class="active-badge">Active</span>
+							{:else}
+								<button type="button" class="mix-link" onclick={() => setActiveMix(mix)}>
+									Set Active
+								</button>
+							{/if}
+							<button
+								type="button"
+								class="mix-remove"
+								onclick={() => removeMix(mix)}
+								aria-label="Remove mix"
+							>
+								×
+							</button>
+						</div>
+					</div>
+
+					<div class="mix-fields">
+						<div class="mix-field">
+							<label>Mix Type</label>
+							<select bind:value={mix.mix_type} onchange={() => saveMix(mix)}>
+								<option value={null}>Select type</option>
+								{#each MIX_TYPE_OPTIONS as opt}
+									<option value={opt}>{opt}</option>
+								{/each}
+							</select>
+						</div>
+						<div class="mix-field">
+							<label>Unit</label>
+							<input type="text" bind:value={mix.unit} oninput={() => saveMix(mix)} placeholder="TN" />
+						</div>
+						<div class="mix-field allotted">
+							<label>Allotted (Contract)</label>
+							<input type="number" bind:value={mix.bid_quantity} oninput={() => saveMix(mix)} min="0" step="any" />
+						</div>
+						<div class="mix-field target">
+							<label>Target (Our Goal)</label>
+							<input type="number" bind:value={mix.takeoff_tonnage} oninput={() => saveMix(mix)} min="0" step="any" />
+						</div>
+						<div class="mix-field">
+							<label>Qty / Day</label>
+							<input type="number" bind:value={mix.quantity_per_day} oninput={() => saveMix(mix)} min="0" step="any" />
+						</div>
+						<div class="mix-field">
+							<label>Est. Days</label>
+							<input type="number" bind:value={mix.est_days} oninput={() => saveMix(mix)} min="0" step="0.5" />
+						</div>
+						<div class="mix-field">
+							<label>Thickness (in)</label>
+							<input type="number" bind:value={mix.target_thickness_in} oninput={() => saveMix(mix)} min="0" step="0.25" />
+						</div>
+						<div class="mix-field">
+							<label>Spread (lbs/yd²)</label>
+							<input type="number" bind:value={mix.target_spread_rate} oninput={() => saveMix(mix)} min="0" step="any" />
+						</div>
+						<div class="mix-field">
+							<label>Tack Type</label>
+							<select bind:value={mix.tack_type} onchange={() => saveMix(mix)}>
+								<option value={null}>None</option>
+								{#each Object.entries(tackTypeLabels) as [value, label]}
+									<option value={value}>{label}</option>
+								{/each}
+							</select>
+						</div>
+						<div class="mix-field">
+							<label>Tack Rate (gal/yd²)</label>
+							<input type="number" bind:value={mix.target_tack_rate} oninput={() => saveMix(mix)} min="0" step="0.01" />
+						</div>
+					</div>
+
+					{#if mix.bid_quantity != null && mix.takeoff_tonnage != null}
+						{@const variance = mix.takeoff_tonnage - mix.bid_quantity}
+						<div class="mix-variance" class:under={variance < 0} class:over={variance > 0}>
+							Target vs allotted: {variance > 0 ? '+' : ''}{fmt(variance, 1)} {mix.unit ?? ''}
+							{#if mix.bid_quantity > 0}
+								({fmt((variance / mix.bid_quantity) * 100, 1)}%)
+							{/if}
+						</div>
+					{/if}
+				</div>
+			{/each}
+		</div>
+
+		<div class="mix-total">
+			<span>Total Target Tonnage (all mixes)</span>
+			<strong>{fmt(totalMixTonnage, 1)} t</strong>
+		</div>
+	{/if}
+</section>
+
+<section class="section">
+	<form class="config-form" onchange={saveConfig}>
 		<h3 class="form-section-title">Route Designation</h3>
 
 		<div class="form-group">
@@ -371,117 +498,6 @@
 	</form>
 
 	<AutoSaveStatus status={saveStatus} onRetry={saveConfig} />
-</section>
-
-<section class="section">
-	<div class="mixes-header">
-		<div>
-			<h3>Mixes &amp; Tonnage</h3>
-			<p class="mixes-sub">
-				Each mix has its own tonnage and paving spec. The active mix feeds the calculators and daily-log targets.
-			</p>
-		</div>
-		<button type="button" class="btn btn-primary add-mix-btn" onclick={addMix}>+ Add Mix</button>
-	</div>
-
-	{#if mixesLoading}
-		<div class="mixes-empty">Loading mixes…</div>
-	{:else if mixes.length === 0}
-		<div class="mixes-empty">
-			<p>No mixes yet. Add a mix or import a project from a contract PDF.</p>
-		</div>
-	{:else}
-		<div class="mix-cards">
-			{#each mixes as mix (mix.id)}
-				<div class="mix-card" class:active={mix.is_active === 1}>
-					<div class="mix-card-head">
-						<input
-							class="mix-name-input"
-							type="text"
-							bind:value={mix.mix_name}
-							oninput={() => saveMix(mix)}
-							placeholder="Mix name"
-						/>
-						<div class="mix-card-actions">
-							{#if mix.is_active === 1}
-								<span class="active-badge">Active</span>
-							{:else}
-								<button type="button" class="mix-link" onclick={() => setActiveMix(mix)}>
-									Set Active
-								</button>
-							{/if}
-							<button
-								type="button"
-								class="mix-remove"
-								onclick={() => removeMix(mix)}
-								aria-label="Remove mix"
-							>
-								×
-							</button>
-						</div>
-					</div>
-
-					<div class="mix-fields">
-						<div class="mix-field">
-							<label>Mix Type</label>
-							<select bind:value={mix.mix_type} onchange={() => saveMix(mix)}>
-								<option value={null}>Select type</option>
-								{#each MIX_TYPE_OPTIONS as opt}
-									<option value={opt}>{opt}</option>
-								{/each}
-							</select>
-						</div>
-						<div class="mix-field">
-							<label>Unit</label>
-							<input type="text" bind:value={mix.unit} oninput={() => saveMix(mix)} placeholder="TN" />
-						</div>
-						<div class="mix-field">
-							<label>Bid Quantity</label>
-							<input type="number" bind:value={mix.bid_quantity} oninput={() => saveMix(mix)} min="0" step="any" />
-						</div>
-						<div class="mix-field">
-							<label>Takeoff Tonnage</label>
-							<input type="number" bind:value={mix.takeoff_tonnage} oninput={() => saveMix(mix)} min="0" step="any" />
-						</div>
-						<div class="mix-field">
-							<label>Qty / Day</label>
-							<input type="number" bind:value={mix.quantity_per_day} oninput={() => saveMix(mix)} min="0" step="any" />
-						</div>
-						<div class="mix-field">
-							<label>Est. Days</label>
-							<input type="number" bind:value={mix.est_days} oninput={() => saveMix(mix)} min="0" step="0.5" />
-						</div>
-						<div class="mix-field">
-							<label>Thickness (in)</label>
-							<input type="number" bind:value={mix.target_thickness_in} oninput={() => saveMix(mix)} min="0" step="0.25" />
-						</div>
-						<div class="mix-field">
-							<label>Spread (lbs/yd²)</label>
-							<input type="number" bind:value={mix.target_spread_rate} oninput={() => saveMix(mix)} min="0" step="any" />
-						</div>
-						<div class="mix-field">
-							<label>Tack Type</label>
-							<select bind:value={mix.tack_type} onchange={() => saveMix(mix)}>
-								<option value={null}>None</option>
-								{#each Object.entries(tackTypeLabels) as [value, label]}
-									<option value={value}>{label}</option>
-								{/each}
-							</select>
-						</div>
-						<div class="mix-field">
-							<label>Tack Rate (gal/yd²)</label>
-							<input type="number" bind:value={mix.target_tack_rate} oninput={() => saveMix(mix)} min="0" step="0.01" />
-						</div>
-					</div>
-				</div>
-			{/each}
-		</div>
-
-		<div class="mix-total">
-			<span>Total Tonnage (all mixes)</span>
-			<strong>{fmt(totalMixTonnage, 1)} t</strong>
-		</div>
-	{/if}
 </section>
 
 <style>
@@ -627,6 +643,28 @@
 		color: var(--text);
 		font-size: 0.9rem;
 		min-height: 44px;
+	}
+
+	.mix-field.allotted label {
+		color: var(--text-muted);
+	}
+
+	.mix-field.target label {
+		color: var(--accent);
+	}
+
+	.mix-variance {
+		margin-top: 10px;
+		font-size: 0.8rem;
+		color: var(--text-muted);
+	}
+
+	.mix-variance.over {
+		color: #22c55e;
+	}
+
+	.mix-variance.under {
+		color: #ef4444;
 	}
 
 	.mix-total {

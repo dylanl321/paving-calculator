@@ -122,7 +122,7 @@ export async function POST(event: RequestEvent) {
 				takeoff_tonnage: num(m.takeoff_tonnage),
 				quantity_per_day: num(m.quantity_per_day),
 				est_days: num(m.est_days),
-				mix_type: mixName,
+				mix_type: str(m.mix_type) ?? str(m.mix_name),
 				target_thickness_in: null,
 				target_spread_rate: null,
 				tack_type: null,

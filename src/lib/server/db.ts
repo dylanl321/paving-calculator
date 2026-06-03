@@ -132,6 +132,17 @@ export interface DbProductionMix {
 	created_at: number;
 }
 
+export interface DbSchematic {
+	id: string;
+	job_site_id: string;
+	r2_key: string;
+	page_number: number | null;
+	label: string | null;
+	content_type: string;
+	sort_order: number;
+	created_at: number;
+}
+
 export interface DbJobSiteAssignment {
 	job_site_id: string;
 	user_id: string;
@@ -801,6 +812,43 @@ export class DbHelper {
 			.prepare('DELETE FROM job_production_mixes WHERE job_site_id = ?')
 			.bind(jobSiteId)
 			.run();
+	}
+
+	async getSchematics(jobSiteId: string): Promise<DbSchematic[]> {
+		return await this.db
+			.prepare('SELECT * FROM job_schematics WHERE job_site_id = ? ORDER BY sort_order ASC, page_number ASC, created_at ASC')
+			.bind(jobSiteId)
+			.all<DbSchematic>()
+			.then((r) => r.results);
+	}
+
+	async getSchematic(id: string): Promise<DbSchematic | null> {
+		return await this.db.prepare('SELECT * FROM job_schematics WHERE id = ?').bind(id).first<DbSchematic>();
+	}
+
+	async createSchematic(
+		jobSiteId: string,
+		schematic: Omit<DbSchematic, 'id' | 'job_site_id' | 'created_at'>
+	): Promise<DbSchematic> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				`INSERT INTO job_schematics (id, job_site_id, r2_key, page_number, label, content_type, sort_order, created_at)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+			)
+			.bind(
+				id,
+				jobSiteId,
+				schematic.r2_key,
+				schematic.page_number ?? null,
+				schematic.label ?? null,
+				schematic.content_type ?? 'image/png',
+				schematic.sort_order ?? 0,
+				now
+			)
+			.run();
+		return { id, job_site_id: jobSiteId, created_at: now, ...schematic };
 	}
 
 	async getJobSiteAssignments(jobSiteId: string): Promise<
