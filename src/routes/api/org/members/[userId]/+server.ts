@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireAuth } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
+import { recordAudit } from '$lib/server/audit';
 
 type OrgRole =
 	| 'owner'
@@ -44,8 +45,25 @@ export async function PATCH(event: RequestEvent) {
 			return json({ error: 'Owner cannot change their own role' }, { status: 403 });
 		}
 
+		// Get old role before updating
+		const oldRole = await db.getUserRole(userId, org.id);
+
 		// Update member role
 		await db.updateOrgMemberRole(userId, org.id, role);
+
+		// Record audit log
+		recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'org_member',
+			resourceId: userId,
+			action: 'role_changed',
+			oldValue: { userId, role: oldRole },
+			newValue: { userId, role },
+			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		return json({ success: true });
 	} catch (error) {
@@ -87,6 +105,19 @@ export async function DELETE(event: RequestEvent) {
 
 		// Remove member
 		await db.removeOrgMember(userId, org.id);
+
+		// Record audit log
+		recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'org_member',
+			resourceId: userId,
+			action: 'removed',
+			oldValue: { userId },
+			ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		return json({ success: true });
 	} catch (error) {

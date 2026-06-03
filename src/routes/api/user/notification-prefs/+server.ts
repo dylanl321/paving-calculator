@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
+import { recordAudit } from '$lib/server/audit';
 
 const ALLOWED_PREF_KEYS = new Set([
 	'email_daily_summary',
@@ -53,6 +54,26 @@ export async function PUT(event: RequestEvent) {
 		}
 
 		await db.bulkSetNotificationPrefs(user.id, body.prefs);
+
+		// Record audit log if user is part of an org
+		try {
+			const org = await db.getOrgByUserId(user.id);
+			if (org) {
+				recordAudit(event.platform.env.DB, {
+					actorUserId: user.id,
+					actorName: user.name,
+					orgId: org.id,
+					resourceType: 'notification_prefs',
+					resourceId: user.id,
+					action: 'updated',
+					newValue: body.prefs,
+					ipAddress: event.request.headers.get('cf-connecting-ip') || event.getClientAddress(),
+					userAgent: event.request.headers.get('user-agent') || undefined
+				});
+			}
+		} catch (auditError) {
+			console.error('Failed to record audit for notification prefs update:', auditError);
+		}
 
 		const prefs = await db.getNotificationPrefs(user.id);
 		return json({ prefs });
