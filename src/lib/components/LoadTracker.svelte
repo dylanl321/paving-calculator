@@ -14,6 +14,7 @@
 	import AfternoonForecastCard from './AfternoonForecastCard.svelte';
 	import { offlineStore } from '$lib/stores/offline.svelte';
 	import { formatTime } from '$lib/utils/format';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
 
 	interface Props {
 		jobSiteId: string;
@@ -226,8 +227,14 @@
 		saving = false;
 	}
 
-	function clearAll() {
-		if (confirm('Clear all loads for today? This cannot be undone.')) {
+	async function clearAll() {
+		const confirmed = await confirmStore.ask({
+			title: 'Clear All Loads',
+			message: 'Clear all loads for today? This cannot be undone.',
+			confirmLabel: 'Clear All',
+			destructive: true
+		});
+		if (confirmed) {
 			loads = [];
 			if (!isAuthenticated) {
 				localStorage.removeItem(STORAGE_KEY);

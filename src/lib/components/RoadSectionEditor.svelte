@@ -4,6 +4,7 @@
 	import { MapContainer, MapPolyline, MapMarker } from '$lib/components/map';
 	import { constant } from '$lib/config';
 	import { metersToFeet, haversineFeet } from '$lib/services/mapUtils';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
 
 	interface Waypoint {
 		lat: number;
@@ -202,7 +203,13 @@
 	}
 
 	async function deleteSection(id: string) {
-		if (!confirm('Delete this section?')) return;
+		const confirmed = await confirmStore.ask({
+			title: 'Delete Section',
+			message: 'Delete this road section? This cannot be undone.',
+			confirmLabel: 'Delete',
+			destructive: true
+		});
+		if (!confirmed) return;
 
 		try {
 			const res = await fetch(`/api/job-sites/${siteId}/sections/${id}`, {

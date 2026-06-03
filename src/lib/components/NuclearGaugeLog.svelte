@@ -2,6 +2,7 @@
 	import { Atom, Plus, X, Trash2 } from 'lucide-svelte';
 	import NumberField from './NumberField.svelte';
 	import type { DbDensityReading } from '$lib/server/db-logs';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
 
 	interface Props {
 		logId: string;
@@ -131,7 +132,13 @@
 	}
 
 	async function handleDeleteReading(readingId: string) {
-		if (!confirm('Delete this density reading?')) return;
+		const confirmed = await confirmStore.ask({
+			title: 'Delete Reading',
+			message: 'Delete this density reading? This cannot be undone.',
+			confirmLabel: 'Delete',
+			destructive: true
+		});
+		if (!confirmed) return;
 
 		try {
 			const res = await fetch(

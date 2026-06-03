@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
 
 	interface UserDetail {
 		id: string;
@@ -69,7 +70,13 @@
 
 	async function logoutEverywhere() {
 		if (busy) return;
-		if (!confirm('Revoke all active sessions for this user? They will be logged out everywhere.')) return;
+		const confirmed = await confirmStore.ask({
+			title: 'Revoke All Sessions',
+			message: 'Revoke all active sessions for this user? They will be logged out everywhere.',
+			confirmLabel: 'Revoke',
+			destructive: true
+		});
+		if (!confirmed) return;
 		busy = true;
 		try {
 			const res = await fetch(`/api/admin/users/${userId}/logout-all`, { method: 'POST' });

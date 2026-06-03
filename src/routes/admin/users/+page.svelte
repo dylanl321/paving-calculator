@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
 
 	const ROLES = [
 		'owner',
@@ -211,9 +212,13 @@
 		const newDisabledState = !user.disabled;
 		const action = newDisabledState ? 'disable' : 'enable';
 
-		if (!confirm(`Are you sure you want to ${action} ${user.name}?${newDisabledState ? ' This will log them out immediately.' : ''}`)) {
-			return;
-		}
+		const confirmed = await confirmStore.ask({
+			title: `${action === 'disable' ? 'Disable' : 'Enable'} User`,
+			message: `Are you sure you want to ${action} ${user.name}?${newDisabledState ? ' This will log them out immediately.' : ''}`,
+			confirmLabel: action === 'disable' ? 'Disable' : 'Enable',
+			destructive: newDisabledState
+		});
+		if (!confirmed) return;
 
 		try {
 			const res = await fetch(`/api/admin/users/${user.id}`, {
@@ -239,9 +244,13 @@
 		const newAdminState = !user.is_global_admin;
 		const action = newAdminState ? 'grant global admin to' : 'revoke global admin from';
 
-		if (!confirm(`Are you sure you want to ${action} ${user.name}?`)) {
-			return;
-		}
+		const confirmed = await confirmStore.ask({
+			title: `${newAdminState ? 'Grant' : 'Revoke'} Global Admin`,
+			message: `Are you sure you want to ${action} ${user.name}?`,
+			confirmLabel: newAdminState ? 'Grant' : 'Revoke',
+			destructive: !newAdminState
+		});
+		if (!confirmed) return;
 
 		try {
 			const res = await fetch(`/api/admin/users/${user.id}`, {

@@ -9,6 +9,7 @@
 	import AppShell from '$lib/components/shell/AppShell.svelte';
 	import PwaInstallPrompt from '$lib/components/PwaInstallPrompt.svelte';
 	import Toast from '$lib/components/ui/Toast.svelte';
+	import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
 	import { offlineStore } from '$lib/stores/offline.svelte';
 	import '../app.css';
 
@@ -106,4 +107,5 @@
 	{/if}
 	<PwaInstallPrompt />
 	<Toast />
+	<ConfirmModal />
 </div>

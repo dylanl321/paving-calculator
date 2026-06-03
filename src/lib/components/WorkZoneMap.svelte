@@ -4,6 +4,7 @@
 	import MapContainer from '$lib/components/map/MapContainer.svelte';
 	import MapPolygon from '$lib/components/map/MapPolygon.svelte';
 	import MapDrawing from '$lib/components/map/MapDrawing.svelte';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
 
 	interface Props {
 		orgId: string;
@@ -177,7 +178,13 @@
 	}
 
 	async function deleteZone(zoneId: number) {
-		if (!confirm('Delete this work zone?')) return;
+		const confirmed = await confirmStore.ask({
+			title: 'Delete Work Zone',
+			message: 'Delete this work zone? This cannot be undone.',
+			confirmLabel: 'Delete',
+			destructive: true
+		});
+		if (!confirmed) return;
 
 		saving = true;
 		try {

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import type { EmailPreviewResult, LogoUploadResult } from './shared';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
 
 	let {
 		canEdit,
@@ -38,7 +39,13 @@
 	}
 
 	async function removeLogo() {
-		if (!confirm('Remove the custom logo and revert to the default mark?')) return;
+		const confirmed = await confirmStore.ask({
+			title: 'Remove Logo',
+			message: 'Remove the custom logo and revert to the default mark?',
+			confirmLabel: 'Remove',
+			destructive: true
+		});
+		if (!confirmed) return;
 		const res = await fetch('/api/org/logo', { method: 'DELETE', credentials: 'include' });
 		if (res.ok) {
 			hasLogo = false;
