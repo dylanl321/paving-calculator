@@ -1,20 +1,15 @@
 <script lang="ts">
-	import { onMount, onDestroy, getContext } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import L from 'leaflet';
-	import { MAP_CONTEXT_KEY, type MapContext } from './mapContext';
 
 	interface Props {
-		/** Optional: pass a map directly, or omit to read it from MapContainer context. */
-		map?: L.Map;
+		map: L.Map;
 		mode?: 'polyline' | 'polygon' | 'point' | 'none';
 		geojson?: string | null;
 		onchange?: (geojson: string) => void;
 	}
 
-	let { map: mapProp, mode = 'none', geojson = null, onchange }: Props = $props();
-
-	const ctx = getContext<MapContext>(MAP_CONTEXT_KEY);
-	const map = $derived(mapProp ?? ctx?.map ?? null) as L.Map | null;
+	let { map, mode = 'none', geojson = null, onchange }: Props = $props();
 
 	let drawnLayers: L.Layer[] = [];
 	let currentPolyline: L.Polyline | null = null;
