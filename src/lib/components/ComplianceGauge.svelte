@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { spreadSpecCheck, spreadToleranceFor } from '$lib/config';
+	import type { OrgOverrides } from '$lib/config/overrides';
 
 	interface Props {
 		entries: Array<{
@@ -10,9 +11,10 @@
 		}>;
 		targetSpreadRate: number | null;
 		courseType: string | null;
+		overrides?: OrgOverrides | null;
 	}
 
-	let { entries, targetSpreadRate, courseType }: Props = $props();
+	let { entries, targetSpreadRate, courseType, overrides = null }: Props = $props();
 
 	const pavingEntries = $derived(
 		entries.filter(
@@ -26,7 +28,8 @@
 			const check = spreadSpecCheck(
 				entry.spread_rate_actual,
 				targetSpreadRate,
-				courseType
+				courseType,
+				overrides
 			);
 			if (check) {
 				counts[check.status]++;
@@ -38,7 +41,7 @@
 	const total = $derived(statusCounts.good + statusCounts.warn + statusCounts.bad);
 	const pctInSpec = $derived(total > 0 ? (statusCounts.good / total) * 100 : 0);
 
-	const tolerance = $derived(spreadToleranceFor(courseType));
+	const tolerance = $derived(spreadToleranceFor(courseType, overrides));
 	const hasTarget = $derived(targetSpreadRate != null && targetSpreadRate > 0);
 </script>
 

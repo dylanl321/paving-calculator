@@ -1,6 +1,8 @@
 import { json, error } from '@sveltejs/kit';
-import { DbHelper } from '$lib/server/db';
+import { DbHelper, type DbJobSiteConfig } from '$lib/server/db';
 import type { RequestHandler } from './$types';
+
+type ConfigRequestBody = Partial<Omit<DbJobSiteConfig, 'job_site_id' | 'created_at' | 'updated_at'>>;
 
 export const GET: RequestHandler = async ({ params, locals, platform }) => {
 	if (!locals.user) {
@@ -41,7 +43,7 @@ export const PUT: RequestHandler = async ({ params, locals, platform, request })
 		throw error(403, 'Access denied');
 	}
 
-	const body = await request.json();
+	const body = (await request.json()) as ConfigRequestBody;
 
 	await db.upsertJobSiteConfig(params.id, body);
 
