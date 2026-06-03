@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
 	import GeofenceMonitor from '$lib/components/GeofenceMonitor.svelte';
+	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
 	import type { PageData } from './$types';
 	import { formatDate } from '$lib/utils/format';
 
@@ -10,6 +11,8 @@
 	let showCreateForm = $state(false);
 	let newSiteName = $state('');
 	let newSiteLocation = $state('');
+	let newSiteLat = $state<number | null>(null);
+	let newSiteLng = $state<number | null>(null);
 	let createError = $state('');
 	let creating = $state(false);
 
@@ -36,7 +39,9 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					name: newSiteName,
-					location_description: newSiteLocation || undefined
+					location_description: newSiteLocation || undefined,
+					latitude: newSiteLat ?? undefined,
+					longitude: newSiteLng ?? undefined
 				}),
 				credentials: 'include'
 			});
@@ -61,6 +66,8 @@
 		showCreateForm = false;
 		newSiteName = '';
 		newSiteLocation = '';
+		newSiteLat = null;
+		newSiteLng = null;
 		createError = '';
 	}
 </script>
@@ -230,6 +237,15 @@
 							id="site-location"
 							bind:value={newSiteLocation}
 							placeholder="Mile marker 42-48"
+						/>
+					</div>
+
+					<div class="form-field">
+						<label>Map Pin <span class="optional-label">(optional)</span></label>
+						<JobSiteLocationPicker
+							bind:latitude={newSiteLat}
+							bind:longitude={newSiteLng}
+							mapHeight="220px"
 						/>
 					</div>
 
@@ -520,6 +536,12 @@
 		display: flex;
 		gap: 10px;
 		justify-content: flex-end;
+	}
+
+	.optional-label {
+		font-size: var(--fs-xs);
+		color: var(--text-muted);
+		font-weight: 400;
 	}
 
 	.empty-state {
