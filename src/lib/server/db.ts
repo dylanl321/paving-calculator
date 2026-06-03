@@ -1,4 +1,5 @@
 import type { D1Database } from '../../cloudflare';
+import { toHex } from '$lib/utils/format';
 
 export interface DbUser {
 	id: string;
@@ -17,13 +18,17 @@ export interface DbOrganization {
 	id: string;
 	name: string;
 	slug: string;
+	address?: string | null;
+	superintendent_email?: string | null;
+	superintendent_phone?: string | null;
+	archived_at?: number | null;
 	created_at: number;
 }
 
 export interface DbOrgMember {
 	user_id: string;
 	org_id: string;
-	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office';
+	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man';
 	invited_at: number;
 	accepted_at: number | null;
 }
@@ -58,6 +63,18 @@ export interface DbCalculation {
 	created_at: number;
 }
 
+export interface DbLoad {
+	id: string;
+	job_site_id: string;
+	user_id: string;
+	ticket_number: string | null;
+	tons: number;
+	timestamp: number;
+	spread_rate: number | null;
+	notes: string | null;
+	created_at: number;
+}
+
 export interface DbSession {
 	id: string;
 	user_id: string;
@@ -71,6 +88,8 @@ export interface DbOrgSettings {
 	logo_key: string | null;
 	logo_content_type: string | null;
 	overrides: string | null; // JSON
+	email_from_name: string | null;
+	email_reply_to: string | null;
 	updated_by: string | null;
 	updated_at: number;
 }
@@ -79,7 +98,7 @@ export interface DbInvitation {
 	id: string;
 	org_id: string;
 	email: string;
-	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office';
+	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man';
 	token: string;
 	invited_by: string;
 	created_at: number;
@@ -144,31 +163,19 @@ export interface DbJobSiteRoute {
 	updated_at: number;
 }
 
-export interface DbWebhook {
+export interface DbRoadSection {
 	id: string;
-	org_id: string;
-	url: string;
-	secret: string;
-	events: string; // JSON array of event types
-	description: string | null;
-	is_active: number;
-	created_by: string | null;
+	job_site_id: string;
+	name: string;
+	lane: string;
+	station_start: number | null;
+	station_end: number | null;
+	status: 'active' | 'completed' | 'skipped';
+	geometry_geojson: string | null;
+	notes: string | null;
+	sort_order: number;
 	created_at: number;
 	updated_at: number;
-}
-
-export interface DbWebhookDelivery {
-	id: string;
-	webhook_id: string;
-	event_type: string;
-	payload: string; // JSON
-	status: 'pending' | 'delivered' | 'failed';
-	http_status: number | null;
-	response_body: string | null;
-	attempt_count: number;
-	last_attempted_at: number | null;
-	delivered_at: number | null;
-	created_at: number;
 }
 
 export interface DbLoad {
@@ -180,10 +187,50 @@ export interface DbLoad {
 	timestamp: number;
 	spread_rate: number | null;
 	notes: string | null;
+	lane_number: number | null;
+	pass_number: number | null;
 	created_at: number;
 	rejected: number;
 	rejection_reason: string | null;
 	rejection_notes: string | null;
+	ticket_photo_id: string | null;
+}
+
+export interface DbNotificationPref {
+	user_id: string;
+	pref_key: string;
+	enabled: number;
+	updated_at: number;
+}
+
+export interface DbEmailLog {
+	id: string;
+	to_email: string;
+	from_email: string;
+	subject: string;
+	type: string;
+	org_id: string | null;
+	user_id: string | null;
+	status: 'sent' | 'failed' | 'skipped_no_key';
+	provider_message_id: string | null;
+	error: string | null;
+	created_at: number;
+}
+
+export interface DbCrewLocation {
+	id: number;
+	org_id: string;
+	job_site_id: number | null;
+	user_id: string;
+	display_name: string;
+	role: string;
+	lat: number;
+	lng: number;
+	accuracy: number | null;
+	heading: number | null;
+	speed: number | null;
+	status: 'active' | 'idle' | 'offline';
+	updated_at: number;
 }
 
 export class DbHelper {
@@ -225,6 +272,10 @@ export class DbHelper {
 		};
 	}
 
+	async deleteUser(id: string): Promise<void> {
+		await this.db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+	}
+
 	async createOrganization(name: string, slug: string): Promise<DbOrganization> {
 		const id = crypto.randomUUID();
 		const now = Math.floor(Date.now() / 1000);
@@ -240,7 +291,7 @@ export class DbHelper {
 	async addOrgMember(
 		userId: string,
 		orgId: string,
-		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office'
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man'
 	): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		await this.db
@@ -295,6 +346,22 @@ export class DbHelper {
 			.bind(userId, orgId)
 			.first<{ role: string }>();
 		return result?.role || null;
+	}
+
+	async getUserMemberships(
+		userId: string
+	): Promise<Array<{ org_id: string; org_name: string; role: string; invited_at: number; accepted_at: number | null }>> {
+		return await this.db
+			.prepare(
+				`SELECT om.org_id, o.name as org_name, om.role, om.invited_at, om.accepted_at
+				FROM org_members om
+				JOIN organizations o ON o.id = om.org_id
+				WHERE om.user_id = ?
+				ORDER BY om.invited_at ASC`
+			)
+			.bind(userId)
+			.all<{ org_id: string; org_name: string; role: string; invited_at: number; accepted_at: number | null }>()
+			.then((r) => r.results);
 	}
 
 	async createJobSite(
@@ -494,7 +561,7 @@ export class DbHelper {
 	async createSession(userId: string, expiresAt: number): Promise<string> {
 		const tokenBytes = new Uint8Array(32);
 		crypto.getRandomValues(tokenBytes);
-		const token = Array.from(tokenBytes, (b) => b.toString(16).padStart(2, '0')).join('');
+		const token = toHex(tokenBytes);
 		const now = Math.floor(Date.now() / 1000);
 
 		await this.db
@@ -518,6 +585,14 @@ export class DbHelper {
 
 	async deleteSessionsByUserId(userId: string): Promise<void> {
 		await this.db.prepare('DELETE FROM sessions WHERE user_id = ?').bind(userId).run();
+	}
+
+	async getSessionsByUserId(userId: string): Promise<DbSession[]> {
+		return await this.db
+			.prepare('SELECT * FROM sessions WHERE user_id = ? ORDER BY created_at DESC')
+			.bind(userId)
+			.all<DbSession>()
+			.then((r) => r.results);
 	}
 
 	async cleanExpiredSessions(): Promise<void> {
@@ -548,7 +623,103 @@ export class DbHelper {
 			.first<DbOrganization>();
 	}
 
-	async updateOrganization(id: string, updates: { name?: string; slug?: string }): Promise<void> {
+	async getJobSiteCountByOrgId(orgId: string): Promise<number> {
+		const row = await this.db
+			.prepare('SELECT COUNT(*) as c FROM job_sites WHERE org_id = ?')
+			.bind(orgId)
+			.first<{ c: number }>();
+		return row?.c ?? 0;
+	}
+
+	// Admin overview aggregates
+	async getAdminStats(): Promise<{
+		totalOrgs: number;
+		totalUsers: number;
+		activeUsers: number;
+		disabledUsers: number;
+		unverifiedUsers: number;
+		globalAdmins: number;
+		totalJobSites: number;
+		failedEmails: number;
+	}> {
+		const [orgs, users, jobSites, emails] = await Promise.all([
+			this.db.prepare('SELECT COUNT(*) as c FROM organizations').first<{ c: number }>(),
+			this.db
+				.prepare(
+					`SELECT
+						COUNT(*) as total,
+						SUM(CASE WHEN disabled = 1 THEN 1 ELSE 0 END) as disabled,
+						SUM(CASE WHEN email_verified = 0 THEN 1 ELSE 0 END) as unverified,
+						SUM(CASE WHEN is_global_admin = 1 THEN 1 ELSE 0 END) as admins
+					FROM users`
+				)
+				.first<{ total: number; disabled: number; unverified: number; admins: number }>(),
+			this.db.prepare('SELECT COUNT(*) as c FROM job_sites').first<{ c: number }>(),
+			this.db
+				.prepare("SELECT COUNT(*) as c FROM email_log WHERE status IN ('failed', 'skipped_no_key')")
+				.first<{ c: number }>()
+				.catch(() => ({ c: 0 }))
+		]);
+
+		const totalUsers = users?.total ?? 0;
+		const disabledUsers = users?.disabled ?? 0;
+		return {
+			totalOrgs: orgs?.c ?? 0,
+			totalUsers,
+			activeUsers: totalUsers - disabledUsers,
+			disabledUsers,
+			unverifiedUsers: users?.unverified ?? 0,
+			globalAdmins: users?.admins ?? 0,
+			totalJobSites: jobSites?.c ?? 0,
+			failedEmails: emails?.c ?? 0
+		};
+	}
+
+	async getRecentUsers(limit = 5): Promise<DbUser[]> {
+		return await this.db
+			.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT ?')
+			.bind(limit)
+			.all<DbUser>()
+			.then((r) => r.results);
+	}
+
+	async getRecentOrganizations(
+		limit = 5
+	): Promise<Array<DbOrganization & { member_count: number }>> {
+		return await this.db
+			.prepare(
+				`SELECT o.*, COUNT(om.user_id) as member_count
+				FROM organizations o
+				LEFT JOIN org_members om ON om.org_id = o.id
+				GROUP BY o.id
+				ORDER BY o.created_at DESC
+				LIMIT ?`
+			)
+			.bind(limit)
+			.all<DbOrganization & { member_count: number }>()
+			.then((r) => r.results);
+	}
+
+	/** Organizations with zero members or zero owners — surfaced as needing attention. */
+	async getOrgsNeedingAttention(): Promise<
+		Array<DbOrganization & { member_count: number; owner_count: number }>
+	> {
+		return await this.db
+			.prepare(
+				`SELECT o.*,
+					COUNT(om.user_id) as member_count,
+					SUM(CASE WHEN om.role = 'owner' THEN 1 ELSE 0 END) as owner_count
+				FROM organizations o
+				LEFT JOIN org_members om ON om.org_id = o.id
+				GROUP BY o.id
+				HAVING member_count = 0 OR owner_count = 0
+				ORDER BY o.created_at DESC`
+			)
+			.all<DbOrganization & { member_count: number; owner_count: number }>()
+			.then((r) => r.results);
+	}
+
+	async updateOrganization(id: string, updates: { name?: string; slug?: string; address?: string; superintendentEmail?: string; superintendentPhone?: string }): Promise<void> {
 		const fields: string[] = [];
 		const values: string[] = [];
 
@@ -559,6 +730,18 @@ export class DbHelper {
 		if (updates.slug !== undefined) {
 			fields.push('slug = ?');
 			values.push(updates.slug);
+		}
+		if (updates.address !== undefined) {
+			fields.push('address = ?');
+			values.push(updates.address);
+		}
+		if (updates.superintendentEmail !== undefined) {
+			fields.push('superintendent_email = ?');
+			values.push(updates.superintendentEmail);
+		}
+		if (updates.superintendentPhone !== undefined) {
+			fields.push('superintendent_phone = ?');
+			values.push(updates.superintendentPhone);
 		}
 
 		if (fields.length === 0) return;
@@ -571,18 +754,41 @@ export class DbHelper {
 	}
 
 	async getAllUsers(): Promise<
-		Array<DbUser & { org_name: string | null; org_id: string | null; role: string | null }>
+		Array<DbUser & { org_name: string | null; org_id: string | null; role: string | null; memberships: Array<{ org_id: string; org_name: string; role: string }> }>
 	> {
-		return await this.db
-			.prepare(
-				`SELECT u.*, o.name as org_name, om.org_id, om.role
-				FROM users u
-				LEFT JOIN org_members om ON om.user_id = u.id
-				LEFT JOIN organizations o ON o.id = om.org_id
-				ORDER BY u.created_at DESC`
-			)
-			.all<DbUser & { org_name: string | null; org_id: string | null; role: string | null }>()
+		const users = await this.db
+			.prepare('SELECT * FROM users ORDER BY created_at DESC')
+			.all<DbUser>()
 			.then((r) => r.results);
+
+		const memberRows = await this.db
+			.prepare(
+				`SELECT om.user_id, om.org_id, om.role, o.name as org_name
+				FROM org_members om
+				JOIN organizations o ON o.id = om.org_id
+				ORDER BY om.invited_at ASC`
+			)
+			.all<{ user_id: string; org_id: string; role: string; org_name: string }>()
+			.then((r) => r.results);
+
+		const byUser = new Map<string, Array<{ org_id: string; org_name: string; role: string }>>();
+		for (const row of memberRows) {
+			const list = byUser.get(row.user_id) ?? [];
+			list.push({ org_id: row.org_id, org_name: row.org_name, role: row.role });
+			byUser.set(row.user_id, list);
+		}
+
+		return users.map((u) => {
+			const memberships = byUser.get(u.id) ?? [];
+			const primary = memberships[0] ?? null;
+			return {
+				...u,
+				org_name: primary?.org_name ?? null,
+				org_id: primary?.org_id ?? null,
+				role: primary?.role ?? null,
+				memberships
+			};
+		});
 	}
 
 	async updateUser(
@@ -632,6 +838,14 @@ export class DbHelper {
 			.run();
 	}
 
+	async setEmailVerified(id: string, verified = true): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare('UPDATE users SET email_verified = ?, updated_at = ? WHERE id = ?')
+			.bind(verified ? 1 : 0, now, id)
+			.run();
+	}
+
 	async removeOrgMember(userId: string, orgId: string): Promise<void> {
 		await this.db
 			.prepare('DELETE FROM org_members WHERE user_id = ? AND org_id = ?')
@@ -642,7 +856,7 @@ export class DbHelper {
 	async updateOrgMemberRole(
 		userId: string,
 		orgId: string,
-		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office'
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man'
 	): Promise<void> {
 		await this.db
 			.prepare('UPDATE org_members SET role = ? WHERE user_id = ? AND org_id = ?')
@@ -665,6 +879,8 @@ export class DbHelper {
 			logoKey?: string | null;
 			logoContentType?: string | null;
 			overrides?: string | null;
+			emailFromName?: string | null;
+			emailReplyTo?: string | null;
 			updatedBy?: string | null;
 		}
 	): Promise<void> {
@@ -674,8 +890,8 @@ export class DbHelper {
 		if (!existing) {
 			await this.db
 				.prepare(
-					`INSERT INTO org_settings (org_id, accent_color, logo_key, logo_content_type, overrides, updated_by, updated_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?)`
+					`INSERT INTO org_settings (org_id, accent_color, logo_key, logo_content_type, overrides, email_from_name, email_reply_to, updated_by, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 				)
 				.bind(
 					orgId,
@@ -683,6 +899,8 @@ export class DbHelper {
 					updates.logoKey ?? null,
 					updates.logoContentType ?? null,
 					updates.overrides ?? null,
+					updates.emailFromName ?? null,
+					updates.emailReplyTo ?? null,
 					updates.updatedBy ?? null,
 					now
 				)
@@ -709,6 +927,14 @@ export class DbHelper {
 			fields.push('overrides = ?');
 			values.push(updates.overrides);
 		}
+		if (updates.emailFromName !== undefined) {
+			fields.push('email_from_name = ?');
+			values.push(updates.emailFromName);
+		}
+		if (updates.emailReplyTo !== undefined) {
+			fields.push('email_reply_to = ?');
+			values.push(updates.emailReplyTo);
+		}
 		if (updates.updatedBy !== undefined) {
 			fields.push('updated_by = ?');
 			values.push(updates.updatedBy);
@@ -731,17 +957,25 @@ export class DbHelper {
 			.first<DbOrganization>();
 	}
 
+	async setOrganizationArchived(id: string, archived: boolean): Promise<void> {
+		const value = archived ? Math.floor(Date.now() / 1000) : null;
+		await this.db
+			.prepare('UPDATE organizations SET archived_at = ? WHERE id = ?')
+			.bind(value, id)
+			.run();
+	}
+
 	// Invitation methods
 	async createInvitation(
 		orgId: string,
 		email: string,
-		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office',
+		role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man',
 		invitedBy: string
 	): Promise<DbInvitation> {
 		const id = crypto.randomUUID();
 		const tokenBytes = new Uint8Array(32);
 		crypto.getRandomValues(tokenBytes);
-		const token = Array.from(tokenBytes, (b) => b.toString(16).padStart(2, '0')).join('');
+		const token = toHex(tokenBytes);
 		const now = Math.floor(Date.now() / 1000);
 		const expiresAt = now + 7 * 24 * 60 * 60; // 7 days
 
@@ -989,20 +1223,85 @@ export class DbHelper {
 			.run();
 	}
 
-	async setEmailVerified(userId: string): Promise<void> {
-		const now = Math.floor(Date.now() / 1000);
-		await this.db
-			.prepare('UPDATE users SET email_verified = 1, updated_at = ? WHERE id = ?')
-			.bind(now, userId)
-			.run();
-	}
-
 	async updatePassword(userId: string, passwordHash: string): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		await this.db
 			.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?')
 			.bind(passwordHash, now, userId)
 			.run();
+	}
+
+	// Email send log
+	async logEmail(entry: {
+		to: string;
+		from: string;
+		subject: string;
+		type: string;
+		status: 'sent' | 'failed' | 'skipped_no_key';
+		orgId?: string | null;
+		userId?: string | null;
+		providerMessageId?: string | null;
+		error?: string | null;
+	}): Promise<void> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				`INSERT INTO email_log (
+					id, to_email, from_email, subject, type, org_id, user_id, status,
+					provider_message_id, error, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			)
+			.bind(
+				id,
+				entry.to,
+				entry.from,
+				entry.subject,
+				entry.type,
+				entry.orgId ?? null,
+				entry.userId ?? null,
+				entry.status,
+				entry.providerMessageId ?? null,
+				entry.error ?? null,
+				now
+			)
+			.run();
+	}
+
+	async getEmailLog(filters?: {
+		status?: string;
+		type?: string;
+		toEmail?: string;
+		failedOnly?: boolean;
+		limit?: number;
+	}): Promise<DbEmailLog[]> {
+		let query = 'SELECT * FROM email_log WHERE 1=1';
+		const bindings: (string | number)[] = [];
+
+		if (filters?.status) {
+			query += ' AND status = ?';
+			bindings.push(filters.status);
+		}
+		if (filters?.failedOnly) {
+			query += " AND status IN ('failed', 'skipped_no_key')";
+		}
+		if (filters?.type) {
+			query += ' AND type = ?';
+			bindings.push(filters.type);
+		}
+		if (filters?.toEmail) {
+			query += ' AND to_email LIKE ?';
+			bindings.push(`%${filters.toEmail}%`);
+		}
+
+		query += ' ORDER BY created_at DESC LIMIT ?';
+		bindings.push(filters?.limit ?? 100);
+
+		return await this.db
+			.prepare(query)
+			.bind(...bindings)
+			.all<DbEmailLog>()
+			.then((r) => r.results);
 	}
 
 	async getJobSiteRoute(jobSiteId: string): Promise<DbJobSiteRoute | null> {
@@ -1045,166 +1344,46 @@ export class DbHelper {
 		};
 	}
 
-	// Webhook methods
-	async getWebhooksByOrgId(orgId: string): Promise<DbWebhook[]> {
+	// Notification preferences
+	async getNotificationPrefs(userId: string): Promise<DbNotificationPref[]> {
 		return await this.db
-			.prepare('SELECT * FROM webhooks WHERE org_id = ? ORDER BY created_at DESC')
-			.bind(orgId)
-			.all<DbWebhook>()
+			.prepare('SELECT * FROM user_notification_prefs WHERE user_id = ?')
+			.bind(userId)
+			.all<DbNotificationPref>()
 			.then((r) => r.results);
 	}
 
-	async getWebhookById(id: string): Promise<DbWebhook | null> {
+	async bulkSetNotificationPrefs(
+		userId: string,
+		prefs: Record<string, boolean>
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		for (const [key, enabled] of Object.entries(prefs)) {
+			await this.db
+				.prepare(
+					`INSERT INTO user_notification_prefs (user_id, pref_key, enabled, updated_at)
+					VALUES (?, ?, ?, ?)
+					ON CONFLICT(user_id, pref_key) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at`
+				)
+				.bind(userId, key, enabled ? 1 : 0, now)
+				.run();
+		}
+	}
+
+	// Invitations
+	async getInvitationById(id: string): Promise<DbInvitation | null> {
 		return await this.db
-			.prepare('SELECT * FROM webhooks WHERE id = ?')
+			.prepare('SELECT * FROM invitations WHERE id = ?')
 			.bind(id)
-			.first<DbWebhook>();
+			.first<DbInvitation>();
 	}
 
-	async getActiveWebhooksByOrgId(orgId: string): Promise<DbWebhook[]> {
+	async getInvitationByEmail(orgId: string, email: string): Promise<DbInvitation | null> {
 		return await this.db
-			.prepare('SELECT * FROM webhooks WHERE org_id = ? AND is_active = 1')
-			.bind(orgId)
-			.all<DbWebhook>()
-			.then((r) => r.results);
-	}
-
-	async createWebhook(
-		orgId: string,
-		url: string,
-		secret: string,
-		events: string[],
-		description: string | null,
-		createdBy: string
-	): Promise<DbWebhook> {
-		const id = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-		const eventsJson = JSON.stringify(events);
-
-		await this.db
 			.prepare(
-				`INSERT INTO webhooks (
-					id, org_id, url, secret, events, description, is_active, created_by, created_at, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				'SELECT * FROM invitations WHERE org_id = ? AND email = ? COLLATE NOCASE AND accepted_at IS NULL'
 			)
-			.bind(id, orgId, url, secret, eventsJson, description, 1, createdBy, now, now)
-			.run();
-
-		return {
-			id,
-			org_id: orgId,
-			url,
-			secret,
-			events: eventsJson,
-			description,
-			is_active: 1,
-			created_by: createdBy,
-			created_at: now,
-			updated_at: now
-		};
-	}
-
-	async updateWebhook(
-		id: string,
-		updates: {
-			url?: string;
-			events?: string[];
-			description?: string | null;
-			is_active?: boolean;
-		}
-	): Promise<void> {
-		const now = Math.floor(Date.now() / 1000);
-		const fields: string[] = [];
-		const values: (string | number | null)[] = [];
-
-		if (updates.url !== undefined) {
-			fields.push('url = ?');
-			values.push(updates.url);
-		}
-		if (updates.events !== undefined) {
-			fields.push('events = ?');
-			values.push(JSON.stringify(updates.events));
-		}
-		if (updates.description !== undefined) {
-			fields.push('description = ?');
-			values.push(updates.description);
-		}
-		if (updates.is_active !== undefined) {
-			fields.push('is_active = ?');
-			values.push(updates.is_active ? 1 : 0);
-		}
-
-		if (fields.length === 0) return;
-
-		fields.push('updated_at = ?');
-		values.push(now);
-		values.push(id);
-
-		await this.db
-			.prepare(`UPDATE webhooks SET ${fields.join(', ')} WHERE id = ?`)
-			.bind(...values)
-			.run();
-	}
-
-	async deleteWebhook(id: string): Promise<void> {
-		await this.db.prepare('DELETE FROM webhook_deliveries WHERE webhook_id = ?').bind(id).run();
-		await this.db.prepare('DELETE FROM webhooks WHERE id = ?').bind(id).run();
-	}
-
-	async createWebhookDelivery(
-		webhookId: string,
-		eventType: string,
-		payload: string,
-		status: 'pending' | 'delivered' | 'failed',
-		httpStatus: number | null,
-		responseBody: string | null
-	): Promise<void> {
-		const id = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-
-		await this.db
-			.prepare(
-				`INSERT INTO webhook_deliveries (
-					id, webhook_id, event_type, payload, status, http_status, response_body,
-					attempt_count, last_attempted_at, delivered_at, created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			)
-			.bind(
-				id,
-				webhookId,
-				eventType,
-				payload,
-				status,
-				httpStatus,
-				responseBody,
-				1,
-				now,
-				status === 'delivered' ? now : null,
-				now
-			)
-			.run();
-	}
-
-	async getWebhookDeliveries(
-		webhookId: string,
-		statusFilter?: string,
-		limit = 50
-	): Promise<DbWebhookDelivery[]> {
-		let query = 'SELECT * FROM webhook_deliveries WHERE webhook_id = ?';
-		const bindings: (string | number)[] = [webhookId];
-
-		if (statusFilter) {
-			query += ' AND status = ?';
-			bindings.push(statusFilter);
-		}
-
-		query += ' ORDER BY created_at DESC LIMIT ?';
-		bindings.push(limit);
-
-		return await this.db
-			.prepare(query)
-			.bind(...bindings)
-			.all<DbWebhookDelivery>()
-			.then((r) => r.results);
+			.bind(orgId, email)
+			.first<DbInvitation>();
 	}
 }

@@ -6,8 +6,47 @@
 	import { fetchJobSites, pushTodayToCloud, pullFromCloud, type JobSiteOption } from '$lib/services/todaySync';
 	import TodaySummary from './TodaySummary.svelte';
 	import TimeInput from '$lib/components/TimeInput.svelte';
+	import DailyTarget from './DailyTarget.svelte';
+	import { formatFeet } from '$lib/utils/format';
+	import EodReport from '$lib/components/EodReport.svelte';
+	import CompletenessBar from '$lib/components/CompletenessBar.svelte';
+	import { confirmStore } from '$lib/stores/confirm.svelte';
 
 	const entries = $derived(today.entries);
+
+	// ---- Date navigation ----
+	let selectedDate = $state(todayDate());
+	const isViewingToday = $derived(selectedDate === todayDate());
+	const isViewingPast = $derived(selectedDate < todayDate());
+
+	function todayDate(): string {
+		return new Date().toISOString().split('T')[0];
+	}
+
+	function formatSelectedDate(dateStr: string): string {
+		const d = new Date(dateStr + 'T00:00:00');
+		return d.toLocaleDateString('en-US', {
+			weekday: 'short',
+			month: 'short',
+			day: 'numeric'
+		});
+	}
+
+	function goPrevDay() {
+		const d = new Date(selectedDate + 'T00:00:00');
+		d.setDate(d.getDate() - 1);
+		selectedDate = d.toISOString().split('T')[0];
+	}
+
+	function goNextDay() {
+		const d = new Date(selectedDate + 'T00:00:00');
+		d.setDate(d.getDate() + 1);
+		selectedDate = d.toISOString().split('T')[0];
+	}
+
+	function jumpToToday() {
+		selectedDate = todayDate();
+	}
 
 	// ---- Cloud sync (only when signed in) ----
 	let jobSites = $state<JobSiteOption[]>([]);
@@ -125,6 +164,7 @@
 	let showForm = $state(false);
 	let editingId = $state<string | null>(null);
 	let form = $state(blankForm());
+	let showEod = $state(false);
 
 	function blankForm() {
 		return {
@@ -139,7 +179,8 @@
 			spread_rate_actual: null as number | null,
 			tack_gallons: null as number | null,
 			lane: '' as string,
-			notes: '' as string
+			notes: '' as string,
+			waste_tons: null as number | null
 		};
 	}
 
@@ -169,7 +210,8 @@
 			spread_rate_actual: e.spread_rate_actual,
 			tack_gallons: e.tack_gallons,
 			lane: e.lane ?? '',
-			notes: e.notes ?? ''
+			notes: e.notes ?? '',
+			waste_tons: e.waste_tons
 		};
 		editingId = id;
 		showForm = true;
@@ -192,7 +234,8 @@
 			spread_rate_actual: form.spread_rate_actual,
 			tack_gallons: form.tack_gallons,
 			lane: form.lane || null,
-			notes: form.notes || null
+			notes: form.notes || null,
+			waste_tons: form.waste_tons
 		};
 		if (editingId) {
 			today.updateEntry(editingId, payload);
@@ -203,8 +246,16 @@
 		editingId = null;
 	}
 
-	function remove(id: string) {
-		today.removeEntry(id);
+	async function remove(id: string) {
+		const confirmed = await confirmStore.ask({
+			title: 'Remove Entry',
+			message: "Remove this entry from today's log?",
+			confirmLabel: 'Remove',
+			destructive: true
+		});
+		if (confirmed) {
+			today.removeEntry(id);
+		}
 	}
 
 	// Entry type icons - these are display elements in the timeline, kept as emoji for consistency with weather display patterns
@@ -216,12 +267,6 @@
 		delay: '⏸️',
 		note: '📝'
 	};
-
-	function fmtFeet(ft: number | null): string {
-		if (ft == null) return '';
-		if (ft >= 5280) return `${(ft / 5280).toFixed(2)} mi`;
-		return `${Math.round(ft).toLocaleString()} ft`;
-	}
 
 	const dateLabel = $derived(
 		new Date(today.date + 'T00:00:00').toLocaleDateString('en-US', {
@@ -242,7 +287,7 @@
 				const todayDate = today.date;
 				const res = await fetch(`/api/job-sites/${today.jobSiteId}/loads?start_date=${todayDate}`, { credentials: 'include' });
 				if (res.ok) {
-					const data = await res.json();
+					const data = (await res.json()) as { loads?: any[] };
 					loads = data.loads || [];
 				}
 			} catch {
@@ -260,7 +305,8 @@
 				tackApplication: job.tackApplication,
 				wastePct: job.wastePct,
 				siteName: job.siteName,
-				siteDescription: job.siteDescription
+				siteDescription: job.siteDescription,
+				courseType: job.courseType
 			},
 			{
 				date: today.date,
@@ -284,7 +330,8 @@
 					spread_rate_actual: e.spread_rate_actual,
 					tack_gallons: e.tack_gallons,
 					lane: e.lane,
-					notes: e.notes
+					notes: e.notes,
+					waste_tons: e.waste_tons
 				})),
 				totals: {
 					totalTons: r.total_tons,
@@ -313,15 +360,36 @@
 
 <div class="today">
 	<div class="day-head">
-		<div>
-			<div class="eyebrow">{dateLabel}</div>
-			{#if today.siteName}<h2 class="site">{today.siteName}</h2>{/if}
+		<div class="date-nav">
+			<button class="btn btn-subtle btn-sm nav-btn" onclick={goPrevDay} aria-label="Previous day">
+				‹
+			</button>
+			<div class="date-display">
+				<div class="eyebrow">{formatSelectedDate(selectedDate)}</div>
+				{#if today.siteName}<h2 class="site">{today.siteName}</h2>{/if}
+			</div>
+			<button class="btn btn-subtle btn-sm nav-btn" onclick={goNextDay} disabled={isViewingToday} aria-label="Next day">
+				›
+			</button>
+			{#if !isViewingToday}
+				<button class="btn btn-ghost btn-sm" onclick={jumpToToday}>Today</button>
+			{/if}
 		</div>
 		<div class="head-actions">
 			<button class="btn btn-ghost btn-sm" onclick={exportDailyReport}>Daily report PDF</button>
 			<button class="btn btn-primary btn-sm" onclick={openAdd}>+ Add entry</button>
 		</div>
 	</div>
+
+	{#if isViewingPast}
+		<div class="readonly-banner">
+			Read-only: viewing past day. Switch to today to add entries.
+		</div>
+	{/if}
+
+	<CompletenessBar state={today} />
+
+	<DailyTarget />
 
 	<section class="conditions">
 		<div class="cond-head">
@@ -399,6 +467,12 @@
 		</section>
 	{/if}
 
+	<section class="eod-section">
+		<button class="btn btn-eod" onclick={() => (showEod = true)}>
+			📋 EOD Report
+		</button>
+	</section>
+
 	<section class="timeline-wrap">
 		<span class="eyebrow">Timeline</span>
 		{#if entries.length === 0}
@@ -428,7 +502,10 @@
 								{:else if e.loads_count != null && e.loads_count > 0}
 									<span class="est-tons">{(e.loads_count * job.truckLoadTons).toFixed(1)}T est.</span>
 								{/if}
-								{#if e.distance_ft != null}<span>{fmtFeet(e.distance_ft)}</span>{/if}
+						{#if e.waste_tons != null && e.waste_tons > 0}
+								<span class="waste-tons">{e.waste_tons}t waste</span>
+							{/if}
+							{#if e.distance_ft != null}<span>{formatFeet(e.distance_ft)}</span>{/if}
 								{#if e.station_start != null && e.station_end != null}
 									<span>{e.station_start}+00 → {e.station_end}+00</span>
 								{/if}
@@ -493,6 +570,11 @@
 						<input type="number" inputmode="decimal" bind:value={form.tons_placed} />
 						<div class="hint">Enter actual weight from load ticket</div>
 					</label>
+					<label class="f">
+						<span>Waste Tons</span>
+						<input type="number" inputmode="decimal" min="0" bind:value={form.waste_tons} />
+						<div class="hint">Spillage, trimming, joint waste (NOT rejected loads)</div>
+					</label>
 					<label class="f"><span>Loads</span><input type="number" inputmode="numeric" bind:value={form.loads_count} /></label>
 					{#if form.tons_placed != null && form.tons_placed > 0 && form.loads_count != null && form.loads_count > 0}
 						<div class="weight-badge actual-badge wide">
@@ -538,6 +620,8 @@
 	</div>
 {/if}
 
+<EodReport bind:open={showEod} />
+
 <style>
 	.today {
 		display: flex;
@@ -549,6 +633,26 @@
 		align-items: flex-end;
 		justify-content: space-between;
 		gap: var(--sp-3);
+		flex-wrap: wrap;
+	}
+	.date-nav {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+	}
+	.date-display {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	.nav-btn {
+		min-width: 48px;
+		font-size: var(--fs-lg);
+		font-weight: var(--fw-bold);
+	}
+	.nav-btn:disabled {
+		opacity: 0.3;
+		cursor: not-allowed;
 	}
 	.site {
 		margin: 2px 0 0;
@@ -559,6 +663,16 @@
 		display: flex;
 		gap: var(--sp-2);
 		flex-shrink: 0;
+	}
+	.readonly-banner {
+		background: color-mix(in srgb, var(--warn) 16%, transparent);
+		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+		border-radius: var(--radius-md);
+		padding: var(--sp-3);
+		text-align: center;
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-medium);
+		color: var(--warn);
 	}
 
 	.conditions,
@@ -591,6 +705,31 @@
 		margin: var(--sp-2) 0 0;
 		font-size: var(--fs-sm);
 		color: var(--bad);
+	}
+	.eod-section {
+		display: flex;
+	}
+	.btn-eod {
+		width: 100%;
+		min-height: 56px;
+		padding: 0 var(--sp-4);
+		background: #f59e0b;
+		color: #1b2228;
+		border: none;
+		border-radius: var(--radius-md);
+		font-size: var(--fs-lg);
+		font-weight: 600;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+	}
+	.btn-eod:hover {
+		background: #d97706;
+		transform: translateY(-1px);
+		box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+	}
+	.btn-eod:active {
+		transform: translateY(0);
 	}
 	.cond-head {
 		display: flex;
@@ -853,6 +992,10 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
+	}
+	.waste-tons {
+		color: #fbbf24;
+		font-weight: var(--fw-medium);
 	}
 	.check-inline {
 		color: var(--good);

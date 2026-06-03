@@ -9,7 +9,8 @@
 	import AppShell from '$lib/components/shell/AppShell.svelte';
 	import PwaInstallPrompt from '$lib/components/PwaInstallPrompt.svelte';
 	import Toast from '$lib/components/ui/Toast.svelte';
-	import TempCheckPrompt from '$lib/components/TempCheckPrompt.svelte';
+	import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
+	import { offlineStore } from '$lib/stores/offline.svelte';
 	import '../app.css';
 
 	let { children } = $props();
@@ -20,7 +21,8 @@
 			$page.url.pathname === '/login' ||
 			$page.url.pathname === '/register' ||
 			$page.url.pathname === '/forgot-password' ||
-			$page.url.pathname === '/reset-password'
+			$page.url.pathname === '/reset-password' ||
+			$page.url.pathname === '/dashboard/onboarding'
 	);
 
 	const themeTokens = $derived(config.theme[themeStore.mode]);
@@ -83,6 +85,9 @@
 	});
 
 	onMount(async () => {
+		// Initialize offline store event listeners
+		offlineStore.init();
+
 		const { registerSW } = await import('virtual:pwa-register');
 		registerSW({ immediate: true });
 
@@ -102,7 +107,5 @@
 	{/if}
 	<PwaInstallPrompt />
 	<Toast />
-	{#if !isStandalone}
-		<TempCheckPrompt />
-	{/if}
+	<ConfirmModal />
 </div>

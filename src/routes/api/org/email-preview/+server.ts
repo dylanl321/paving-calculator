@@ -42,7 +42,7 @@ export async function GET(event: RequestEvent) {
 
 		return json(preview);
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Email preview error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
