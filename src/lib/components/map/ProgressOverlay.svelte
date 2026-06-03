@@ -1,29 +1,79 @@
 <script lang="ts">
+	/** Simplified log entry shape for deriving metrics */
+	interface LogEntry {
+		station_start: number | null;
+		station_end: number | null;
+		tons_placed: number | null;
+		log_date?: string | null;
+	}
+
 	interface Props {
-		totalFt: number | null;
-		pavedFt: number;
-		activeTodayFt: number;
-		daysWithData: number;
+		// Existing computed props API (backward compat)
+		totalFt?: number | null;
+		pavedFt?: number;
+		activeTodayFt?: number;
+		daysWithData?: number;
 		collapsed?: boolean;
+		// New log-based API
+		logEntries?: LogEntry[];
+		totalLengthFt?: number | null;
+		today?: string;
 	}
 
 	let {
 		totalFt,
-		pavedFt,
-		activeTodayFt,
-		daysWithData,
-		collapsed = $bindable(false)
+		pavedFt: pavedFtProp,
+		activeTodayFt: activeTodayFtProp,
+		daysWithData: daysWithDataProp,
+		collapsed = $bindable(false),
+		logEntries,
+		totalLengthFt,
+		today
 	}: Props = $props();
 
-	const totalMiles = $derived(totalFt != null ? totalFt / 5280 : null);
+	// Derive metrics from logEntries if provided
+	const derivedPavedFt = $derived.by(() => {
+		if (!logEntries) return 0;
+		return logEntries.reduce((sum, entry) => {
+			const start = entry.station_start ?? 0;
+			const end = entry.station_end ?? 0;
+			const tons = entry.tons_placed ?? 0;
+			return tons > 0 ? sum + (end - start) * 100 : sum;
+		}, 0);
+	});
+
+	const derivedActiveTodayFt = $derived.by(() => {
+		if (!logEntries || !today) return 0;
+		return logEntries.reduce((sum, entry) => {
+			const start = entry.station_start ?? 0;
+			const end = entry.station_end ?? 0;
+			const tons = entry.tons_placed ?? 0;
+			const date = entry.log_date;
+			return tons > 0 && date === today ? sum + (end - start) * 100 : sum;
+		}, 0);
+	});
+
+	const derivedDaysWithData = $derived.by(() => {
+		if (!logEntries) return 0;
+		const uniqueDates = new Set(logEntries.filter(e => e.log_date).map(e => e.log_date));
+		return uniqueDates.size;
+	});
+
+	// Use explicit props if provided, otherwise use derived values
+	const effectiveTotalFt = $derived(totalFt !== undefined ? totalFt : totalLengthFt ?? null);
+	const pavedFt = $derived(pavedFtProp !== undefined ? pavedFtProp : derivedPavedFt);
+	const activeTodayFt = $derived(activeTodayFtProp !== undefined ? activeTodayFtProp : derivedActiveTodayFt);
+	const daysWithData = $derived(daysWithDataProp !== undefined ? daysWithDataProp : derivedDaysWithData);
+
+	const totalMiles = $derived(effectiveTotalFt != null ? effectiveTotalFt / 5280 : null);
 	const pavedMiles = $derived(pavedFt / 5280);
-	const remainingFt = $derived(totalFt != null ? Math.max(0, totalFt - pavedFt) : null);
+	const remainingFt = $derived(effectiveTotalFt != null ? Math.max(0, effectiveTotalFt - pavedFt) : null);
 	const pctPaved = $derived(
-		totalFt != null && totalFt > 0 ? Math.min(100, Math.round((pavedFt / totalFt) * 100)) : null
+		effectiveTotalFt != null && effectiveTotalFt > 0 ? Math.min(100, Math.round((pavedFt / effectiveTotalFt) * 100)) : null
 	);
 	const pctToday = $derived(
-		totalFt != null && totalFt > 0
-			? Math.min(100 - (pctPaved ?? 0), Math.round((activeTodayFt / totalFt) * 100))
+		effectiveTotalFt != null && effectiveTotalFt > 0
+			? Math.min(100 - (pctPaved ?? 0), Math.round((activeTodayFt / effectiveTotalFt) * 100))
 			: null
 	);
 
