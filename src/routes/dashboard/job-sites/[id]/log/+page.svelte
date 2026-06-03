@@ -16,6 +16,7 @@
 	import CloseOutModal from '$lib/components/CloseOutModal.svelte';
 	import DailySummaryReport from '$lib/components/DailySummaryReport.svelte';
 	import ComparativeDayView from '$lib/components/ComparativeDayView.svelte';
+	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -912,6 +913,13 @@
 					<button class="btn-primary" onclick={openEntryForm}>+ Add Entry</button>
 				{/if}
 			</div>
+
+			<FeatureDiscovery
+				feature="photo"
+				condition={entrySummary.total_loads >= 3 && !entries.some((e) => e.photo_url)}
+			/>
+
+			<FeatureDiscovery feature="closeout" condition={true} />
 
 			{#if entries.length === 0}
 				<div class="empty-state-small">

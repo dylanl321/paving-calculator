@@ -18,6 +18,7 @@
 	import WorkZonesTab from './_components/WorkZonesTab.svelte';
 	import ScheduleTab from './_components/ScheduleTab.svelte';
 	import { haversineFeet } from '$lib/services/mapUtils';
+	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -253,6 +254,11 @@
 	</nav>
 
 	{#if activeTab === 'overview'}
+		<FeatureDiscovery
+			feature="route"
+			condition={!data.routeWaypoints || data.routeWaypoints.length === 0}
+		/>
+
 		<OverviewTab
 			{data}
 			{configForm}
