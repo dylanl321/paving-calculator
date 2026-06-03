@@ -378,7 +378,25 @@
 				</div>
 			{/if}
 			{#if filteredMembers.length === 0}
-				<p class="empty">{hasActiveFilters ? 'No members match your filters' : 'No team members yet'}</p>
+				{#if hasActiveFilters}
+					<p class="empty">No members match your filters</p>
+				{:else}
+					<div class="empty-state">
+						<div class="icon-circle">
+							<svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+								<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" opacity="0.4"></path>
+								<circle cx="9" cy="7" r="4"></circle>
+								<path d="M23 21v-2a4 4 0 0 0-3-3.87" opacity="0.4"></path>
+								<path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+							</svg>
+						</div>
+						<h4>No team members yet</h4>
+						<p>Invite colleagues to collaborate on projects and share work</p>
+						<button type="button" class="btn-primary" onclick={() => (showInviteModal = true)}>
+							Invite team member
+						</button>
+					</div>
+				{/if}
 			{:else}
 				<div class="members-cards">
 					{#each filteredMembers as member}
@@ -606,6 +624,64 @@
 		text-align: center;
 		padding: var(--sp-8);
 		font-size: var(--fs-lg);
+	}
+
+	.empty-state {
+		text-align: center;
+		padding: 48px 24px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.empty-state .icon-circle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 96px;
+		height: 96px;
+		border-radius: 50%;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		margin-bottom: 24px;
+	}
+
+	.empty-state svg {
+		color: var(--accent);
+	}
+
+	.empty-state h4 {
+		margin: 0 0 8px;
+		font-size: 1.1rem;
+		color: var(--text);
+		font-weight: 500;
+	}
+
+	.empty-state p {
+		margin: 0 0 24px;
+		font-size: 0.9rem;
+		color: var(--text-muted);
+		max-width: 400px;
+		line-height: 1.5;
+	}
+
+	.empty-state .btn-primary {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 12px 24px;
+		min-height: 44px;
+		border-radius: 6px;
+		font-size: 0.95rem;
+		font-weight: 500;
+		border: none;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.empty-state .btn-primary:hover {
+		opacity: 0.9;
+		transform: translateY(-1px);
 	}
 
 	.error {

@@ -84,7 +84,22 @@
 
 	{#if equipmentList.length === 0}
 		<div class="empty-state-mini">
-			<p>No equipment assigned yet</p>
+			<div class="icon-circle">
+				<svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+					<circle cx="12" cy="12" r="10" opacity="0.4"></circle>
+					<circle cx="12" cy="12" r="3"></circle>
+					<line x1="12" y1="2" x2="12" y2="6"></line>
+					<line x1="12" y1="18" x2="12" y2="22"></line>
+					<line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+					<line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+					<line x1="2" y1="12" x2="6" y2="12"></line>
+					<line x1="18" y1="12" x2="22" y2="12"></line>
+					<line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+					<line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+				</svg>
+			</div>
+			<h4>No equipment assigned</h4>
+			<p>Add equipment in the Configuration tab to track machinery and tools used on this project</p>
 		</div>
 	{:else}
 		<div class="equipment-list">
@@ -180,6 +195,49 @@
 </section>
 
 <style>
+	.empty-state-mini {
+		text-align: center;
+		padding: 32px 16px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		margin-bottom: 24px;
+	}
+
+	.empty-state-mini .icon-circle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 72px;
+		height: 72px;
+		border-radius: 50%;
+		background: var(--background);
+		border: 1px solid var(--border);
+		margin-bottom: 16px;
+	}
+
+	.empty-state-mini svg {
+		color: var(--accent);
+	}
+
+	.empty-state-mini h4 {
+		margin: 0 0 6px;
+		font-size: 1rem;
+		color: var(--text);
+		font-weight: 500;
+	}
+
+	.empty-state-mini p {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--text-muted);
+		max-width: 350px;
+		line-height: 1.4;
+	}
+
 	.equipment-list {
 		display: flex;
 		flex-direction: column;

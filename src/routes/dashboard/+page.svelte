@@ -351,13 +351,19 @@
 
 		{#if data.jobSites.length === 0}
 			<div class="empty-state">
-				<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-					<polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-					<line x1="12" y1="22.08" x2="12" y2="12"></line>
-				</svg>
+				<div class="icon-circle">
+					<svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" opacity="0.4"></path>
+						<polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+						<line x1="12" y1="22.08" x2="12" y2="12"></line>
+						<circle cx="12" cy="12" r="2" fill="var(--accent)"></circle>
+					</svg>
+				</div>
 				<h4>No projects yet</h4>
 				<p>Create your first project to start planning, tracking, and logging the work</p>
+				<button type="button" class="btn-primary" onclick={() => (showCreateForm = true)}>
+					Create your first project
+				</button>
 			</div>
 		{:else}
 			<div class="job-sites-grid">
@@ -689,24 +695,60 @@
 
 	.empty-state {
 		text-align: center;
-		padding: 48px 20px;
-		color: var(--text-muted);
+		padding: 48px 24px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.empty-state .icon-circle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 96px;
+		height: 96px;
+		border-radius: 50%;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		margin-bottom: 24px;
 	}
 
 	.empty-state svg {
-		opacity: 0.5;
-		margin-bottom: 16px;
+		color: var(--accent);
 	}
 
 	.empty-state h4 {
 		margin: 0 0 8px;
 		font-size: 1.1rem;
 		color: var(--text);
+		font-weight: 500;
 	}
 
 	.empty-state p {
-		margin: 0;
+		margin: 0 0 24px;
 		font-size: 0.9rem;
+		color: var(--text-muted);
+		max-width: 400px;
+		line-height: 1.5;
+	}
+
+	.empty-state .btn-primary {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 12px 24px;
+		min-height: 44px;
+		border-radius: 6px;
+		font-size: 0.95rem;
+		font-weight: 500;
+		border: none;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.empty-state .btn-primary:hover {
+		opacity: 0.9;
+		transform: translateY(-1px);
 	}
 
 	.job-sites-grid {
