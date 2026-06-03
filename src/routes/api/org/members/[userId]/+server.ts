@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireAuth } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
+import { recordAudit } from '$lib/server/audit';
 
 type OrgRole =
 	| 'owner'
@@ -44,8 +45,28 @@ export async function PATCH(event: RequestEvent) {
 			return json({ error: 'Owner cannot change their own role' }, { status: 403 });
 		}
 
+		// Get old role before update for audit
+		const oldRole = await db.getUserRole(userId, org.id);
+		const targetUser = await db.getUserById(userId);
+
 		// Update member role
 		await db.updateOrgMemberRole(userId, org.id, role);
+
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'org_member',
+			resourceId: userId,
+			action: 'update',
+			oldValue: { role: oldRole, user_name: targetUser?.name },
+			newValue: { role, user_name: targetUser?.name },
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		return json({ success: true });
 	} catch (error) {
@@ -85,8 +106,27 @@ export async function DELETE(event: RequestEvent) {
 			return json({ error: 'Cannot remove yourself from the organization' }, { status: 400 });
 		}
 
+		// Get member info before removal for audit
+		const targetUser = await db.getUserById(userId);
+		const targetRole = await db.getUserRole(userId, org.id);
+
 		// Remove member
 		await db.removeOrgMember(userId, org.id);
+
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'org_member',
+			resourceId: userId,
+			action: 'delete',
+			oldValue: { role: targetRole, user_name: targetUser?.name },
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		return json({ success: true });
 	} catch (error) {

@@ -2,6 +2,7 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbCrewHelper } from '$lib/server/db-crews';
 import { requireAuth } from '$lib/server/auth';
+import { recordAudit } from '$lib/server/audit';
 
 export async function DELETE(event: RequestEvent) {
 	try {
@@ -22,7 +23,29 @@ export async function DELETE(event: RequestEvent) {
 
 		const { crewId } = event.params;
 		if (!crewId) return json({ error: 'Crew ID is required' }, { status: 400 });
+
+		// Fetch crew info before deletion for audit
+		const crew = await event.platform!.env.DB
+			.prepare('SELECT * FROM crews WHERE id = ?')
+			.bind(crewId)
+			.first();
+
 		await crewDb.deleteCrew(crewId);
+
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'crew',
+			resourceId: crewId,
+			action: 'delete',
+			oldValue: crew || undefined,
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		return json({ success: true });
 	} catch (error) {

@@ -1,5 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper, type DbLoad } from '$lib/server/db';
+import { recordAudit } from '$lib/server/audit';
 import type { RequestHandler } from './$types';
 
 interface LoadRequestBody {
@@ -136,6 +137,21 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		rejection_notes: null,
 		ticket_photo_id: null
 	};
+
+	await recordAudit(platform!.env.DB, {
+		actorUserId: locals.user.id,
+		actorName: locals.user.name,
+		orgId: org.id,
+		resourceType: 'load',
+		resourceId: id,
+		action: 'create',
+		newValue: load,
+		ipAddress:
+			request.headers.get('cf-connecting-ip') ||
+			request.headers.get('x-forwarded-for') ||
+			undefined,
+		userAgent: request.headers.get('user-agent') || undefined
+	});
 
 	return json({ load }, { status: 201 });
 };

@@ -2,6 +2,7 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbCrewHelper } from '$lib/server/db-crews';
 import { requireAuth } from '$lib/server/auth';
+import { recordAudit } from '$lib/server/audit';
 
 export async function GET(event: RequestEvent) {
 	try {
@@ -68,6 +69,21 @@ export async function POST(event: RequestEvent) {
 		}
 
 		const crew = await crewDb.createCrew(org.id, name.trim(), color, user.id);
+
+		await recordAudit(event.platform!.env.DB, {
+			actorUserId: user.id,
+			actorName: user.name,
+			orgId: org.id,
+			resourceType: 'crew',
+			resourceId: crew.id,
+			action: 'create',
+			newValue: crew,
+			ipAddress:
+				event.request.headers.get('cf-connecting-ip') ||
+				event.request.headers.get('x-forwarded-for') ||
+				undefined,
+			userAgent: event.request.headers.get('user-agent') || undefined
+		});
 
 		return json({ crew }, { status: 201 });
 	} catch (error) {
