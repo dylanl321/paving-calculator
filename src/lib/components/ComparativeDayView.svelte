@@ -4,9 +4,10 @@
 	interface Props {
 		jobSiteId: string;
 		currentLogDate: string;
+		isLogClosed?: boolean;
 	}
 
-	let { jobSiteId, currentLogDate }: Props = $props();
+	let { jobSiteId, currentLogDate, isLogClosed = false }: Props = $props();
 
 	interface DaySummary {
 		label: string;
@@ -213,6 +214,15 @@
 		if (pct >= 0.6) return '#f59e0b';
 		return '#ef4444';
 	}
+
+	function computeProjection(day: DaySummary | null): number | null {
+		if (!day || !day.hasData || isLogClosed) return null;
+		if (day.hours_worked <= 0 || day.total_tons <= 0) return null;
+		const rate = day.total_tons / day.hours_worked;
+		return rate * 8;
+	}
+
+	let todayProjection = $derived(computeProjection(todaySummary));
 </script>
 
 <div class="compare-view">
@@ -270,6 +280,11 @@
 								<span class="metric-value">{formatTons(day.total_tons)}</span>
 								<span class="metric-label">tons placed</span>
 							</div>
+							{#if i === 0 && day.hasData && day.hours_worked > 0 && day.total_tons > 0 && !isLogClosed}
+								<div class="projection-hint">
+									On pace for {((day.total_tons / day.hours_worked) * 8).toFixed(1)} T
+								</div>
+							{/if}
 
 							<!-- Production bar -->
 							<div class="bar-track">
@@ -435,6 +450,13 @@
 		color: var(--text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
+	}
+
+	.projection-hint {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		margin-top: -4px;
+		font-style: italic;
 	}
 
 	.bar-track {

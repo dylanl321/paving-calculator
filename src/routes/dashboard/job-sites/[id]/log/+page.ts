@@ -35,6 +35,8 @@ export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 	let isHistoricalView = false;
 	let prevLogId: string | null = null;
 	let nextLogId: string | null = null;
+	let prevLabel = 'Prev';
+	let nextLabel = 'Next';
 
 	if (viewDateId) {
 		const historicalLog = logs.find((l) => l.id === viewDateId);
@@ -48,9 +50,23 @@ export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 			const currentIndex = sortedLogs.findIndex((l) => l.id === viewDateId);
 			if (currentIndex > 0) {
 				prevLogId = sortedLogs[currentIndex - 1].id;
+				const prevLog = sortedLogs[currentIndex - 1];
+				const currentDate = new Date(historicalLog.log_date);
+				const prevDate = new Date(prevLog.log_date);
+				const diffDays = Math.round((currentDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+				if (diffDays === 1) {
+					prevLabel = 'Yesterday';
+				}
 			}
 			if (currentIndex < sortedLogs.length - 1) {
 				nextLogId = sortedLogs[currentIndex + 1].id;
+				const nextLog = sortedLogs[currentIndex + 1];
+				const currentDate = new Date(historicalLog.log_date);
+				const nextDate = new Date(nextLog.log_date);
+				const diffDays = Math.round((nextDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+				if (diffDays === 1) {
+					nextLabel = 'Tomorrow';
+				}
 			}
 		}
 	}
@@ -65,6 +81,8 @@ export const load: PageLoad = async ({ params, fetch, parent, url }) => {
 		isHistoricalView,
 		prevLogId,
 		nextLogId,
+		prevLabel,
+		nextLabel,
 		userRole,
 		isGlobalAdmin
 	};

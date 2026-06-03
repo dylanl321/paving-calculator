@@ -29,6 +29,7 @@
 	let unlocking = $state(false);
 	let showSummary = $state(false);
 	let showComparison = $state(false);
+	let showCalendarPicker = $state(false);
 
 	let isAdmin = $derived(
 		data.userRole === 'owner' || data.userRole === 'admin' || data.isGlobalAdmin
@@ -481,6 +482,24 @@
 		await loadLogDetails();
 		await invalidateAll();
 	}
+
+	function handleCalendarSelect(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const selectedDate = input.value;
+		if (!selectedDate) return;
+
+		const matchingLog = data.logs.find((l) => l.log_date === selectedDate);
+		if (matchingLog) {
+			goto(`/dashboard/job-sites/${data.jobSite.id}/log?date=${matchingLog.id}`);
+			showCalendarPicker = false;
+		}
+	}
+
+	function handleCalendarKeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape') {
+			showCalendarPicker = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -526,23 +545,42 @@
 				class:disabled={!data.prevLogId}
 				aria-label="Previous day"
 			>
-				← Prev
+				← {data.prevLabel}
 			</a>
 			<span class="date-nav-current">
 				{formatLogDate(viewedLog?.log_date ?? data.today)}
 			</span>
+			<button
+				class="date-nav-calendar"
+				onclick={() => (showCalendarPicker = !showCalendarPicker)}
+				aria-label="Select date"
+				title="Jump to date"
+			>
+				<Calendar size={18} />
+			</button>
 			<a
 				href={data.nextLogId ? `/dashboard/job-sites/${data.jobSite.id}/log?date=${data.nextLogId}` : '#'}
 				class="date-nav-arrow"
 				class:disabled={!data.nextLogId}
 				aria-label="Next day"
 			>
-				Next →
+				{data.nextLabel} →
 			</a>
 			{#if isHistoricalView}
 				<a href="/dashboard/job-sites/{data.jobSite.id}/log" class="date-nav-today">Today</a>
 			{/if}
 		</div>
+		{#if showCalendarPicker}
+			<div class="calendar-picker-popover" onkeydown={handleCalendarKeydown}>
+				<input
+					type="date"
+					value={viewedLog?.log_date ?? data.today}
+					onchange={handleCalendarSelect}
+					onkeydown={handleCalendarKeydown}
+					class="calendar-picker-input"
+				/>
+			</div>
+		{/if}
 	{/if}
 
 	{#if isHistoricalView}
@@ -674,7 +712,7 @@
 	</div>
 
 	{#if showComparison && currentLog}
-		<ComparativeDayView jobSiteId={data.jobSite.id} currentLogDate={viewedLog?.log_date ?? data.today} />
+		<ComparativeDayView jobSiteId={data.jobSite.id} currentLogDate={viewedLog?.log_date ?? data.today} isLogClosed={!!currentLog?.closed_at} />
 	{/if}
 
 	{#if data.summary.total_distance_ft > 0}
@@ -1621,6 +1659,7 @@
 		padding: 8px 0;
 		margin-bottom: 12px;
 		flex-wrap: wrap;
+		position: relative;
 	}
 
 	.date-nav-arrow {
@@ -1656,6 +1695,55 @@
 		font-weight: 600;
 		font-size: 0.95rem;
 		min-width: 120px;
+	}
+
+	.date-nav-calendar {
+		min-height: 48px;
+		min-width: 48px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: background 0.2s, color 0.2s;
+	}
+
+	.date-nav-calendar:hover {
+		background: var(--surface-alt);
+		color: var(--accent);
+	}
+
+	.calendar-picker-popover {
+		position: absolute;
+		top: 100%;
+		left: 50%;
+		transform: translateX(-50%);
+		background: var(--bg-card, var(--surface));
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 12px;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+		z-index: 100;
+		margin-top: 4px;
+	}
+
+	.calendar-picker-input {
+		min-height: 48px;
+		padding: 0 12px;
+		font-size: 1rem;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text);
+		cursor: pointer;
+	}
+
+	.calendar-picker-input::-webkit-calendar-picker-indicator {
+		filter: invert(0.7);
+		cursor: pointer;
 	}
 
 	.date-nav-today {

@@ -24,6 +24,11 @@ export default defineConfig({
 	ssr: {
 		noExternal: ['leaflet']
 	},
+	build: {
+		rollupOptions: {
+			external: ['leaflet', 'leaflet/dist/leaflet.css']
+		}
+	},
 	plugins: [
 		yaml(),
 		sveltekit(),
