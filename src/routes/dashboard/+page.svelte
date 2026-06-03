@@ -369,6 +369,44 @@
 				<button type="button" class="btn-primary" onclick={() => (showCreateForm = true)}>
 					Create your first project
 				</button>
+
+				<div class="get-started">
+					<h5 class="get-started-title">Get started with PaveRate</h5>
+					<div class="get-started-cards">
+						<a href="/dashboard/team" class="get-started-card">
+							<div class="card-icon">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+									<circle cx="9" cy="7" r="4"></circle>
+									<path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+									<path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+								</svg>
+							</div>
+							<h6>Invite Your Crew</h6>
+							<p>Add foremen, operators, and crew members</p>
+						</a>
+						<a href="/dashboard/settings" class="get-started-card">
+							<div class="card-icon">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M4 6h16M4 12h16M4 18h16"></path>
+								</svg>
+							</div>
+							<h6>Configure Defaults</h6>
+							<p>Set your mix types, lift thicknesses, and spread rates</p>
+						</a>
+						<a href="/dashboard/guides" class="get-started-card">
+							<div class="card-icon">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+									<path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+								</svg>
+							</div>
+							<h6>Read the Guide</h6>
+							<p>Learn how PaveRate helps you hit spec every pour</p>
+						</a>
+					</div>
+					<a href="/dashboard/import" class="import-link">Import existing data?</a>
+				</div>
 			</div>
 		{:else}
 			<div class="job-sites-grid">
@@ -742,8 +780,8 @@
 		align-items: center;
 		justify-content: center;
 		padding: 12px 24px;
-		min-height: 44px;
-		border-radius: 6px;
+		min-height: 48px;
+		border-radius: var(--radius);
 		font-size: 0.95rem;
 		font-weight: 500;
 		border: none;
@@ -754,6 +792,111 @@
 	.empty-state .btn-primary:hover {
 		opacity: 0.9;
 		transform: translateY(-1px);
+	}
+
+	.get-started {
+		margin-top: 48px;
+		width: 100%;
+		max-width: 960px;
+	}
+
+	.get-started-title {
+		margin: 0 0 24px;
+		font-size: 1.1rem;
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.get-started-cards {
+		display: flex;
+		gap: 16px;
+		margin-bottom: 24px;
+		overflow-x: auto;
+		scroll-snap-type: x mandatory;
+		-webkit-overflow-scrolling: touch;
+		padding-bottom: 4px;
+	}
+
+	.get-started-card {
+		flex: 0 0 280px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 24px;
+		text-align: left;
+		text-decoration: none;
+		color: var(--text);
+		transition: all 0.2s;
+		scroll-snap-align: start;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		min-height: 48px;
+	}
+
+	.get-started-card:hover {
+		border-color: var(--accent);
+		transform: translateY(-2px);
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	}
+
+	.get-started-card:active {
+		transform: translateY(0);
+	}
+
+	.card-icon {
+		width: 48px;
+		height: 48px;
+		border-radius: var(--radius);
+		background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--accent);
+	}
+
+	.get-started-card h6 {
+		margin: 0;
+		font-size: 1rem;
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.get-started-card p {
+		margin: 0;
+		font-size: 0.85rem;
+		color: var(--text-muted);
+		line-height: 1.4;
+	}
+
+	.import-link {
+		display: inline-block;
+		color: var(--text-muted);
+		font-size: 0.85rem;
+		text-decoration: none;
+		border-bottom: 1px solid transparent;
+		transition: all 0.2s;
+		padding: 8px 0;
+		min-height: 48px;
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.import-link:hover {
+		color: var(--accent);
+		border-bottom-color: var(--accent);
+	}
+
+	@media (min-width: 640px) {
+		.get-started-cards {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			overflow-x: visible;
+		}
+
+		.get-started-card {
+			flex: 1;
+		}
 	}
 
 	.job-sites-grid {
