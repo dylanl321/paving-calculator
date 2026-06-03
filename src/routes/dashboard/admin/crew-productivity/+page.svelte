@@ -8,13 +8,22 @@
 
 	onMount(async () => {
 		try {
-			const res = await fetch('/api/user/me', { credentials: 'include' });
+			const res = await fetch('/api/auth/me', { credentials: 'include' });
 			if (!res.ok) {
 				goto('/login');
 				return;
 			}
 
-			const userData = (await res.json()) as { org?: { role?: string | null } };
+			const userData = (await res.json()) as {
+				user?: unknown | null;
+				org?: { role?: string | null } | null;
+			};
+
+			if (!userData.user) {
+				goto('/login');
+				return;
+			}
+
 			userRole = userData.org?.role ?? null;
 
 			if (userRole !== 'owner' && userRole !== 'admin') {
