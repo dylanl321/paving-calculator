@@ -11,7 +11,7 @@ interface OrgData {
 	id: string;
 	name: string;
 	slug: string;
-	role: 'owner' | 'admin' | 'member';
+	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man';
 }
 
 interface AuthState {
