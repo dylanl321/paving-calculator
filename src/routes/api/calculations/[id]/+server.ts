@@ -35,7 +35,7 @@ export async function GET(event: RequestEvent) {
 			created_at: calculation.created_at
 		});
 	} catch (error) {
-		if (error instanceof Response) throw error;
+		if (error instanceof Response) return error;
 		console.error('Get calculation error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
