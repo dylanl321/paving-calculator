@@ -173,13 +173,13 @@
 		margin-left: auto;
 	}
 
-	@media (max-width: 767px) {
+	@media (max-width: 899px) {
 		.weather-bar--collapsed .weather-bar__content {
 			display: none;
 		}
 	}
 
-	@media (min-width: 768px) {
+	@media (min-width: 900px) {
 		.weather-bar {
 			padding: 10px 24px;
 		}

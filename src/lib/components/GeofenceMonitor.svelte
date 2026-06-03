@@ -391,8 +391,8 @@
 		color: var(--text);
 	}
 
-	/* Tablet and up: adjust positioning for sidebar */
-	@media (min-width: 768px) {
+	/* Tablet and up: adjust positioning for permanent sidebar */
+	@media (min-width: 900px) {
 		.status-bar {
 			left: var(--sidebar-rail-w);
 		}

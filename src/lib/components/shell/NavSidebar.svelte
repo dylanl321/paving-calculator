@@ -227,7 +227,7 @@
 
 <svelte:window onkeydown={handleDrawerKeydown} />
 
-<!-- Mobile top bar (hidden on tablet+) -->
+<!-- Mobile top bar (hidden once the shell has a permanent nav column) -->
 <header class="mobile-bar">
 	<button class="hamburger" onclick={() => (drawerOpen = true)} aria-label="Open navigation">
 		<Menu size={24} aria-hidden="true" />
@@ -837,21 +837,27 @@
 	}
 
 	/* ---- Tablet: static icon rail ---- */
-	@media (min-width: 768px) {
+	@media (min-width: 900px) {
 		.mobile-bar,
 		.scrim {
 			display: none;
 		}
 	}
 
-	@media (min-width: 768px) and (max-width: 1099px) {
+	@media (min-width: 900px) {
 		.sidebar {
 			position: sticky;
 			top: 0;
 			height: 100vh;
-			width: var(--sidebar-rail-w);
+			align-self: start;
 			transform: none;
 			transition: none;
+		}
+	}
+
+	@media (min-width: 900px) and (max-width: 1099px) {
+		.sidebar {
+			width: var(--sidebar-rail-w);
 		}
 
 		.brand {

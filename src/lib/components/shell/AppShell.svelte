@@ -154,20 +154,49 @@
 		opacity: 0.6;
 	}
 
-	/* Tablet / iPad: icon-rail sidebar + content + job-site settings panel. */
-	@media (min-width: 768px) {
+	/* Tablet / compact desktop: icon-rail sidebar + content + job-site settings panel. */
+	@media (min-width: 900px) {
 		.shell {
 			display: grid;
 			grid-template-columns: var(--sidebar-rail-w) 1fr;
+			grid-template-rows: auto 1fr auto;
+			grid-template-areas:
+				'nav weather'
+				'nav main'
+				'nav footer';
+			min-height: 100vh;
 		}
 
 		.shell.with-context {
 			grid-template-columns: var(--sidebar-rail-w) 1fr var(--context-w);
+			grid-template-areas:
+				'nav weather context'
+				'nav main context'
+				'nav footer context';
+		}
+
+		/* Explicitly place each region so they stack in the content column
+		   instead of auto-flowing into the sidebar column. */
+		.shell > :global(nav.sidebar) {
+			grid-area: nav;
+		}
+
+		.shell > :global(.weather-bar) {
+			grid-area: weather;
 		}
 
 		.shell-main {
+			grid-area: main;
 			min-width: 0;
 			padding: 20px 24px 48px;
+		}
+
+		.shell-footer {
+			grid-area: footer;
+		}
+
+		.shell-context {
+			grid-area: context;
 		}
 
 		.shell.with-context .shell-context {

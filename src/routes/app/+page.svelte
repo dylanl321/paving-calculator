@@ -69,7 +69,7 @@
 		let isMobile = false;
 
 		function checkMobile() {
-			isMobile = window.innerWidth < 768;
+			isMobile = window.innerWidth < 900;
 		}
 
 		function onPointerDown(e: PointerEvent) {
@@ -487,7 +487,7 @@
 		}
 	}
 
-	@media (min-width: 768px) {
+	@media (min-width: 900px) {
 		.swipe-hint {
 			display: none;
 		}
@@ -498,7 +498,7 @@
 
 	/* Mobile: tool picker sits at the top as a horizontal chip menu (see ToolList),
 	   then the active calculator, then live rates below. */
-	@media (max-width: 767px) {
+	@media (max-width: 899px) {
 		.tools {
 			margin: 0 calc(-1 * var(--sp-4));
 			padding: var(--sp-2) var(--sp-4);
@@ -595,7 +595,7 @@
 	}
 
 	/* Show breadcrumb on desktop/tablet, hide back button */
-	@media (min-width: 768px) {
+	@media (min-width: 900px) {
 		.breadcrumb {
 			display: block;
 		}
@@ -605,7 +605,7 @@
 	}
 
 	/* Hide breadcrumb on mobile, show back button */
-	@media (max-width: 767px) {
+	@media (max-width: 899px) {
 		.breadcrumb {
 			display: none;
 		}
@@ -698,7 +698,7 @@
 	}
 
 	/* Tablet: tool list + stage; rates fold under the stage */
-	@media (min-width: 768px) and (max-width: 1099px) {
+	@media (min-width: 900px) and (max-width: 1099px) {
 		.panes {
 			display: grid;
 			grid-template-columns: var(--toollist-w) 1fr;

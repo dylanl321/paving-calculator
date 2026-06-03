@@ -15,13 +15,13 @@
 
 	// Scroll active tool into view on mobile
 	function scrollIntoView(node: HTMLElement, isActive: boolean) {
-		if (isActive && window.innerWidth < 768) {
+		if (isActive && window.innerWidth < 900) {
 			node.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
 		}
 
 		return {
 			update(newIsActive: boolean) {
-				if (newIsActive && window.innerWidth < 768) {
+				if (newIsActive && window.innerWidth < 900) {
 					node.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
 				}
 			}
@@ -175,7 +175,7 @@
 
 	/* Mobile: present the picker as a compact horizontal chip menu so it can sit
 	   at the top of the page without taking a full screen of vertical space. */
-	@media (max-width: 767px) {
+	@media (max-width: 899px) {
 		.tool-list {
 			flex-direction: row;
 			gap: var(--sp-3);
