@@ -167,6 +167,28 @@ function createOfflineStore() {
 		lastSyncedAt = new Date();
 	}
 
+	function getAllQueuedLoads(): QueuedLoad[] {
+		if (typeof localStorage === 'undefined') return [];
+		const allLoads: QueuedLoad[] = [];
+		try {
+			for (let i = 0; i < localStorage.length; i++) {
+				const key = localStorage.key(i);
+				if (key?.startsWith('offline_queue_')) {
+					const data = localStorage.getItem(key);
+					if (data) {
+						const queue = JSON.parse(data);
+						if (Array.isArray(queue)) {
+							allLoads.push(...queue);
+						}
+					}
+				}
+			}
+		} catch {
+			// ignore
+		}
+		return allLoads;
+	}
+
 	return {
 		get isOnline() { return isOnline; },
 		get pendingCount() { return pendingCount; },
@@ -175,7 +197,8 @@ function createOfflineStore() {
 		init,
 		queueLoad,
 		flushQueue,
-		updateLastSyncedAt
+		updateLastSyncedAt,
+		getAllQueuedLoads
 	};
 }
 
