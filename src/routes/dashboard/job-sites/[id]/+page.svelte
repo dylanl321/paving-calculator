@@ -38,11 +38,6 @@
 		tack_type: data.config?.tack_type || null,
 		target_tack_rate: data.config?.target_tack_rate || null,
 		notes: data.config?.notes || null,
-		route_designation: data.config?.route_designation || null,
-		route_county: data.config?.route_county || null,
-		route_district: data.config?.route_district || null,
-		route_functional_class: data.config?.route_functional_class || null,
-		route_system_code: data.config?.route_system_code || null,
 		num_lifts: data.config?.num_lifts || null,
 		total_tonnage: data.config?.total_tonnage || null,
 		cost_per_ton: data.config?.cost_per_ton || null,
@@ -236,6 +231,13 @@
 		</button>
 		<button
 			class="tab"
+			class:active={activeTab === 'activity'}
+			onclick={() => (activeTab = 'activity')}
+		>
+			Activity
+		</button>
+		<button
+			class="tab"
 			class:active={activeTab === 'configuration'}
 			onclick={() => (activeTab = 'configuration')}
 		>
@@ -261,13 +263,6 @@
 			onclick={() => (activeTab = 'calculations')}
 		>
 			Calculations{#if data.calculations.length}<span class="tab-count">{data.calculations.length}</span>{/if}
-		</button>
-		<button
-			class="tab"
-			class:active={activeTab === 'activity'}
-			onclick={() => (activeTab = 'activity')}
-		>
-			Activity
 		</button>
 	</nav>
 
@@ -313,7 +308,7 @@
 	{:else if activeTab === 'milestones'}
 		<ScheduleTab jobSiteId={data.jobSite.id} bind:milestones />
 	{:else if activeTab === 'activity'}
-		<ActivityTab siteId={data.jobSite.id} />
+		<ActivityTab jobSiteId={data.jobSite.id} />
 	{/if}
 </div>
 

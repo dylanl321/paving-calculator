@@ -1,491 +1,487 @@
 <script lang="ts">
-	interface AuditLogEntry {
+	let { jobSiteId }: { jobSiteId: string } = $props();
+
+	interface AuditEntry {
 		id: string;
 		actor_user_id: string | null;
 		actor_name: string | null;
-		org_id: string;
 		resource_type: string;
 		resource_id: string;
 		action: string;
 		old_value: string | null;
 		new_value: string | null;
-		ip_address: string | null;
-		user_agent: string | null;
 		created_at: number;
 	}
 
-	interface User {
+	interface Member {
 		id: string;
 		name: string;
 	}
 
-	interface ActivityResponse {
-		entries: AuditLogEntry[];
-		next_cursor: number | null;
-		users: User[];
+	let entries = $state<AuditEntry[]>([]);
+	let members = $state<Member[]>([]);
+	let loading = $state(false);
+	let loadingMore = $state(false);
+	let error = $state<string | null>(null);
+	let nextCursor = $state<number | null>(null);
+	let hasMore = $state(false);
+
+	// Filters
+	let filterType = $state('all');
+	let filterUser = $state('all');
+
+	const typeFilters = [
+		{ value: 'all', label: 'All' },
+		{ value: 'job_site', label: 'Project' },
+		{ value: 'config', label: 'Config' },
+		{ value: 'equipment', label: 'Equipment' },
+		{ value: 'daily_log', label: 'Daily Log' },
+		{ value: 'load', label: 'Loads' },
+		{ value: 'milestone', label: 'Schedule' }
+	];
+
+	function resourceTypeToLabel(type: string): string {
+		const map: Record<string, string> = {
+			job_site: 'Project',
+			config: 'Config',
+			equipment: 'Equipment',
+			daily_log: 'Daily Log',
+			load: 'Load',
+			milestone: 'Milestone'
+		};
+		return map[type] || type;
 	}
 
-	let { siteId }: { siteId: string } = $props();
+	function describeAction(entry: AuditEntry): string {
+		const rt = entry.resource_type;
+		const act = entry.action;
 
-	let entries = $state<AuditLogEntry[]>([]);
-	let users = $state<User[]>([]);
-	let nextCursor = $state<number | null>(null);
-	let loading = $state(false);
-	let error = $state<string | null>(null);
-	let resourceTypeFilter = $state<string | null>(null);
-	let actorUserIdFilter = $state<string | null>(null);
-	let loadMoreTrigger = $state<HTMLDivElement | null>(null);
+		// Try to show field-level detail for config updates
+		if (rt === 'config' && act === 'update' && entry.old_value && entry.new_value) {
+			try {
+				const oldObj = JSON.parse(entry.old_value);
+				const newObj = JSON.parse(entry.new_value);
+				const changed: string[] = [];
+				const fieldLabels: Record<string, string> = {
+					lane_width_ft: 'lane width',
+					target_thickness_in: 'target thickness',
+					num_lanes: 'lane count',
+					total_length_ft: 'project length',
+					mix_type: 'mix type',
+					tack_type: 'tack type',
+					road_type: 'road type',
+					scope_of_work: 'scope',
+					target_spread_rate: 'spread rate',
+					target_tack_rate: 'tack rate',
+					cost_per_ton: 'cost/ton',
+					cost_per_sy: 'cost/SY',
+					total_contract_value: 'contract value'
+				};
+				for (const key of Object.keys(newObj)) {
+					if (oldObj[key] !== newObj[key] && fieldLabels[key]) {
+						const lbl = fieldLabels[key];
+						changed.push(`changed ${lbl} from ${oldObj[key]} to ${newObj[key]}`);
+					}
+				}
+				if (changed.length === 1) return changed[0];
+				if (changed.length > 1) return `updated config (${changed.length} fields)`;
+			} catch {
+				// fall through
+			}
+		}
 
-	async function loadActivity(append = false) {
-		loading = true;
+		const descriptions: Record<string, Record<string, string>> = {
+			job_site: { create: 'created the project', update: 'updated project details', delete: 'deleted the project' },
+			config: { create: 'set up project config', update: 'updated project config', delete: 'cleared project config' },
+			equipment: { create: 'added equipment', update: 'updated equipment', delete: 'removed equipment' },
+			daily_log: { create: 'created a daily log', update: 'updated daily log', close: 'closed daily log', unlock: 'unlocked daily log', delete: 'deleted daily log' },
+			load: { create: 'recorded a load', update: 'updated a load', delete: 'removed a load' },
+			milestone: { create: 'added a milestone', update: 'updated a milestone', delete: 'removed a milestone', complete: 'completed a milestone' }
+		};
+
+		return descriptions[rt]?.[act] ?? `${act} ${rt.replace('_', ' ')}`;
+	}
+
+	function relativeTime(ts: number): string {
+		const now = Math.floor(Date.now() / 1000);
+		const diff = now - ts;
+		if (diff < 60) return 'just now';
+		if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+		if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+		if (diff < 172800) return 'yesterday';
+		if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`;
+		const d = new Date(ts * 1000);
+		return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+	}
+
+	function initials(name: string | null): string {
+		if (!name) return '?';
+		const parts = name.trim().split(/\s+/);
+		if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+		return name.slice(0, 2).toUpperCase();
+	}
+
+	// Generate a consistent color from actor id/name
+	function actorColor(actorId: string | null, name: string | null): string {
+		const seed = actorId || name || '?';
+		let hash = 0;
+		for (let i = 0; i < seed.length; i++) {
+			hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+		}
+		const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#ef4444', '#f59e0b', '#06b6d4', '#ec4899'];
+		return colors[Math.abs(hash) % colors.length];
+	}
+
+	async function loadEntries(reset = false) {
+		if (loading || loadingMore) return;
+		if (reset) {
+			loading = true;
+			entries = [];
+			nextCursor = null;
+			hasMore = false;
+			members = [];
+		} else {
+			loadingMore = true;
+		}
 		error = null;
 
 		try {
-			const params = new URLSearchParams();
-			if (resourceTypeFilter) params.set('resource_type', resourceTypeFilter);
-			if (actorUserIdFilter) params.set('actor_user_id', actorUserIdFilter);
-			if (append && nextCursor) params.set('before', String(nextCursor));
+			const params = new URLSearchParams({ limit: '30' });
+			if (filterType !== 'all') params.set('resource_type', filterType);
+			if (filterUser !== 'all') params.set('actor_user_id', filterUser);
+			if (!reset && nextCursor) params.set('before', String(nextCursor));
 
-			const res = await fetch(`/api/job-sites/${siteId}/activity?${params}`, {
+			const res = await fetch(`/api/job-sites/${jobSiteId}/activity?${params}`, {
 				credentials: 'include'
 			});
-
 			if (!res.ok) throw new Error('Failed to load activity');
+			const data = await res.json() as { entries: AuditEntry[]; next_cursor: number | null; members: Member[] };
 
-			const data = (await res.json()) as ActivityResponse;
-
-			if (append) {
-				entries = [...entries, ...data.entries];
-			} else {
-				entries = data.entries;
-			}
-
+			entries = reset ? data.entries : [...entries, ...data.entries];
 			nextCursor = data.next_cursor;
-
-			const existingUserIds = new Set(users.map((u) => u.id));
-			for (const user of data.users) {
-				if (!existingUserIds.has(user.id)) {
-					users.push(user);
-					existingUserIds.add(user.id);
-				}
-			}
-		} catch (err) {
-			error = err instanceof Error ? err.message : 'Unknown error';
-		} finally {
-			loading = false;
-		}
-	}
-
-	$effect(() => {
-		loadActivity();
-	});
-
-	$effect(() => {
-		if (!loadMoreTrigger || !nextCursor) return;
-
-		const observer = new IntersectionObserver(
-			(entries) => {
-				if (entries[0].isIntersecting && !loading && nextCursor) {
-					loadActivity(true);
-				}
-			},
-			{ rootMargin: '100px' }
-		);
-
-		observer.observe(loadMoreTrigger);
-
-		return () => {
-			observer.disconnect();
-		};
-	});
-
-	function formatRelativeTime(timestamp: number): string {
-		const now = Math.floor(Date.now() / 1000);
-		const diff = now - timestamp;
-
-		if (diff < 60) return 'just now';
-		if (diff < 3600) {
-			const mins = Math.floor(diff / 60);
-			return `${mins} ${mins === 1 ? 'minute' : 'minutes'} ago`;
-		}
-		if (diff < 86400) {
-			const hours = Math.floor(diff / 3600);
-			return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
-		}
-		if (diff < 604800) {
-			const days = Math.floor(diff / 86400);
-			return `${days} ${days === 1 ? 'day' : 'days'} ago`;
-		}
-		if (diff < 2592000) {
-			const weeks = Math.floor(diff / 604800);
-			return `${weeks} ${weeks === 1 ? 'week' : 'weeks'} ago`;
-		}
-
-		const date = new Date(timestamp * 1000);
-		return date.toLocaleDateString();
-	}
-
-	function getResourceTypeIcon(resourceType: string): string {
-		const icons: Record<string, string> = {
-			job_site: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
-			job_site_config: 'M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z',
-			equipment:
-				'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z',
-			daily_log: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6',
-			load_entry: 'M1 3h15v13H1z M16 8h4l3 3v5h-7V8z M5.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z'
-		};
-		return icons[resourceType] || 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z';
-	}
-
-	function getResourceTypeColor(resourceType: string): string {
-		const colors: Record<string, string> = {
-			job_site: '#3b82f6',
-			job_site_config: '#8b5cf6',
-			equipment: '#f59e0b',
-			daily_log: '#10b981',
-			load_entry: '#06b6d4'
-		};
-		return colors[resourceType] || '#6b7280';
-	}
-
-	function getActivityDescription(entry: AuditLogEntry): string {
-		const actor = entry.actor_name || 'System';
-
-		if (entry.action === 'create' && entry.resource_type === 'job_site') {
-			return `${actor} created this project`;
-		}
-		if (entry.action === 'update' && entry.resource_type === 'job_site_config') {
-			return `${actor} updated project configuration`;
-		}
-		if (entry.action === 'update' && entry.resource_type === 'job_site') {
-			return `${actor} updated project details`;
-		}
-		if (entry.action === 'create' && entry.resource_type === 'equipment') {
-			return `${actor} added equipment`;
-		}
-		if (entry.action === 'delete' && entry.resource_type === 'equipment') {
-			return `${actor} removed equipment`;
-		}
-		if (entry.action === 'create' && entry.resource_type === 'daily_log') {
-			return `${actor} created a daily log`;
-		}
-		if (entry.action === 'update' && entry.resource_type === 'daily_log') {
-			return `${actor} updated a daily log`;
-		}
-		if (entry.action === 'create' && entry.resource_type === 'load_entry') {
-			return `${actor} logged a load`;
-		}
-
-		if (entry.old_value && entry.new_value) {
-			try {
-				const oldVal = JSON.parse(entry.old_value);
-				const newVal = JSON.parse(entry.new_value);
-
-				for (const key in newVal) {
-					if (oldVal[key] !== newVal[key]) {
-						const fieldName = key.replace(/_/g, ' ');
-						return `${actor} updated ${fieldName} from ${oldVal[key]} to ${newVal[key]}`;
+			hasMore = data.next_cursor !== null;
+			if (data.members?.length) {
+				// Merge members without duplicates
+				const seen = new Set(members.map((m) => m.id));
+				for (const m of data.members) {
+					if (!seen.has(m.id)) {
+						members = [...members, m];
+						seen.add(m.id);
 					}
 				}
-			} catch {
-				// Fall through to default
 			}
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Unknown error';
+		} finally {
+			loading = false;
+			loadingMore = false;
 		}
-
-		const actionText = entry.action === 'create' ? 'created' : entry.action === 'delete' ? 'deleted' : 'updated';
-		const resourceText = entry.resource_type.replace(/_/g, ' ');
-		return `${actor} ${actionText} ${resourceText}`;
 	}
 
-	function handleFilterChange() {
-		entries = [];
-		nextCursor = null;
-		loadActivity();
-	}
+	// Sentinel for infinite scroll
+	let sentinel = $state<HTMLDivElement | null>(null);
+	let observer: IntersectionObserver | null = null;
 
-	const resourceTypeOptions = [
-		{ value: null, label: 'All types' },
-		{ value: 'job_site', label: 'Project' },
-		{ value: 'job_site_config', label: 'Configuration' },
-		{ value: 'equipment', label: 'Equipment' },
-		{ value: 'daily_log', label: 'Daily Log' },
-		{ value: 'load_entry', label: 'Loads' }
-	];
+	$effect(() => {
+		if (sentinel) {
+			observer?.disconnect();
+			observer = new IntersectionObserver(
+				(entries) => {
+					if (entries[0].isIntersecting && hasMore && !loadingMore) {
+						loadEntries(false);
+					}
+				},
+				{ threshold: 0.1 }
+			);
+			observer.observe(sentinel);
+		}
+		return () => observer?.disconnect();
+	});
+
+	// Reload when filters change
+	$effect(() => {
+		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+		filterType;
+		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+		filterUser;
+		loadEntries(true);
+	});
 </script>
 
-<section class="section">
+<div class="activity-tab">
 	<div class="filters">
-		<div class="filter-group">
-			<label for="resource_type_filter">Activity Type</label>
-			<select
-				id="resource_type_filter"
-				bind:value={resourceTypeFilter}
-				onchange={handleFilterChange}
-			>
-				{#each resourceTypeOptions as opt}
-					<option value={opt.value}>{opt.label}</option>
+		<div class="type-filters">
+			{#each typeFilters as f}
+				<button
+					class="filter-pill"
+					class:active={filterType === f.value}
+					onclick={() => (filterType = f.value)}
+				>
+					{f.label}
+				</button>
+			{/each}
+		</div>
+		{#if members.length > 0}
+			<select class="user-filter" bind:value={filterUser}>
+				<option value="all">All members</option>
+				{#each members as m}
+					<option value={m.id}>{m.name}</option>
 				{/each}
 			</select>
-		</div>
-
-		{#if users.length > 1}
-			<div class="filter-group">
-				<label for="actor_filter">User</label>
-				<select id="actor_filter" bind:value={actorUserIdFilter} onchange={handleFilterChange}>
-					<option value={null}>All users</option>
-					{#each users as user}
-						<option value={user.id}>{user.name}</option>
-					{/each}
-				</select>
-			</div>
 		{/if}
 	</div>
 
-	{#if error}
-		<div class="error-state">
-			<svg
-				width="48"
-				height="48"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-			>
-				<circle cx="12" cy="12" r="10"></circle>
-				<line x1="12" y1="8" x2="12" y2="12"></line>
-				<line x1="12" y1="16" x2="12.01" y2="16"></line>
-			</svg>
-			<p>{error}</p>
+	{#if loading}
+		<div class="state-box">
+			<div class="spinner"></div>
+			<span>Loading activity...</span>
 		</div>
-	{:else if !loading && entries.length === 0}
-		<div class="empty-state">
-			<div class="icon-circle">
-				<svg
-					width="56"
-					height="56"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.5"
-				>
-					<path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path>
-				</svg>
-			</div>
-			<h4>No activity recorded yet</h4>
-			<p>Actions performed on this project will appear here</p>
+	{:else if error}
+		<div class="state-box error">
+			<span>Failed to load: {error}</span>
+			<button class="retry-btn" onclick={() => loadEntries(true)}>Retry</button>
+		</div>
+	{:else if entries.length === 0}
+		<div class="state-box empty">
+			<span class="empty-icon">📋</span>
+			<span>No activity recorded yet</span>
+			<span class="empty-sub">Changes to this project will appear here</span>
 		</div>
 	{:else}
 		<div class="timeline">
 			{#each entries as entry (entry.id)}
-				<div class="timeline-entry">
-					<div class="timeline-marker" style="background-color: {getResourceTypeColor(entry.resource_type)}">
-						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d={getResourceTypeIcon(entry.resource_type)}></path>
-						</svg>
+				<div class="timeline-item">
+					<div
+						class="avatar"
+						style="background: {actorColor(entry.actor_user_id, entry.actor_name)}"
+					>
+						{initials(entry.actor_name)}
 					</div>
-					<div class="timeline-content">
-						<div class="timeline-header">
-							<div class="timeline-description">{getActivityDescription(entry)}</div>
-							<div class="timeline-time">{formatRelativeTime(entry.created_at)}</div>
+					<div class="item-body">
+						<div class="item-main">
+							<span class="actor">{entry.actor_name || 'System'}</span>
+							<span class="action">{describeAction(entry)}</span>
 						</div>
-						<div class="timeline-actor">{entry.actor_name || 'System'}</div>
+						<div class="item-meta">
+							<span class="type-badge">{resourceTypeToLabel(entry.resource_type)}</span>
+							<span class="timestamp">{relativeTime(entry.created_at)}</span>
+						</div>
 					</div>
 				</div>
 			{/each}
-		</div>
 
-		{#if nextCursor}
-			<div bind:this={loadMoreTrigger} class="load-more-trigger">
-				{#if loading}
-					<div class="loading-spinner">Loading more...</div>
-				{/if}
-			</div>
-		{/if}
+			{#if loadingMore}
+				<div class="load-more-row">
+					<div class="spinner small"></div>
+				</div>
+			{/if}
+
+			<div bind:this={sentinel} class="sentinel"></div>
+		</div>
 	{/if}
-</section>
+</div>
 
 <style>
+	.activity-tab {
+		display: flex;
+		flex-direction: column;
+		gap: 0;
+		min-height: 200px;
+	}
+
 	.filters {
 		display: flex;
-		gap: 16px;
-		margin-bottom: 24px;
+		flex-direction: column;
+		gap: 10px;
+		padding: 12px 16px;
+		background: rgba(255, 255, 255, 0.03);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+	}
+
+	.type-filters {
+		display: flex;
 		flex-wrap: wrap;
+		gap: 6px;
 	}
 
-	.filter-group {
-		flex: 1;
-		min-width: 200px;
+	.filter-pill {
+		padding: 6px 12px;
+		min-height: 36px;
+		border-radius: 18px;
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		background: transparent;
+		color: rgba(255, 255, 255, 0.6);
+		font-size: 13px;
+		cursor: pointer;
+		transition: all 0.15s;
 	}
 
-	.filter-group label {
-		display: block;
-		font-size: 0.85rem;
+	.filter-pill:hover {
+		border-color: rgba(242, 192, 55, 0.4);
+		color: rgba(255, 255, 255, 0.85);
+	}
+
+	.filter-pill.active {
+		background: #f2c037;
+		border-color: #f2c037;
+		color: #1a2530;
 		font-weight: 600;
-		color: var(--text);
-		margin-bottom: 6px;
 	}
 
-	.filter-group select {
-		width: 100%;
-		min-height: 48px;
-		padding: 0 12px;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text);
-		font-size: 0.95rem;
+	.user-filter {
+		height: 36px;
+		padding: 0 10px;
+		background: rgba(255, 255, 255, 0.05);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 8px;
+		color: rgba(255, 255, 255, 0.8);
+		font-size: 13px;
+		cursor: pointer;
+		max-width: 200px;
 	}
 
-	.filter-group select:focus {
-		outline: 2px solid var(--accent);
-		outline-offset: 2px;
-	}
-
-	.empty-state {
-		text-align: center;
-		padding: 48px 16px;
+	.state-box {
 		display: flex;
 		flex-direction: column;
-		align-items: center;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-	}
-
-	.empty-state .icon-circle {
-		display: flex;
 		align-items: center;
 		justify-content: center;
-		width: 72px;
-		height: 72px;
-		border-radius: 50%;
-		background: var(--background);
-		border: 1px solid var(--border);
-		margin-bottom: 16px;
+		gap: 8px;
+		padding: 48px 24px;
+		color: rgba(255, 255, 255, 0.5);
+		font-size: 14px;
 	}
 
-	.empty-state svg {
-		color: var(--accent);
+	.state-box.error {
+		color: #f87171;
 	}
 
-	.empty-state h4 {
-		margin: 0 0 8px;
-		font-size: 1rem;
-		color: var(--text);
-		font-weight: 500;
+	.state-box.empty {
+		gap: 6px;
 	}
 
-	.empty-state p {
-		margin: 0;
-		font-size: 0.85rem;
-		color: var(--text-muted);
-		max-width: 350px;
+	.empty-icon {
+		font-size: 32px;
+		margin-bottom: 8px;
 	}
 
-	.error-state {
-		text-align: center;
-		padding: 48px 16px;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text-muted);
+	.empty-sub {
+		font-size: 12px;
+		opacity: 0.6;
 	}
 
-	.error-state svg {
-		color: #ef4444;
-		margin-bottom: 16px;
+	.retry-btn {
+		margin-top: 8px;
+		padding: 8px 16px;
+		min-height: 36px;
+		background: rgba(255, 255, 255, 0.08);
+		border: 1px solid rgba(255, 255, 255, 0.15);
+		border-radius: 8px;
+		color: inherit;
+		cursor: pointer;
+		font-size: 13px;
 	}
 
 	.timeline {
-		position: relative;
-		padding-left: 32px;
-	}
-
-	.timeline::before {
-		content: '';
-		position: absolute;
-		left: 15px;
-		top: 0;
-		bottom: 0;
-		width: 2px;
-		background: var(--border);
-	}
-
-	.timeline-entry {
-		position: relative;
 		display: flex;
-		gap: 16px;
-		margin-bottom: 24px;
+		flex-direction: column;
+		padding: 8px 0;
 	}
 
-	.timeline-marker {
-		position: absolute;
-		left: -25px;
-		width: 32px;
-		height: 32px;
+	.timeline-item {
+		display: flex;
+		gap: 12px;
+		padding: 12px 16px;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+		align-items: flex-start;
+		transition: background 0.1s;
+	}
+
+	.timeline-item:hover {
+		background: rgba(255, 255, 255, 0.02);
+	}
+
+	.avatar {
+		flex-shrink: 0;
+		width: 36px;
+		height: 36px;
 		border-radius: 50%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		box-shadow: 0 0 0 4px var(--background);
+		font-size: 12px;
+		font-weight: 700;
+		color: #fff;
+		margin-top: 2px;
 	}
 
-	.timeline-content {
+	.item-body {
 		flex: 1;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		padding: 12px 16px;
-	}
-
-	.timeline-header {
+		min-width: 0;
 		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		gap: 12px;
-		margin-bottom: 6px;
+		flex-direction: column;
+		gap: 4px;
 	}
 
-	.timeline-description {
-		font-size: 0.95rem;
-		color: var(--text);
+	.item-main {
+		font-size: 14px;
 		line-height: 1.4;
+		color: rgba(255, 255, 255, 0.9);
 	}
 
-	.timeline-time {
-		font-size: 0.8rem;
-		color: var(--text-muted);
-		white-space: nowrap;
+	.actor {
+		font-weight: 600;
+		margin-right: 4px;
 	}
 
-	.timeline-actor {
-		font-size: 0.85rem;
-		color: var(--text-muted);
+	.action {
+		color: rgba(255, 255, 255, 0.7);
 	}
 
-	.load-more-trigger {
-		min-height: 48px;
+	.item-meta {
 		display: flex;
 		align-items: center;
+		gap: 8px;
+	}
+
+	.type-badge {
+		font-size: 11px;
+		padding: 2px 6px;
+		border-radius: 4px;
+		background: rgba(242, 192, 55, 0.15);
+		color: #f2c037;
+		font-weight: 500;
+	}
+
+	.timestamp {
+		font-size: 12px;
+		color: rgba(255, 255, 255, 0.35);
+	}
+
+	.load-more-row {
+		display: flex;
 		justify-content: center;
+		padding: 16px;
 	}
 
-	.loading-spinner {
-		color: var(--text-muted);
-		font-size: 0.9rem;
+	.sentinel {
+		height: 4px;
 	}
 
-	@media (max-width: 640px) {
-		.timeline-header {
-			flex-direction: column;
-			gap: 4px;
-		}
+	.spinner {
+		width: 24px;
+		height: 24px;
+		border: 2px solid rgba(255, 255, 255, 0.1);
+		border-top-color: #f2c037;
+		border-radius: 50%;
+		animation: spin 0.7s linear infinite;
+	}
 
-		.timeline-time {
-			align-self: flex-start;
-		}
+	.spinner.small {
+		width: 18px;
+		height: 18px;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
 	}
 </style>
