@@ -8,6 +8,7 @@
 	import SpecAlert from './SpecAlert.svelte';
 	import HelpTip from './HelpTip.svelte';
 	import Tooltip from './ui/Tooltip.svelte';
+	import CalculationStep from './ui/CalculationStep.svelte';
 	import { tack, tackMid, rainCheck, tackTempCheck, weatherConfig } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
@@ -143,13 +144,40 @@
 		badge={tackBlocked ? { kind: 'bad', text: 'Wet surface — no tack' } : null}
 	/>
 
-	<ShowWork>
-		<p>Using job width: <strong>{job.widthFt} ft</strong></p>
-		<code>gallons = (length × width ÷ 9) × shot rate (gal/SY)</code>
-		<p>Width in use: <strong>{job.widthFt} ft</strong> (from job settings).</p>
-		<p>{selected.label}: {selected.min}–{selected.max} gal/SY.</p>
-		<div class="src-row">Tack range source: <SourceBadge status={selected.status} tier={selected.tier} /></div>
-		<DotTable tableId="table-2" />
+	<ShowWork stepCount={3}>
+		{#if lengthFt && job.widthFt && gallons != null}
+			{@const areaYards = (lengthFt * job.widthFt) / 9}
+			{@const midRate = tackMid(selected)}
+
+			<CalculationStep
+				step={1}
+				label="Area in square yards"
+				formula="{lengthFt.toFixed(0)} × {job.widthFt.toFixed(0)} ÷ 9"
+				result="{areaYards.toFixed(2)} SY"
+			/>
+			<CalculationStep
+				step={2}
+				label="Mid rate"
+				formula="({selected.min.toFixed(2)} + {selected.max.toFixed(2)}) ÷ 2"
+				result="{midRate.toFixed(3)} gal/SY"
+			/>
+			<CalculationStep
+				step={3}
+				label="Gallons"
+				formula="{areaYards.toFixed(2)} × {midRate.toFixed(3)}"
+				result="{Math.round(gallons.mid)} gal"
+			/>
+		{:else}
+			<code>gallons = (length × width ÷ 9) × shot rate (gal/SY)</code>
+			<p>Enter length above to see step-by-step calculation.</p>
+			<p>{selected.label}: {selected.min}–{selected.max} gal/SY.</p>
+		{/if}
+
+		<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+			<p>Width in use: <strong>{job.widthFt} ft</strong> (from job settings).</p>
+			<div class="src-row">Tack range source: <SourceBadge status={selected.status} tier={selected.tier} /></div>
+			<DotTable tableId="table-2" />
+		</div>
 	</ShowWork>
 
 	<button class="btn-clear" onclick={clearInputs}>Clear</button>
