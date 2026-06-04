@@ -176,18 +176,6 @@ export interface DbCalculation {
 	created_at: number;
 }
 
-export interface DbLoad {
-	id: string;
-	job_site_id: string;
-	user_id: string;
-	ticket_number: string | null;
-	tons: number;
-	timestamp: number;
-	spread_rate: number | null;
-	notes: string | null;
-	created_at: number;
-}
-
 export interface DbSession {
 	id: string;
 	user_id: string;
@@ -253,6 +241,11 @@ export interface DbJobSiteConfig {
 	route_district: string | null;
 	route_functional_class: string | null;
 	route_system_code: string | null;
+	total_tonnage: number | null;
+	cost_per_ton: number | null;
+	cost_per_sy: number | null;
+	cost_per_mile: number | null;
+	total_contract_value: number | null;
 	created_at: number;
 	updated_at: number;
 }

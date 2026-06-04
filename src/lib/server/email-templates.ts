@@ -1,4 +1,4 @@
-type D1Database = import('@cloudflare/workers-types').D1Database;
+import type { D1Database } from '../../cloudflare';
 
 export interface EmailTemplate {
   id: string;
@@ -740,9 +740,6 @@ If you did not create a PaveRate account, you can safely ignore this email.
 https://paverate.com`
   }
 };
-
-/** @deprecated Use SYSTEM_DEFAULTS instead */
-export const DEFAULT_TEMPLATES = SYSTEM_DEFAULTS;
 
 // ---------------------------------------------------------------------------
 // getTemplate — looks up DB row first, falls back to SYSTEM_DEFAULTS

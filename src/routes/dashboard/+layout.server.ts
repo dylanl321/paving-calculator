@@ -27,8 +27,8 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		: getDefaultView(role);
 
 	// Only redirect non-dashboard tiers.
-	if (view === 'field' || view === 'screed') {
-		throw redirect(302, getRedirectPath(view === 'field' ? 'field' : 'screed'));
+	if (view === 'field') {
+		throw redirect(302, getRedirectPath('field'));
 	}
 
 	return {};
