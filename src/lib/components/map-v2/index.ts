@@ -14,12 +14,14 @@
  *   </MapView>
  */
 
-export { default as MapView }     from './MapView.svelte';
-export { default as MapMarker }   from './MapMarker.svelte';
-export { default as MapPolyline } from './MapPolyline.svelte';
-export { default as MapPolygon }  from './MapPolygon.svelte';
-export { default as MapGeoJSON }  from './MapGeoJSON.svelte';
-export { default as MapPopup }    from './MapPopup.svelte';
+export { default as MapView }              from './MapView.svelte';
+export { default as MapMarker }            from './MapMarker.svelte';
+export { default as MapPolyline }          from './MapPolyline.svelte';
+export { default as MapPolygon }           from './MapPolygon.svelte';
+export { default as MapGeoJSON }           from './MapGeoJSON.svelte';
+export { default as MapPopup }             from './MapPopup.svelte';
+export { default as RoadProgressLayer }    from './RoadProgressLayer.svelte';
+export { default as TodayProgressOverlay } from './TodayProgressOverlay.svelte';
 
 export {
   getMapContext,
