@@ -46,6 +46,8 @@
 		icon: string;
 		authed?: boolean;
 		adminOnly?: boolean;
+		/** Visible to admin-console users (global admin or org owner/admin). */
+		adminConsole?: boolean;
 		/** Extra path prefixes this item owns (beyond `href`) for active matching. */
 		owns?: string[];
 		children?: NavItem[];
@@ -75,7 +77,8 @@
 		{ href: '/dashboard/guides', label: 'Guides', icon: 'guide', authed: true },
 		{ href: '/dashboard/completeness', label: 'Setup Status', icon: 'shield-check', authed: true, adminOnly: true },
 		{ href: '/dashboard/import', label: 'Import', icon: 'upload', authed: true },
-		{ href: '/dashboard/activity', label: 'Activity', icon: 'clock', authed: true, adminOnly: true }
+		{ href: '/dashboard/activity', label: 'Activity', icon: 'clock', authed: true, adminOnly: true },
+		{ href: '/admin', label: 'Admin', icon: 'shield-check', authed: true, adminConsole: true, owns: ['/admin'] }
 	];
 
 	function isItemVisible(item: NavItem): boolean {
@@ -84,6 +87,9 @@
 			return item.href === '/app';
 		}
 		if (item.authed && !authStore.isAuthenticated) return false;
+		if (item.adminConsole) {
+			return authStore.canAccessAdmin;
+		}
 		if (item.adminOnly) {
 			const role = authStore.org?.role;
 			return role === 'admin' || role === 'owner';

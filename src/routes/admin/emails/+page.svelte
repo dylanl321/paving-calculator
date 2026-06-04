@@ -151,17 +151,17 @@
 </script>
 
 <div class="admin-emails">
-	<header>
-		<h1>Email Log</h1>
-		<a href="/admin">Back to Admin</a>
+	<header class="admin-page-header">
+		<div>
+			<h1 class="admin-page-title">Email Log</h1>
+			<p class="admin-page-subtitle">Every send attempt from {`PaveRate`} — verification, password reset, invitations, welcome.</p>
+		</div>
 	</header>
 
 	<nav class="email-subnav">
 		<a href="/admin/emails" class="subnav-link subnav-active">Log</a>
 		<a href="/admin/emails/templates" class="subnav-link">Templates</a>
 	</nav>
-
-	<p class="hint">Every send attempt from PaveRate (verification, password reset, invitations, welcome). Use this to debug delivery.</p>
 
 	<div class="filters">
 		<select bind:value={statusFilter} onchange={onFilterChange}>
@@ -294,48 +294,7 @@
 
 <style>
 	.admin-emails {
-		padding: 1rem;
-		max-width: 1400px;
-		margin: 0 auto;
-	}
-
-	header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 1rem;
-		margin-bottom: 0.5rem;
-		border-bottom: 2px solid var(--border);
-		padding-bottom: 1rem;
-	}
-
-	h1 {
-		font-size: 1.75rem;
-		margin: 0;
-		color: var(--text);
-	}
-
-	header a {
-		padding: 0.5rem 1rem;
-		min-height: var(--touch);
-		display: flex;
-		align-items: center;
-		background: var(--surface);
-		color: var(--text);
-		text-decoration: none;
-		border-radius: var(--radius);
-		border: 1px solid var(--border);
-	}
-
-	header a:hover {
-		background: var(--surface-hover);
-	}
-
-	.hint {
-		color: var(--text-muted);
-		font-size: 0.9rem;
-		margin: 1rem 0 1.5rem;
+		width: 100%;
 	}
 
 	.filters {

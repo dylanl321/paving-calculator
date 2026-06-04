@@ -166,9 +166,11 @@
 </script>
 
 <div class="page">
-	<header class="page-header">
-		<h1 class="page-title">Email Templates</h1>
-		<p class="page-desc">Customize email templates sent by the system</p>
+	<header class="admin-page-header">
+		<div>
+			<h1 class="admin-page-title">Email Templates</h1>
+			<p class="admin-page-subtitle">Customize email templates sent by the system.</p>
+		</div>
 	</header>
 
 	<nav class="email-subnav">
@@ -274,8 +276,7 @@
 
 <style>
 	.page {
-		max-width: 1400px;
-		margin: 0 auto;
+		width: 100%;
 	}
 
 	.email-subnav {
@@ -307,23 +308,6 @@
 	.subnav-active {
 		color: var(--accent);
 		border-bottom-color: var(--accent);
-	}
-
-	.page-header {
-		margin-bottom: 2rem;
-	}
-
-	.page-title {
-		font-size: 1.75rem;
-		font-weight: 700;
-		margin: 0 0 0.5rem 0;
-		color: var(--text);
-	}
-
-	.page-desc {
-		font-size: 0.9375rem;
-		color: var(--text-muted);
-		margin: 0;
 	}
 
 	.loading {
@@ -613,7 +597,7 @@
 			border-radius: 0;
 		}
 
-		.page-title {
+		:global(.admin-page-title) {
 			font-size: 1.5rem;
 		}
 

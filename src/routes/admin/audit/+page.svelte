@@ -155,8 +155,11 @@
 </script>
 
 <div class="audit-page">
-	<header class="page-header">
-		<h1>Audit Log</h1>
+	<header class="admin-page-header">
+		<div>
+			<h1 class="admin-page-title">Audit Log</h1>
+			<p class="admin-page-subtitle">Platform-wide security and account events.</p>
+		</div>
 		<div class="header-meta">
 			{#if !loading}
 				<span class="total-count">{total.toLocaleString()} events</span>
@@ -340,25 +343,7 @@
 
 <style>
 	.audit-page {
-		max-width: 1600px;
-		margin: 0 auto;
-	}
-
-	.page-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 0.75rem;
-		margin-bottom: 1.5rem;
-		padding-bottom: 1rem;
-		border-bottom: 2px solid var(--border);
-	}
-
-	.page-header h1 {
-		font-size: 1.75rem;
-		margin: 0;
-		color: var(--text);
+		width: 100%;
 	}
 
 	.total-count {
