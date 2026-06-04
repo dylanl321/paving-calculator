@@ -1461,9 +1461,15 @@
 
 	.link-tiles {
 		display: grid;
-		grid-template-columns: repeat(4, 1fr);
+		grid-template-columns: repeat(2, 1fr);
 		gap: 12px;
 		margin-bottom: 24px;
+	}
+
+	@media (min-width: 640px) {
+		.link-tiles {
+			grid-template-columns: repeat(4, 1fr);
+		}
 	}
 
 	.link-tile {
@@ -1765,8 +1771,8 @@
 		cursor: pointer;
 		padding: 8px;
 		z-index: 1001;
-		min-height: 40px;
-		min-width: 40px;
+		min-height: 48px;
+		min-width: 48px;
 	}
 
 	.lightbox-close:hover {
