@@ -4,7 +4,7 @@
 	import HelpTip from './HelpTip.svelte';
 	import { formatStation, type RouteWaypoint } from '$lib/services/gpsStation';
 	import { formatFeet } from '$lib/utils/format';
-	import { MapStationPicker } from '$lib/components/map';
+	import { MapStationPicker } from '$lib/components/map-v2';
 
 	interface Props {
 		jobSiteId: string;
