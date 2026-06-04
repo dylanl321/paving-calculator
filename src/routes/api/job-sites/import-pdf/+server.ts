@@ -3,7 +3,7 @@ import { DbHelper } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
 import { parseGdotDocumentsV2, toV1, pdfToText, detectDocumentType, type ParsedGdotJob, type ParsedGdotJobV2, type GdotDocumentType } from '$lib/server/pdf/parse-gdot';
 import type { FieldConfidence } from '$lib/server/pdf/confidence';
-import { runLlmFallback, type WorkersAi } from '$lib/server/pdf/llm-fallback';
+import { runLlmFallback, needsLlmFallback, type WorkersAi } from '$lib/server/pdf/llm-fallback';
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB per file
 
@@ -141,12 +141,33 @@ export interface ImportedDocument {
 /** Flat map of field name -> confidence level, for the review UI. */
 export type FieldConfidenceMap = Record<string, FieldConfidence>;
 
+/**
+ * Observable diagnostic for the Phase 2 Workers AI fallback so the user/UI can
+ * see whether the LLM actually ran and why it did or did not apply. The most
+ * common reason it does NOT run is that the `AI` binding is absent in the
+ * environment under test (e.g. the local `vite dev` platform proxy frequently
+ * does not expose Workers AI), in which case the fallback silently no-ops — we
+ * make that explicit rather than leaving the user guessing.
+ */
+export interface LlmFallbackDiagnostic {
+	/** True when a fallback was warranted (low-confidence/null geographic fields). */
+	attempted: boolean;
+	/** True when the model returned usable JSON that was merged into the result. */
+	applied: boolean;
+	/** Why the fallback did/didn't apply (e.g. 'ai-binding-unavailable'). */
+	reason: string;
+	/** True when the `AI` binding was present in this environment. */
+	binding_available: boolean;
+}
+
 export interface ImportPdfResponse {
 	parsed: ParsedGdotJob;
 	source_keys: string[];
 	documents: ImportedDocument[];
 	/** Per-field confidence from the V2 parser. Keys match ParsedGdotJob field names. */
 	field_confidence: FieldConfidenceMap;
+	/** Diagnostic describing whether/why the Workers AI fallback ran. */
+	llm_fallback: LlmFallbackDiagnostic;
 }
 
 /**
@@ -216,8 +237,16 @@ export async function POST(event: RequestEvent) {
 		// with the Workers AI fallback. Best-effort — fills ONLY low/null fields,
 		// never overrides medium/high deterministic values, and degrades silently
 		// to the deterministic result on any error or unmet JSON Mode.
+		//
+		// Workers AI bindings are frequently NOT provided by the local `vite dev`
+		// platform proxy, so the fallback can no-op without any signal. We capture
+		// the outcome and surface it (diagnostic field + parsed.warnings) so the
+		// behaviour is observable rather than silent.
 		const ai = event.platform.env.AI as WorkersAi | undefined;
-		await runLlmFallback(ai, v2);
+		const attempted = needsLlmFallback(v2);
+		const fallback = await runLlmFallback(ai, v2);
+		const llm_fallback = buildLlmDiagnostic(attempted, !!ai, fallback);
+		appendLlmFallbackWarning(v2.warnings, llm_fallback);
 
 		const parsed = toV1(v2);
 
@@ -236,7 +265,7 @@ export async function POST(event: RequestEvent) {
 			if (f && 'confidence' in f) field_confidence[k] = f.confidence;
 		}
 
-		return json({ parsed, source_keys: sourceKeys, documents, field_confidence } satisfies ImportPdfResponse);
+		return json({ parsed, source_keys: sourceKeys, documents, field_confidence, llm_fallback } satisfies ImportPdfResponse);
 	} catch (error) {
 		if (error instanceof Response) return error;
 		console.error('Import PDF error:', error);

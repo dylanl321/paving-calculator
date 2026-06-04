@@ -29,6 +29,7 @@ export default defineConfig({
 			}),
 			// Integration tests: server routes with better-sqlite3 D1 shim
 			defineProject({
+				plugins: [yaml() as any],
 				test: {
 					name: 'integration',
 					include: ['**/*.integration.test.ts'],

@@ -317,4 +317,74 @@ describe('toV1 round-trip test', () => {
 	it('bid_items count matches', () => {
 		expect(v1FromV2.bid_items.length).toBe(v1Direct.bid_items.length);
 	});
+
+	it('route_designation round-trips', () => {
+		expect(v1FromV2.route_designation).toBe(v2.route_designation.value);
+	});
+});
+
+describe('route_designation extraction', () => {
+	it('extracts SR route from fixture-01 headline ("ON SR 14")', () => {
+		const result = parseGdotDocuments([loadFixture('fixture-01-contract-summary.txt')]);
+		expect(result.route_designation).toBe('SR 14');
+	});
+
+	it('extracts SR route from fixture-05 headline ("ON SR 92")', () => {
+		const result = parseGdotDocuments([loadFixture('fixture-05-contract-with-sections.txt')]);
+		expect(result.route_designation).toBe('SR 92');
+	});
+
+	it('normalises "STATE ROUTE 13" to "SR 13"', () => {
+		const text =
+			'Contract Schedule\nContract ID: T-1\nCounties: Hall\nNET LENGTH OF PROJECT 1.000 MILES\n' +
+			'1.000 MILES OF RESURFACING ON STATE ROUTE 13 (NOTICE)\nTotal Bid: $100,000.00\n';
+		expect(parseGdotDocuments([text]).route_designation).toBe('SR 13');
+	});
+
+	it('normalises an interstate to "I-85"', () => {
+		const text =
+			'Contract Schedule\nContract ID: T-2\nCounties: Fulton\nNET LENGTH OF PROJECT 1.000 MILES\n' +
+			'1.000 MILES OF RESURFACING ON I-85 (NOTICE)\nTotal Bid: $100,000.00\n';
+		expect(parseGdotDocuments([text]).route_designation).toBe('I-85');
+	});
+
+	it('leaves route_designation null when no route is present', () => {
+		const text =
+			'Contract Schedule\nContract ID: T-3\nCounties: Bibb\nNET LENGTH OF PROJECT 1.000 MILES\n' +
+			'1.000 MILES OF RESURFACING AND RELATED WORK (NOTICE)\nTotal Bid: $100,000.00\n';
+		expect(parseGdotDocuments([text]).route_designation).toBe(null);
+	});
+
+	it('extracts begin/end termini from a "FROM ... TO ..." headline', () => {
+		const text =
+			'Contract Schedule\nContract ID: T-4\nCounties: Hall\nNET LENGTH OF PROJECT 2.000 MILES\n' +
+			'2.000 MILES OF RESURFACING ON SR 13 FROM SR 9 TO HALL COUNTY LINE (NOTICE)\nTotal Bid: $200,000.00\n';
+		const result = parseGdotDocuments([text]);
+		expect(result.begin_terminus).toBe('SR 9');
+		expect(result.end_terminus).toBe('HALL COUNTY LINE');
+	});
+
+	it('leaves termini null when there is no FROM/TO phrasing', () => {
+		const result = parseGdotDocuments([loadFixture('fixture-01-contract-summary.txt')]);
+		expect(result.begin_terminus).toBe(null);
+		expect(result.end_terminus).toBe(null);
+	});
+});
+
+describe('parseGdotDocumentsV2 - geographic field confidence', () => {
+	it('route_designation is medium confidence when found by regex', () => {
+		const v2 = parseGdotDocumentsV2([loadFixture('fixture-01-contract-summary.txt')]);
+		expect(v2.route_designation.value).toBe('SR 14');
+		expect(v2.route_designation.confidence).toBe('medium');
+	});
+
+	it('pushes the header zone to lowConfidenceZones when route is missing', () => {
+		const text =
+			'Contract Schedule\nContract ID: T-5\nCounties: Bibb\nNET LENGTH OF PROJECT 1.000 MILES\n' +
+			'Schedule of Items\nProposal Line Number Item ID Description Dollars Cents\n' +
+			'0010 150-1000 TRAFFIC CONTROL M006670 LUMP SUM 1000.00\nTotal Bid: $1,000.00\n';
+		const v2 = parseGdotDocumentsV2([text]);
+		expect(v2.route_designation.value).toBe(null);
+		expect(v2.lowConfidenceZones.length).toBeGreaterThan(0);
+	});
 });

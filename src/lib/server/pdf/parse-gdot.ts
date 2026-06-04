@@ -381,7 +381,11 @@ function parseContractSummary(text: string, result: ParsedGdotJob): boolean {
 		?? normaliseRoute(firstMatch(routeText, /\b(?:COUNTY ROAD|C\.?R\.?)\s*[-#]?\s*(\d+[A-Z]?)\b/i), 'CR');
 
 	// Begin / end termini ("FROM ... TO ..."), commonly in the project headline.
-	const termini = routeText.match(/\bFROM\s+(.+?)\s+TO\s+(.+?)(?:[.;,]|\s{2,}|$)/i);
+	// Stop the end terminus at a paren, NOTICE/Bidders sentinel, punctuation, or
+	// a run of whitespace so trailing boilerplate doesn't leak in.
+	const termini = routeText.match(
+		/\bFROM\s+(.+?)\s+TO\s+(.+?)(?:\s*\(|\s+NOTICE|\s+Bidders|[.;,]|\s{2,}|$)/i
+	);
 	if (termini) {
 		result.begin_terminus = result.begin_terminus ?? termini[1].replace(/\s+/g, ' ').trim();
 		result.end_terminus = result.end_terminus ?? termini[2].replace(/\s+/g, ' ').trim();
