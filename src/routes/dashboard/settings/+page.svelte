@@ -15,6 +15,7 @@
 	import NotificationsTab from './_components/NotificationsTab.svelte';
 	import ReportsTab from './_components/ReportsTab.svelte';
 	import MaterialsTab from './_components/MaterialsTab.svelte';
+	import MixLibraryTab from './_components/MixLibraryTab.svelte';
 	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { api } from '$lib/utils/api-error';
@@ -245,6 +246,9 @@
 			<button type="button" class="tab" class:active={activeTab === 'materials'} onclick={() => activeTab = 'materials'}>
 				Materials
 			</button>
+			<button type="button" class="tab" class:active={activeTab === 'mixes'} onclick={() => activeTab = 'mixes'}>
+				Mix Library
+			</button>
 		{/if}
 	</div>
 
@@ -297,9 +301,11 @@
 		<ReportsTab initialSchedules={data.emailReportSchedules ?? []} />
 	{:else if activeTab === 'materials'}
 		<MaterialsTab {canEdit} />
+	{:else if activeTab === 'mixes'}
+		<MixLibraryTab {canEdit} initialPresets={data.mixPresets ?? []} />
 	{/if}
 
-	{#if canEdit && activeTab !== 'notifications' && activeTab !== 'reports' && activeTab !== 'materials'}
+	{#if canEdit && activeTab !== 'notifications' && activeTab !== 'reports' && activeTab !== 'materials' && activeTab !== 'mixes'}
 		<div class="save-bar">
 			{#if message}
 				<span class="save-msg" class:error={messageType === 'error'}>{message}</span>

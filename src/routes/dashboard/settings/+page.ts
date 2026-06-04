@@ -32,7 +32,8 @@ export const load: PageLoad = async ({ fetch }) => {
 				errorStatus: settingsRes.status,
 				settings: null as OrgSettings | null,
 				notificationPrefs: {} as Record<string, boolean>,
-				emailReportSchedules: []
+				emailReportSchedules: [],
+				mixPresets: []
 			};
 		}
 
@@ -51,13 +52,17 @@ export const load: PageLoad = async ({ fetch }) => {
 				? ((await schedulesRes.json()) as { schedules: EmailReportSchedule[] }).schedules
 				: ([] as EmailReportSchedule[]);
 
+		const mixPresetsRes = await fetch('/api/org/mix-presets', { credentials: 'include' });
+		const mixPresets = mixPresetsRes.ok ? await mixPresetsRes.json() : [];
+
 		return {
 			error: false,
 			errorMessage: '',
 			errorStatus: 0,
 			settings,
 			notificationPrefs: notificationPrefs.prefs,
-			emailReportSchedules
+			emailReportSchedules,
+			mixPresets
 		};
 	} catch (err) {
 		// Re-throw SvelteKit redirects
@@ -68,7 +73,8 @@ export const load: PageLoad = async ({ fetch }) => {
 			errorStatus: 0,
 			settings: null as OrgSettings | null,
 			notificationPrefs: {} as Record<string, boolean>,
-			emailReportSchedules: []
+			emailReportSchedules: [],
+			mixPresets: []
 		};
 	}
 };
