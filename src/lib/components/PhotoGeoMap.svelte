@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { MapContainer, MapMarker, MapCircleMarker } from '$lib/components/map';
+	import { MapView, MapMarker } from '$lib/components/map-v2';
 
 	interface Props {
 		jobSiteId: string;
@@ -44,23 +44,6 @@
 			[maxLat + latPad, maxLng + lngPad]
 		];
 	});
-
-	const cameraIconHtml = `
-				<div style="
-					width: 32px;
-					height: 32px;
-					background: #f59e0b;
-					border: 2px solid white;
-					border-radius: 50%;
-					display: flex;
-					align-items: center;
-					justify-content: center;
-					box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-					font-size: 16px;
-				">
-					📷
-				</div>
-			`;
 
 	function photoPopup(photo: Photo): string {
 		const takenDate = new Date(photo.taken_at * 1000).toLocaleString();
@@ -129,30 +112,20 @@
 			<span>No geo-tagged photos yet</span>
 		</div>
 	{:else}
-		<MapContainer class="photo-geo-container" {height} center={[lat, lng]} {zoom} bounds={bounds}>
-			<MapCircleMarker
-				{lat}
-				{lng}
-				radius={6}
-				color="#fff"
-				fillColor="#3b82f6"
-				fillOpacity={0.6}
-				weight={2}
-				popupHtml="Job Site Center"
-			/>
-			{#each photosWithGPS as photo (photo.id)}
-				<MapMarker
-					lat={photo.lat as number}
-					lng={photo.lng as number}
-					iconHtml={cameraIconHtml}
-					iconSize={[32, 32]}
-					iconAnchor={[16, 16]}
-					popupAnchor={[0, -16]}
-					popupHtml={photoPopup(photo)}
-					popupMinWidth={140}
-				/>
-			{/each}
-		</MapContainer>
+		<MapView {height} center={[lat, lng]} zoom={zoom} bounds={bounds}>
+			{#snippet layers()}
+				<MapMarker {lat} {lng} color="#3b82f6" label="📍" popupHtml="Job Site Center" />
+				{#each photosWithGPS as photo (photo.id)}
+					<MapMarker
+						lat={photo.lat as number}
+						lng={photo.lng as number}
+						color="#f59e0b"
+						label="📷"
+						popupHtml={photoPopup(photo)}
+					/>
+				{/each}
+			{/snippet}
+		</MapView>
 	{/if}
 </div>
 
@@ -163,11 +136,6 @@
 		border-radius: 8px;
 		overflow: hidden;
 		border: 1px solid var(--border);
-	}
-
-	.photo-geo-map :global(.photo-geo-container) {
-		height: 100%;
-		border-radius: 0;
 	}
 
 	.map-placeholder {
