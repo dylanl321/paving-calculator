@@ -1,7 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { hashPassword, createSession, setSessionCookie } from '$lib/server/auth';
-import { sendWelcomeEmail, buildOrgBranding } from '$lib/server/email';
+import { sendWelcomeEmailTemplated } from '$lib/server/email-template-senders';
 
 interface AcceptInviteBody {
 	token?: string;
@@ -64,15 +64,13 @@ export async function POST(event: RequestEvent) {
 			const sessionToken = await createSession(db, user.id);
 			setSessionCookie(event.cookies, sessionToken);
 
-			const settings = await db.getOrgSettings(org.id);
-			const branding = buildOrgBranding(org, settings);
-			sendWelcomeEmail(
+			sendWelcomeEmailTemplated(
+				event.platform.env.DB,
 				event.platform.env.RESEND_API_KEY,
 				user.email,
 				user.name,
-				org.name,
+				org.id,
 				event.url.origin,
-				branding,
 				{ logger: db, orgId: org.id, userId: user.id }
 			).catch((error) => {
 				console.error('Failed to send welcome email:', error);
@@ -102,15 +100,13 @@ export async function POST(event: RequestEvent) {
 			const sessionToken = await createSession(db, user.id);
 			setSessionCookie(event.cookies, sessionToken);
 
-			const settings = await db.getOrgSettings(org.id);
-			const branding = buildOrgBranding(org, settings);
-			sendWelcomeEmail(
+			sendWelcomeEmailTemplated(
+				event.platform.env.DB,
 				event.platform.env.RESEND_API_KEY,
 				user.email,
 				user.name,
-				org.name,
+				org.id,
 				event.url.origin,
-				branding,
 				{ logger: db, orgId: org.id, userId: user.id }
 			).catch((error) => {
 				console.error('Failed to send welcome email:', error);

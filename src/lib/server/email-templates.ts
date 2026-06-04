@@ -17,7 +17,7 @@ export interface OrgBrandingData {
   accent_color: string | null;
 }
 
-export const SYSTEM_TEMPLATE_KEYS = ['password_reset', 'admin_notification'] as const;
+export const SYSTEM_TEMPLATE_KEYS = ['password_reset', 'admin_notification', 'email_verification'] as const;
 export const ORG_TEMPLATE_KEYS = ['invite', 'welcome', 'eod_summary'] as const;
 export type TemplateKey =
   | typeof SYSTEM_TEMPLATE_KEYS[number]
@@ -673,6 +673,68 @@ CREW NOTES
 {{crew_notes}}
 
 View full report: {{report_url}}
+
+-- PaveRate
+https://paverate.com`
+  },
+
+  // -------------------------------------------------------------------------
+  // email_verification — PaveRate branded (system-level)
+  // -------------------------------------------------------------------------
+  email_verification: {
+    subject: 'Verify your PaveRate account',
+    body_html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Verify your email</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f4f4f4;">
+    <tr>
+      <td align="center" style="padding:40px 10px;">
+        <table border="0" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;background-color:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+          <tr>
+            <td align="center" style="background-color:#1a1a2e;padding:28px 40px;">
+              <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:24px;font-weight:700;color:#f5a623;letter-spacing:-0.5px;">Pave</span><span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">Rate</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:40px 40px 20px 40px;">
+              <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:22px;font-weight:600;color:#1a1a2e;margin:0 0 16px;">Verify your email address</p>
+              <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:16px;color:#333333;line-height:1.6;margin:0 0 24px;">Hi {{name}}, thanks for signing up for PaveRate! Click the button below to verify your email address and activate your account.</p>
+              <table border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="border-radius:6px;background-color:#f5a623;">
+                    <a href="{{verify_link}}" target="_blank" style="display:inline-block;padding:14px 32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:16px;font-weight:600;color:#1a1a2e;text-decoration:none;border-radius:6px;">Verify Email</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:#888888;line-height:1.5;margin:24px 0 0;">If you did not create a PaveRate account, you can safely ignore this email. This link expires in 24 hours.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#f8f8f8;padding:20px 40px;border-top:1px solid #eeeeee;">
+              <p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:12px;color:#888888;margin:0;">PaveRate &mdash; Asphalt Paving Tools</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+    body_text: `Hi {{name}},
+
+Thanks for signing up for PaveRate! Click the link below to verify your email address:
+
+{{verify_link}}
+
+This link expires in 24 hours.
+
+If you did not create a PaveRate account, you can safely ignore this email.
 
 -- PaveRate
 https://paverate.com`
