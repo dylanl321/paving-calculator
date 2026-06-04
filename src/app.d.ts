@@ -17,6 +17,8 @@ declare global {
 				CRON_SECRET?: string;
 				CLOUDFLARE_GLOBAL_API_KEY?: string;
 				CLOUDFLARE_EMAIL?: string;
+				KV?: KVNamespace;
+				AI?: Ai;
 			};
 			ctx: ExecutionContext;
 			caches: CacheStorage;

@@ -154,7 +154,7 @@ describe('GET /api/admin/users', () => {
     const event = makeEvent(db.d1, sessionId);
     const res = await getUsersHandler(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data).toHaveProperty('users');
     expect(Array.isArray(data.users)).toBe(true);
     expect(data.users.length).toBeGreaterThan(0);
@@ -164,7 +164,7 @@ describe('GET /api/admin/users', () => {
     const { sessionId } = await setup({ db: db.d1, isAdmin: true, email: 'admin@example.com' });
     const event = makeEvent(db.d1, sessionId);
     const res = await getUsersHandler(event as any);
-    const data = await res.json();
+    const data = await res.json() as any;
     for (const user of data.users) {
       expect(user).not.toHaveProperty('password_hash');
     }
@@ -189,7 +189,7 @@ describe('GET /api/admin/users', () => {
 
     const event = makeEvent(db.d1, sessionId);
     const res = await getUsersHandler(event as any);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.users.length).toBeGreaterThanOrEqual(2);
   });
 });
@@ -220,7 +220,7 @@ describe('GET /api/admin/users/[id]', () => {
     const event = makeEvent(db.d1, sessionId, { params: { id: userId } });
     const res = await getUserHandler(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data).toHaveProperty('user');
     expect(data).toHaveProperty('memberships');
     expect(data).toHaveProperty('sessions');
@@ -246,7 +246,7 @@ describe('GET /api/admin/users/[id]', () => {
     });
     const event = makeEvent(db.d1, sessionId, { params: { id: userId } });
     const res = await getUserHandler(event as any);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(Array.isArray(data.memberships)).toBe(true);
     const membership = data.memberships.find((m: any) => m.org_id === orgId);
     expect(membership).toBeDefined();
@@ -287,7 +287,7 @@ describe('PATCH /api/admin/users/[id]', () => {
     });
     const res = await patchUserHandler(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.user.name).toBe('Updated Name');
   });
 
@@ -315,7 +315,7 @@ describe('PATCH /api/admin/users/[id]', () => {
     });
     const res = await patchUserHandler(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.user.disabled).toBe(1);
   });
 
@@ -357,7 +357,7 @@ describe('PATCH /api/admin/users/[id]', () => {
     });
     const res = await patchUserHandler(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.user.is_global_admin).toBeTruthy();
   });
 });
@@ -407,7 +407,7 @@ describe('POST /api/admin/users/[id]/verify-email', () => {
     });
     const res = await verifyEmailHandler(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.ok).toBe(true);
     expect(data.email_verified).toBe(true);
   });
@@ -435,7 +435,7 @@ describe('POST /api/admin/users/[id]/verify-email', () => {
     });
     const res = await verifyEmailHandler(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.ok).toBe(true);
     expect(data.email_verified).toBe(false);
   });
@@ -496,7 +496,7 @@ describe('GET /api/admin/orgs', () => {
     const event = makeEvent(db.d1, sessionId);
     const res = await getOrgsHandler(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data).toHaveProperty('orgs');
     expect(Array.isArray(data.orgs)).toBe(true);
     expect(data.orgs.length).toBeGreaterThan(0);
@@ -518,7 +518,7 @@ describe('GET /api/admin/orgs', () => {
 
     const event = makeEvent(db.d1, sessionId);
     const res = await getOrgsHandler(event as any);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.orgs.length).toBeGreaterThanOrEqual(2);
   });
 });
@@ -551,7 +551,7 @@ describe('GET /api/admin/audit', () => {
     const event = makeEvent(db.d1, sessionId, { pathname: '/api/admin/audit' });
     const res = await getAuditHandler(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data).toHaveProperty('events');
     expect(data).toHaveProperty('total');
     expect(Array.isArray(data.events)).toBe(true);
@@ -577,7 +577,7 @@ describe('GET /api/admin/audit', () => {
     const event = makeEvent(db.d1, sessionId, { pathname: '/api/admin/audit' });
     const res = await getAuditHandler(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.total).toBeGreaterThanOrEqual(1);
     expect(data.events.length).toBeGreaterThanOrEqual(1);
   });
@@ -614,7 +614,7 @@ describe('GET /api/admin/audit', () => {
       searchParams: { user_id: userId }
     });
     const res = await getAuditHandler(event as any);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.events.every((e: any) => e.user_id === userId)).toBe(true);
   });
 
@@ -642,7 +642,7 @@ describe('GET /api/admin/audit', () => {
       searchParams: { limit: '2', offset: '0' }
     });
     const res = await getAuditHandler(event as any);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.events.length).toBeLessThanOrEqual(2);
     expect(data.total).toBeGreaterThanOrEqual(5);
   });
@@ -665,7 +665,7 @@ describe('GET /api/admin/audit', () => {
 
     const event = makeEvent(db.d1, sessionId, { pathname: '/api/admin/audit' });
     const res = await getAuditHandler(event as any);
-    const data = await res.json();
+    const data = await res.json() as any;
     const evt = data.events.find((e: any) => e.event_type === 'user.updated');
     expect(evt).toBeDefined();
     expect(typeof evt.metadata).toBe('object');

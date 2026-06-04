@@ -912,7 +912,7 @@ function mergeV1IntoV2(
 		// (mergeField's first-wins tie-break would otherwise keep the null
 		// `missing` placeholder and drop low-confidence extractions like termini).
 		if (current.value == null) {
-			(v2 as Record<string, unknown>)[key as string] = incoming;
+			(v2 as unknown as Record<string, unknown>)[key as string] = incoming;
 			return;
 		}
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any

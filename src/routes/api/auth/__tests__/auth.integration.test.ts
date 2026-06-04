@@ -66,8 +66,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await registerHandler(event);
-			const data = await response.json();
+			const response = await registerHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(200);
 			expect(data.user).toMatchObject({
@@ -104,8 +104,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await registerHandler(event);
-			const data = await response.json();
+			const response = await registerHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(409);
 			expect(data.error).toContain('already registered');
@@ -124,8 +124,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await registerHandler(event);
-			const data = await response.json();
+			const response = await registerHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(400);
 			expect(data.error).toContain('at least 8 characters');
@@ -143,8 +143,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await registerHandler(event);
-			const data = await response.json();
+			const response = await registerHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(400);
 			expect(data.error).toContain('Missing required fields');
@@ -169,8 +169,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await loginHandler(event);
-			const data = await response.json();
+			const response = await loginHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(200);
 			expect(data.user).toMatchObject({
@@ -200,8 +200,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await loginHandler(event);
-			const data = await response.json();
+			const response = await loginHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(401);
 			expect(data.error).toContain('Invalid credentials');
@@ -218,8 +218,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await loginHandler(event);
-			const data = await response.json();
+			const response = await loginHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(401);
 			expect(data.error).toContain('Invalid credentials');
@@ -236,8 +236,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await loginHandler(event);
-			const data = await response.json();
+			const response = await loginHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(400);
 			expect(data.error).toContain('Missing email or password');
@@ -262,8 +262,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await meHandler(event);
-			const data = await response.json();
+			const response = await meHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(200);
 			expect(data.user).toMatchObject({
@@ -286,8 +286,8 @@ describe('Auth API Integration Tests', () => {
 				// no cookies
 			});
 
-			const response = await meHandler(event);
-			const data = await response.json();
+			const response = await meHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(200);
 			expect(data.user).toBeNull();
@@ -323,8 +323,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await meHandler(event);
-			const data = await response.json();
+			const response = await meHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(200);
 			expect(data.user).toBeNull();
@@ -348,8 +348,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await logoutHandler(event);
-			const data = await response.json();
+			const response = await logoutHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(200);
 			expect(data.success).toBe(true);
@@ -375,8 +375,8 @@ describe('Auth API Integration Tests', () => {
 				// no cookies
 			});
 
-			const response = await logoutHandler(event);
-			const data = await response.json();
+			const response = await logoutHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(200);
 			expect(data.success).toBe(true);
@@ -398,8 +398,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await forgotPasswordHandler(event);
-			const data = await response.json();
+			const response = await forgotPasswordHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(200);
 			expect(data.success).toBe(true);
@@ -422,8 +422,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await forgotPasswordHandler(event);
-			const data = await response.json();
+			const response = await forgotPasswordHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(200);
 			expect(data.success).toBe(true);
@@ -439,8 +439,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await forgotPasswordHandler(event);
-			const data = await response.json();
+			const response = await forgotPasswordHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(400);
 			expect(data.error).toContain('Invalid email format');
@@ -467,8 +467,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await resetPasswordHandler(event);
-			const data = await response.json();
+			const response = await resetPasswordHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(200);
 			expect(data.success).toBe(true);
@@ -499,8 +499,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await resetPasswordHandler(event);
-			const data = await response.json();
+			const response = await resetPasswordHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(400);
 			expect(data.error).toContain('Invalid reset token');
@@ -524,8 +524,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await resetPasswordHandler(event);
-			const data = await response.json();
+			const response = await resetPasswordHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(400);
 			expect(data.error).toContain('expired');
@@ -550,8 +550,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await resetPasswordHandler(event);
-			const data = await response.json();
+			const response = await resetPasswordHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(400);
 			expect(data.error).toContain('already been used');
@@ -573,8 +573,8 @@ describe('Auth API Integration Tests', () => {
 				}
 			});
 
-			const response = await resetPasswordHandler(event);
-			const data = await response.json();
+			const response = await resetPasswordHandler(event as any);
+			const data = await response.json() as any;
 
 			expect(response.status).toBe(400);
 			expect(data.error).toContain('at least 8 characters');
