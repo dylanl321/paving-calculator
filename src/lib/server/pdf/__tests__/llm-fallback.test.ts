@@ -183,7 +183,8 @@ describe('buildLlmDiagnostic', () => {
 			attempted: true,
 			applied: false,
 			reason: 'ai-binding-unavailable',
-			binding_available: false
+			binding_available: false,
+			outcome: 'binding-unavailable'
 		});
 	});
 
@@ -191,61 +192,69 @@ describe('buildLlmDiagnostic', () => {
 		const diag = buildLlmDiagnostic(true, true, { applied: true });
 		expect(diag.applied).toBe(true);
 		expect(diag.binding_available).toBe(true);
+		expect(diag.outcome).toBe('applied');
 		// reason defaults to a sentinel when the result omits it
 		expect(diag.reason).toBe('applied');
 	});
 
-	it('passes through a no-op reason when the binding existed but did not help', () => {
-		const diag = buildLlmDiagnostic(true, true, { applied: false, reason: 'no-json' });
-		expect(diag).toMatchObject({ applied: false, binding_available: true, reason: 'no-json' });
+	it('classifies no-zone-text / no-low-confidence as a benign no-op (not-needed)', () => {
+		expect(buildLlmDiagnostic(true, true, { applied: false, reason: 'no-zone-text' }).outcome).toBe(
+			'not-needed'
+		);
+		expect(
+			buildLlmDiagnostic(true, true, { applied: false, reason: 'no-low-confidence-fields' }).outcome
+		).toBe('not-needed');
+	});
+
+	it('classifies a model error / no-json as failed', () => {
+		expect(buildLlmDiagnostic(true, true, { applied: false, reason: 'no-json' }).outcome).toBe(
+			'failed'
+		);
+		expect(
+			buildLlmDiagnostic(true, true, { applied: false, reason: 'JSON Mode could not be met' }).outcome
+		).toBe('failed');
 	});
 });
 
 describe('appendLlmFallbackWarning', () => {
-	it('adds a clear warning when the binding was unavailable', () => {
+	const diagOf = (
+		bindingAvailable: boolean,
+		result: { applied: boolean; reason?: string }
+	) => buildLlmDiagnostic(true, bindingAvailable, result);
+
+	it('adds a non-alarming note when the binding was unavailable', () => {
 		const warnings: string[] = [];
-		appendLlmFallbackWarning(warnings, {
-			attempted: true,
-			applied: false,
-			reason: 'ai-binding-unavailable',
-			binding_available: false
-		});
+		appendLlmFallbackWarning(warnings, diagOf(false, { applied: false, reason: 'ai-binding-unavailable' }));
 		expect(warnings).toHaveLength(1);
 		expect(warnings[0]).toMatch(/not available in this environment/i);
 	});
 
-	it('adds a warning when the binding ran but supplemented nothing', () => {
+	it('stays SILENT for a no-op (no-zone-text) — nothing low-confidence to send', () => {
 		const warnings: string[] = [];
-		appendLlmFallbackWarning(warnings, {
-			attempted: true,
-			applied: false,
-			reason: 'no-json',
-			binding_available: true
-		});
+		appendLlmFallbackWarning(warnings, diagOf(true, { applied: false, reason: 'no-zone-text' }));
+		expect(warnings).toHaveLength(0);
+	});
+
+	it('stays silent for no-low-confidence-fields', () => {
+		const warnings: string[] = [];
+		appendLlmFallbackWarning(
+			warnings,
+			diagOf(true, { applied: false, reason: 'no-low-confidence-fields' })
+		);
+		expect(warnings).toHaveLength(0);
+	});
+
+	it('warns only when a model call genuinely failed', () => {
+		const warnings: string[] = [];
+		appendLlmFallbackWarning(warnings, diagOf(true, { applied: false, reason: 'no-json' }));
 		expect(warnings).toHaveLength(1);
-		expect(warnings[0]).toMatch(/did not supplement/i);
+		expect(warnings[0]).toMatch(/could not supplement/i);
 		expect(warnings[0]).toContain('no-json');
 	});
 
 	it('stays silent when the fallback applied successfully', () => {
 		const warnings: string[] = [];
-		appendLlmFallbackWarning(warnings, {
-			attempted: true,
-			applied: true,
-			reason: 'applied',
-			binding_available: true
-		});
-		expect(warnings).toHaveLength(0);
-	});
-
-	it('stays silent when no fallback was warranted', () => {
-		const warnings: string[] = [];
-		appendLlmFallbackWarning(warnings, {
-			attempted: false,
-			applied: false,
-			reason: 'no-low-confidence-fields',
-			binding_available: false
-		});
+		appendLlmFallbackWarning(warnings, diagOf(true, { applied: true }));
 		expect(warnings).toHaveLength(0);
 	});
 });
@@ -263,6 +272,7 @@ describe('import-pdf diagnostic integration (binding-unavailable path)', () => {
 		expect(diag.applied).toBe(false);
 		expect(diag.binding_available).toBe(false);
 		expect(diag.reason).toBe('ai-binding-unavailable');
+		expect(diag.outcome).toBe('binding-unavailable');
 
 		const warnings: string[] = [];
 		appendLlmFallbackWarning(warnings, diag);

@@ -90,6 +90,7 @@
 		applied: boolean;
 		reason: string;
 		binding_available: boolean;
+		outcome: 'applied' | 'not-needed' | 'binding-unavailable' | 'failed';
 	} | null>(null);
 	/** Set of fields that were manually corrected by the user. */
 	let correctedFields = $state<Set<string>>(new Set());
@@ -144,7 +145,7 @@
 				source_keys?: string[];
 				documents?: Array<{ filename: string; source_key: string; type: string }>;
 				field_confidence?: FieldConfidenceMap;
-				llm_fallback?: { attempted: boolean; applied: boolean; reason: string; binding_available: boolean };
+				llm_fallback?: { attempted: boolean; applied: boolean; reason: string; binding_available: boolean; outcome: 'applied' | 'not-needed' | 'binding-unavailable' | 'failed' };
 				error?: string;
 			};
 
@@ -475,9 +476,21 @@
 					class:present={llmFallback.applied}
 					title={llmFallback.applied
 						? 'Workers AI supplemented low-confidence fields'
-						: `AI assist did not apply (${llmFallback.reason})`}
+						: llmFallback.outcome === 'not-needed'
+							? 'Deterministic parsing covered everything; AI assist was not needed'
+							: llmFallback.outcome === 'binding-unavailable'
+								? 'Workers AI is not available in this environment'
+								: `AI assist could not supplement fields (${llmFallback.reason})`}
 				>
-					{llmFallback.applied ? '✓ AI assist applied' : '○ AI assist ' + (llmFallback.binding_available ? 'no-op' : 'unavailable')}
+					{#if llmFallback.applied}
+						✓ AI assist applied
+					{:else if llmFallback.outcome === 'not-needed'}
+						✓ AI assist not needed
+					{:else if llmFallback.outcome === 'binding-unavailable'}
+						○ AI assist unavailable
+					{:else}
+						○ AI assist failed
+					{/if}
 				</span>
 			{/if}
 		</div>

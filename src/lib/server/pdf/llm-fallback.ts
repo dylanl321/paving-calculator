@@ -194,6 +194,30 @@ export interface LlmFallbackDiagnostic {
 	reason: string;
 	/** True when the `AI` binding was present in this environment. */
 	binding_available: boolean;
+	/**
+	 * High-level outcome for display:
+	 *  - 'applied'           — the model ran and supplemented fields.
+	 *  - 'not-needed'        — nothing low-confidence to send; deterministic parse
+	 *                          already covered everything (a benign no-op, NOT a
+	 *                          failure). Covers no-zone-text / no-low-confidence.
+	 *  - 'binding-unavailable' — the AI binding was absent (e.g. local dev).
+	 *  - 'failed'            — a model call was made but errored or returned no
+	 *                          usable JSON.
+	 */
+	outcome: 'applied' | 'not-needed' | 'binding-unavailable' | 'failed';
+}
+
+/** Reasons that mean the model was never actually invoked (no work to do). */
+const NO_OP_REASONS = new Set(['no-low-confidence-fields', 'no-zone-text']);
+
+function classifyOutcome(
+	bindingAvailable: boolean,
+	result: LlmFallbackResult
+): LlmFallbackDiagnostic['outcome'] {
+	if (result.applied) return 'applied';
+	if (!bindingAvailable || result.reason === 'ai-binding-unavailable') return 'binding-unavailable';
+	if (result.reason && NO_OP_REASONS.has(result.reason)) return 'not-needed';
+	return 'failed';
 }
 
 /**
@@ -209,33 +233,37 @@ export function buildLlmDiagnostic(
 		attempted,
 		applied: result.applied,
 		reason: result.reason ?? (result.applied ? 'applied' : 'unknown'),
-		binding_available: bindingAvailable
+		binding_available: bindingAvailable,
+		outcome: classifyOutcome(bindingAvailable, result)
 	};
 }
 
 /**
  * Append a single human-readable warning describing the LLM fallback outcome,
- * but ONLY when it would have been useful and didn't apply — so the user can
- * see why low-confidence fields weren't supplemented. The success warning is
- * pushed inside runLlmFallback, so it is skipped here to avoid duplication.
+ * but ONLY when a model call genuinely failed — so the user can see why
+ * low-confidence fields weren't supplemented. A 'not-needed' no-op (nothing
+ * low-confidence to send) and a missing binding are NOT failures, so they don't
+ * produce an alarming "ran but failed" warning. The success message is pushed
+ * inside runLlmFallback, so it is skipped here to avoid duplication.
  */
 export function appendLlmFallbackWarning(
 	warnings: string[],
 	diag: LlmFallbackDiagnostic
 ): void {
-	if (!diag.attempted || diag.applied) return;
+	if (diag.outcome === 'applied' || diag.outcome === 'not-needed') return;
 
-	if (!diag.binding_available) {
+	if (diag.outcome === 'binding-unavailable') {
 		warnings.push(
-			'AI assist did not run: the Workers AI binding is not available in this environment ' +
-				'(common under local dev). Low-confidence fields were left as deterministically parsed.'
+			'AI assist was not available in this environment (common under local dev); ' +
+				'fields were extracted deterministically.'
 		);
 		return;
 	}
 
+	// outcome === 'failed': a model call was made but errored / returned no JSON.
 	warnings.push(
-		`AI assist ran but did not supplement any fields (${diag.reason}). ` +
-			'Low-confidence fields were left as deterministically parsed.'
+		`AI assist could not supplement any fields (${diag.reason}). ` +
+			'Fields were left as deterministically parsed.'
 	);
 }
 
