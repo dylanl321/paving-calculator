@@ -144,6 +144,16 @@ export interface DbSchematic {
 	created_at: number;
 }
 
+export interface DbJobDocument {
+	id: string;
+	job_site_id: string;
+	r2_key: string;
+	filename: string;
+	doc_type: string | null;
+	content_type: string;
+	created_at: number;
+}
+
 export interface DbJobSiteAssignment {
 	job_site_id: string;
 	user_id: string;
@@ -852,6 +862,42 @@ export class DbHelper {
 			)
 			.run();
 		return { id, job_site_id: jobSiteId, created_at: now, ...schematic };
+	}
+
+	async getJobDocuments(jobSiteId: string): Promise<DbJobDocument[]> {
+		return await this.db
+			.prepare('SELECT * FROM job_documents WHERE job_site_id = ? ORDER BY created_at ASC')
+			.bind(jobSiteId)
+			.all<DbJobDocument>()
+			.then((r) => r.results);
+	}
+
+	async getJobDocument(id: string): Promise<DbJobDocument | null> {
+		return await this.db.prepare('SELECT * FROM job_documents WHERE id = ?').bind(id).first<DbJobDocument>();
+	}
+
+	async createJobDocument(
+		jobSiteId: string,
+		doc: Omit<DbJobDocument, 'id' | 'job_site_id' | 'created_at'>
+	): Promise<DbJobDocument> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				`INSERT INTO job_documents (id, job_site_id, r2_key, filename, doc_type, content_type, created_at)
+				 VALUES (?, ?, ?, ?, ?, ?, ?)`
+			)
+			.bind(
+				id,
+				jobSiteId,
+				doc.r2_key,
+				doc.filename,
+				doc.doc_type ?? null,
+				doc.content_type ?? 'application/pdf',
+				now
+			)
+			.run();
+		return { id, job_site_id: jobSiteId, created_at: now, ...doc };
 	}
 
 	async getJobSiteAssignments(jobSiteId: string): Promise<

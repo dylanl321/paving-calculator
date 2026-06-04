@@ -8,6 +8,7 @@ import type { ParsedGdotJob } from '$lib/server/pdf/parse-gdot';
 interface FromImportRequest {
 	parsed: ParsedGdotJob;
 	source_keys?: string[];
+	documents?: Array<{ filename: string; source_key: string; type: string }>;
 }
 
 // Maps a derived scope tag to the legacy single scope_of_work enum where one
@@ -194,6 +195,18 @@ export async function POST(event: RequestEvent) {
 				sort_order: i
 			});
 			itemCount++;
+		}
+
+		// Persist the original uploaded PDFs as downloadable source documents.
+		const docs = Array.isArray(body.documents) ? body.documents : [];
+		for (const d of docs) {
+			if (!d.source_key || !d.filename) continue;
+			await db.createJobDocument(jobSite.id, {
+				r2_key: d.source_key,
+				filename: d.filename,
+				doc_type: d.type ?? null,
+				content_type: 'application/pdf'
+			});
 		}
 
 		await recordAudit(event.platform!.env.DB, {

@@ -143,7 +143,7 @@
 			const res = await fetch('/api/job-sites/from-import', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ parsed, source_keys: sourceKeys }),
+				body: JSON.stringify({ parsed, source_keys: sourceKeys, documents }),
 				credentials: 'include'
 			});
 

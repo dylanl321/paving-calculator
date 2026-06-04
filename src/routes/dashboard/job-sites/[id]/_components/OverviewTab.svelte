@@ -192,6 +192,32 @@
 			});
 	});
 
+	interface SourceDocument {
+		id: string;
+		filename: string;
+		doc_type: string | null;
+		created_at: number;
+	}
+	let sourceDocuments = $state<SourceDocument[]>([]);
+
+	$effect(() => {
+		if (!browser) return;
+		fetch(`/api/job-sites/${data.jobSite.id}/documents`, { credentials: 'include' })
+			.then((res) => (res.ok ? res.json() : { documents: [] }))
+			.then((d: { documents?: SourceDocument[] }) => {
+				sourceDocuments = d.documents ?? [];
+			})
+			.catch(() => {
+				sourceDocuments = [];
+			});
+	});
+
+	function docTypeLabel(t: string | null): string {
+		if (t === 'contract_summary') return 'Contract Summary';
+		if (t === 'job_setup') return 'Job Setup';
+		return 'Document';
+	}
+
 	$effect(() => {
 		if (!browser) return;
 		contractLoading = true;
@@ -742,6 +768,37 @@
 		</section>
 	{/if}
 </div>
+{/if}
+
+{#if sourceDocuments.length > 0}
+	<section class="panel panel-span source-docs-panel">
+		<div class="panel-head">
+			<h3>Source Documents</h3>
+		</div>
+		<div class="doc-list">
+			{#each sourceDocuments as doc (doc.id)}
+				<a
+					class="doc-row"
+					href={`/api/job-sites/${data.jobSite.id}/documents/${doc.id}/download`}
+					download
+				>
+					<svg class="doc-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+						<polyline points="14 2 14 8 20 8" />
+					</svg>
+					<div class="doc-info">
+						<span class="doc-name">{doc.filename}</span>
+						<span class="doc-type">{docTypeLabel(doc.doc_type)}</span>
+					</div>
+					<svg class="doc-dl" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+						<polyline points="7 10 12 15 17 10" />
+						<line x1="12" y1="15" x2="12" y2="3" />
+					</svg>
+				</a>
+			{/each}
+		</div>
+	</section>
 {/if}
 
 {#if schematics.length > 0}
@@ -1835,5 +1892,63 @@
 
 	.schematics-panel {
 		margin-bottom: 24px;
+	}
+
+	.source-docs-panel {
+		margin-bottom: 24px;
+	}
+
+	.doc-list {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.doc-row {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 12px 14px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		text-decoration: none;
+		color: var(--text);
+		transition: border-color 0.2s;
+	}
+
+	.doc-row:hover {
+		border-color: var(--accent);
+	}
+
+	.doc-icon {
+		color: var(--text-muted);
+		flex-shrink: 0;
+	}
+
+	.doc-info {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.doc-name {
+		font-weight: 600;
+		font-size: 0.9rem;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.doc-type {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+
+	.doc-dl {
+		color: var(--accent);
+		flex-shrink: 0;
 	}
 </style>
