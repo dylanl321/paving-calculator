@@ -141,11 +141,16 @@ export function mockRequestEvent(opts: MockRequestEventOpts): MockRequestEvent {
 			cf: undefined
 		},
 		locals: {},
-		route: { id: pathname },
+		route: { id: pathname as any },
 		setHeaders: () => {},
-		depends: () => {},
 		isDataRequest: false,
 		isSubRequest: false,
+		isRemoteRequest: false,
+		tracing: {
+			enabled: false,
+			root: {} as any,
+			current: {} as any
+		},
 		getClientAddress: () => '127.0.0.1',
 		fetch: globalThis.fetch
 	};

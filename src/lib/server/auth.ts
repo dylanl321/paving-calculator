@@ -181,7 +181,7 @@ export async function requireOrgRole(
 		});
 	}
 	const db = new DbHelper(event.platform.env.DB);
-	const role = await db.auth.getUserRole(user.id, orgId);
+	const role = await db.org.getUserRole(user.id, orgId);
 
 	if (!role || !allowedRoles.includes(role as 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man')) {
 		throw new Response(JSON.stringify({ error: 'Forbidden: Insufficient permissions' }), {
