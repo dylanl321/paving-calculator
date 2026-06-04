@@ -18,6 +18,14 @@ export interface OrgDefaultsOverride {
 	courseType?: string;
 	liftThicknessIn?: number;
 	mixType?: string;
+	defaultPlant?: string;
+	defaultCrewSize?: number;
+	pavingWindowStart?: string;
+	pavingWindowEnd?: string;
+	minPavingTempF?: number;
+	maxPavingTempF?: number;
+	minMatTempF?: number;
+	defaultCompactionPasses?: number;
 }
 
 export interface OrgTackOverride {
@@ -57,7 +65,15 @@ export const OVERRIDABLE_DEFAULTS: Record<
 	wastePct: { min: 0, max: 50, type: 'number' },
 	courseType: { type: 'string' },
 	liftThicknessIn: { min: 0.5, max: 10, type: 'number' },
-	mixType: { type: 'string' }
+	mixType: { type: 'string' },
+	defaultPlant: { type: 'string' },
+	defaultCrewSize: { min: 1, max: 50, type: 'number' },
+	pavingWindowStart: { type: 'string' },
+	pavingWindowEnd: { type: 'string' },
+	minPavingTempF: { min: 20, max: 80, type: 'number' },
+	maxPavingTempF: { min: 80, max: 150, type: 'number' },
+	minMatTempF: { min: 200, max: 350, type: 'number' },
+	defaultCompactionPasses: { min: 1, max: 20, type: 'number' }
 };
 
 export interface ValidationResult {

@@ -47,6 +47,14 @@ describe('OVERRIDABLE_DEFAULTS', () => {
 		expect(keys).toContain('courseType');
 		expect(keys).toContain('liftThicknessIn');
 		expect(keys).toContain('mixType');
+		expect(keys).toContain('defaultPlant');
+		expect(keys).toContain('defaultCrewSize');
+		expect(keys).toContain('pavingWindowStart');
+		expect(keys).toContain('pavingWindowEnd');
+		expect(keys).toContain('minPavingTempF');
+		expect(keys).toContain('maxPavingTempF');
+		expect(keys).toContain('minMatTempF');
+		expect(keys).toContain('defaultCompactionPasses');
 	});
 });
 
@@ -239,6 +247,107 @@ describe('validateOverrides — defaults', () => {
 
 	it('rejects wastePct above 50', () => {
 		expect(validateOverrides({ defaults: { wastePct: 51 } }).ok).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// validateOverrides — new operations defaults
+// ---------------------------------------------------------------------------
+describe('validateOverrides — new operations defaults', () => {
+	it('accepts defaultPlant as a valid string', () => {
+		const r = validateOverrides({ defaults: { defaultPlant: 'Atlanta Paving Supply' } });
+		expect(r.ok).toBe(true);
+		expect(r.cleaned?.defaults?.defaultPlant).toBe('Atlanta Paving Supply');
+	});
+
+	it('accepts defaultCrewSize=10 (in range 1-50)', () => {
+		const r = validateOverrides({ defaults: { defaultCrewSize: 10 } });
+		expect(r.ok).toBe(true);
+		expect(r.cleaned?.defaults?.defaultCrewSize).toBe(10);
+	});
+
+	it('rejects defaultCrewSize=51 (above max)', () => {
+		const r = validateOverrides({ defaults: { defaultCrewSize: 51 } });
+		expect(r.ok).toBe(false);
+		expect(r.error).toMatch(/out of range/i);
+	});
+
+	it('rejects defaultCrewSize=0 (below min)', () => {
+		const r = validateOverrides({ defaults: { defaultCrewSize: 0 } });
+		expect(r.ok).toBe(false);
+		expect(r.error).toMatch(/out of range/i);
+	});
+
+	it('accepts pavingWindowStart as a string "07:00"', () => {
+		const r = validateOverrides({ defaults: { pavingWindowStart: '07:00' } });
+		expect(r.ok).toBe(true);
+		expect(r.cleaned?.defaults?.pavingWindowStart).toBe('07:00');
+	});
+
+	it('accepts pavingWindowEnd as a string "19:00"', () => {
+		const r = validateOverrides({ defaults: { pavingWindowEnd: '19:00' } });
+		expect(r.ok).toBe(true);
+		expect(r.cleaned?.defaults?.pavingWindowEnd).toBe('19:00');
+	});
+
+	it('accepts minPavingTempF=35 (in range 20-80)', () => {
+		const r = validateOverrides({ defaults: { minPavingTempF: 35 } });
+		expect(r.ok).toBe(true);
+		expect(r.cleaned?.defaults?.minPavingTempF).toBe(35);
+	});
+
+	it('rejects minPavingTempF=81 (above max)', () => {
+		const r = validateOverrides({ defaults: { minPavingTempF: 81 } });
+		expect(r.ok).toBe(false);
+		expect(r.error).toMatch(/out of range/i);
+	});
+
+	it('rejects minPavingTempF=19 (below min)', () => {
+		const r = validateOverrides({ defaults: { minPavingTempF: 19 } });
+		expect(r.ok).toBe(false);
+		expect(r.error).toMatch(/out of range/i);
+	});
+
+	it('accepts maxPavingTempF=120 (in range 80-150)', () => {
+		const r = validateOverrides({ defaults: { maxPavingTempF: 120 } });
+		expect(r.ok).toBe(true);
+		expect(r.cleaned?.defaults?.maxPavingTempF).toBe(120);
+	});
+
+	it('rejects maxPavingTempF=151', () => {
+		const r = validateOverrides({ defaults: { maxPavingTempF: 151 } });
+		expect(r.ok).toBe(false);
+		expect(r.error).toMatch(/out of range/i);
+	});
+
+	it('accepts minMatTempF=280 (in range 200-350)', () => {
+		const r = validateOverrides({ defaults: { minMatTempF: 280 } });
+		expect(r.ok).toBe(true);
+		expect(r.cleaned?.defaults?.minMatTempF).toBe(280);
+	});
+
+	it('rejects minMatTempF=351', () => {
+		const r = validateOverrides({ defaults: { minMatTempF: 351 } });
+		expect(r.ok).toBe(false);
+		expect(r.error).toMatch(/out of range/i);
+	});
+
+	it('accepts defaultCompactionPasses=5 (in range 1-20)', () => {
+		const r = validateOverrides({ defaults: { defaultCompactionPasses: 5 } });
+		expect(r.ok).toBe(true);
+		expect(r.cleaned?.defaults?.defaultCompactionPasses).toBe(5);
+	});
+
+	it('rejects defaultCompactionPasses=0', () => {
+		const r = validateOverrides({ defaults: { defaultCompactionPasses: 0 } });
+		expect(r.ok).toBe(false);
+		expect(r.error).toMatch(/out of range/i);
+	});
+
+	it('rejects defaultCompactionPasses=21', () => {
+		const r = validateOverrides({ defaults: { defaultCompactionPasses: 21 } });
+		expect(r.ok).toBe(false);
+		expect(r.error).toMatch(/out of range/i);
 	});
 });
 
