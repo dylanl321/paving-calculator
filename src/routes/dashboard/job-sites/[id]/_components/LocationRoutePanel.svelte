@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
+	import { polylineLengthFt, stationToFeet } from '$lib/services/mapUtils';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { formatFeet } from '$lib/utils/format';
 	import type { JobSite, RouteWaypoint } from '../+page';
 	import type { ConfigForm } from './shared';
 
@@ -31,6 +33,21 @@
 
 	const hasLocation = $derived(jobSite.latitude != null && jobSite.longitude != null);
 	const hasRoute = $derived(routeWaypoints.length >= 2);
+	const hasProjectLimits = $derived(
+		configForm.begin_station != null && configForm.end_station != null
+	);
+	const routeLengthFt = $derived(hasRoute ? polylineLengthFt(routeWaypoints) : null);
+	const projectLimitLengthFt = $derived(
+		hasProjectLimits
+			? Math.abs(stationToFeet((configForm.end_station ?? 0) - (configForm.begin_station ?? 0)))
+			: null
+	);
+	const currentSetupStep = $derived.by(() => {
+		if (!hasLocation) return 'Move the pin onto the project area.';
+		if (!hasRoute) return 'Load or draw the road line that the project follows.';
+		if (!hasProjectLimits) return 'Set the project start and end along the road line.';
+		return 'Route setup is ready for work zones and daily progress.';
+	});
 
 	async function handleLocationChange(lat: number | null, lng: number | null) {
 		locationSaving = true;
@@ -109,15 +126,15 @@
 				body: JSON.stringify(patch),
 				credentials: 'include'
 			});
-	if (res.ok) {
-		if (field === 'begin') configForm.begin_station = station;
-		else configForm.end_station = station;
-		toastStore.success(`Project ${field === 'begin' ? 'start' : 'end'} saved`);
-	} else {
-				toastStore.error('Failed to save terminus');
+			if (res.ok) {
+				if (field === 'begin') configForm.begin_station = station;
+				else configForm.end_station = station;
+				toastStore.success(`Project ${field === 'begin' ? 'start' : 'end'} saved`);
+			} else {
+				toastStore.error('Failed to save project limit');
 			}
 		} catch {
-			toastStore.error('Failed to save terminus');
+			toastStore.error('Failed to save project limit');
 		}
 	}
 </script>
@@ -126,13 +143,51 @@
 	<div class="panel-head">
 		<div>
 			<h3>Location &amp; Route</h3>
-			<p>Set the project pin, save the road line, then choose the start/end limits for paving.</p>
+			<p>Define the stretch of real road this project uses, then mark the exact paving limits.</p>
 		</div>
 		{#if hasLocation}
 			<button type="button" class="link-btn" onclick={() => (showLocationSearch = !showLocationSearch)}>
 				{showLocationSearch ? 'Cancel' : 'Change Location'}
 			</button>
 		{/if}
+	</div>
+
+	<div class="setup-guide" aria-label="Route setup progress">
+		<div class="setup-guide-main">
+			<span class="setup-kicker">Goal</span>
+			<strong>Turn the job location into a measured road project.</strong>
+			<p>{currentSetupStep}</p>
+		</div>
+		<ol class="setup-steps">
+			<li class:complete={hasLocation} class:active={!hasLocation}>
+				<span>1</span>
+				<div>
+					<strong>Project pin</strong>
+					<small>{hasLocation ? 'Location is set' : 'Place it near the work'}</small>
+				</div>
+			</li>
+			<li class:complete={hasRoute} class:active={hasLocation && !hasRoute}>
+				<span>2</span>
+				<div>
+					<strong>Road line</strong>
+					<small>{hasRoute ? formatFeet(routeLengthFt) : 'Load GDOT or draw snapped points'}</small>
+				</div>
+			</li>
+			<li class:complete={hasProjectLimits} class:active={hasRoute && !hasProjectLimits}>
+				<span>3</span>
+				<div>
+					<strong>Project limits</strong>
+					<small>{hasProjectLimits ? formatFeet(projectLimitLengthFt) : 'Choose start and end'}</small>
+				</div>
+			</li>
+			<li class:active={hasProjectLimits}>
+				<span>4</span>
+				<div>
+					<strong>Work zones</strong>
+					<small>{hasProjectLimits ? 'Ready to build sections' : 'Unlocks after limits'}</small>
+				</div>
+			</li>
+		</ol>
 	</div>
 
 	{#if !hasLocation || showLocationSearch}
@@ -168,21 +223,36 @@
 		{/await}
 
 		<div class="route-meta">
-			<span>{jobSite.latitude?.toFixed(5)}, {jobSite.longitude?.toFixed(5)}</span>
+			<span>Pin: {jobSite.latitude?.toFixed(5)}, {jobSite.longitude?.toFixed(5)}</span>
+			{#if hasRoute}
+				<span>Road line: {formatFeet(routeLengthFt)}</span>
+			{/if}
+			{#if hasProjectLimits}
+				<span>Project limits: {formatFeet(projectLimitLengthFt)}</span>
+			{/if}
 			<button type="button" class="link-btn-sm" onclick={() => handleLocationChange(null, null)}>
 				Clear
 			</button>
 		</div>
 
-		{#if configForm.route_designation && !hasRoute}
+		{#if !hasRoute}
 			<div class="route-load">
-				<p>
-					This project names <strong>{configForm.route_designation}</strong>. Load its GDOT centerline
-					or draw the road alignment above.
-				</p>
-				<button type="button" class="btn-secondary" onclick={loadRouteCenterline} disabled={loadingRoute}>
-					{loadingRoute ? 'Loading...' : `Load ${configForm.route_designation} centerline`}
-				</button>
+				<div>
+					<strong>No road line saved yet.</strong>
+					<p>
+						{#if configForm.route_designation}
+							This project names <strong>{configForm.route_designation}</strong>. Load that GDOT road line,
+							or use Edit Route on the map to add road-snapped points.
+						{:else}
+							Use Edit Route on the map to add road-snapped points in order along the project road.
+						{/if}
+					</p>
+				</div>
+				{#if configForm.route_designation}
+					<button type="button" class="btn-secondary" onclick={loadRouteCenterline} disabled={loadingRoute}>
+						{loadingRoute ? 'Loading...' : `Load ${configForm.route_designation} road line`}
+					</button>
+				{/if}
 			</div>
 		{/if}
 
@@ -239,8 +309,118 @@
 		font-size: 0.86rem;
 	}
 
+	.setup-guide {
+		display: grid;
+		grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+		gap: 12px;
+		margin-bottom: 14px;
+		padding: 12px;
+		background: color-mix(in srgb, var(--accent) 6%, var(--surface-alt));
+		border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+		border-radius: 8px;
+	}
+
+	.setup-guide-main {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.setup-guide-main strong {
+		color: var(--text);
+		font-size: 0.98rem;
+	}
+
+	.setup-guide-main p {
+		margin: 0;
+		color: var(--text-muted);
+		font-size: 0.86rem;
+		line-height: 1.4;
+	}
+
+	.setup-kicker {
+		color: var(--accent);
+		font-size: 0.72rem;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	.setup-steps {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 8px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.setup-steps li {
+		display: flex;
+		gap: 8px;
+		align-items: flex-start;
+		min-width: 0;
+		padding: 9px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		opacity: 0.78;
+	}
+
+	.setup-steps li.active,
+	.setup-steps li.complete {
+		opacity: 1;
+	}
+
+	.setup-steps li.active {
+		border-color: var(--accent);
+		box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+	}
+
+	.setup-steps li.complete span {
+		background: var(--accent);
+		color: var(--accent-text);
+		border-color: var(--accent);
+	}
+
+	.setup-steps span {
+		display: grid;
+		flex: 0 0 24px;
+		width: 24px;
+		height: 24px;
+		place-items: center;
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		color: var(--text-muted);
+		font-size: 0.78rem;
+		font-weight: 800;
+	}
+
+	.setup-steps div {
+		min-width: 0;
+	}
+
+	.setup-steps strong,
+	.setup-steps small {
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.setup-steps strong {
+		color: var(--text);
+		font-size: 0.82rem;
+	}
+
+	.setup-steps small {
+		color: var(--text-muted);
+		font-size: 0.74rem;
+	}
+
 	.route-meta {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: 10px;
 		margin-top: 10px;
@@ -264,6 +444,10 @@
 		border-radius: 8px;
 	}
 
+	.route-load strong {
+		color: var(--text);
+	}
+
 	.saving {
 		margin: 8px 0 0;
 		color: var(--text-muted);
@@ -271,6 +455,11 @@
 	}
 
 	@media (max-width: 640px) {
+		.setup-guide,
+		.setup-steps {
+			grid-template-columns: 1fr;
+		}
+
 		.panel-head,
 		.route-load {
 			flex-direction: column;
