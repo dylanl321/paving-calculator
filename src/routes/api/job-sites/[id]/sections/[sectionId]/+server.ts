@@ -70,6 +70,18 @@ export async function PATCH(event: RequestEvent) {
 			updates.push('geometry_geojson = ?');
 			values.push(body.geometry_geojson);
 		}
+		if (body.production_mix_id !== undefined) {
+			updates.push('production_mix_id = ?');
+			values.push(body.production_mix_id);
+		}
+		if (body.layer_label !== undefined) {
+			updates.push('layer_label = ?');
+			values.push(body.layer_label);
+		}
+		if (body.planned_length_ft !== undefined) {
+			updates.push('planned_length_ft = ?');
+			values.push(body.planned_length_ft);
+		}
 		if (body.notes !== undefined) {
 			updates.push('notes = ?');
 			values.push(body.notes);
@@ -191,6 +203,9 @@ interface CreateSectionRequest {
 	station_end?: number | null;
 	status?: 'active' | 'completed' | 'skipped';
 	geometry_geojson?: string | null;
+	production_mix_id?: string | null;
+	layer_label?: string | null;
+	planned_length_ft?: number | null;
 	notes?: string | null;
 	sort_order?: number;
 }

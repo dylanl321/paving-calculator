@@ -1,14 +1,10 @@
 <script lang="ts">
-	import { goto, invalidateAll } from '$app/navigation';
-	import { MapPin } from 'lucide-svelte';
 	import LoadTracker from '$lib/components/LoadTracker.svelte';
 	import TruckQueue from '$lib/components/TruckQueue.svelte';
 	import SpreadRateHistogram from '$lib/components/SpreadRateHistogram.svelte';
 	import WasteYieldAnalysis from '$lib/components/WasteYieldAnalysis.svelte';
 	import ETACalculator from '$lib/components/ETACalculator.svelte';
-	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
 	import SchematicViewer from '$lib/components/SchematicViewer.svelte';
-	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { fmt, fmtDollars, type ConfigForm } from './shared';
@@ -17,18 +13,6 @@
 	import { polylineLengthFt, lineStringLengthFt } from '$lib/services/mapUtils';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import type { PavingStatus } from '$lib/components/map-v2/RoadProgressLayer.svelte';
-
-	interface Photo {
-		id: string;
-		filename: string;
-		caption?: string | null;
-		taken_at: number;
-		lat?: number | null;
-		lng?: number | null;
-	}
-	interface PhotosResponse {
-		photos?: Photo[];
-	}
 
 	let {
 		data,
@@ -63,13 +47,6 @@
 		tackLabel: string | null;
 		onGoToTab: (tab: string) => void;
 	} = $props();
-
-	let showLocationSearch = $state(false);
-	let locationSaving = $state(false);
-	// svelte-ignore state_referenced_locally
-	let pickerLat = $state<number | null>(data.jobSite.latitude ?? null);
-	// svelte-ignore state_referenced_locally
-	let pickerLng = $state<number | null>(data.jobSite.longitude ?? null);
 
 	const REQUIRED_CONFIG_FIELDS = [
 		'road_type',
@@ -145,56 +122,16 @@
 	}
 
 	let sections = $state<OverviewSection[]>([]);
-	let sectionsLoading = $state(true);
-	let selectedSection = $state<OverviewSection | null>(null);
-
-	function dbStatus(s: string | undefined | null): PavingStatus {
-		switch (s) {
-			case 'completed': return 'completed';
-			case 'active':    return 'in_progress';
-			case 'skipped':   return 'skipped';
-			default:          return 'planned';
-		}
-	}
-
-	const STATUS_COLORS_MAP: Record<PavingStatus, string> = {
-		planned:         '#94a3b8',
-		scheduled_today: '#f2c037',
-		in_progress:     '#f59e0b',
-		completed:       '#22c55e',
-		behind_schedule: '#ef4444',
-		skipped:         '#475569',
-	};
-
-	const STATUS_LABELS: Record<PavingStatus, string> = {
-		planned:         'Planned',
-		scheduled_today: 'Today',
-		in_progress:     'In Progress',
-		completed:       'Completed',
-		behind_schedule: 'Behind',
-		skipped:         'Skipped',
-	};
-
-	function statusColor(s: PavingStatus): string {
-		return STATUS_COLORS_MAP[s] ?? '#94a3b8';
-	}
-
-	function statusLabel(s: PavingStatus): string {
-		return STATUS_LABELS[s] ?? s;
-	}
 
 	$effect(() => {
 		if (!browser) return;
-		sectionsLoading = true;
 		fetch(`/api/job-sites/${data.jobSite.id}/sections`)
 			.then((res) => (res.ok ? res.json() : { sections: [] }))
 			.then((d) => {
 				sections = (d as { sections?: OverviewSection[] }).sections || [];
-				sectionsLoading = false;
 			})
 			.catch(() => {
 				sections = [];
-				sectionsLoading = false;
 			});
 	});
 
@@ -374,232 +311,6 @@
 	const remainingLengthFt = $derived(
 		routeLengthFt != null ? Math.max(0, routeLengthFt - completedLengthFt) : null
 	);
-
-	// Persist a begin/end terminus station (snapped to the route) via the config
-	// endpoint. The TerminusPicker already constrains the value to the road.
-	async function saveTerminus(field: 'begin' | 'end', station: number) {
-		const patch =
-			field === 'begin' ? { begin_station: station } : { end_station: station };
-		try {
-			const res = await fetch(`/api/job-sites/${data.jobSite.id}/config`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(patch),
-				credentials: 'include'
-			});
-			if (res.ok) {
-				toastStore.success(`${field === 'begin' ? 'Begin' : 'End'} terminus saved`);
-			} else {
-				toastStore.error('Failed to save terminus');
-			}
-		} catch {
-			toastStore.error('Failed to save terminus');
-		}
-	}
-
-	// When a project has a parsed route designation but no stored centerline yet,
-	// fetch the real GDOT route polyline and save it as the route so the terminus
-	// picker has a road to snap to. Never fabricates geometry — only persists what
-	// the GDOT service actually returns.
-	let loadingRoute = $state(false);
-	async function loadRouteCenterline() {
-		const designation = configForm.route_designation;
-		if (!designation || loadingRoute) return;
-		loadingRoute = true;
-		try {
-			const q = encodeURIComponent(designation);
-			const res = await fetch(`/api/gdot-routes?q=${q}&geometry=true`, { credentials: 'include' });
-			if (!res.ok) {
-				toastStore.error('Could not reach GDOT route service');
-				return;
-			}
-			const body = (await res.json()) as {
-				routes?: Array<{ geometry?: { coordinates?: [number, number][] } | null }>;
-			};
-			const coords = body.routes?.find((r) => r.geometry?.coordinates?.length)?.geometry
-				?.coordinates;
-			if (!coords || coords.length < 2) {
-				toastStore.error(`No GDOT geometry found for ${designation}`);
-				return;
-			}
-			// gdot-routes returns [lng,lat]; route waypoints are stored as {lat,lng}.
-			const waypoints = coords.map(([lng, lat]) => ({ lat, lng }));
-			const save = await fetch(`/api/job-sites/${data.jobSite.id}/route`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ waypoints }),
-				credentials: 'include'
-			});
-			if (save.ok) {
-				toastStore.success(`Loaded ${designation} centerline`);
-				await invalidateAll();
-			} else {
-				toastStore.error('Failed to save route');
-			}
-		} catch {
-			toastStore.error('Could not load route centerline');
-		} finally {
-			loadingRoute = false;
-		}
-	}
-
-	function loadPlantLocation() {
-		if (typeof localStorage === 'undefined') return { name: '', latitude: null, longitude: null };
-		const key = `plant_${data.jobSite.id}`;
-		const stored = localStorage.getItem(key);
-		if (!stored) return { name: '', latitude: null, longitude: null };
-		try {
-			return JSON.parse(stored);
-		} catch {
-			return { name: '', latitude: null, longitude: null };
-		}
-	}
-
-	let plantForm = $state({
-		name: '',
-		latitude: null as number | null,
-		longitude: null as number | null
-	});
-	let plantSaved = $state(false);
-	let plantLocation = $state(loadPlantLocation());
-
-	function savePlantLocation() {
-		if (typeof localStorage === 'undefined') return;
-		const key = `plant_${data.jobSite.id}`;
-		const location = {
-			name: plantForm.name,
-			latitude: plantForm.latitude,
-			longitude: plantForm.longitude
-		};
-		localStorage.setItem(key, JSON.stringify(location));
-		plantLocation = location;
-		plantSaved = true;
-		setTimeout(() => {
-			plantSaved = false;
-		}, 2000);
-	}
-
-	function clearPlantLocation() {
-		if (typeof localStorage === 'undefined') return;
-		const key = `plant_${data.jobSite.id}`;
-		localStorage.removeItem(key);
-		plantLocation = { name: '', latitude: null, longitude: null };
-		plantForm = { name: '', latitude: null, longitude: null };
-	}
-
-	async function handleLocationChange(lat: number | null, lng: number | null) {
-		locationSaving = true;
-		try {
-			const res = await fetch(`/api/job-sites/${data.jobSite.id}`, {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ latitude: lat, longitude: lng }),
-				credentials: 'include'
-			});
-			if (res.ok) {
-				toastStore.success('Location updated successfully');
-				goto(`/dashboard/job-sites/${data.jobSite.id}`);
-			} else {
-				toastStore.error('Failed to update location');
-			}
-		} catch {
-			toastStore.error('Failed to update location');
-		} finally {
-			locationSaving = false;
-		}
-	}
-
-	async function clearCoordinates() {
-		await handleLocationChange(null, null);
-	}
-
-	let photos = $state<any[]>([]);
-	let photosLoading = $state(true);
-	let selectedPhoto = $state<any | null>(null);
-	let gdotLookupLoading = $state(false);
-
-	async function loadPhotos() {
-		photosLoading = true;
-		try {
-			const res = await fetch(`/api/job-sites/${data.jobSite.id}/photos`);
-			if (!res.ok) return;
-			const result = (await res.json()) as PhotosResponse;
-			photos = result.photos ?? [];
-			renderPhotoGrid();
-		} catch {
-			// ignore
-		} finally {
-			photosLoading = false;
-		}
-	}
-
-	function renderPhotoGrid() {
-		const grid = document.getElementById('photo-grid');
-		if (!grid) return;
-
-		if (photos.length === 0) {
-			grid.innerHTML = '<div class="empty-state-mini"><p>No photos yet</p></div>';
-			return;
-		}
-
-		const escapeHtml = (str: string) =>
-				str
-					.replace(/&/g, '&amp;')
-					.replace(/</g, '&lt;')
-					.replace(/>/g, '&gt;')
-					.replace(/"/g, '&quot;')
-					.replace(/'/g, '&#039;');
-
-		grid.innerHTML = photos
-			.map(
-				(photo) => `
-			<div class="photo-thumb" data-photo-id="${escapeHtml(String(photo.id))}">
-				<img src="/api/job-sites/${escapeHtml(String(data.jobSite.id))}/photos/${escapeHtml(String(photo.id))}/view" alt="${escapeHtml(photo.caption || photo.filename)}" />
-				${photo.caption ? `<div class="photo-caption">${escapeHtml(photo.caption)}</div>` : ''}
-			</div>
-		`
-			)
-			.join('');
-
-		grid.querySelectorAll('.photo-thumb').forEach((el) => {
-			el.addEventListener('click', () => {
-				const photoId = el.getAttribute('data-photo-id');
-				const photo = photos.find((p) => p.id === photoId);
-				if (photo) openLightbox(photo);
-			});
-		});
-	}
-
-	function openLightbox(photo: any) {
-		selectedPhoto = photo;
-	}
-
-	function closeLightbox() {
-		selectedPhoto = null;
-	}
-
-	async function lookupGdotBoundaries() {
-		gdotLookupLoading = true;
-		try {
-			const res = await fetch(`/api/job-sites/${data.jobSite.id}/gdot-lookup`, {
-				method: 'POST',
-				credentials: 'include'
-			});
-			if (res.ok) {
-				const result = (await res.json()) as { county?: string | null; district?: string | null };
-				data.jobSite.gdot_county = result.county ?? null;
-				data.jobSite.gdot_district = result.district ?? null;
-				toastStore.success('GDOT information updated');
-			} else {
-				const errorData = (await res.json()) as { error?: string };
-				toastStore.error(errorData.error || 'Failed to lookup GDOT information');
-			}
-		} catch (error) {
-			toastStore.error('Failed to lookup GDOT information');
-		} finally {
-			gdotLookupLoading = false;
-		}
-	}
 </script>
 
 <section class="project-status-bar">
@@ -1028,7 +739,7 @@
 		{#if progressData.geometry === null}
 			<div class="empty-state-mini">
 				<p>Draw a route alignment to see progress visualization</p>
-				<button class="btn-secondary" onclick={() => onGoToTab('location')}>
+				<button type="button" class="btn-secondary" onclick={() => onGoToTab('work_zones')}>
 					Go to Map Tab
 				</button>
 			</div>
@@ -1061,15 +772,15 @@
 {/if}
 
 <div class="link-tiles">
-	<button class="link-tile" onclick={() => onGoToTab('equipment')}>
+	<button type="button" class="link-tile" onclick={() => onGoToTab('equipment')}>
 		<span class="link-tile-count">{equipmentCount}</span>
 		<span class="link-tile-label">Equipment</span>
 	</button>
-	<button class="link-tile" onclick={() => onGoToTab('calculations')}>
+	<button type="button" class="link-tile" onclick={() => onGoToTab('calculations')}>
 		<span class="link-tile-count">{data.calculations.length}</span>
 		<span class="link-tile-label">Saved Calcs</span>
 	</button>
-	<button class="link-tile" onclick={() => onGoToTab('overview')}>
+	<button type="button" class="link-tile" onclick={() => onGoToTab('overview')}>
 		<span class="link-tile-count">{data.assignments.length}</span>
 		<span class="link-tile-label">Crew</span>
 	</button>
@@ -1082,422 +793,61 @@
 <section class="panel location-panel">
 	<div class="panel-head">
 		<h3>Location & Route</h3>
-		{#if data.jobSite.latitude != null}
-			<button class="link-btn" onclick={() => (showLocationSearch = !showLocationSearch)}>
-				{showLocationSearch ? 'Cancel' : 'Change'}
-			</button>
-		{/if}
+		<button type="button" class="link-btn" onclick={() => onGoToTab('work_zones')}>
+			{data.jobSite.latitude != null ? 'Open map' : 'Set location'}
+		</button>
 	</div>
 
-	{#if data.jobSite.latitude != null && !showLocationSearch}
-		{#await import('$lib/components/RouteAlignmentMap.svelte')}
-			<div class="map-mini-loading">Loading map&hellip;</div>
-		{:then { default: RouteAlignmentMap }}
-			<RouteAlignmentMap
-				site={{
-					id: data.jobSite.id,
-					name: data.jobSite.name,
-					status: data.jobSite.status as 'active' | 'completed' | 'archived',
-					latitude: data.jobSite.latitude,
-					longitude: data.jobSite.longitude,
-					location_description: data.jobSite.location_description
-				}}
-				initialWaypoints={data.routeWaypoints}
-				numLanes={data.config?.num_lanes}
-				laneWidthFt={data.config?.lane_width_ft}
-				height="400px"
-				onRouteSave={async (waypoints) => {
-					const res = await fetch(`/api/job-sites/${data.jobSite.id}/route`, {
-						method: 'PUT',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ waypoints }),
-						credentials: 'include'
-					});
-					if (res.ok) {
-						toastStore.success('Route saved');
-					} else {
-						toastStore.error('Failed to save route');
-					}
-				}}
-			/>
-		{/await}
-		<p class="location-coords">
-			{data.jobSite.latitude.toFixed(5)}, {data.jobSite.longitude?.toFixed(5)}
-			<button class="link-btn-sm" onclick={clearCoordinates}>Clear</button>
-		</p>
-
-		<div class="gdot-info-section">
-			<h4>GDOT Information</h4>
-			<dl class="gdot-spec-list">
-				<div class="spec-item">
-					<dt>County</dt>
-					<dd>{data.jobSite.gdot_county || 'Unknown'}</dd>
-				</div>
-				<div class="spec-item">
-					<dt>District</dt>
-					<dd>{data.jobSite.gdot_district || 'Unknown'}</dd>
-				</div>
-			</dl>
-			{#if data.jobSite.latitude != null && data.jobSite.longitude != null}
-				{#if gdotLookupLoading}
-					<button class="btn-secondary" disabled>Updating...</button>
-				{:else}
-					<button class="btn-secondary" onclick={lookupGdotBoundaries}>
-						{data.jobSite.gdot_county ? 'Refresh' : 'Lookup'} GDOT Info
-					</button>
-				{/if}
-			{/if}
-		</div>
-
-		<div class="progress-map-section">
-			<div class="progress-map-head">
-				<h4>Haul Route</h4>
-				<span class="progress-map-sub">Distance from asphalt plant to job site</span>
+	{#if data.jobSite.latitude != null}
+		<dl class="gdot-spec-list">
+			<div class="spec-item">
+				<dt>Coordinates</dt>
+				<dd>{data.jobSite.latitude.toFixed(5)}, {data.jobSite.longitude?.toFixed(5)}</dd>
 			</div>
-			{#await import('$lib/components/HaulRouteMap.svelte')}
-				<div class="map-mini-loading">Loading haul route&hellip;</div>
-			{:then { default: HaulRouteMap }}
-				<HaulRouteMap
-					site={{
-						id: data.jobSite.id,
-						name: data.jobSite.name,
-						latitude: data.jobSite.latitude,
-						longitude: data.jobSite.longitude
-					}}
-					plant={plantLocation}
-					avgSpeedMph={30}
-					height="280px"
-				/>
-			{/await}
-			{#if !plantLocation.latitude || !plantLocation.longitude}
-				<div class="plant-form">
-					<h5>Set Plant Location</h5>
-					<div class="form-row">
-						<div class="form-group">
-							<label for="plant_name">Plant Name</label>
-							<input
-								type="text"
-								id="plant_name"
-								bind:value={plantForm.name}
-								placeholder="e.g., Metro Asphalt Plant"
-							/>
-						</div>
-					</div>
-					<div class="form-row">
-						<div class="form-group">
-							<label for="plant_lat">Latitude</label>
-							<input
-								type="number"
-								id="plant_lat"
-								bind:value={plantForm.latitude}
-								step="0.000001"
-								placeholder="e.g., 39.7392"
-							/>
-						</div>
-						<div class="form-group">
-							<label for="plant_lng">Longitude</label>
-							<input
-								type="number"
-								id="plant_lng"
-								bind:value={plantForm.longitude}
-								step="0.000001"
-								placeholder="e.g., -104.9903"
-							/>
-						</div>
-					</div>
-					<button
-						class="btn-primary"
-						onclick={savePlantLocation}
-						disabled={!plantForm.name || plantForm.latitude == null || plantForm.longitude == null}
+			<div class="spec-item">
+				<dt>County</dt>
+				<dd>{data.jobSite.gdot_county || 'Unknown'}</dd>
+			</div>
+			{#if configForm.route_designation}
+				<div class="spec-item">
+					<dt>Route</dt>
+					<dd>{configForm.route_designation}</dd>
+				</div>
+			{/if}
+			<div class="spec-item">
+				<dt>Route Drawn</dt>
+				<dd>{data.routeWaypoints.length >= 2 ? `${fmt(routeLengthFt ?? 0)} ft` : 'Not yet'}</dd>
+			</div>
+		</dl>
+		{#if routeLengthFt != null && routeLengthFt > 0 && data.routeWaypoints.length >= 2}
+			<div class="length-remaining-bar">
+				<div class="lr-stat">
+					<span class="lr-label">Total</span>
+					<span class="lr-value">{fmt(routeLengthFt)} ft</span>
+				</div>
+				<div class="lr-stat">
+					<span class="lr-label">Completed</span>
+					<span class="lr-value lr-done">{fmt(completedLengthFt)} ft</span>
+				</div>
+				<div class="lr-stat">
+					<span class="lr-label">Remaining</span>
+					<span class="lr-value lr-remaining"
+						>{remainingLengthFt != null ? `${fmt(remainingLengthFt)} ft` : '—'}</span
 					>
-						Set Plant Location
-					</button>
-					{#if plantSaved}
-						<div class="plant-saved">Plant location saved</div>
-					{/if}
-				</div>
-			{:else}
-				<div class="plant-info">
-					<div class="plant-info-row">
-						<span class="plant-info-label">Plant:</span>
-						<span class="plant-info-value">{plantLocation.name}</span>
-					</div>
-					<div class="plant-info-row">
-						<span class="plant-info-label">Location:</span>
-						<span class="plant-info-value">{plantLocation.latitude?.toFixed(5)}, {plantLocation.longitude?.toFixed(5)}</span>
-					</div>
-					<button class="link-btn" onclick={clearPlantLocation}>Change Plant</button>
-				</div>
-			{/if}
-		</div>
-
-		{#if configForm.route_designation}
-			<div class="route-designation-section">
-				<h4>Route Designation</h4>
-				<div class="route-badge">{configForm.route_designation}</div>
-				{#if configForm.route_county || configForm.route_district}
-					<div class="route-info-rows">
-						{#if configForm.route_county}
-							<div class="info-row">
-								<span class="info-label">County:</span>
-								<span>{configForm.route_county}</span>
-							</div>
-						{/if}
-						{#if configForm.route_district}
-							<div class="info-row">
-								<span class="info-label">District:</span>
-								<span>{configForm.route_district}</span>
-							</div>
-						{/if}
-					</div>
-				{/if}
-			</div>
-		{/if}
-
-		{#if sections.some((s) => s.geometry_geojson)}
-			<div class="progress-map-section">
-				<div class="progress-map-head">
-					<h4>Road Section Progress</h4>
-					<span class="progress-map-sub">Color-coded by paving status — tap a segment for details</span>
-				</div>
-				<!-- Status legend -->
-				<div class="rpl-legend">
-					{#each ([['planned','#94a3b8','Planned'],['scheduled_today','#f2c037','Today'],['in_progress','#f59e0b','In Progress'],['completed','#22c55e','Done'],['behind_schedule','#ef4444','Behind']] as const) as [, color, label]}
-						<div class="rpl-legend-item">
-							<span class="rpl-swatch" style:background={color}></span>
-							<span>{label}</span>
-						</div>
-					{/each}
-				</div>
-				{#await Promise.all([import('$lib/components/map-v2/MapView.svelte'), import('$lib/components/map-v2/RoadProgressLayer.svelte')])}
-					<div class="map-mini-loading">Loading road progress map&hellip;</div>
-				{:then [{ default: MapView }, { default: RoadProgressLayer }]}
-					{@const sectionsWithGeo = sections.filter((s) => s.geometry_geojson)}
-					{@const firstGeo = (() => { try { const g = JSON.parse(sectionsWithGeo[0]?.geometry_geojson ?? 'null'); return g?.type === 'LineString' ? g.coordinates as [number,number][] : null; } catch { return null; } })()}
-					{@const midPt = firstGeo ? firstGeo[Math.floor(firstGeo.length / 2)] : null}
-					{@const mapCenter = midPt ? ([midPt[1], midPt[0]] as [number,number]) : (data.jobSite.latitude != null ? [data.jobSite.latitude, data.jobSite.longitude ?? 0] as [number,number] : [39.5, -98.35] as [number,number])}
-					<div class="rpl-map-wrap">
-						<MapView center={mapCenter} zoom={14} height="340px">
-							{#snippet layers()}
-								<RoadProgressLayer
-									sections={sectionsWithGeo}
-									defaultLaneWidthFt={data.config?.lane_width_ft ?? 12}
-									onSectionClick={(sec) => { selectedSection = sec; }}
-								/>
-							{/snippet}
-						</MapView>
-						<!-- Today's progress overlay -->
-						<div class="rpl-overlay">
-							{#await import('$lib/components/map-v2/TodayProgressOverlay.svelte') then { default: TodayProgressOverlay }}
-								<TodayProgressOverlay
-									completedLengthFt={completedLengthFt}
-									targetLengthFt={routeLengthFt}
-								/>
-							{/await}
-						</div>
-					</div>
-				{/await}
-				<!-- Section detail drawer -->
-				{#if selectedSection}
-					<div class="rpl-detail-card" role="region" aria-label="Section details">
-						<div class="rpl-detail-head">
-							<strong>{selectedSection.name}</strong>
-							<button class="rpl-close" onclick={() => { selectedSection = null; }} aria-label="Close">✕</button>
-						</div>
-						<dl class="rpl-detail-list">
-							{#if selectedSection.station_start != null || selectedSection.station_end != null}
-								<div class="rpl-dl-row">
-									<dt>Stations</dt>
-									<dd>{selectedSection.station_start ?? '?'} – {selectedSection.station_end ?? '?'}</dd>
-								</div>
-							{/if}
-							<div class="rpl-dl-row">
-								<dt>Status</dt>
-								<dd class="rpl-status-badge" style:background={statusColor(selectedSection.paving_status ?? dbStatus(selectedSection.status))}>
-									{statusLabel(selectedSection.paving_status ?? dbStatus(selectedSection.status))}
-								</dd>
-							</div>
-							{#if selectedSection.lane}
-								<div class="rpl-dl-row">
-									<dt>Lane</dt>
-									<dd>{selectedSection.lane}</dd>
-								</div>
-							{/if}
-							{#if selectedSection.crew_name}
-								<div class="rpl-dl-row">
-									<dt>Crew</dt>
-									<dd>{selectedSection.crew_name}</dd>
-								</div>
-							{/if}
-							{#if selectedSection.notes}
-								<div class="rpl-dl-row">
-									<dt>Notes</dt>
-									<dd>{selectedSection.notes}</dd>
-								</div>
-							{/if}
-						</dl>
-					</div>
-				{/if}
-			</div>
-		{/if}
-
-		{#if data.routeWaypoints.length < 2 && configForm.route_designation}
-			<div class="progress-map-section">
-				<div class="progress-map-head">
-					<h4>Project Termini</h4>
-					<span class="progress-map-sub">Load the route centerline to set termini on the road</span>
-				</div>
-				<div class="terminus-load">
-					<p>
-						This project is on <strong>{configForm.route_designation}</strong>. Load the GDOT
-						centerline so you can pinpoint the begin and end termini on the actual road.
-					</p>
-					<button class="btn-secondary" onclick={loadRouteCenterline} disabled={loadingRoute}>
-						{loadingRoute ? 'Loading…' : `Load ${configForm.route_designation} centerline`}
-					</button>
 				</div>
 			</div>
 		{/if}
-
-		{#if data.routeWaypoints.length >= 2}
-			<div class="progress-map-section">
-				<div class="progress-map-head">
-					<h4>Project Termini</h4>
-					<span class="progress-map-sub">Tap the road to set the begin/end points</span>
-				</div>
-				{#await import('$lib/components/map-v2/TerminusPicker.svelte')}
-					<div class="map-mini-loading">Loading terminus picker&hellip;</div>
-				{:then { default: TerminusPicker }}
-					<TerminusPicker
-						waypoints={data.routeWaypoints}
-						bind:beginStation={configForm.begin_station}
-						bind:endStation={configForm.end_station}
-						beginLabel={configForm.begin_terminus}
-						endLabel={configForm.end_terminus}
-						height="320px"
-						onPick={(field, station) => saveTerminus(field, station)}
-					/>
-				{/await}
-			</div>
-
-			<div class="progress-map-section">
-				<div class="progress-map-head">
-					<h4>Paving Progress</h4>
-					<span class="progress-map-sub">Completed segments shown in green</span>
-				</div>
-				{#if routeLengthFt != null && routeLengthFt > 0}
-					<div class="length-remaining-bar">
-						<div class="lr-stat">
-							<span class="lr-label">Total</span>
-							<span class="lr-value">{fmt(routeLengthFt)} ft</span>
-						</div>
-						<div class="lr-stat">
-							<span class="lr-label">Completed</span>
-							<span class="lr-value lr-done">{fmt(completedLengthFt)} ft</span>
-						</div>
-						<div class="lr-stat">
-							<span class="lr-label">Remaining</span>
-							<span class="lr-value lr-remaining"
-								>{remainingLengthFt != null ? `${fmt(remainingLengthFt)} ft` : '—'}</span
-							>
-						</div>
-					</div>
-				{/if}
-				{#await import('$lib/components/StationProgressMap.svelte')}
-					<div class="map-mini-loading">Loading progress map&hellip;</div>
-				{:then { default: StationProgressMap }}
-					<StationProgressMap
-						site={{
-							id: data.jobSite.id,
-							name: data.jobSite.name,
-							status: data.jobSite.status as 'active' | 'completed' | 'archived',
-							latitude: data.jobSite.latitude,
-							longitude: data.jobSite.longitude,
-							location_description: data.jobSite.location_description
-						}}
-						waypoints={data.routeWaypoints}
-						numLanes={data.config?.num_lanes}
-						laneWidthFt={data.config?.lane_width_ft}
-						totalLengthFt={data.config?.total_length_ft}
-						height="320px"
-					/>
-				{/await}
-			</div>
-
-			<div class="progress-map-section">
-				<div class="progress-map-head">
-					<h4>Spread Rate Map</h4>
-					<span class="progress-map-sub">Color-coded by spread rate vs target</span>
-				</div>
-				{#await import('$lib/components/SpreadRateHeatMap.svelte')}
-					<div class="map-mini-loading">Loading spread rate map&hellip;</div>
-				{:then { default: SpreadRateHeatMap }}
-					<SpreadRateHeatMap
-						site={{
-							id: data.jobSite.id,
-							name: data.jobSite.name,
-							status: data.jobSite.status as 'active' | 'completed' | 'archived',
-							latitude: data.jobSite.latitude,
-							longitude: data.jobSite.longitude,
-							location_description: data.jobSite.location_description
-						}}
-						waypoints={data.routeWaypoints}
-						targetRate={configForm.target_spread_rate}
-						toleranceLbsSy={5}
-						height="320px"
-					/>
-				{/await}
-			</div>
-		{/if}
-
-		{#if data.jobSite.latitude != null && data.jobSite.longitude != null}
-			<div class="photos-section">
-				<div class="photos-head">
-					<h4>Field Photos</h4>
-					{#await import('$lib/components/PhotoCapture.svelte')}
-						<span class="loading-text">Loading...</span>
-					{:then { default: PhotoCapture }}
-						<PhotoCapture
-							jobSiteId={data.jobSite.id}
-							onUploaded={loadPhotos}
-							compact={false}
-						/>
-					{/await}
-				</div>
-
-				{#await import('$lib/components/PhotoGeoMap.svelte')}
-					<div class="map-mini-loading">Loading photo map&hellip;</div>
-				{:then { default: PhotoGeoMap }}
-					<PhotoGeoMap
-						jobSiteId={data.jobSite.id}
-						lat={data.jobSite.latitude}
-						lng={data.jobSite.longitude}
-						height="360px"
-					/>
-				{/await}
-
-				{#if photosLoading}
-					<div class="photo-grid-loading">
-						{#each Array(4) as _, i (i)}
-							<Skeleton width="100px" height="100px" borderRadius="6px" />
-						{/each}
-					</div>
-				{/if}
-				<div class="photo-grid" id="photo-grid"></div>
-			</div>
-		{/if}
+		<button type="button" class="btn-secondary" onclick={() => onGoToTab('work_zones')}>
+			Open Location &amp; Route
+		</button>
 	{:else}
-		<!-- Location picker: shown when no coords yet, or when "Change" is clicked -->
-		<JobSiteLocationPicker
-			bind:latitude={pickerLat}
-			bind:longitude={pickerLng}
-			onchange={handleLocationChange}
-			mapHeight="280px"
-			showMapEager={showLocationSearch}
-		/>
-		{#if locationSaving}
-			<p class="location-saving">Saving&hellip;</p>
-		{/if}
+		<p class="location-empty-text">
+			No location set yet. Open the Location &amp; Route tab to drop the project pin, draw the road
+			route and lay down paving.
+		</p>
+		<button type="button" class="btn-primary" onclick={() => onGoToTab('work_zones')}>
+			Set Location &amp; Route
+		</button>
 	{/if}
 </section>
 
@@ -1547,45 +897,6 @@
 		</div>
 	{/if}
 </section>
-
-{#if selectedPhoto}
-	<dialog class="lightbox" open onclick={closeLightbox}>
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<div class="lightbox-content" role="presentation" onclick={(e) => e.stopPropagation()}>
-			<button type="button" class="lightbox-close" onclick={closeLightbox} aria-label="Close">
-				<svg
-					width="24"
-					height="24"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-				>
-					<line x1="18" y1="6" x2="6" y2="18" />
-					<line x1="6" y1="6" x2="18" y2="18" />
-				</svg>
-			</button>
-			<img
-				src="/api/job-sites/{data.jobSite.id}/photos/{selectedPhoto.id}/view"
-				alt={selectedPhoto.caption || selectedPhoto.filename}
-				class="lightbox-img"
-			/>
-			{#if selectedPhoto.caption}
-				<div class="lightbox-caption">{selectedPhoto.caption}</div>
-			{/if}
-			<div class="lightbox-meta">
-				{new Date(selectedPhoto.taken_at * 1000).toLocaleString()}
-				{#if selectedPhoto.lat != null && selectedPhoto.lng != null}
-					<span class="lightbox-gps">
-						<MapPin size={14} style="display: inline-block; vertical-align: text-bottom;" /> {selectedPhoto.lat.toFixed(6)}, {selectedPhoto.lng.toFixed(6)}
-					</span>
-				{/if}
-			</div>
-		</div>
-	</dialog>
-{/if}
 
 <style>
 	.project-status-bar {

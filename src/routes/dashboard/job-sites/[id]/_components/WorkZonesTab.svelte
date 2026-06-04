@@ -1,44 +1,41 @@
 <script lang="ts">
 	import type { JobSite, RouteWaypoint } from '../+page';
+	import type { ConfigForm } from './shared';
+	import LocationRoutePanel from './LocationRoutePanel.svelte';
 
 	let {
 		jobSite,
 		routeWaypoints = [],
 		numLanes = null,
+		laneWidthFt = null,
 		totalLengthFt = null,
-		onGoToOverview
+		configForm,
+		onLocationSaved,
+		onRouteSaved
 	}: {
 		jobSite: JobSite;
 		routeWaypoints?: RouteWaypoint[];
 		numLanes?: number | null;
+		laneWidthFt?: number | null;
 		totalLengthFt?: number | null;
-		onGoToOverview: () => void;
+		configForm: ConfigForm;
+		onLocationSaved?: (coords: { latitude: number | null; longitude: number | null }) => void;
+		onRouteSaved?: (waypoints: RouteWaypoint[]) => void;
 	} = $props();
 </script>
 
 <section class="section">
-	{#if jobSite.latitude == null || jobSite.longitude == null}
-		<div class="empty-state">
-			<svg
-				width="48"
-				height="48"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-			>
-				<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-				<circle cx="12" cy="10" r="3"></circle>
-			</svg>
-			<h4>Location Required</h4>
-			<p>Set a location for this job site to use work zones</p>
-			<button class="btn-primary" style="margin-top: 16px;" onclick={onGoToOverview}>
-				Go to Overview
-			</button>
-		</div>
-	{:else}
+	<LocationRoutePanel
+		{jobSite}
+		{routeWaypoints}
+		{configForm}
+		{numLanes}
+		{laneWidthFt}
+		{onLocationSaved}
+		{onRouteSaved}
+	/>
+
+	{#if jobSite.latitude != null && jobSite.longitude != null}
 		{#await import('$lib/components/WorkZoneMap.svelte')}
 			<div class="map-mini-loading">Loading work zones...</div>
 		{:then { default: WorkZoneMap }}

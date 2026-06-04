@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { browser } from '$app/environment';
 	import { config } from '$lib/config';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import {
@@ -75,6 +76,14 @@
 		warnings: string[];
 	}
 
+	interface RoutePreview {
+		source: 'gdot_route' | 'geocode' | 'county_centroid' | 'manual' | 'none';
+		latitude: number | null;
+		longitude: number | null;
+		waypoints: Array<{ lat: number; lng: number }>;
+		message?: string;
+	}
+
 	let step = $state<'upload' | 'parsing' | 'review' | 'creating'>('upload');
 	let files = $state<File[]>([]);
 	let dragOver = $state(false);
@@ -84,6 +93,8 @@
 	let documents = $state<Array<{ filename: string; source_key: string; type: string }>>([]);
 	let schematicProgress = $state('');
 	let fieldConf = $state<FieldConfidenceMap>({});
+	let routePreview = $state<RoutePreview | null>(null);
+	let routePreviewLoading = $state(false);
 	/** Diagnostic for whether the Workers AI fallback ran (observability). */
 	let llmFallback = $state<{
 		attempted: boolean;
@@ -145,6 +156,7 @@
 				source_keys?: string[];
 				documents?: Array<{ filename: string; source_key: string; type: string }>;
 				field_confidence?: FieldConfidenceMap;
+				route_preview?: RoutePreview;
 				llm_fallback?: { attempted: boolean; applied: boolean; reason: string; binding_available: boolean; outcome: 'applied' | 'not-needed' | 'binding-unavailable' | 'failed' };
 				error?: string;
 			};
@@ -159,6 +171,7 @@
 			sourceKeys = data.source_keys ?? [];
 			documents = data.documents ?? [];
 			fieldConf = data.field_confidence ?? {};
+			routePreview = data.route_preview ?? null;
 			llmFallback = data.llm_fallback ?? null;
 			correctedFields = new Set();
 			confirmedFields = new Set();
@@ -180,6 +193,36 @@
 	 */
 	function markCorrected(fieldName: string) {
 		correctedFields = new Set([...correctedFields, fieldName]);
+	}
+
+	async function refreshRoutePreview() {
+		if (!parsed) return;
+		routePreviewLoading = true;
+		try {
+			const res = await fetch('/api/job-sites/import-route-preview', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					route_designation: parsed.route_designation,
+					county: parsed.county,
+					location_description: parsed.location_description,
+					begin_terminus: parsed.begin_terminus,
+					end_terminus: parsed.end_terminus,
+					total_length_ft: parsed.total_length_ft
+				}),
+				credentials: 'include'
+			});
+			const body = (await res.json()) as { route_preview?: RoutePreview; error?: string };
+			if (!res.ok || !body.route_preview) {
+				toastStore.error(body.error || 'Failed to refresh route preview');
+				return;
+			}
+			routePreview = body.route_preview;
+		} catch {
+			toastStore.error('Failed to refresh route preview');
+		} finally {
+			routePreviewLoading = false;
+		}
 	}
 
 	async function createProject() {
@@ -205,6 +248,15 @@
 					parsed,
 					source_keys: sourceKeys,
 					documents,
+					route_override: routePreview
+						? {
+								accepted: true,
+								latitude: routePreview.latitude,
+								longitude: routePreview.longitude,
+								waypoints: routePreview.waypoints,
+								source: routePreview.source
+							}
+						: undefined,
 					corrections: correctionsMeta,
 					confirmations: confirmationsMeta
 				}),
@@ -667,6 +719,52 @@
 					</div>
 				{/each}
 			</div>
+
+			<div class="route-preview">
+				<div class="route-preview-head">
+					<div>
+						<h4>Route Preview</h4>
+						<p>{routePreview?.message ?? 'No route preview has been resolved yet.'}</p>
+					</div>
+					<button type="button" class="btn btn-ghost btn-sm" onclick={refreshRoutePreview} disabled={routePreviewLoading}>
+						{routePreviewLoading ? 'Refreshing...' : 'Refresh'}
+					</button>
+				</div>
+				{#if routePreview?.latitude != null && routePreview.longitude != null && browser}
+					{#await import('$lib/components/RouteAlignmentMap.svelte')}
+						<div class="map-mini-loading">Loading route preview...</div>
+					{:then { default: RouteAlignmentMap }}
+						<RouteAlignmentMap
+							site={{
+								id: 'import-preview',
+								name: parsed.name ?? 'Import preview',
+								status: 'active',
+								latitude: routePreview.latitude,
+								longitude: routePreview.longitude,
+								location_description: parsed.location_description
+							}}
+							initialWaypoints={routePreview.waypoints}
+							height="360px"
+							onRouteSave={async (waypoints) => {
+								const center = waypoints[Math.floor(waypoints.length / 2)];
+								routePreview = {
+									...routePreview!,
+									source: 'manual',
+									waypoints,
+									latitude: center?.lat ?? routePreview!.latitude,
+									longitude: center?.lng ?? routePreview!.longitude,
+									message: 'Edited route preview will be used when the project is created.'
+								};
+								toastStore.success('Route preview updated');
+							}}
+						/>
+					{/await}
+				{:else}
+					<div class="route-preview-empty">
+						No map candidate yet. Fill route, county, or location fields and refresh.
+					</div>
+				{/if}
+			</div>
 		</section>
 
 		<section class="review-section">
@@ -810,7 +908,7 @@
 		</section>
 
 		<div class="review-actions">
-			<button class="btn btn-ghost" onclick={() => { step = 'upload'; files = []; parsed = null; }}>
+			<button class="btn btn-ghost" onclick={() => { step = 'upload'; files = []; parsed = null; routePreview = null; }}>
 				Start Over
 			</button>
 			<button class="btn btn-primary" onclick={createProject} disabled={!parsed.name}>
@@ -1220,6 +1318,39 @@
 		margin: -8px 0 12px;
 		font-size: 0.8rem;
 		color: var(--text-muted);
+	}
+
+	.route-preview {
+		margin-top: 16px;
+		padding-top: 16px;
+		border-top: 1px solid var(--border);
+	}
+
+	.route-preview-head {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 12px;
+		margin-bottom: 12px;
+	}
+
+	.route-preview-head h4 {
+		margin: 0 0 4px;
+		font-size: 0.95rem;
+	}
+
+	.route-preview-head p,
+	.route-preview-empty {
+		margin: 0;
+		color: var(--text-muted);
+		font-size: 0.82rem;
+	}
+
+	.route-preview-empty {
+		padding: 18px;
+		background: var(--bg);
+		border: 1px dashed var(--border);
+		border-radius: 8px;
 	}
 
 	.warning-item {

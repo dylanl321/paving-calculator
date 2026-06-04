@@ -9,8 +9,10 @@
 		coordinateToStation,
 		stationToCoordinate,
 		sliceRouteByStations,
-		lineStringLengthFt
+		lineStringLengthFt,
+		polylineLengthFt
 	} from '$lib/services/mapUtils';
+	import { validatePlannedSegment } from '$lib/services/roadSectionPlanning';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import type { Map as MapLibreMap } from 'maplibre-gl';
@@ -28,6 +30,9 @@
 		station_end: number | null;
 		status: 'active' | 'completed' | 'skipped';
 		geometry_geojson: string | null;
+		production_mix_id?: string | null;
+		layer_label?: string | null;
+		planned_length_ft?: number | null;
 		notes: string | null;
 		sort_order: number;
 	}
@@ -50,13 +55,16 @@
 
 	let sections = $state<RoadSection[]>([]);
 	let mapInstance = $state<MapLibreMap | null>(null);
-	let drawMode = $state<'idle' | 'pick-start' | 'pick-end'>('idle');
+	let drawMode = $state<'idle' | 'pick-start' | 'pick-end' | 'plan-start'>('idle');
 	/** Station offset of the pending section start, set on the first click. */
 	let tempStartStation: number | null = $state(null);
 	let flashMessage = $state('');
 	let flashTimer: ReturnType<typeof setTimeout> | null = null;
 	let nextSectionNumber = $state(1);
 	let editingSectionId: string | null = $state(null);
+	let plannedLengthFt = $state<number | null>(null);
+	let plannedLayerLabel = $state('');
+	let plannedMixId = $state('');
 
 	const hasRoute = $derived(waypoints.length >= 2);
 
@@ -88,7 +96,11 @@
 				flash('Tap closer to the road');
 				return;
 			}
-			if (drawMode === 'pick-start') {
+			if (drawMode === 'plan-start') {
+				createPlannedSection(station);
+				tempStartStation = null;
+				drawMode = 'idle';
+			} else if (drawMode === 'pick-start') {
 				tempStartStation = station;
 				drawMode = 'pick-end';
 			} else if (drawMode === 'pick-end' && tempStartStation !== null) {
@@ -142,6 +154,20 @@
 		editingSectionId = null;
 	}
 
+	function startPlannedSegment() {
+		if (!hasRoute) {
+			toastStore.error('Define the route alignment first');
+			return;
+		}
+		if (!plannedLengthFt || plannedLengthFt <= 0) {
+			toastStore.error('Enter a planned length in feet');
+			return;
+		}
+		drawMode = 'plan-start';
+		tempStartStation = null;
+		editingSectionId = null;
+	}
+
 	/**
 	 * Create a road section between two stations. The geometry is sliced from the
 	 * route centerline so the section line always lies on the road.
@@ -188,6 +214,56 @@
 		} catch (err) {
 			console.error('Failed to create section:', err);
 			toastStore.error('Failed to create section');
+		}
+	}
+
+	async function createPlannedSection(startStation: number) {
+		const routeFt = totalLengthFt ?? polylineLengthFt(waypoints);
+		const planned = validatePlannedSegment(startStation, plannedLengthFt ?? 0, routeFt);
+		if (planned.error || planned.stationEnd == null) {
+			toastStore.error(planned.error ?? 'Could not create planned segment');
+			return;
+		}
+
+		const geometry = sliceRouteByStations(waypoints, startStation, planned.stationEnd);
+		if (!geometry) {
+			toastStore.error('Could not build planned segment on the road');
+			return;
+		}
+
+		const layer = plannedLayerLabel.trim() || null;
+		const newSection = {
+			name: `${layer ?? 'Planned'} ${nextSectionNumber}`,
+			lane: '1',
+			station_start: startStation,
+			station_end: planned.stationEnd,
+			status: 'active' as const,
+			geometry_geojson: JSON.stringify(geometry),
+			production_mix_id: plannedMixId.trim() || null,
+			layer_label: layer,
+			planned_length_ft: plannedLengthFt,
+			notes: null,
+			sort_order: sections.length
+		};
+
+		try {
+			const res = await fetch(`/api/job-sites/${siteId}/sections`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(newSection)
+			});
+
+			if (res.ok) {
+				const created = (await res.json()) as RoadSection;
+				sections = [...sections, created];
+				nextSectionNumber++;
+				toastStore.success('Planned segment created');
+			} else {
+				toastStore.error('Failed to create planned segment');
+			}
+		} catch (err) {
+			console.error('Failed to create planned segment:', err);
+			toastStore.error('Failed to create planned segment');
 		}
 	}
 
@@ -297,7 +373,9 @@
 				? 'Tap the road to set section START'
 				: drawMode === 'pick-end'
 					? 'Tap the road to set section END'
-					: ''
+					: drawMode === 'plan-start'
+						? 'Tap the road to set planned segment START'
+						: ''
 	);
 </script>
 
@@ -381,7 +459,27 @@
 					</div>
 				</div>
 			{/if}
-			<button class="btn-add" onclick={startAddSection} disabled={drawMode !== 'idle' || !hasRoute}>
+			<div class="planned-form">
+				<div class="planned-row">
+					<label>
+						<span>Length (ft)</span>
+						<input type="number" min="1" step="1" bind:value={plannedLengthFt} />
+					</label>
+					<label>
+						<span>Layer</span>
+						<input type="text" bind:value={plannedLayerLabel} placeholder="Base" />
+					</label>
+				</div>
+				<label>
+					<span>Mix</span>
+					<input type="text" bind:value={plannedMixId} placeholder="Mix 1" />
+				</label>
+				<button type="button" class="btn-add btn-add-secondary" onclick={startPlannedSegment} disabled={drawMode !== 'idle' || !hasRoute}>
+					Start + Length
+				</button>
+			</div>
+
+			<button type="button" class="btn-add" onclick={startAddSection} disabled={drawMode !== 'idle' || !hasRoute}>
 				<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M10 5v10M5 10h10" />
 				</svg>
@@ -424,6 +522,7 @@
 
 							<div class="status-buttons">
 								<button
+									type="button"
 									class="status-btn"
 									class:active={section.status === 'active'}
 									onclick={() => updateSection(section.id, { status: 'active' })}
@@ -431,6 +530,7 @@
 									Active
 								</button>
 								<button
+									type="button"
 									class="status-btn"
 									class:active={section.status === 'completed'}
 									onclick={() => updateSection(section.id, { status: 'completed' })}
@@ -438,6 +538,7 @@
 									Done
 								</button>
 								<button
+									type="button"
 									class="status-btn"
 									class:active={section.status === 'skipped'}
 									onclick={() => updateSection(section.id, { status: 'skipped' })}
@@ -447,7 +548,7 @@
 							</div>
 						</div>
 
-						<button class="btn-delete" aria-label="Delete section" onclick={() => deleteSection(section.id)}>
+						<button type="button" class="btn-delete" aria-label="Delete section" onclick={() => deleteSection(section.id)}>
 							<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
 								<path d="M4 6h8M6 6V4h4v2M5 6v8h6V6" />
 							</svg>
@@ -568,6 +669,46 @@
 	.btn-add:hover:not(:disabled) {
 		transform: translateY(-1px);
 		box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+	}
+
+	.planned-form {
+		display: grid;
+		gap: 8px;
+		margin-bottom: 10px;
+	}
+
+	.planned-row {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 8px;
+	}
+
+	.planned-form label {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.planned-form span {
+		font-size: 11px;
+		text-transform: uppercase;
+		color: var(--text-muted, #999);
+		font-weight: 700;
+	}
+
+	.planned-form input {
+		min-height: 40px;
+		padding: 8px 10px;
+		background: var(--surface, #1e1e1e);
+		color: var(--text, #fff);
+		border: 1px solid var(--border, #333);
+		border-radius: 6px;
+	}
+
+	.btn-add-secondary {
+		background: var(--surface-alt, #2a2a2a);
+		color: var(--text, #fff);
+		border: 1px solid var(--border, #333);
 	}
 
 	.section-list {

@@ -11,6 +11,7 @@
 		type ConfigForm
 	} from './_components/shared';
 	import OverviewTab from './_components/OverviewTab.svelte';
+	import LocationTab from './_components/LocationTab.svelte';
 	import ConfigurationTab from './_components/ConfigurationTab.svelte';
 	import VerificationTab from './_components/VerificationTab.svelte';
 	import EquipmentTab from './_components/EquipmentTab.svelte';
@@ -27,6 +28,8 @@
 	let { data }: { data: PageData } = $props();
 
 	let activeTab = $state('overview');
+	let jobSiteState = $state({ ...data.jobSite });
+	let routeWaypointsState = $state([...data.routeWaypoints]);
 
 	// Intentional one-time snapshot of loaded data for an editable form; should
 	// NOT re-derive from `data` on every change.
@@ -81,7 +84,7 @@
 	});
 
 	function handleNewCalculation() {
-		goto(`/?job_site_id=${data.jobSite.id}`);
+		goto(`/?job_site_id=${jobSiteState.id}`);
 	}
 
 	const roadTypeLabel = $derived(
@@ -156,7 +159,7 @@
 	// Route-derived length (feet) along the drawn waypoints; falls back to the
 	// configured total length when no route is drawn.
 	const routeLengthFt = $derived.by(() => {
-		const wps = data.routeWaypoints;
+		const wps = routeWaypointsState;
 		if (wps && wps.length >= 2) {
 			let ft = 0;
 			for (let i = 0; i < wps.length - 1; i++) {
@@ -169,7 +172,7 @@
 </script>
 
 <svelte:head>
-	<title>{data.jobSite.name} — {config.app.name}</title>
+	<title>{jobSiteState.name} — {config.app.name}</title>
 </svelte:head>
 
 <div class="dashboard job-site-page">
@@ -192,24 +195,24 @@
 
 	<div class="page-header">
 		<div class="page-header-main">
-			<h2 class="page-title">{data.jobSite.name}</h2>
+			<h2 class="page-title">{jobSiteState.name}</h2>
 			<div class="page-meta">
-				<span class="status-badge status-{data.jobSite.status.toLowerCase()}">
-					{data.jobSite.status}
+				<span class="status-badge status-{jobSiteState.status.toLowerCase()}">
+					{jobSiteState.status}
 				</span>
-				{#if data.jobSite.location_description}
+				{#if jobSiteState.location_description}
 					<span class="meta-location">
 						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
 							<circle cx="12" cy="10" r="3"></circle>
 						</svg>
-						{data.jobSite.location_description}
+						{jobSiteState.location_description}
 					</span>
 				{/if}
 			</div>
 		</div>
 		<div class="page-actions">
-			<a class="btn-ghost-action" href="/dashboard/job-sites/{data.jobSite.id}/log">
+			<a class="btn-ghost-action" href="/dashboard/job-sites/{jobSiteState.id}/log">
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
 					<polyline points="14 2 14 8 20 8"></polyline>
@@ -235,6 +238,20 @@
 				</button>
 				<button
 					class="tab"
+					class:active={activeTab === 'location'}
+					onclick={() => (activeTab = 'location')}
+				>
+					Location &amp; Route
+				</button>
+				<button
+					class="tab"
+					class:active={activeTab === 'work_zones'}
+					onclick={() => (activeTab = 'work_zones')}
+				>
+					Work Zones
+				</button>
+				<button
+					class="tab"
 					class:active={activeTab === 'daily_log'}
 					onclick={() => (activeTab = 'daily_log')}
 				>
@@ -246,13 +263,6 @@
 					onclick={() => (activeTab = 'milestones')}
 				>
 					Schedule
-				</button>
-				<button
-					class="tab"
-					class:active={activeTab === 'activity'}
-					onclick={() => (activeTab = 'activity')}
-				>
-					Activity
 				</button>
 				<button
 					class="tab"
@@ -277,10 +287,10 @@
 				</button>
 				<button
 					class="tab"
-					class:active={activeTab === 'work_zones'}
-					onclick={() => (activeTab = 'work_zones')}
+					class:active={activeTab === 'activity'}
+					onclick={() => (activeTab = 'activity')}
 				>
-					Work Zones
+					Activity
 				</button>
 				<button
 					class="tab"
@@ -294,11 +304,11 @@
 			{#if activeTab === 'overview'}
 		<FeatureDiscovery
 			feature="route"
-			condition={!data.routeWaypoints || data.routeWaypoints.length === 0}
+			condition={!routeWaypointsState || routeWaypointsState.length === 0}
 		/>
 
 		<OverviewTab
-			{data}
+			data={{ ...data, jobSite: jobSiteState, routeWaypoints: routeWaypointsState }}
 			{configForm}
 			{totalAreaSqYd}
 			{estTonnage}
@@ -314,33 +324,42 @@
 			{tackLabel}
 			onGoToTab={(tab) => (activeTab = tab)}
 		/>
+	{:else if activeTab === 'location'}
+		<LocationTab {data} {configForm} onGoToTab={(tab) => (activeTab = tab)} />
 	{:else if activeTab === 'configuration'}
-		<ConfigurationTab jobSiteId={data.jobSite.id} bind:configForm {estTonnage} lat={data.jobSite.latitude} lng={data.jobSite.longitude} />
+		<ConfigurationTab jobSiteId={jobSiteState.id} bind:configForm {estTonnage} lat={jobSiteState.latitude} lng={jobSiteState.longitude} />
 	{:else if activeTab === 'verification'}
-		<VerificationTab jobSiteId={data.jobSite.id} {configForm} onGoToTab={(tab) => (activeTab = tab)} />
+		<VerificationTab jobSiteId={jobSiteState.id} {configForm} onGoToTab={(tab) => (activeTab = tab)} />
 	{:else if activeTab === 'equipment'}
-		<EquipmentTab jobSiteId={data.jobSite.id} bind:equipmentList />
+		<EquipmentTab jobSiteId={jobSiteState.id} bind:equipmentList />
 	{:else if activeTab === 'calculations'}
 		<CalculationsTab calculations={data.calculations} onNewCalculation={handleNewCalculation} />
 	{:else if activeTab === 'daily_log'}
-		<DailyLogTab jobSiteId={data.jobSite.id} />
+		<DailyLogTab jobSiteId={jobSiteState.id} />
 	{:else if activeTab === 'work_zones'}
 		<WorkZonesTab
-			jobSite={data.jobSite}
-			routeWaypoints={data.routeWaypoints}
+			jobSite={jobSiteState}
+			routeWaypoints={routeWaypointsState}
 			numLanes={configForm.num_lanes}
+			laneWidthFt={configForm.lane_width_ft}
 			totalLengthFt={routeLengthFt}
-			onGoToOverview={() => (activeTab = 'overview')}
+			{configForm}
+			onLocationSaved={(coords) => {
+				jobSiteState = { ...jobSiteState, ...coords };
+			}}
+			onRouteSaved={(waypoints) => {
+				routeWaypointsState = [...waypoints];
+			}}
 		/>
 	{:else if activeTab === 'milestones'}
-		<ScheduleTab jobSiteId={data.jobSite.id} bind:milestones />
+		<ScheduleTab jobSiteId={jobSiteState.id} bind:milestones />
 	{:else if activeTab === 'activity'}
-		<ActivityTab jobSiteId={data.jobSite.id} />
+		<ActivityTab jobSiteId={jobSiteState.id} />
 	{/if}
 		</div>
 
 		<aside class="desktop-sidebar">
-			{#if data.jobSite.latitude != null && data.jobSite.longitude != null}
+			{#if jobSiteState.latitude != null && jobSiteState.longitude != null}
 				<section class="sidebar-panel">
 					<h3 class="sidebar-title">Map Preview</h3>
 					<div class="sidebar-map">
@@ -349,12 +368,12 @@
 						{:then { default: JobSiteMap }}
 							<JobSiteMap
 								sites={[{
-									id: data.jobSite.id,
-									name: data.jobSite.name,
-									status: data.jobSite.status as 'active' | 'completed' | 'archived',
-									latitude: data.jobSite.latitude,
-									longitude: data.jobSite.longitude,
-									location_description: data.jobSite.location_description
+									id: jobSiteState.id,
+									name: jobSiteState.name,
+									status: jobSiteState.status as 'active' | 'completed' | 'archived',
+									latitude: jobSiteState.latitude,
+									longitude: jobSiteState.longitude,
+									location_description: jobSiteState.location_description
 								}]}
 								height="200px"
 							/>
@@ -388,7 +407,7 @@
 			</section>
 
 			<section class="sidebar-panel sidebar-actions">
-				<a class="sidebar-btn sidebar-btn-secondary" href="/dashboard/job-sites/{data.jobSite.id}/log">
+				<a class="sidebar-btn sidebar-btn-secondary" href="/dashboard/job-sites/{jobSiteState.id}/log">
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
 						<polyline points="14 2 14 8 20 8"></polyline>

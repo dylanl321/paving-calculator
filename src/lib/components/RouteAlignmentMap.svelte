@@ -4,7 +4,7 @@
 	import { MapView, MapMarker, MapPolyline, MapPolygon } from '$lib/components/map-v2';
 	import { polylineLengthFt, laneCorridorPolygon, feetToMeters } from '$lib/services/mapUtils';
 	import { buildRoadAlignment, snapToNearestRoad } from '$lib/services/roadSnap';
-	import type { Map as MapLibreMap } from 'maplibre-gl';
+	import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
 
 	interface Waypoint {
 		lat: number;
@@ -52,6 +52,7 @@
 	let saving = $state(false);
 	let snapping = $state(false);
 	let snapError = $state('');
+	let controlMarkers: MapLibreMarker[] = [];
 
 	const isMobile = $derived(
 		browser && typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
@@ -98,6 +99,10 @@
 
 	function toggleDrawMode() {
 		drawMode = !drawMode;
+		if (drawMode && controlPoints.length === 0 && waypoints.length >= 2) {
+			const mid = waypoints[Math.floor(waypoints.length / 2)];
+			controlPoints = [waypoints[0], mid, waypoints[waypoints.length - 1]];
+		}
 		if (mapInstance) {
 			mapInstance.getCanvas().style.cursor = drawMode ? 'crosshair' : '';
 		}
@@ -152,6 +157,62 @@
 		snapError = '';
 	}
 
+	function clearControlMarkers() {
+		for (const marker of controlMarkers) marker.remove();
+		controlMarkers = [];
+	}
+
+	$effect(() => {
+		const map = mapInstance;
+		const points = controlPoints;
+		if (!browser || !map || !drawMode) {
+			clearControlMarkers();
+			return;
+		}
+
+		let cancelled = false;
+		async function renderMarkers() {
+			clearControlMarkers();
+			const { Marker } = await import('maplibre-gl');
+			if (cancelled) return;
+			controlMarkers = points.map((cp, i) => {
+				const el = document.createElement('button');
+				el.type = 'button';
+				el.className = 'route-control-point';
+				el.textContent = String(i + 1);
+				const marker = new Marker({ element: el, draggable: true, anchor: 'center' })
+					.setLngLat([cp.lng, cp.lat])
+					.addTo(map);
+				marker.on('dragend', async () => {
+					const pos = marker.getLngLat();
+					snapError = '';
+					snapping = true;
+					try {
+						const snapped = await snapToNearestRoad(pos.lat, pos.lng);
+						if (!snapped) {
+							marker.setLngLat([cp.lng, cp.lat]);
+							snapError = 'Could not snap that point to a road.';
+							return;
+						}
+						const next = [...controlPoints];
+						next[i] = { lat: snapped.lat, lng: snapped.lng };
+						controlPoints = next;
+						await rebuildAlignment();
+					} finally {
+						snapping = false;
+					}
+				});
+				return marker;
+			});
+		}
+
+		void renderMarkers();
+		return () => {
+			cancelled = true;
+			clearControlMarkers();
+		};
+	});
+
 	async function saveRoute() {
 		if (!onRouteSave) return;
 		saving = true;
@@ -165,6 +226,7 @@
 	}
 
 	onDestroy(() => {
+		clearControlMarkers();
 		mapInstance = null;
 	});
 </script>
@@ -222,21 +284,12 @@
 					{/if}
 				{/if}
 
-				{#if drawMode}
-					{#each controlPoints as cp, i (i)}
-						<MapMarker
-							lat={cp.lat}
-							lng={cp.lng}
-							color="#f2c037"
-							label={String(i + 1)}
-						/>
-					{/each}
-				{/if}
 			{/snippet}
 		</MapView>
 
 		<div class="map-controls">
 			<button
+				type="button"
 				class="map-btn"
 				class:active={drawMode}
 				onclick={toggleDrawMode}
@@ -260,7 +313,7 @@
 			</button>
 
 			{#if drawMode && isMobile}
-				<button class="map-btn" onclick={addPointAtCenter} title="Add point at center" disabled={snapping}>
+				<button type="button" class="map-btn" onclick={addPointAtCenter} title="Add point at center" disabled={snapping}>
 					<svg
 						width="18"
 						height="18"
@@ -280,7 +333,7 @@
 			{/if}
 
 			{#if drawMode && controlPoints.length > 0}
-				<button class="map-btn" onclick={undoLastPoint} title="Undo last point" disabled={snapping}>
+				<button type="button" class="map-btn" onclick={undoLastPoint} title="Undo last point" disabled={snapping}>
 					<svg
 						width="18"
 						height="18"
@@ -299,7 +352,7 @@
 			{/if}
 
 			{#if waypoints.length > 0 || controlPoints.length > 0}
-				<button class="map-btn map-btn-warn" onclick={clearRoute} title="Clear route">
+				<button type="button" class="map-btn map-btn-warn" onclick={clearRoute} title="Clear route">
 					<svg
 						width="18"
 						height="18"
@@ -320,6 +373,7 @@
 
 				{#if onRouteSave}
 					<button
+						type="button"
 						class="map-btn map-btn-primary"
 						onclick={saveRoute}
 						disabled={saving}
@@ -541,6 +595,22 @@
 
 	.snap-pill--error {
 		background: rgba(239, 68, 68, 0.92);
+	}
+
+	:global(.route-control-point) {
+		width: 30px;
+		height: 30px;
+		border-radius: 999px;
+		border: 2px solid #111827;
+		background: #f2c037;
+		color: #111827;
+		font-weight: 800;
+		cursor: grab;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+	}
+
+	:global(.route-control-point:active) {
+		cursor: grabbing;
 	}
 
 	@media (max-width: 640px) {

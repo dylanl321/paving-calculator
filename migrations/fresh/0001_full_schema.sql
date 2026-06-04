@@ -572,6 +572,9 @@ CREATE TABLE IF NOT EXISTS road_sections (
     station_end         REAL,
     status              TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'completed', 'skipped')),
     geometry_geojson    TEXT,
+    production_mix_id   TEXT,
+    layer_label         TEXT,
+    planned_length_ft   REAL,
     state_dot           TEXT,           -- optional 2-letter state code for DOT linkage
     external_segment_id TEXT,           -- soft FK into dot_road_segments.external_id
     dot_source          TEXT,           -- agency identifier

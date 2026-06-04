@@ -222,6 +222,9 @@ export interface DbRoadSection {
 	station_end: number | null;
 	status: 'active' | 'completed' | 'skipped';
 	geometry_geojson: string | null;
+	production_mix_id?: string | null;
+	layer_label?: string | null;
+	planned_length_ft?: number | null;
 	notes: string | null;
 	sort_order: number;
 	created_at: number;

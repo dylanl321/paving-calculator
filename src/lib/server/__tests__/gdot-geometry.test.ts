@@ -4,7 +4,8 @@ import {
 	fetchGdotRouteGeometry,
 	geocodeAddress,
 	fetchCountyCentroid,
-	resolveImportLocation
+	resolveImportLocation,
+	buildImportRoutePreview
 } from '../gdot-geometry.js';
 
 type FetchResponse = { ok: boolean; json: () => Promise<unknown> };
@@ -265,5 +266,22 @@ describe('resolveImportLocation', () => {
 		expect(res.latitude).toBe(null);
 		expect(res.longitude).toBe(null);
 		expect(res.routeGeometry).toBe(null);
+	});
+});
+
+describe('buildImportRoutePreview', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('returns no fabricated route when every resolver misses', async () => {
+		mockFetchOnce(() => ({ features: [], result: { addressMatches: [] } }));
+		const preview = await buildImportRoutePreview({
+			routeDesignation: null,
+			county: null,
+			locationDescription: null
+		});
+		expect(preview.source).toBe('none');
+		expect(preview.latitude).toBe(null);
+		expect(preview.longitude).toBe(null);
+		expect(preview.waypoints).toEqual([]);
 	});
 });

@@ -12,6 +12,13 @@ interface FromImportRequest {
 	parsed: ParsedGdotJob;
 	source_keys?: string[];
 	documents?: Array<{ filename: string; source_key: string; type: string }>;
+	route_override?: {
+		accepted: boolean;
+		latitude: number | null;
+		longitude: number | null;
+		waypoints: Array<{ lat: number; lng: number }>;
+		source: string;
+	};
 }
 
 // Maps a derived scope tag to the legacy single scope_of_work enum where one
@@ -40,6 +47,10 @@ function isAsphaltMix(name: string): boolean {
 	// Asphalt mixes are measured in tons and carry mix-like names; patching is
 	// asphalt but its takeoff is small. We sum every TN mix takeoff for tonnage.
 	return /OGI|SUPERPAVE|9\.5|12\.5|19|25|MM|RECYC|ASPH|LEVELING|PATCH/i.test(name);
+}
+
+function validNum(v: unknown): v is number {
+	return typeof v === 'number' && Number.isFinite(v);
 }
 
 interface LineGeom {
@@ -258,11 +269,27 @@ export async function POST(event: RequestEvent) {
 		let locationSource: string = 'none';
 		let sectionCount = 0;
 		try {
-			const resolved = await resolveImportLocation({
-				routeDesignation: str(parsed.route_designation),
-				county: str(parsed.county),
-				locationDescription: str(parsed.location_description)
-			});
+			const override = body.route_override?.accepted ? body.route_override : null;
+			const resolved = override
+				? {
+						latitude: validNum(override.latitude) ? override.latitude : null,
+						longitude: validNum(override.longitude) ? override.longitude : null,
+						routeGeometry:
+							override.waypoints?.length >= 2
+								? {
+										type: 'LineString' as const,
+										coordinates: override.waypoints
+											.filter((wp) => validNum(wp.lat) && validNum(wp.lng))
+											.map((wp) => [wp.lng, wp.lat] as [number, number])
+									}
+								: null,
+						source: override.source || 'manual'
+					}
+				: await resolveImportLocation({
+						routeDesignation: str(parsed.route_designation),
+						county: str(parsed.county),
+						locationDescription: str(parsed.location_description)
+					});
 			locationSource = resolved.source;
 
 			if (resolved.latitude != null && resolved.longitude != null) {

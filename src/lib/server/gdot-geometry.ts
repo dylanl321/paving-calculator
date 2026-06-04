@@ -209,6 +209,44 @@ export interface ResolvedLocation {
 	source: 'gdot_route' | 'geocode' | 'county_centroid' | 'none';
 }
 
+export interface ImportRoutePreview {
+	source: ResolvedLocation['source'] | 'manual';
+	latitude: number | null;
+	longitude: number | null;
+	waypoints: Array<{ lat: number; lng: number }>;
+	message?: string;
+}
+
+export async function buildImportRoutePreview(opts: {
+	routeDesignation: string | null;
+	county: string | null;
+	locationDescription: string | null;
+}): Promise<ImportRoutePreview> {
+	const resolved = await resolveImportLocation(opts);
+	const waypoints = resolved.routeGeometry
+		? resolved.routeGeometry.coordinates.map(([lng, lat]) => ({ lat, lng }))
+		: [];
+
+	let message: string;
+	if (resolved.source === 'gdot_route') {
+		message = 'GDOT route geometry found. Confirm the alignment or edit it on the map.';
+	} else if (resolved.source === 'geocode') {
+		message = 'Location was geocoded, but no route centerline was found.';
+	} else if (resolved.source === 'county_centroid') {
+		message = 'Only a county-level location was found. Draw or load the route before creating work zones.';
+	} else {
+		message = 'No route or location candidate was found from the reviewed fields.';
+	}
+
+	return {
+		source: resolved.source,
+		latitude: resolved.latitude,
+		longitude: resolved.longitude,
+		waypoints,
+		message
+	};
+}
+
 /**
  * Resolve a project's coordinates and (when possible) route geometry from the
  * parsed PDF fields. Priority:

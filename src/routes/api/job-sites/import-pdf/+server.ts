@@ -4,6 +4,7 @@ import { requireAuth } from '$lib/server/auth';
 import { parseGdotDocumentsV2, toV1, pdfToText, detectDocumentType, type ParsedGdotJob, type ParsedGdotJobV2, type GdotDocumentType } from '$lib/server/pdf/parse-gdot';
 import type { FieldConfidence } from '$lib/server/pdf/confidence';
 import { runLlmFallback, needsLlmFallback, buildLlmDiagnostic, appendLlmFallbackWarning, type WorkersAi, type LlmFallbackDiagnostic } from '$lib/server/pdf/llm-fallback';
+import { buildImportRoutePreview, type ImportRoutePreview } from '$lib/server/gdot-geometry';
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB per file
 
@@ -145,6 +146,7 @@ export interface ImportPdfResponse {
 	parsed: ParsedGdotJob;
 	source_keys: string[];
 	documents: ImportedDocument[];
+	route_preview: ImportRoutePreview;
 	/** Per-field confidence from the V2 parser. Keys match ParsedGdotJob field names. */
 	field_confidence: FieldConfidenceMap;
 	/** Diagnostic describing whether/why the Workers AI fallback ran. */
@@ -230,6 +232,11 @@ export async function POST(event: RequestEvent) {
 		appendLlmFallbackWarning(v2.warnings, llm_fallback);
 
 		const parsed = toV1(v2);
+		const route_preview = await buildImportRoutePreview({
+			routeDesignation: parsed.route_designation ?? null,
+			county: parsed.county ?? null,
+			locationDescription: parsed.location_description ?? null
+		});
 
 		// Build a flat field_confidence map for the UI (scalar fields only).
 		const scalarFields: (keyof ParsedGdotJobV2)[] = [
@@ -246,7 +253,7 @@ export async function POST(event: RequestEvent) {
 			if (f && 'confidence' in f) field_confidence[k] = f.confidence;
 		}
 
-		return json({ parsed, source_keys: sourceKeys, documents, field_confidence, llm_fallback } satisfies ImportPdfResponse);
+		return json({ parsed, source_keys: sourceKeys, documents, route_preview, field_confidence, llm_fallback } satisfies ImportPdfResponse);
 	} catch (error) {
 		if (error instanceof Response) return error;
 		console.error('Import PDF error:', error);

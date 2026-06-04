@@ -47,6 +47,9 @@ interface CreateSectionRequest {
 	station_end?: number | null;
 	status?: 'active' | 'completed' | 'skipped';
 	geometry_geojson?: string | null;
+	production_mix_id?: string | null;
+	layer_label?: string | null;
+	planned_length_ft?: number | null;
 	notes?: string | null;
 	sort_order?: number;
 }
@@ -91,6 +94,9 @@ export async function POST(event: RequestEvent) {
 			station_end: body.station_end ?? null,
 			status: body.status || 'active',
 			geometry_geojson: body.geometry_geojson || null,
+			production_mix_id: body.production_mix_id ?? null,
+			layer_label: body.layer_label ?? null,
+			planned_length_ft: body.planned_length_ft ?? null,
 			notes: body.notes || null,
 			sort_order: body.sort_order ?? 0,
 			created_at: now,
@@ -99,8 +105,8 @@ export async function POST(event: RequestEvent) {
 
 		await event.platform!.env.DB.prepare(
 			`INSERT INTO road_sections
-			(id, job_site_id, name, lane, station_start, station_end, status, geometry_geojson, notes, sort_order, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			(id, job_site_id, name, lane, station_start, station_end, status, geometry_geojson, production_mix_id, layer_label, planned_length_ft, notes, sort_order, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		)
 			.bind(
 				section.id,
@@ -111,6 +117,9 @@ export async function POST(event: RequestEvent) {
 				section.station_end,
 				section.status,
 				section.geometry_geojson,
+				section.production_mix_id ?? null,
+				section.layer_label ?? null,
+				section.planned_length_ft ?? null,
 				section.notes,
 				section.sort_order,
 				section.created_at,
