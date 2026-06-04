@@ -222,7 +222,7 @@
 				</svg>
 				Audit Log
 			</a>
-			<a href="/dashboard/admin/crew-productivity" class="quick-link">
+			<a href="/admin/org/crew-productivity" class="quick-link">
 				<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
 					<circle cx="9" cy="7" r="4"></circle>

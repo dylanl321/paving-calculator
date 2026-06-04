@@ -489,8 +489,10 @@ export class DbOrgHelper {
 		disabledUsers: number;
 		unverifiedUsers: number;
 		globalAdmins: number;
+		totalJobSites: number;
+		failedEmails: number;
 	}> {
-		const [orgs, users] = await Promise.all([
+		const [orgs, users, jobSites, failed] = await Promise.all([
 			this.db.prepare('SELECT COUNT(*) as c FROM organizations').first<{ c: number }>(),
 			this.db
 				.prepare(
@@ -501,7 +503,15 @@ export class DbOrgHelper {
 						SUM(CASE WHEN is_global_admin = 1 THEN 1 ELSE 0 END) as admins
 					FROM users`
 				)
-				.first<{ total: number; disabled: number; unverified: number; admins: number }>()
+				.first<{ total: number; disabled: number; unverified: number; admins: number }>(),
+			this.db
+				.prepare('SELECT COUNT(*) as c FROM job_sites')
+				.first<{ c: number }>()
+				.catch(() => null),
+			this.db
+				.prepare("SELECT COUNT(*) as c FROM email_log WHERE status != 'sent'")
+				.first<{ c: number }>()
+				.catch(() => null)
 		]);
 
 		const totalUsers = users?.total ?? 0;
@@ -512,7 +522,9 @@ export class DbOrgHelper {
 			activeUsers: totalUsers - disabledUsers,
 			disabledUsers,
 			unverifiedUsers: users?.unverified ?? 0,
-			globalAdmins: users?.admins ?? 0
+			globalAdmins: users?.admins ?? 0,
+			totalJobSites: jobSites?.c ?? 0,
+			failedEmails: failed?.c ?? 0
 		};
 	}
 }

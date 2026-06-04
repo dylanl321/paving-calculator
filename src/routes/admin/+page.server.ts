@@ -1,10 +1,15 @@
-import { requireGlobalAdmin } from '$lib/server/auth';
+import { redirect } from '@sveltejs/kit';
+import { getAuthUser } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async (event) => {
-	// Mirrors the layout guard but enforces admin at the data layer too.
-	await requireGlobalAdmin(event);
+	// The overview is the platform (global-admin) home. Org-only admins are
+	// routed to their org section instead of hitting a 403 here.
+	const user = await getAuthUser(event);
+	if (!user) throw redirect(303, '/login');
+	if (!user.isGlobalAdmin) throw redirect(303, '/admin/org/activity');
+
 	const db = new DbHelper(event.platform!.env.DB);
 
 	const [stats, recentUsers, recentOrgs, needingAttention, recentFailedEmails] = await Promise.all([

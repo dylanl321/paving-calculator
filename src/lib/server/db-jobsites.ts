@@ -984,4 +984,11 @@ export class DbJobSitesHelper {
 			.bind(id)
 			.first<DbCalculation>();
 	}
+
+	async deleteCalculation(id: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM calculations WHERE id = ?')
+			.bind(id)
+			.run();
+	}
 }
