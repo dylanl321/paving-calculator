@@ -1,4 +1,54 @@
 import type { D1Database } from '../../cloudflare';
+import type { DbDotRoadSegment, DbDotSyncLog } from '$lib/types/dot';
+export type { DbDotRoadSegment, DbDotSyncLog } from '$lib/types/dot';
+
+export interface DbNotificationPref {
+	user_id: string;
+	pref_key: string;
+	enabled: number;
+	updated_at: number;
+}
+
+export interface DbEmailLog {
+	id: string;
+	to_email: string;
+	from_email: string;
+	subject: string;
+	type: string;
+	org_id: string | null;
+	user_id: string | null;
+	status: 'sent' | 'failed' | 'skipped_no_key';
+	provider_message_id: string | null;
+	error: string | null;
+	created_at: number;
+}
+
+export interface DbNotificationSchedule {
+	id: string;
+	org_id: string;
+	schedule_type: 'eod_summary' | 'weekly_report';
+	enabled: number;
+	send_time: string;
+	timezone: string;
+	recipients: string;
+	created_at: number;
+	updated_at: number;
+}
+
+export interface DbEmailReportSchedule {
+	id: string;
+	org_id: string;
+	report_type: 'daily_summary' | 'weekly_rollup' | 'monthly_rollup';
+	frequency: 'daily' | 'weekly' | 'monthly';
+	send_hour: number;
+	day_of_week: number | null;
+	recipients: string;
+	enabled: number;
+	created_by: string;
+	created_at: number;
+	updated_at: number;
+	last_sent_at: number | null;
+}
 
 export interface DbDailyLog {
 	id: string;
@@ -568,5 +618,331 @@ export class DbLogHelper {
 
 	async deleteDensityReading(id: string): Promise<void> {
 		await this.db.prepare('DELETE FROM density_readings WHERE id = ?').bind(id).run();
+	}
+
+	// ── Email Logging ─────────────────────────────────────────────────────
+
+	async logEmail(entry: {
+		to: string;
+		from: string;
+		subject: string;
+		type: string;
+		status: 'sent' | 'failed' | 'skipped_no_key';
+		orgId?: string | null;
+		userId?: string | null;
+		providerMessageId?: string | null;
+		error?: string | null;
+	}): Promise<void> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				`INSERT INTO email_log (
+					id, to_email, from_email, subject, type, org_id, user_id, status,
+					provider_message_id, error, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			)
+			.bind(
+				id,
+				entry.to,
+				entry.from,
+				entry.subject,
+				entry.type,
+				entry.orgId ?? null,
+				entry.userId ?? null,
+				entry.status,
+				entry.providerMessageId ?? null,
+				entry.error ?? null,
+				now
+			)
+			.run();
+	}
+
+	async getEmailLog(filters?: {
+		status?: string;
+		type?: string;
+		toEmail?: string;
+		failedOnly?: boolean;
+		dateFrom?: number;
+		dateTo?: number;
+		orgId?: string;
+		offset?: number;
+		limit?: number;
+	}): Promise<{ rows: DbEmailLog[]; total: number }> {
+		let whereClause = 'WHERE 1=1';
+		const bindings: (string | number)[] = [];
+
+		if (filters?.status) {
+			whereClause += ' AND status = ?';
+			bindings.push(filters.status);
+		}
+		if (filters?.failedOnly) {
+			whereClause += " AND status IN ('failed', 'skipped_no_key')";
+		}
+		if (filters?.type) {
+			whereClause += ' AND type = ?';
+			bindings.push(filters.type);
+		}
+		if (filters?.toEmail) {
+			whereClause += ' AND to_email LIKE ?';
+			bindings.push(`%${filters.toEmail}%`);
+		}
+		if (filters?.dateFrom) {
+			whereClause += ' AND created_at >= ?';
+			bindings.push(filters.dateFrom);
+		}
+		if (filters?.dateTo) {
+			whereClause += ' AND created_at <= ?';
+			bindings.push(filters.dateTo);
+		}
+		if (filters?.orgId) {
+			whereClause += ' AND org_id = ?';
+			bindings.push(filters.orgId);
+		}
+
+		const countQuery = `SELECT COUNT(*) as count FROM email_log ${whereClause}`;
+		const countResult = await this.db
+			.prepare(countQuery)
+			.bind(...bindings)
+			.first<{ count: number }>();
+		const total = countResult?.count ?? 0;
+
+		const dataQuery = `SELECT * FROM email_log ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+		const limit = filters?.limit ?? 50;
+		const offset = filters?.offset ?? 0;
+		const rows = await this.db
+			.prepare(dataQuery)
+			.bind(...bindings, limit, offset)
+			.all<DbEmailLog>()
+			.then((r) => r.results);
+
+		return { rows, total };
+	}
+
+	// ── Notification Preferences ──────────────────────────────────────────
+
+	async getNotificationPrefs(userId: string): Promise<DbNotificationPref[]> {
+		return await this.db
+			.prepare('SELECT * FROM user_notification_prefs WHERE user_id = ?')
+			.bind(userId)
+			.all<DbNotificationPref>()
+			.then((r) => r.results);
+	}
+
+	async bulkSetNotificationPrefs(
+		userId: string,
+		prefs: Record<string, boolean>
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		for (const [key, enabled] of Object.entries(prefs)) {
+			await this.db
+				.prepare(
+					`INSERT INTO user_notification_prefs (user_id, pref_key, enabled, updated_at)
+					VALUES (?, ?, ?, ?)
+					ON CONFLICT(user_id, pref_key) DO UPDATE SET enabled = excluded.enabled, updated_at = excluded.updated_at`
+				)
+				.bind(userId, key, enabled ? 1 : 0, now)
+				.run();
+		}
+	}
+
+	// ── DOT Road Segments ─────────────────────────────────────────────────
+
+	async upsertDotSegment(
+		row: Omit<DbDotRoadSegment, 'id' | 'fetched_at' | 'updated_at'>
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				`INSERT INTO dot_road_segments
+					(state_dot, source, external_id, road_name, route_id, functional_class, surface_type,
+					 iri, pci, psr, begin_milepost, end_milepost, length_miles, lanes, aadt,
+					 district_code, county_code, geometry_geojson, raw_json, data_year,
+					 fetched_at, updated_at)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+				ON CONFLICT(state_dot, source, external_id)
+				DO UPDATE SET
+					road_name=excluded.road_name, route_id=excluded.route_id,
+					functional_class=excluded.functional_class, surface_type=excluded.surface_type,
+					iri=excluded.iri, pci=excluded.pci, psr=excluded.psr,
+					begin_milepost=excluded.begin_milepost, end_milepost=excluded.end_milepost,
+					length_miles=excluded.length_miles, lanes=excluded.lanes, aadt=excluded.aadt,
+					district_code=excluded.district_code, county_code=excluded.county_code,
+					geometry_geojson=excluded.geometry_geojson, raw_json=excluded.raw_json,
+					data_year=excluded.data_year, fetched_at=excluded.fetched_at,
+					updated_at=excluded.updated_at`
+			)
+			.bind(
+				row.state_dot, row.source, row.external_id, row.road_name, row.route_id,
+				row.functional_class, row.surface_type, row.iri, row.pci, row.psr,
+				row.begin_milepost, row.end_milepost, row.length_miles, row.lanes, row.aadt,
+				row.district_code, row.county_code, row.geometry_geojson, row.raw_json,
+				row.data_year, now, now
+			)
+			.run();
+	}
+
+	async getDotSegmentsByState(stateDot: string, limit = 500): Promise<DbDotRoadSegment[]> {
+		return await this.db
+			.prepare('SELECT * FROM dot_road_segments WHERE state_dot = ? LIMIT ?')
+			.bind(stateDot, limit)
+			.all<DbDotRoadSegment>()
+			.then((r) => r.results);
+	}
+
+	async getDotSegmentsByRoute(stateDot: string, routeId: string): Promise<DbDotRoadSegment[]> {
+		return await this.db
+			.prepare('SELECT * FROM dot_road_segments WHERE state_dot = ? AND route_id = ?')
+			.bind(stateDot, routeId)
+			.all<DbDotRoadSegment>()
+			.then((r) => r.results);
+	}
+
+	async logDotSync(
+		stateDot: string,
+		source: string,
+		status: 'success' | 'partial' | 'failed',
+		recordsUpserted: number,
+		errorMessage: string | null = null
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				`INSERT INTO dot_sync_log (state_dot, source, status, records_upserted, error_message, synced_at)
+				 VALUES (?, ?, ?, ?, ?, ?)`
+			)
+			.bind(stateDot, source, status, recordsUpserted, errorMessage, now)
+			.run();
+	}
+
+	async getLastDotSync(stateDot: string, source: string): Promise<DbDotSyncLog | null> {
+		return await this.db
+			.prepare(
+				'SELECT * FROM dot_sync_log WHERE state_dot = ? AND source = ? ORDER BY synced_at DESC LIMIT 1'
+			)
+			.bind(stateDot, source)
+			.first<DbDotSyncLog>();
+	}
+
+	// ── Email Report Schedules ────────────────────────────────────────────
+
+	async getEmailReportSchedules(orgId: string): Promise<DbEmailReportSchedule[]> {
+		return await this.db
+			.prepare('SELECT * FROM email_report_schedules WHERE org_id = ? ORDER BY created_at DESC')
+			.bind(orgId)
+			.all<DbEmailReportSchedule>()
+			.then((r) => r.results);
+	}
+
+	async upsertEmailReportSchedule(
+		schedule: Omit<DbEmailReportSchedule, 'created_at' | 'updated_at' | 'last_sent_at'>
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		const existing = await this.db
+			.prepare('SELECT id FROM email_report_schedules WHERE id = ?')
+			.bind(schedule.id)
+			.first<{ id: string }>();
+
+		if (existing) {
+			await this.db
+				.prepare(
+					`UPDATE email_report_schedules
+					 SET report_type = ?, frequency = ?, send_hour = ?, day_of_week = ?,
+					     recipients = ?, enabled = ?, updated_at = ?
+					 WHERE id = ?`
+				)
+				.bind(
+					schedule.report_type,
+					schedule.frequency,
+					schedule.send_hour,
+					schedule.day_of_week,
+					schedule.recipients,
+					schedule.enabled,
+					now,
+					schedule.id
+				)
+				.run();
+		} else {
+			await this.db
+				.prepare(
+					`INSERT INTO email_report_schedules
+					 (id, org_id, report_type, frequency, send_hour, day_of_week, recipients, enabled, created_by, created_at, updated_at)
+					 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				)
+				.bind(
+					schedule.id,
+					schedule.org_id,
+					schedule.report_type,
+					schedule.frequency,
+					schedule.send_hour,
+					schedule.day_of_week,
+					schedule.recipients,
+					schedule.enabled,
+					schedule.created_by,
+					now,
+					now
+				)
+				.run();
+		}
+	}
+
+	async deleteEmailReportSchedule(id: string, orgId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM email_report_schedules WHERE id = ? AND org_id = ?')
+			.bind(id, orgId)
+			.run();
+	}
+
+	async markEmailReportScheduleSent(id: string, sentAt: number): Promise<void> {
+		await this.db
+			.prepare('UPDATE email_report_schedules SET last_sent_at = ? WHERE id = ?')
+			.bind(sentAt, id)
+			.run();
+	}
+
+	// ── Notification Schedules ────────────────────────────────────────────
+
+	async getNotificationSchedules(orgId: string): Promise<DbNotificationSchedule[]> {
+		return await this.db
+			.prepare('SELECT * FROM notification_schedules WHERE org_id = ? ORDER BY schedule_type ASC')
+			.bind(orgId)
+			.all<DbNotificationSchedule>()
+			.then((r) => r.results);
+	}
+
+	async upsertNotificationSchedule(
+		schedule: Omit<DbNotificationSchedule, 'created_at' | 'updated_at'>
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				`INSERT INTO notification_schedules (id, org_id, schedule_type, enabled, send_time, timezone, recipients, created_at, updated_at)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				 ON CONFLICT(org_id, schedule_type) DO UPDATE SET
+				   enabled = excluded.enabled,
+				   send_time = excluded.send_time,
+				   timezone = excluded.timezone,
+				   recipients = excluded.recipients,
+				   updated_at = excluded.updated_at`
+			)
+			.bind(
+				schedule.id,
+				schedule.org_id,
+				schedule.schedule_type,
+				schedule.enabled,
+				schedule.send_time,
+				schedule.timezone,
+				schedule.recipients,
+				now,
+				now
+			)
+			.run();
+	}
+
+	async deleteNotificationSchedule(id: string, orgId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM notification_schedules WHERE id = ? AND org_id = ?')
+			.bind(id, orgId)
+			.run();
 	}
 }

@@ -1,0 +1,10 @@
+{
+  "contract_id": "GDOT-2024-ATL-001",
+  "county": "Fulton",
+  "contract_amount": 2847550.00,
+  "total_length_ft": 29066.4,
+  "has_contract_summary": true,
+  "has_job_setup": false,
+  "bid_items_count": 4,
+  "scopes": ["milling", "resurfacing", "traffic_control"]
+}

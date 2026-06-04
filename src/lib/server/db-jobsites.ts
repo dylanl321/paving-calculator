@@ -1,16 +1,240 @@
 import type { D1Database } from '../../cloudflare';
-import type {
-	DbJobSite,
-	DbBidItem,
-	DbProductionMix,
-	DbSchematic,
-	DbJobDocument,
-	DbJobSiteAssignment,
-	DbJobSiteConfig,
-	DbJobSiteEquipment,
-	DbJobSiteRoute,
-	JobSiteContractMeta
-} from './db';
+
+export interface DbJobSite {
+	id: string;
+	org_id: string;
+	name: string;
+	location_description: string | null;
+	latitude: number | null;
+	longitude: number | null;
+	gdot_county: string | null;
+	gdot_district: string | null;
+	status: 'active' | 'completed' | 'archived';
+	job_number: string | null;
+	project_number: string | null;
+	contract_id: string | null;
+	work_type: string | null;
+	contract_type: string | null;
+	contract_amount: number | null;
+	retainage_pct: number | null;
+	est_start_date: string | null;
+	completion_date: string | null;
+	customer_name: string | null;
+	customer_address: string | null;
+	customer_contact: string | null;
+	customer_phone: string | null;
+	customer_email: string | null;
+	owner_name: string | null;
+	owner_address: string | null;
+	project_manager: string | null;
+	asphalt_supplier: string | null;
+	import_source_key: string | null;
+	scopes_json: string | null;
+	created_at: number;
+	updated_at: number;
+}
+
+export type JobSiteContractMeta = Partial<
+	Pick<
+		DbJobSite,
+		| 'job_number'
+		| 'project_number'
+		| 'contract_id'
+		| 'work_type'
+		| 'contract_type'
+		| 'contract_amount'
+		| 'retainage_pct'
+		| 'est_start_date'
+		| 'completion_date'
+		| 'customer_name'
+		| 'customer_address'
+		| 'customer_contact'
+		| 'customer_phone'
+		| 'customer_email'
+		| 'owner_name'
+		| 'owner_address'
+		| 'project_manager'
+		| 'asphalt_supplier'
+		| 'import_source_key'
+		| 'scopes_json'
+	>
+>;
+
+export interface DbBidItem {
+	id: string;
+	job_site_id: string;
+	line_number: string | null;
+	item_id: string | null;
+	description: string;
+	quantity: number | null;
+	unit: string | null;
+	unit_price: number | null;
+	bid_amount: number | null;
+	section: string | null;
+	is_alternate: number;
+	selected: number;
+	sort_order: number;
+	created_at: number;
+}
+
+export interface DbProductionMix {
+	id: string;
+	job_site_id: string;
+	mix_name: string;
+	unit: string | null;
+	bid_quantity: number | null;
+	takeoff_tonnage: number | null;
+	quantity_per_day: number | null;
+	est_days: number | null;
+	mix_type: string | null;
+	target_thickness_in: number | null;
+	target_spread_rate: number | null;
+	tack_type: 'anionic' | 'cationic' | 'polymer_modified' | 'trackless' | null;
+	target_tack_rate: number | null;
+	contract_unit_price: number | null;
+	is_active: number;
+	sort_order: number;
+	created_at: number;
+}
+
+export interface DbSchematic {
+	id: string;
+	job_site_id: string;
+	r2_key: string;
+	page_number: number | null;
+	label: string | null;
+	content_type: string;
+	sort_order: number;
+	created_at: number;
+}
+
+export interface DbJobDocument {
+	id: string;
+	job_site_id: string;
+	r2_key: string;
+	filename: string;
+	doc_type: string | null;
+	content_type: string;
+	created_at: number;
+}
+
+export interface DbJobSiteAssignment {
+	job_site_id: string;
+	user_id: string;
+	assigned_at: number;
+	role: 'foreman' | 'operator' | 'inspector';
+}
+
+export interface DbCalculation {
+	id: string;
+	job_site_id: string;
+	user_id: string;
+	calc_type: 'spread_rate' | 'feet_left' | 'tonnage' | 'tack_rate' | 'stick_check';
+	inputs: string;
+	result: string;
+	notes: string | null;
+	created_at: number;
+}
+
+export interface DbJobSiteConfig {
+	job_site_id: string;
+	road_type:
+		| 'highway'
+		| 'state_route'
+		| 'county_road'
+		| 'city_street'
+		| 'subdivision'
+		| 'parking_lot'
+		| 'other'
+		| null;
+	num_lanes: number | null;
+	lane_width_ft: number | null;
+	total_length_ft: number | null;
+	scope_of_work:
+		| 'full_depth'
+		| 'mill_and_fill'
+		| 'overlay'
+		| 'leveling'
+		| 'patching'
+		| 'widening'
+		| null;
+	mix_type: string | null;
+	target_thickness_in: number | null;
+	target_spread_rate: number | null;
+	tack_type: 'anionic' | 'cationic' | 'polymer_modified' | 'trackless' | null;
+	target_tack_rate: number | null;
+	notes: string | null;
+	route_designation: string | null;
+	route_county: string | null;
+	route_district: string | null;
+	route_functional_class: string | null;
+	route_system_code: string | null;
+	total_tonnage: number | null;
+	cost_per_ton: number | null;
+	cost_per_sy: number | null;
+	cost_per_mile: number | null;
+	total_contract_value: number | null;
+	created_at: number;
+	updated_at: number;
+}
+
+export interface DbJobSiteEquipment {
+	id: string;
+	job_site_id: string;
+	equipment_type:
+		| 'paver'
+		| 'shuttle_buggy'
+		| 'roller_breakdown'
+		| 'roller_intermediate'
+		| 'roller_finish'
+		| 'distributor'
+		| 'milling_machine'
+		| 'other';
+	name: string;
+	capacity: string | null;
+	notes: string | null;
+	created_at: number;
+}
+
+export interface DbJobSiteRoute {
+	job_site_id: string;
+	waypoints: string;
+	created_at: number;
+	updated_at: number;
+}
+
+export interface DbRoadSection {
+	id: string;
+	job_site_id: string;
+	name: string;
+	lane: string;
+	station_start: number | null;
+	station_end: number | null;
+	status: 'active' | 'completed' | 'skipped';
+	geometry_geojson: string | null;
+	notes: string | null;
+	sort_order: number;
+	created_at: number;
+	updated_at: number;
+}
+
+export interface DbLoad {
+	id: string;
+	job_site_id: string;
+	user_id: string;
+	ticket_number: string | null;
+	tons: number;
+	timestamp: number;
+	spread_rate: number | null;
+	notes: string | null;
+	lane_number: number | null;
+	pass_number: number | null;
+	created_at: number;
+	rejected: number;
+	rejection_reason: string | null;
+	rejection_notes: string | null;
+	ticket_photo_id: string | null;
+}
 
 export class DbJobSitesHelper {
 	constructor(private db: D1Database) {}
@@ -686,5 +910,78 @@ export class DbJobSitesHelper {
 			created_at: existing?.created_at ?? now,
 			updated_at: now
 		};
+	}
+
+	// ── Calculations ──────────────────────────────────────────────────────
+
+	async createCalculation(
+		jobSiteId: string,
+		userId: string,
+		calcType: DbCalculation['calc_type'],
+		inputs: object,
+		result: object,
+		notes: string | null
+	): Promise<DbCalculation> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+		const inputsJson = JSON.stringify(inputs);
+		const resultJson = JSON.stringify(result);
+
+		await this.db
+			.prepare(
+				'INSERT INTO calculations (id, job_site_id, user_id, calc_type, inputs, result, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+			)
+			.bind(id, jobSiteId, userId, calcType, inputsJson, resultJson, notes, now)
+			.run();
+
+		return {
+			id,
+			job_site_id: jobSiteId,
+			user_id: userId,
+			calc_type: calcType,
+			inputs: inputsJson,
+			result: resultJson,
+			notes,
+			created_at: now
+		};
+	}
+
+	async getCalculations(filters?: {
+		jobSiteId?: string;
+		userId?: string;
+		limit?: number;
+	}): Promise<DbCalculation[]> {
+		let query = 'SELECT * FROM calculations WHERE 1=1';
+		const bindings: string[] = [];
+
+		if (filters?.jobSiteId) {
+			query += ' AND job_site_id = ?';
+			bindings.push(filters.jobSiteId);
+		}
+
+		if (filters?.userId) {
+			query += ' AND user_id = ?';
+			bindings.push(filters.userId);
+		}
+
+		query += ' ORDER BY created_at DESC';
+
+		if (filters?.limit) {
+			query += ' LIMIT ?';
+			bindings.push(String(filters.limit));
+		}
+
+		return await this.db
+			.prepare(query)
+			.bind(...bindings)
+			.all<DbCalculation>()
+			.then((r) => r.results);
+	}
+
+	async getCalculationById(id: string): Promise<DbCalculation | null> {
+		return await this.db
+			.prepare('SELECT * FROM calculations WHERE id = ?')
+			.bind(id)
+			.first<DbCalculation>();
 	}
 }

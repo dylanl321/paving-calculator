@@ -1,6 +1,27 @@
 import type { D1Database } from '../../cloudflare';
 import { toHex } from '$lib/utils/format';
-import type { DbUser, DbSession } from './db';
+
+export interface DbUser {
+	id: string;
+	email: string;
+	password_hash: string;
+	name: string;
+	is_global_admin: boolean;
+	disabled: boolean;
+	email_verified: boolean;
+	phone: string | null;
+	created_at: number;
+	updated_at: number;
+	last_login_at: number | null;
+	last_login_ip: string | null;
+}
+
+export interface DbSession {
+	id: string;
+	user_id: string;
+	expires_at: number;
+	created_at: number;
+}
 
 export class DbAuthHelper {
 	constructor(private db: D1Database) {}
@@ -133,6 +154,72 @@ export class DbAuthHelper {
 		await this.db
 			.prepare('UPDATE email_tokens SET used_at = ? WHERE token = ?')
 			.bind(now, token)
+			.run();
+	}
+
+	async deleteUser(id: string): Promise<void> {
+		await this.db.prepare('DELETE FROM users WHERE id = ?').bind(id).run();
+	}
+
+	async getRecentUsers(limit = 5): Promise<DbUser[]> {
+		return await this.db
+			.prepare('SELECT * FROM users ORDER BY created_at DESC LIMIT ?')
+			.bind(limit)
+			.all<DbUser>()
+			.then((r) => r.results);
+	}
+
+	async getAllUsers(): Promise<DbUser[]> {
+		return await this.db
+			.prepare('SELECT * FROM users ORDER BY created_at DESC')
+			.all<DbUser>()
+			.then((r) => r.results);
+	}
+
+	async updateUser(
+		id: string,
+		updates: {
+			name?: string;
+			email?: string;
+			phone?: string | null;
+			is_global_admin?: boolean;
+			disabled?: boolean;
+		}
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		const fields: string[] = [];
+		const values: (string | number | boolean)[] = [];
+
+		if (updates.name !== undefined) {
+			fields.push('name = ?');
+			values.push(updates.name);
+		}
+		if (updates.email !== undefined) {
+			fields.push('email = ?');
+			values.push(updates.email);
+		}
+		if (updates.phone !== undefined) {
+			fields.push('phone = ?');
+			values.push(updates.phone || '');
+		}
+		if (updates.is_global_admin !== undefined) {
+			fields.push('is_global_admin = ?');
+			values.push(updates.is_global_admin ? 1 : 0);
+		}
+		if (updates.disabled !== undefined) {
+			fields.push('disabled = ?');
+			values.push(updates.disabled ? 1 : 0);
+		}
+
+		if (fields.length === 0) return;
+
+		fields.push('updated_at = ?');
+		values.push(now);
+		values.push(id);
+
+		await this.db
+			.prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`)
+			.bind(...values)
 			.run();
 	}
 }
