@@ -1,7 +1,7 @@
 import type { OrgOverrides } from '$lib/config/overrides';
 
 /** Settings page tab identifiers. */
-export type TabId = 'general' | 'defaults' | 'branding' | 'notifications' | 'reports';
+export type TabId = 'general' | 'defaults' | 'branding' | 'notifications' | 'reports' | 'mixes';
 
 export interface SettingsSaveResult {
 	error?: string;
