@@ -3,6 +3,7 @@ import { DbHelper } from '$lib/server/db';
 import { hashPassword, slugify, createSession, setSessionCookie } from '$lib/server/auth';
 import { sendVerificationEmail, buildOrgBranding } from '$lib/server/email';
 import { checkRateLimit } from '$lib/server/rate-limit';
+import { logAuditEvent } from '$lib/server/db-audit';
 
 interface RegisterRequest {
 	email: string;
@@ -128,6 +129,17 @@ export async function POST(event: RequestEvent) {
 			branding,
 			{ logger: db, orgId: org.id, userId: user.id }
 		);
+
+		// Log to admin audit log
+		const ipAddress = event.request.headers.get('CF-Connecting-IP') || event.request.headers.get('X-Forwarded-For') || undefined;
+		const userAgent = event.request.headers.get('user-agent') || undefined;
+		await logAuditEvent(event.platform.env.DB, {
+			user_id: user.id,
+			org_id: org.id,
+			event_type: 'register',
+			ip_address: ipAddress,
+			user_agent: userAgent
+		});
 
 		return json({
 			user: {

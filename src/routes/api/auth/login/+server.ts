@@ -3,6 +3,7 @@ import { DbHelper } from '$lib/server/db';
 import { verifyPassword, createSession, setSessionCookie } from '$lib/server/auth';
 import { recordAudit } from '$lib/server/audit';
 import { checkRateLimit } from '$lib/server/rate-limit';
+import { logAuditEvent } from '$lib/server/db-audit';
 
 interface LoginRequest {
 	email: string;
@@ -65,6 +66,22 @@ export async function POST(event: RequestEvent) {
 				userAgent: event.request.headers.get('user-agent') || undefined
 			});
 		}
+
+		// Log to admin audit log
+		const ipAddress = event.request.headers.get('CF-Connecting-IP') || event.request.headers.get('X-Forwarded-For') || undefined;
+		const userAgent = event.request.headers.get('user-agent') || undefined;
+		await logAuditEvent(event.platform.env.DB, {
+			user_id: user.id,
+			org_id: org?.id,
+			event_type: 'login',
+			ip_address: ipAddress,
+			user_agent: userAgent
+		});
+
+		// Update last login fields
+		await db.prepare('UPDATE users SET last_login_at = ?, last_login_ip = ? WHERE id = ?')
+			.bind(Math.floor(Date.now() / 1000), ipAddress, user.id)
+			.run();
 
 		return json({
 			user: {
