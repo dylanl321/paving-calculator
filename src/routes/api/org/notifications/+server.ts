@@ -10,11 +10,16 @@ const VALID_SCHEDULE_TYPES: DbNotificationSchedule['schedule_type'][] = [
 	'weekly_report'
 ];
 
+// Role group shortcuts that map to dynamic recipient lists at send time.
+const VALID_ROLE_GROUPS = new Set(['all_admins', 'all_foremen', 'all_members']);
+
 function validateRecipients(recipients: unknown): string[] | null {
 	if (!Array.isArray(recipients)) return null;
-	if (recipients.length === 0 || recipients.length > 20) return null;
-	for (const email of recipients) {
-		if (typeof email !== 'string' || !EMAIL_REGEX.test(email)) return null;
+	if (recipients.length > 20) return null;
+	for (const item of recipients) {
+		if (typeof item !== 'string') return null;
+		// Accept role group strings or valid email addresses.
+		if (!VALID_ROLE_GROUPS.has(item) && !EMAIL_REGEX.test(item)) return null;
 	}
 	return recipients;
 }
@@ -105,7 +110,7 @@ export async function POST(event: RequestEvent) {
 		const validatedRecipients = validateRecipients(recipients);
 		if (!validatedRecipients) {
 			return json(
-				{ error: 'recipients must be an array of 1-20 valid email addresses' },
+				{ error: 'recipients must be an array of up to 20 valid email addresses or role groups (all_admins, all_foremen, all_members)' },
 				{ status: 400 }
 			);
 		}
