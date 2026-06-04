@@ -70,17 +70,22 @@
 		endStation != null && hasRoute ? stationToCoordinate(endStation, waypoints) : null
 	);
 
+	const routeStartStation = $derived(hasRoute ? coordinateToStation(waypoints[0], waypoints) : null);
+	const routeEndStation = $derived(
+		hasRoute ? coordinateToStation(waypoints[waypoints.length - 1], waypoints) : null
+	);
+
 	const summaryText = $derived.by(() => {
 		if (beginStation == null || endStation == null) return '';
 		const distFt = Math.abs(endStation - beginStation) * 100;
-		return `Begin ${formatStation(beginStation)}  \u2192  End ${formatStation(endStation)}  (${distFt.toFixed(0)} ft)`;
+		return `Start ${formatStation(beginStation)}  \u2192  End ${formatStation(endStation)}  (${distFt.toFixed(0)} ft)`;
 	});
 
 	const overlayText = $derived.by(() => {
 		if (flashMessage) return flashMessage;
-		if (activeField === 'begin') return 'Tap the road to set the BEGIN terminus';
-		if (activeField === 'end') return 'Tap the road to set the END terminus';
-		return 'Tap Begin or End to continue';
+		if (activeField === 'begin') return 'Tap the road to set the project START';
+		if (activeField === 'end') return 'Tap the road to set the project END';
+		return 'Choose Start or End, then tap the road';
 	});
 
 	function flash(msg: string) {
@@ -110,6 +115,18 @@
 		return true;
 	}
 
+	function useFullRoute() {
+		if (!hasRoute || routeStartStation == null || routeEndStation == null) return;
+		beginStation = routeStartStation;
+		endStation = routeEndStation;
+		activeField = null;
+		onPick?.('begin', routeStartStation, [waypoints[0].lat, waypoints[0].lng]);
+		onPick?.('end', routeEndStation, [
+			waypoints[waypoints.length - 1].lat,
+			waypoints[waypoints.length - 1].lng
+		]);
+	}
+
 	function handleMapReady(map: MapLibreMap) {
 		mapInstance = map;
 		map.on('click', (e) => {
@@ -122,10 +139,15 @@
 {#if !hasRoute}
 	<div class="no-route-placeholder">
 		<span class="no-route-icon" aria-hidden="true">🛣</span>
-		<p>No route centerline yet — set the route designation or draw the road alignment first.</p>
+		<p>No road line yet — load a route or draw the road alignment first.</p>
 	</div>
 {:else}
 	<div class="terminus-picker">
+		<div class="plain-help">
+			<strong>Project Start &amp; End</strong>
+			<span>These are the limits you are paving along the saved road line. They snap onto the road.</span>
+		</div>
+
 		<div class="toggle-row">
 			<button
 				type="button"
@@ -133,7 +155,7 @@
 				onclick={() => { activeField = activeField === 'begin' ? null : 'begin'; }}
 			>
 				<span class="toggle-dot toggle-dot--begin"></span>
-				Set Begin
+				Set Start
 				{#if beginStation != null}
 					<span class="toggle-value">{formatStation(beginStation)}</span>
 				{/if}
@@ -160,11 +182,15 @@
 					Clear
 				</button>
 			{/if}
+
+			<button type="button" class="clear-btn clear-btn--accent" onclick={useFullRoute}>
+				Use Full Route
+			</button>
 		</div>
 
 		{#if beginLabel || endLabel}
 			<p class="terminus-hint">
-				{#if beginLabel}<span><strong>Begin:</strong> {beginLabel}</span>{/if}
+				{#if beginLabel}<span><strong>Start:</strong> {beginLabel}</span>{/if}
 				{#if endLabel}<span><strong>End:</strong> {endLabel}</span>{/if}
 			</p>
 		{/if}
@@ -184,8 +210,8 @@
 							lat={beginCoord[0]}
 							lng={beginCoord[1]}
 							color="#f2c037"
-							label="B"
-							popupHtml="<b>Begin: {formatStation(beginStation!)}</b>"
+							label="S"
+							popupHtml="<b>Start: {formatStation(beginStation!)}</b>"
 						/>
 					{/if}
 					{#if endCoord}
@@ -240,6 +266,27 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+	}
+
+	.plain-help {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 10px 12px;
+		background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+		border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+		border-radius: var(--radius);
+	}
+
+	.plain-help strong {
+		color: var(--text);
+		font-size: 0.9rem;
+	}
+
+	.plain-help span {
+		color: var(--text-muted);
+		font-size: 0.82rem;
+		line-height: 1.35;
 	}
 
 	.toggle-row {
@@ -310,6 +357,17 @@
 	.clear-btn:hover {
 		color: var(--text);
 		border-color: var(--text-muted);
+	}
+
+	.clear-btn--accent {
+		color: var(--accent);
+		border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+	}
+
+	.clear-btn--accent:hover {
+		color: var(--accent-text);
+		background: var(--accent);
+		border-color: var(--accent);
 	}
 
 	.terminus-hint {

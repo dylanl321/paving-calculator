@@ -109,11 +109,11 @@
 				body: JSON.stringify(patch),
 				credentials: 'include'
 			});
-			if (res.ok) {
-				if (field === 'begin') configForm.begin_station = station;
-				else configForm.end_station = station;
-				toastStore.success(`${field === 'begin' ? 'Begin' : 'End'} terminus saved`);
-			} else {
+	if (res.ok) {
+		if (field === 'begin') configForm.begin_station = station;
+		else configForm.end_station = station;
+		toastStore.success(`Project ${field === 'begin' ? 'start' : 'end'} saved`);
+	} else {
 				toastStore.error('Failed to save terminus');
 			}
 		} catch {
@@ -126,7 +126,7 @@
 	<div class="panel-head">
 		<div>
 			<h3>Location &amp; Route</h3>
-			<p>Set the project pin, save the road-following route, then build work zones from stations.</p>
+			<p>Set the project pin, save the road line, then choose the start/end limits for paving.</p>
 		</div>
 		{#if hasLocation}
 			<button type="button" class="link-btn" onclick={() => (showLocationSearch = !showLocationSearch)}>
@@ -189,8 +189,8 @@
 		{#if hasRoute}
 			<div class="terminus-block">
 				<div class="terminus-head">
-					<h4>Project Termini</h4>
-					<span>Tap the road to set begin/end points.</span>
+					<h4>Project Start &amp; End</h4>
+					<span>Pick the limits of work along the saved road line.</span>
 				</div>
 				{#await import('$lib/components/map-v2/TerminusPicker.svelte')}
 					<div class="map-mini-loading">Loading terminus picker...</div>

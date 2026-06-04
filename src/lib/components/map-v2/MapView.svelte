@@ -34,6 +34,8 @@
     mapStyle?: 'dark' | 'light' | string;
     /** Called once the map is fully loaded and ready */
     onready?: (map: MapLibreMap) => void;
+    /** Allow wheel/trackpad zoom while scrolling over the map */
+    scrollZoom?: boolean;
     /** Two-way bindable map instance */
     map?: MapLibreMap | null;
     /** Slot for child layer components */
@@ -47,6 +49,7 @@
     height = '100%',
     mapStyle,
     onready,
+    scrollZoom = false,
     map = $bindable(null),
     layers,
   }: Props = $props();
@@ -89,6 +92,7 @@
         container,
         style: resolveStyle(mapStyle),
         zoom,
+        scrollZoom,
         attributionControl: {
           customAttribution: '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a>',
         },
@@ -106,6 +110,7 @@
       }
 
       m = new maplibregl.Map(initOptions);
+      if (!scrollZoom) m.scrollZoom.disable();
 
       m.on('load', () => {
         mapInstance = m;

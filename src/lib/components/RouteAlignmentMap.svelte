@@ -80,6 +80,13 @@
 	});
 
 	const routePoints = $derived<[number, number][]>(waypoints.map((wp) => [wp.lat, wp.lng]));
+	const firstWaypoint = $derived(waypoints.length >= 2 ? waypoints[0] : null);
+	const lastWaypoint = $derived(waypoints.length >= 2 ? waypoints[waypoints.length - 1] : null);
+	const guideText = $derived.by(() => {
+		if (drawMode) return 'Tap road points in order, or pan the map and use Add Point. Points snap onto roads.';
+		if (waypoints.length >= 2) return 'Yellow line is the saved road alignment. Start/end markers show the current route edges.';
+		return 'Load a GDOT road line or tap Edit Route to build one from road-snapped points.';
+	});
 
 	const bufferCoords = $derived.by<[number, number][]>(() => {
 		if (waypoints.length < 2 || !numLanes || !laneWidthFt || numLanes <= 0 || laneWidthFt <= 0)
@@ -252,6 +259,11 @@
 	</div>
 {:else}
 	<div class="map-wrap" style="height:{height}">
+		<div class="route-guide">
+			<strong>Road alignment</strong>
+			<span>{guideText}</span>
+		</div>
+
 		<MapView
 			center={[site.latitude as number, site.longitude as number]}
 			zoom={15}
@@ -283,6 +295,24 @@
 							strokeWidth={1}
 						/>
 					{/if}
+					{#if firstWaypoint}
+						<MapMarker
+							lat={firstWaypoint.lat}
+							lng={firstWaypoint.lng}
+							color="#f2c037"
+							label="S"
+							popupHtml="<b>Route start edge</b><br>Set project start/end below for the actual project limits."
+						/>
+					{/if}
+					{#if lastWaypoint}
+						<MapMarker
+							lat={lastWaypoint.lat}
+							lng={lastWaypoint.lng}
+							color="#f2c037"
+							label="E"
+							popupHtml="<b>Route end edge</b><br>Set project start/end below for the actual project limits."
+						/>
+					{/if}
 				{/if}
 
 			{/snippet}
@@ -310,10 +340,10 @@
 						d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
 					></path>
 				</svg>
-				{drawMode ? 'Stop' : 'Draw Route'}
+				{drawMode ? 'Stop Editing' : 'Edit Route'}
 			</button>
 
-			{#if drawMode && isMobile}
+			{#if drawMode}
 				<button type="button" class="map-btn" onclick={addPointAtCenter} title="Add point at center" disabled={snapping}>
 					<svg
 						width="18"
@@ -377,7 +407,7 @@
 						type="button"
 						class="map-btn map-btn-primary"
 						onclick={saveRoute}
-						disabled={saving}
+						disabled={saving || waypoints.length < 2}
 						title="Save route"
 					>
 						<svg
@@ -408,7 +438,7 @@
 				</div>
 				{#if controlPoints.length > 0}
 					<div class="stat">
-						<span class="stat-label">Points</span>
+						<span class="stat-label">Control points</span>
 						<span class="stat-value">{controlPoints.length}</span>
 					</div>
 				{/if}
@@ -422,7 +452,7 @@
 				{:else if snapping}
 					Snapping to road…
 				{:else}
-					Tap the road to add points — the line follows real roads
+					Tap road points in order — the line follows real roads
 				{/if}
 			</div>
 		{/if}
@@ -473,6 +503,36 @@
 		flex-direction: column;
 		gap: 8px;
 		z-index: 500;
+	}
+
+	.route-guide {
+		position: absolute;
+		top: 12px;
+		left: 12px;
+		z-index: 500;
+		max-width: min(360px, calc(100% - 190px));
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 10px 12px;
+		background: rgba(15, 23, 42, 0.9);
+		border: 1px solid rgba(242, 192, 55, 0.35);
+		border-radius: var(--radius);
+		color: #fff;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.24);
+		pointer-events: none;
+	}
+
+	.route-guide strong {
+		color: #f2c037;
+		font-size: 0.78rem;
+		letter-spacing: 0.03em;
+		text-transform: uppercase;
+	}
+
+	.route-guide span {
+		font-size: 0.82rem;
+		line-height: 1.3;
 	}
 
 	.map-btn {
@@ -577,7 +637,7 @@
 
 	.snap-pill {
 		position: absolute;
-		top: 12px;
+		bottom: 12px;
 		left: 50%;
 		transform: translateX(-50%);
 		z-index: 500;
@@ -619,6 +679,18 @@
 			top: 8px;
 			right: 8px;
 			gap: 6px;
+			max-width: 46%;
+		}
+
+		.route-guide {
+			top: 8px;
+			left: 8px;
+			max-width: calc(54% - 16px);
+			padding: 8px 10px;
+		}
+
+		.route-guide span {
+			font-size: 0.76rem;
 		}
 
 		.map-btn {
