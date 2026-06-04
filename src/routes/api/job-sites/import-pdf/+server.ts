@@ -3,7 +3,7 @@ import { DbHelper } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
 import { parseGdotDocumentsV2, toV1, pdfToText, detectDocumentType, type ParsedGdotJob, type ParsedGdotJobV2, type GdotDocumentType } from '$lib/server/pdf/parse-gdot';
 import type { FieldConfidence } from '$lib/server/pdf/confidence';
-import { runLlmFallback, needsLlmFallback, type WorkersAi } from '$lib/server/pdf/llm-fallback';
+import { runLlmFallback, needsLlmFallback, buildLlmDiagnostic, appendLlmFallbackWarning, type WorkersAi, type LlmFallbackDiagnostic } from '$lib/server/pdf/llm-fallback';
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB per file
 
@@ -140,25 +140,6 @@ export interface ImportedDocument {
 
 /** Flat map of field name -> confidence level, for the review UI. */
 export type FieldConfidenceMap = Record<string, FieldConfidence>;
-
-/**
- * Observable diagnostic for the Phase 2 Workers AI fallback so the user/UI can
- * see whether the LLM actually ran and why it did or did not apply. The most
- * common reason it does NOT run is that the `AI` binding is absent in the
- * environment under test (e.g. the local `vite dev` platform proxy frequently
- * does not expose Workers AI), in which case the fallback silently no-ops — we
- * make that explicit rather than leaving the user guessing.
- */
-export interface LlmFallbackDiagnostic {
-	/** True when a fallback was warranted (low-confidence/null geographic fields). */
-	attempted: boolean;
-	/** True when the model returned usable JSON that was merged into the result. */
-	applied: boolean;
-	/** Why the fallback did/didn't apply (e.g. 'ai-binding-unavailable'). */
-	reason: string;
-	/** True when the `AI` binding was present in this environment. */
-	binding_available: boolean;
-}
 
 export interface ImportPdfResponse {
 	parsed: ParsedGdotJob;

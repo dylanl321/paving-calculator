@@ -178,6 +178,68 @@ export interface LlmFallbackResult {
 }
 
 /**
+ * Observable diagnostic for the Phase 2 Workers AI fallback, so the import-pdf
+ * response can tell the user/UI whether the LLM actually ran and why it did or
+ * did not apply. The most common reason it does NOT run is that the `AI` binding
+ * is absent in the environment under test (e.g. the local `vite dev` platform
+ * proxy frequently does not expose Workers AI), in which case the fallback
+ * silently no-ops — this makes that explicit.
+ */
+export interface LlmFallbackDiagnostic {
+	/** True when a fallback was warranted (low-confidence/null geographic fields). */
+	attempted: boolean;
+	/** True when the model returned usable JSON that was merged into the result. */
+	applied: boolean;
+	/** Why the fallback did/didn't apply (e.g. 'ai-binding-unavailable'). */
+	reason: string;
+	/** True when the `AI` binding was present in this environment. */
+	binding_available: boolean;
+}
+
+/**
+ * Build the observable LLM-fallback diagnostic from the attempt context and the
+ * runLlmFallback result. Pure (no I/O) so it is unit-testable directly.
+ */
+export function buildLlmDiagnostic(
+	attempted: boolean,
+	bindingAvailable: boolean,
+	result: LlmFallbackResult
+): LlmFallbackDiagnostic {
+	return {
+		attempted,
+		applied: result.applied,
+		reason: result.reason ?? (result.applied ? 'applied' : 'unknown'),
+		binding_available: bindingAvailable
+	};
+}
+
+/**
+ * Append a single human-readable warning describing the LLM fallback outcome,
+ * but ONLY when it would have been useful and didn't apply — so the user can
+ * see why low-confidence fields weren't supplemented. The success warning is
+ * pushed inside runLlmFallback, so it is skipped here to avoid duplication.
+ */
+export function appendLlmFallbackWarning(
+	warnings: string[],
+	diag: LlmFallbackDiagnostic
+): void {
+	if (!diag.attempted || diag.applied) return;
+
+	if (!diag.binding_available) {
+		warnings.push(
+			'AI assist did not run: the Workers AI binding is not available in this environment ' +
+				'(common under local dev). Low-confidence fields were left as deterministically parsed.'
+		);
+		return;
+	}
+
+	warnings.push(
+		`AI assist ran but did not supplement any fields (${diag.reason}). ` +
+			'Low-confidence fields were left as deterministically parsed.'
+	);
+}
+
+/**
  * Run the text-PDF LLM fallback on the low-confidence zones of a V2 result.
  * Mutates `v2` in place (filling only low/null fields). Best-effort: any error
  * or unmet JSON Mode leaves the deterministic result untouched.

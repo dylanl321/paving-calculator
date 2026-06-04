@@ -3,6 +3,7 @@ import {
 	lineStringCentroid,
 	fetchGdotRouteGeometry,
 	geocodeAddress,
+	fetchCountyCentroid,
 	resolveImportLocation
 } from '../gdot-geometry.js';
 
@@ -120,6 +121,63 @@ describe('geocodeAddress', () => {
 	});
 });
 
+// GDOT county boundary polygon response (rings = [lng, lat]).
+function countyPolygonResponse() {
+	return {
+		features: [
+			{
+				attributes: { NAME: 'LOWNDES' },
+				geometry: {
+					rings: [
+						[
+							[-83.4, 30.7],
+							[-83.0, 30.7],
+							[-83.0, 31.1],
+							[-83.4, 31.1],
+							[-83.4, 30.7]
+						]
+					]
+				}
+			}
+		]
+	};
+}
+
+describe('fetchCountyCentroid', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('returns null for empty input', async () => {
+		expect(await fetchCountyCentroid(null)).toBe(null);
+		expect(await fetchCountyCentroid('   ')).toBe(null);
+	});
+
+	it('returns the polygon centroid as [lat, lng] from the GDOT county layer', async () => {
+		mockFetchOnce(() => countyPolygonResponse());
+		const res = await fetchCountyCentroid('Lowndes');
+		expect(res).not.toBe(null);
+		// average of ring lng/lat (last point duplicates the first)
+		expect(res?.[0]).toBeGreaterThan(30.6);
+		expect(res?.[0]).toBeLessThan(31.2);
+		expect(res?.[1]).toBeGreaterThan(-83.5);
+		expect(res?.[1]).toBeLessThan(-82.9);
+	});
+
+	it('strips a "County" suffix before querying', async () => {
+		const fn = mockFetchOnce(() => countyPolygonResponse());
+		await fetchCountyCentroid('Lowndes County');
+		const calledUrl = String(fn.mock.calls[0][0]);
+		expect(calledUrl.toUpperCase()).toContain('LOWNDES');
+		expect(calledUrl.toUpperCase()).not.toContain('LOWNDES%20COUNTY');
+	});
+
+	it('returns null when the service errors', async () => {
+		mockFetchOnce(() => {
+			throw new Error('network down');
+		});
+		expect(await fetchCountyCentroid('Lowndes')).toBe(null);
+	});
+});
+
 describe('resolveImportLocation', () => {
 	afterEach(() => vi.unstubAllGlobals());
 
@@ -166,6 +224,34 @@ describe('resolveImportLocation', () => {
 		expect(res.latitude).toBeCloseTo(34.3, 5);
 		expect(res.longitude).toBeCloseTo(-83.62, 5);
 		expect(call).toBeGreaterThanOrEqual(2);
+	});
+
+	it('falls back to the GDOT county centroid when no route and geocode misses', async () => {
+		// ArcGIS route layer: no features. Census: no matches. County polygon layer:
+		// returns a polygon. Distinguish the two ArcGIS endpoints by URL.
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: unknown): Promise<FetchResponse> => {
+				const url = String(input);
+				if (url.includes('census')) {
+					return { ok: true, json: async () => ({ result: { addressMatches: [] } }) };
+				}
+				if (url.includes('GDOT_Boundaries')) {
+					return { ok: true, json: async () => countyPolygonResponse() };
+				}
+				// GPAS route layer
+				return { ok: true, json: async () => ({ features: [], exceededTransferLimit: false }) };
+			})
+		);
+		const res = await resolveImportLocation({
+			routeDesignation: null,
+			county: 'Lowndes',
+			locationDescription: null
+		});
+		expect(res.source).toBe('county_centroid');
+		expect(res.routeGeometry).toBe(null);
+		expect(res.latitude).not.toBe(null);
+		expect(res.longitude).not.toBe(null);
 	});
 
 	it('returns all-null with source none when nothing resolves', async () => {

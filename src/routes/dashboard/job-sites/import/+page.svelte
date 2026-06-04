@@ -2,8 +2,15 @@
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
 	import { toastStore } from '$lib/stores/toast.svelte';
-
-	type FieldConfidence = 'high' | 'medium' | 'low';
+	import {
+		PROJECT_FIELDS,
+		LOCATION_FIELDS,
+		CUSTOMER_FIELDS,
+		countLowConfidence,
+		displayedConfidence,
+		type FieldConfidence,
+		type FieldConfidenceMap
+	} from '$lib/utils/review-confidence';
 
 	interface ParsedBidItem {
 		line_number: string | null;
@@ -52,6 +59,9 @@
 		asphalt_supplier: string | null;
 		total_length_ft: number | null;
 		location_description: string | null;
+		route_designation: string | null;
+		begin_terminus: string | null;
+		end_terminus: string | null;
 		scopes: string[];
 		bid_items: ParsedBidItem[];
 		production_mixes: ParsedMix[];
@@ -60,8 +70,6 @@
 		has_job_setup: boolean;
 		warnings: string[];
 	}
-
-	type FieldConfidenceMap = Record<string, FieldConfidence>;
 
 	let step = $state<'upload' | 'parsing' | 'review' | 'creating'>('upload');
 	let files = $state<File[]>([]);
@@ -72,6 +80,13 @@
 	let documents = $state<Array<{ filename: string; source_key: string; type: string }>>([]);
 	let schematicProgress = $state('');
 	let fieldConf = $state<FieldConfidenceMap>({});
+	/** Diagnostic for whether the Workers AI fallback ran (observability). */
+	let llmFallback = $state<{
+		attempted: boolean;
+		applied: boolean;
+		reason: string;
+		binding_available: boolean;
+	} | null>(null);
 	/** Set of fields that were manually corrected by the user. */
 	let correctedFields = $state<Set<string>>(new Set());
 
@@ -124,6 +139,7 @@
 				source_keys?: string[];
 				documents?: Array<{ filename: string; source_key: string; type: string }>;
 				field_confidence?: FieldConfidenceMap;
+				llm_fallback?: { attempted: boolean; applied: boolean; reason: string; binding_available: boolean };
 				error?: string;
 			};
 
@@ -137,6 +153,7 @@
 			sourceKeys = data.source_keys ?? [];
 			documents = data.documents ?? [];
 			fieldConf = data.field_confidence ?? {};
+			llmFallback = data.llm_fallback ?? null;
 			correctedFields = new Set();
 			step = 'review';
 		} catch {
@@ -306,15 +323,14 @@
 		return map;
 	});
 
-	/** How many fields need review (low confidence or missing). */
+	/**
+	 * How many fields need review. Counts EXACTLY the rendered review fields that
+	 * display a low-confidence "!" badge (and haven't been corrected), so the
+	 * banner number always matches the marked fields the user can see and edit.
+	 */
 	const lowConfCount = $derived.by(() => {
 		if (!parsed) return 0;
-		let n = 0;
-		for (const [k, conf] of Object.entries(fieldConf)) {
-			const val = (parsed as unknown as Record<string, unknown>)[k];
-			if (conf === 'low' && (val == null || val === '')) n++;
-		}
-		return n;
+		return countLowConfidence(fieldConf, correctedFields);
 	});
 
 	/**
@@ -322,8 +338,7 @@
 	 * so the indicator reflects their manual override.
 	 */
 	function getConf(fieldName: string): FieldConfidence {
-		if (correctedFields.has(fieldName)) return 'high';
-		return fieldConf[fieldName] ?? 'medium';
+		return displayedConfidence(fieldName, fieldConf, correctedFields);
 	}
 </script>
 
@@ -405,6 +420,17 @@
 			<span class="doc-chip" class:present={parsed.has_job_setup}>
 				{parsed.has_job_setup ? '✓' : '○'} Job Setup
 			</span>
+			{#if llmFallback?.attempted}
+				<span
+					class="doc-chip"
+					class:present={llmFallback.applied}
+					title={llmFallback.applied
+						? 'Workers AI supplemented low-confidence fields'
+						: `AI assist did not apply (${llmFallback.reason})`}
+				>
+					{llmFallback.applied ? '✓ AI assist applied' : '○ AI assist ' + (llmFallback.binding_available ? 'no-op' : 'unavailable')}
+				</span>
+			{/if}
 		</div>
 
 		{#if lowConfCount > 0}
@@ -480,18 +506,7 @@
 			<h3>Project Information</h3>
 			<div class="review-grid">
 				<!-- Low-confidence fields first -->
-				{#each [
-					{ key: 'name', label: 'Name', type: 'text' },
-					{ key: 'job_number', label: 'Job #', type: 'text' },
-					{ key: 'project_number', label: 'Project #', type: 'text' },
-					{ key: 'contract_id', label: 'Contract ID', type: 'text' },
-					{ key: 'county', label: 'County', type: 'text' },
-					{ key: 'work_type', label: 'Work Type', type: 'text' },
-					{ key: 'contract_type', label: 'Contract Type', type: 'text' },
-					{ key: 'contract_amount', label: 'Contract Amount', type: 'number' },
-					{ key: 'est_start_date', label: 'Start Date', type: 'text' },
-					{ key: 'completion_date', label: 'Completion Date', type: 'text' },
-				].sort((a, b) => {
+				{#each PROJECT_FIELDS.slice().sort((a, b) => {
 					const rank = { low: 0, medium: 1, high: 2 } as const;
 					type R = keyof typeof rank;
 					return (rank[getConf(a.key) as R] ?? 1) - (rank[getConf(b.key) as R] ?? 1);
@@ -538,17 +553,45 @@
 		</section>
 
 		<section class="review-section">
+			<h3>Location &amp; Route</h3>
+			<p class="section-hint">Route designation drives automatic map/route lookup. Verify or fill it so Work Zones get coordinates.</p>
+			<div class="review-grid">
+				{#each LOCATION_FIELDS.slice().sort((a, b) => {
+					const rank = { low: 0, medium: 1, high: 2 } as const;
+					type R = keyof typeof rank;
+					return (rank[getConf(a.key) as R] ?? 1) - (rank[getConf(b.key) as R] ?? 1);
+				}) as f}
+					{@const conf = getConf(f.key)}
+					<div class="review-field" class:field-low={conf === 'low' && !correctedFields.has(f.key)} class:field-corrected={correctedFields.has(f.key)}>
+						<div class="field-label-row">
+							<label for="field-{f.key}">{f.label}</label>
+							{#if conf === 'high'}
+								<span class="conf-dot conf-high" title="High confidence" aria-label="high confidence"></span>
+							{:else if conf === 'medium'}
+								<span class="conf-dot conf-medium" title="Medium confidence — verify this value" aria-label="medium confidence"></span>
+							{:else}
+								<span class="conf-badge conf-low" title="Low confidence — needs manual review" aria-label="low confidence">!</span>
+							{/if}
+						</div>
+						<input
+							id="field-{f.key}"
+							type="text"
+							value={(parsed as unknown as Record<string, unknown>)[f.key] as string | null ?? ''}
+							oninput={(e) => {
+								(parsed as unknown as Record<string, unknown>)[f.key] = (e.target as HTMLInputElement).value || null;
+								markCorrected(f.key);
+							}}
+							class:input-low={conf === 'low' && !correctedFields.has(f.key)}
+						/>
+					</div>
+				{/each}
+			</div>
+		</section>
+
+		<section class="review-section">
 			<h3>Customer / Owner</h3>
 			<div class="review-grid">
-				{#each [
-					{ key: 'customer_name', label: 'Customer', type: 'text' },
-					{ key: 'customer_contact', label: 'Contact', type: 'text' },
-					{ key: 'customer_phone', label: 'Phone', type: 'text' },
-					{ key: 'customer_email', label: 'Email', type: 'text' },
-					{ key: 'owner_name', label: 'Owner', type: 'text' },
-					{ key: 'project_manager', label: 'Project Manager', type: 'text' },
-					{ key: 'asphalt_supplier', label: 'Asphalt Supplier', type: 'text' },
-				].sort((a, b) => {
+				{#each CUSTOMER_FIELDS.slice().sort((a, b) => {
 					const rank = { low: 0, medium: 1, high: 2 } as const;
 					type R = keyof typeof rank;
 					return (rank[getConf(a.key) as R] ?? 1) - (rank[getConf(b.key) as R] ?? 1);
@@ -1040,6 +1083,12 @@
 	.table-note {
 		margin: 8px 0 0;
 		font-size: 0.78rem;
+		color: var(--text-muted);
+	}
+
+	.section-hint {
+		margin: -8px 0 12px;
+		font-size: 0.8rem;
 		color: var(--text-muted);
 	}
 

@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
 	needsLlmFallback,
 	runLlmFallback,
+	buildLlmDiagnostic,
+	appendLlmFallbackWarning,
 	DEFAULT_LLM_MODEL,
 	type WorkersAi
 } from '../llm-fallback.js';
@@ -168,5 +170,102 @@ describe('DEFAULT_LLM_MODEL', () => {
 	it('is an active (non-deprecated) JSON-Mode model', () => {
 		// Must not be the deprecated @cf/meta/llama-3.1-8b-instruct (no -fast suffix).
 		expect(DEFAULT_LLM_MODEL).toBe('@cf/meta/llama-3.1-8b-instruct-fast');
+	});
+});
+
+describe('buildLlmDiagnostic', () => {
+	it('reports binding-unavailable as observable (not silent)', () => {
+		const diag = buildLlmDiagnostic(true, false, {
+			applied: false,
+			reason: 'ai-binding-unavailable'
+		});
+		expect(diag).toEqual({
+			attempted: true,
+			applied: false,
+			reason: 'ai-binding-unavailable',
+			binding_available: false
+		});
+	});
+
+	it('reports an applied fallback', () => {
+		const diag = buildLlmDiagnostic(true, true, { applied: true });
+		expect(diag.applied).toBe(true);
+		expect(diag.binding_available).toBe(true);
+		// reason defaults to a sentinel when the result omits it
+		expect(diag.reason).toBe('applied');
+	});
+
+	it('passes through a no-op reason when the binding existed but did not help', () => {
+		const diag = buildLlmDiagnostic(true, true, { applied: false, reason: 'no-json' });
+		expect(diag).toMatchObject({ applied: false, binding_available: true, reason: 'no-json' });
+	});
+});
+
+describe('appendLlmFallbackWarning', () => {
+	it('adds a clear warning when the binding was unavailable', () => {
+		const warnings: string[] = [];
+		appendLlmFallbackWarning(warnings, {
+			attempted: true,
+			applied: false,
+			reason: 'ai-binding-unavailable',
+			binding_available: false
+		});
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0]).toMatch(/not available in this environment/i);
+	});
+
+	it('adds a warning when the binding ran but supplemented nothing', () => {
+		const warnings: string[] = [];
+		appendLlmFallbackWarning(warnings, {
+			attempted: true,
+			applied: false,
+			reason: 'no-json',
+			binding_available: true
+		});
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0]).toMatch(/did not supplement/i);
+		expect(warnings[0]).toContain('no-json');
+	});
+
+	it('stays silent when the fallback applied successfully', () => {
+		const warnings: string[] = [];
+		appendLlmFallbackWarning(warnings, {
+			attempted: true,
+			applied: true,
+			reason: 'applied',
+			binding_available: true
+		});
+		expect(warnings).toHaveLength(0);
+	});
+
+	it('stays silent when no fallback was warranted', () => {
+		const warnings: string[] = [];
+		appendLlmFallbackWarning(warnings, {
+			attempted: false,
+			applied: false,
+			reason: 'no-low-confidence-fields',
+			binding_available: false
+		});
+		expect(warnings).toHaveLength(0);
+	});
+});
+
+describe('import-pdf diagnostic integration (binding-unavailable path)', () => {
+	it('a real parse with no AI binding yields an observable, non-applied diagnostic', async () => {
+		const v2 = parseGdotDocumentsV2([TEXT_MISSING_LOCATION]);
+		const attempted = needsLlmFallback(v2);
+		expect(attempted).toBe(true);
+
+		// Mirror the +server.ts wiring: no binding => runLlmFallback no-ops.
+		const result = await runLlmFallback(undefined, v2);
+		const diag = buildLlmDiagnostic(attempted, false, result);
+		expect(diag.attempted).toBe(true);
+		expect(diag.applied).toBe(false);
+		expect(diag.binding_available).toBe(false);
+		expect(diag.reason).toBe('ai-binding-unavailable');
+
+		const warnings: string[] = [];
+		appendLlmFallbackWarning(warnings, diag);
+		expect(warnings[0]).toMatch(/not available in this environment/i);
 	});
 });

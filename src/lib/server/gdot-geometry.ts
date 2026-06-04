@@ -20,10 +20,92 @@ const GDOT_GPAS_LAYER5 =
 	'https://maps.georgia.gov/arcgis/rest/services/GDOT/GDOT_GPAS/MapServer/5/query';
 const CENSUS_ONELINE =
 	'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress';
+// GDOT county boundary polygons (same MapServer used by gdot-boundaries.ts for
+// point lookup). Querying by county NAME with geometry returned gives us an
+// authoritative county polygon we can reduce to an approximate centroid — a
+// real, key-less coordinate source for when no route designation is parsed.
+const GDOT_COUNTY_LAYER =
+	'https://maps.georgia.gov/arcgis/rest/services/GDOT/GDOT_Boundaries/MapServer/3/query';
 
 /** Escape a value for an ArcGIS SQL WHERE clause. */
 function sqlEscape(v: string): string {
 	return v.replace(/'/g, "''");
+}
+
+/** Normalise a county name to the bare name GDOT stores (drops a "County" suffix). */
+function normaliseCounty(county: string): string {
+	return county.replace(/\s+county\b/i, '').trim();
+}
+
+interface EsriPolygon {
+	rings?: number[][][];
+}
+
+/**
+ * Approximate centroid of an ESRI polygon (average of the outer-ring vertices).
+ * Returns [lat, lng] (rings are [lng, lat]). This is a coarse point-in-polygon
+ * proxy — adequate for dropping an initial project pin, not for survey use.
+ */
+function polygonCentroid(poly: EsriPolygon): [number, number] | null {
+	const ring = poly.rings?.[0];
+	if (!ring || ring.length === 0) return null;
+	let sx = 0;
+	let sy = 0;
+	let n = 0;
+	for (const pt of ring) {
+		if (typeof pt[0] === 'number' && typeof pt[1] === 'number') {
+			sx += pt[0];
+			sy += pt[1];
+			n++;
+		}
+	}
+	if (n === 0) return null;
+	// rings are [lng, lat]; return [lat, lng].
+	return [sy / n, sx / n];
+}
+
+/**
+ * Resolve an approximate [lat, lng] for a Georgia county from the authoritative
+ * GDOT county boundary polygons. Used as a real, key-less fallback when no route
+ * designation is parsed and the free-text geocoder misses. Returns null on any
+ * failure (never invents a coordinate).
+ */
+export async function fetchCountyCentroid(county: string | null): Promise<[number, number] | null> {
+	const name = county?.trim();
+	if (!name) return null;
+	const bare = normaliseCounty(name);
+	if (!bare) return null;
+
+	// County polygons carry their name under one of several fields across GDOT
+	// service revisions; OR them so a single query matches.
+	const nameFields = ['NAME', 'COUNTY_NAME', 'COUNTYNAME', 'COUNTY'];
+	const where = nameFields
+		.map((f) => `UPPER(${f}) = UPPER('${sqlEscape(bare)}')`)
+		.join(' OR ');
+
+	const params = new URLSearchParams({
+		where,
+		outFields: 'NAME',
+		returnGeometry: 'true',
+		outSR: '4326',
+		f: 'json'
+	});
+
+	try {
+		const res = await fetch(`${GDOT_COUNTY_LAYER}?${params.toString()}`, {
+			signal: AbortSignal.timeout(6000)
+		});
+		if (!res.ok) return null;
+		const data = (await res.json()) as {
+			features?: Array<{ geometry?: EsriPolygon }>;
+		};
+		const geom = data.features?.[0]?.geometry;
+		if (!geom) return null;
+		return polygonCentroid(geom);
+	} catch (err) {
+		console.error('[gdot-geometry] county centroid fetch failed:', err);
+		return null;
+	}
 }
 
 /**
@@ -120,13 +202,21 @@ export interface ResolvedLocation {
 	/** GDOT route LineString when a named route was matched. */
 	routeGeometry: GeoJsonLineString | null;
 	/** How the coordinates were obtained, for diagnostics. */
-	source: 'gdot_route' | 'geocode' | 'none';
+	source: 'gdot_route' | 'geocode' | 'county_centroid' | 'none';
 }
 
 /**
  * Resolve a project's coordinates and (when possible) route geometry from the
- * parsed PDF fields. Priority: GDOT route polyline centroid → geocoded
- * location/county text. Returns nulls when nothing resolves.
+ * parsed PDF fields. Priority:
+ *   1. GDOT route polyline centroid (when a route designation parsed)
+ *   2. US Census one-line geocode of the location/county text
+ *   3. GDOT county boundary centroid (authoritative polygon → approximate point)
+ *
+ * Step 3 guarantees that a document which names only a county (no route, no
+ * street-address-shaped location text — the common case for milling/resurfacing
+ * contracts) still gets approximate coordinates so Work Zones / maps are usable.
+ * Returns nulls only when there is genuinely no county/route/location to work
+ * from. Never invents data — every coordinate comes from an upstream response.
  */
 export async function resolveImportLocation(opts: {
 	routeDesignation: string | null;
@@ -146,12 +236,14 @@ export async function resolveImportLocation(opts: {
 		}
 	}
 
-	// Fallback: geocode the location description, then the county name.
+	// Fallback A: geocode the most specific free-text we have. The one-line
+	// geocoder matches street-address-shaped text best; a bare county usually
+	// misses here, which is why fallback B exists.
 	const geoQuery =
 		opts.locationDescription && opts.county
-			? `${opts.locationDescription}, ${opts.county} County, GA`
+			? `${opts.locationDescription}, ${normaliseCounty(opts.county)} County, GA`
 			: opts.county
-				? `${opts.county} County, GA`
+				? `${normaliseCounty(opts.county)} County, GA`
 				: opts.locationDescription;
 	const coords = await geocodeAddress(geoQuery);
 	if (coords) {
@@ -160,6 +252,19 @@ export async function resolveImportLocation(opts: {
 			longitude: coords[1],
 			routeGeometry: null,
 			source: 'geocode'
+		};
+	}
+
+	// Fallback B: authoritative GDOT county polygon centroid. Always attempted
+	// when a county is present, so a route-less, address-less document still
+	// gets an approximate pin.
+	const centroid = await fetchCountyCentroid(opts.county);
+	if (centroid) {
+		return {
+			latitude: centroid[0],
+			longitude: centroid[1],
+			routeGeometry: null,
+			source: 'county_centroid'
 		};
 	}
 
