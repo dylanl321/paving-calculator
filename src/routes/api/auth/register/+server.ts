@@ -138,7 +138,8 @@ export async function POST(event: RequestEvent) {
 			org_id: org.id,
 			event_type: 'register',
 			ip_address: ipAddress,
-			user_agent: userAgent
+			user_agent: userAgent,
+			metadata: { email: user.email, orgName: org.name }
 		});
 
 		return json({

@@ -38,19 +38,53 @@ export async function POST(event: RequestEvent) {
 		const db = new DbHelper(event.platform.env.DB);
 
 		const user = await db.getUserByEmail(body.email);
+		const ipAddress = event.request.headers.get('CF-Connecting-IP') ?? event.request.headers.get('X-Forwarded-For') ?? 'unknown';
+		const userAgent = event.request.headers.get('User-Agent') ?? '';
+
 		if (!user) {
+			await logAuditEvent({
+				db: event.platform.env.DB,
+				eventType: 'login_failed',
+				ipAddress,
+				userAgent,
+				metadata: { email: body.email, reason: 'user_not_found' }
+			});
 			return json({ error: 'Invalid credentials' }, { status: 401 });
 		}
 
 		const isValid = await verifyPassword(body.password, user.password_hash);
 		if (!isValid) {
+			await logAuditEvent({
+				db: event.platform.env.DB,
+				userId: user.id,
+				eventType: 'login_failed',
+				ipAddress,
+				userAgent,
+				metadata: { email: body.email, reason: 'invalid_password' }
+			});
 			return json({ error: 'Invalid credentials' }, { status: 401 });
 		}
 
 		const sessionToken = await createSession(db, user.id);
 		setSessionCookie(event.cookies, sessionToken);
 
+		// Update last login info
+		await event.platform.env.DB.prepare('UPDATE users SET last_login_at = unixepoch(), last_login_ip = ? WHERE id = ?')
+			.bind(ipAddress, user.id)
+			.run();
+
 		const org = await db.getOrgByUserId(user.id);
+
+		// Log successful login
+		await logAuditEvent({
+			db: event.platform.env.DB,
+			userId: user.id,
+			orgId: org?.id,
+			eventType: 'login_success',
+			ipAddress,
+			userAgent,
+			metadata: { email: user.email }
+		});
 		if (org) {
 			await recordAudit(event.platform.env.DB, {
 				actorUserId: user.id,

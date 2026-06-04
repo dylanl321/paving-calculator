@@ -2,6 +2,7 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { sendPasswordResetEmail, buildOrgBranding } from '$lib/server/email';
 import { checkRateLimit } from '$lib/server/rate-limit';
+import { logAuditEvent } from '$lib/server/db-audit';
 
 interface ForgotPasswordRequest {
 	email: string;
@@ -41,6 +42,9 @@ export async function POST(event: RequestEvent) {
 		const db = new DbHelper(event.platform.env.DB);
 		const user = await db.getUserByEmail(email);
 
+		const ipAddress = event.request.headers.get('CF-Connecting-IP') ?? event.request.headers.get('X-Forwarded-For') ?? 'unknown';
+		const userAgent = event.request.headers.get('User-Agent') ?? '';
+
 		// Unknown addresses return success to prevent email enumeration.
 		if (user) {
 			// Create reset token (1h expiry)
@@ -67,6 +71,17 @@ export async function POST(event: RequestEvent) {
 					{ status: 502 }
 				);
 			}
+
+			// Log password reset request
+			await logAuditEvent({
+				db: event.platform.env.DB,
+				userId: user.id,
+				orgId: org?.id,
+				eventType: 'password_reset_requested',
+				ipAddress,
+				userAgent,
+				metadata: { email: user.email }
+			});
 		}
 
 		return json({ success: true });
