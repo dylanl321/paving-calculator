@@ -15,7 +15,13 @@
     "prepare": "svelte-kit sync || echo ''",
     "check": "wrangler types --check && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "gen": "wrangler types"
+    "gen": "wrangler types",
+    "test": "vitest run --config vitest.workspace.ts",
+    "test:watch": "vitest --config vitest.workspace.ts",
+    "test:unit": "vitest run --config vitest.workspace.ts --project unit",
+    "test:integration": "vitest run --config vitest.workspace.ts --project integration",
+    "test:components": "vitest run --config vitest.workspace.ts --project components",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "jspdf": "^2.5.2",
@@ -29,13 +35,19 @@
     "@rolldown/binding-linux-x64-gnu": "^1.0.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@rollup/plugin-yaml": "^5.0.0",
     "@sveltejs/adapter-cloudflare": "^7.2.8",
     "@sveltejs/kit": "^2.57.0",
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/svelte": "^5.3.1",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^25.9.1",
     "@vite-pwa/sveltekit": "^1.1.0",
+    "better-sqlite3": "^12.10.0",
+    "jsdom": "^29.1.1",
     "sharp": "^0.34.5",
     "svelte": "^5.55.2",
     "svelte-check": "^4.4.6",
