@@ -99,12 +99,12 @@
 </script>
 
 <div class="admin-orgs">
-	<header>
-		<h1>Organizations</h1>
-		<div class="actions">
-			<a href="/admin">Back to Admin</a>
-			<button onclick={() => (showCreateModal = true)}>Create Organization</button>
+	<header class="admin-page-header">
+		<div>
+			<h1 class="admin-page-title">Organizations</h1>
+			<p class="admin-page-subtitle">All organizations on the platform.</p>
 		</div>
+		<button class="header-action primary" onclick={() => (showCreateModal = true)}>Create Organization</button>
 	</header>
 
 	<div class="search-bar">
@@ -190,63 +190,7 @@
 
 <style>
 	.admin-orgs {
-		padding: 1rem;
-		max-width: 1400px;
-		margin: 0 auto;
-	}
-
-	header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 1rem;
-		margin-bottom: 1.5rem;
-		border-bottom: 2px solid var(--border);
-		padding-bottom: 1rem;
-	}
-
-	h1 {
-		font-size: 1.75rem;
-		margin: 0;
-		color: var(--text);
-	}
-
-	.actions {
-		display: flex;
-		gap: 0.5rem;
-	}
-
-	.actions a,
-	.actions button {
-		padding: 0.5rem 1rem;
-		min-height: var(--touch);
-		display: flex;
-		align-items: center;
-		text-decoration: none;
-		border-radius: var(--radius);
-		border: 1px solid var(--border);
-		font-size: 1rem;
-		cursor: pointer;
-	}
-
-	.actions a {
-		background: var(--surface);
-		color: var(--text);
-	}
-
-	.actions button {
-		background: var(--accent);
-		color: var(--accent-text);
-		border-color: var(--accent);
-	}
-
-	.actions a:hover {
-		background: var(--surface-hover);
-	}
-
-	.actions button:hover {
-		opacity: 0.9;
+		width: 100%;
 	}
 
 	.search-bar {

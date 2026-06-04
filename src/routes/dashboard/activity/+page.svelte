@@ -156,7 +156,7 @@
 	<div class="page-header">
 		<h2 class="page-title">Activity</h2>
 		<p class="page-subtitle">Activity history for your organization</p>
-		<a href="/dashboard/admin/org-activity" class="btn-org-changes">Org Changes</a>
+		<a href="/admin/org/activity" class="btn-org-changes">Org Changes</a>
 	</div>
 
 	<div class="filters">

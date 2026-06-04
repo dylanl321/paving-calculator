@@ -57,6 +57,9 @@
 				</div>
 				<div class="divider"></div>
 				<a href="/dashboard" class="menu-item" onclick={close}>Dashboard</a>
+				{#if authStore.canAccessAdmin}
+					<a href="/admin" class="menu-item" onclick={close}>Admin Console</a>
+				{/if}
 				<button class="menu-item" onclick={handleLogout}>Logout</button>
 			</div>
 		{/if}

@@ -40,3 +40,35 @@ export async function GET(event: RequestEvent) {
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
 }
+
+export async function DELETE(event: RequestEvent) {
+	try {
+		const user = await requireAuth(event);
+		const db = new DbHelper(event.platform!.env.DB);
+
+		const org = await db.getOrgByUserId(user.id);
+		if (!org) {
+			return json({ error: 'Organization not found' }, { status: 404 });
+		}
+
+		const calculationId = event.params.id!;
+		const calculation = await db.getCalculationById(calculationId);
+
+		if (!calculation) {
+			return json({ error: 'Calculation not found' }, { status: 404 });
+		}
+
+		const jobSite = await db.getJobSiteById(calculation.job_site_id);
+		if (!jobSite || jobSite.org_id !== org.id) {
+			return json({ error: 'Unauthorized' }, { status: 403 });
+		}
+
+		await db.deleteCalculation(calculationId);
+		return json({ success: true });
+	} catch (error) {
+		if (error instanceof Response) return error;
+		console.error('Delete calculation error:', error);
+		return json({ error: 'Internal server error' }, { status: 500 });
+	}
+}
+
