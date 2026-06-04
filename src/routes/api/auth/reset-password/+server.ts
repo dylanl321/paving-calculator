@@ -61,7 +61,7 @@ export async function POST(event: RequestEvent) {
 		await logAuditEvent(event.platform.env.DB, {
 			user_id: tokenData.user_id,
 			org_id: org?.id,
-			event_type: 'password_reset',
+			event_type: 'password_reset_complete',
 			ip_address: ipAddress,
 			user_agent: userAgent
 		});

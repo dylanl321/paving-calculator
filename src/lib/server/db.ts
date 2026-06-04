@@ -483,6 +483,17 @@ export class DbHelper {
 		return result?.role || null;
 	}
 
+	async getUserMember(
+		userId: string,
+		orgId: string
+	): Promise<{ role: string; preferred_view: string | null } | null> {
+		const result = await this.db
+			.prepare('SELECT role, preferred_view FROM org_members WHERE user_id = ? AND org_id = ?')
+			.bind(userId, orgId)
+			.first<{ role: string; preferred_view: string | null }>();
+		return result || null;
+	}
+
 	async getUserMemberships(
 		userId: string
 	): Promise<Array<{ org_id: string; org_name: string; role: string; invited_at: number; accepted_at: number | null }>> {
