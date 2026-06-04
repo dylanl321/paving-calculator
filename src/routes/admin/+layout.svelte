@@ -17,6 +17,7 @@
 		<a href="/admin/orgs" class="nav-item">Organizations</a>
 		<a href="/admin/users" class="nav-item">Users</a>
 		<a href="/admin/emails" class="nav-item">Email Log</a>
+		<a href="/admin/audit" class="nav-item">Audit Log</a>
 		<a href="/dashboard" class="nav-item nav-item-secondary">← Back to app</a>
 	</nav>
 
