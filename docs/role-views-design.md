@@ -44,18 +44,19 @@ What they see:
 - `/app` — Quick Calc workspace (all calculators, foreman also uses this on the field tablet)
 - `owner`/`admin` also see `/dashboard/admin/*` (org-activity, crew-productivity reports)
 
-### 2b. field — `/app/field` (planned route, not yet built)
+### 2b. field — `/app/field`
 
 **Roles**: `laborer`, `operator`
 
 These users are on the ground and need the minimum surface to do their job:
 load entry and distance tracking. They do not manage projects or view org settings.
 
-What they see (planned):
-- Load counter — tap to log a truck load for the active job site
-- Distance / footage completed (read from active job site log)
-- Simple tonnage display (live tons logged today vs. daily target)
-- Job site name + status badge (which site they are assigned to)
+What they see:
+- Add Load button — tap to log a truck load (tons + optional ticket number)
+- Log Distance button — log station-to-station distance
+- Today's Totals — displays loads count, total tons, and feet logged for the day
+- Job site selector — when multiple sites are available
+- View switcher — navigate between views
 
 What they do NOT see:
 - Dashboard, job-site config, org settings

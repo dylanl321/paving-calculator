@@ -1,7 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
-import { sendVerificationEmail, buildOrgBranding } from '$lib/server/email';
+import { sendVerificationEmailTemplated } from '$lib/server/email-template-senders';
 
 export async function POST(event: RequestEvent) {
 	try {
@@ -21,16 +21,14 @@ export async function POST(event: RequestEvent) {
 		const baseUrl = new URL(event.request.url).origin;
 
 		const org = await db.getOrgByUserId(user.id);
-		const settings = org ? await db.getOrgSettings(org.id) : null;
-		const branding = buildOrgBranding(org, settings);
 
-		const result = await sendVerificationEmail(
+		const result = await sendVerificationEmailTemplated(
+			event.platform!.env.DB,
 			event.platform?.env.RESEND_API_KEY,
 			user.email,
 			user.name,
 			verifyToken,
 			baseUrl,
-			branding,
 			{ logger: db, orgId: org?.id ?? null, userId: user.id }
 		);
 

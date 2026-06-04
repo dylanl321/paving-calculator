@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { config } from '$lib/config';
@@ -37,6 +38,15 @@
 	let totals = $state<DailyTotals>({ loads: 0, totalTons: 0, feetLogged: 0 });
 
 	onMount(async () => {
+		await authStore.fetch();
+
+		// Redirect non-field roles
+		const fieldRoles = ['laborer', 'operator', 'screed_man', 'foreman'];
+		if (!authStore.loading && authStore.isAuthenticated && !fieldRoles.includes(authStore.org?.role || '')) {
+			goto('/dashboard');
+			return;
+		}
+
 		await fetchSites();
 	});
 
@@ -81,8 +91,23 @@
 			}
 
 			// Fetch distance calculations for today
-			// Note: The API may not support filtering by date, so we'll approximate
-			totals.feetLogged = 0; // Placeholder - would need API support for daily calculations
+			const todayStart = new Date();
+			todayStart.setHours(0, 0, 0, 0);
+			const todayStartUnix = Math.floor(todayStart.getTime() / 1000);
+
+			const calcsRes = await fetch(
+				`/api/calculations?job_site_id=${selectedSite.id}`,
+				{ credentials: 'include' }
+			);
+			if (calcsRes.ok) {
+				const calcsData = (await calcsRes.json()) as { calculations?: { created_at?: number; result?: { feet?: number } }[] } | { created_at?: number; result?: { feet?: number } }[];
+				const calculations: { created_at?: number; result?: { feet?: number } }[] = Array.isArray(calcsData) ? calcsData : (calcsData as { calculations?: { created_at?: number; result?: { feet?: number } }[] }).calculations || [];
+
+				// Sum feet from today's calculations
+				totals.feetLogged = calculations
+					.filter(calc => (calc.created_at || 0) >= todayStartUnix)
+					.reduce((sum: number, calc: { result?: { feet?: number } }) => sum + (calc.result?.feet || 0), 0);
+			}
 		} catch (err) {
 			console.error('Error fetching totals:', err);
 		}

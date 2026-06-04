@@ -15,6 +15,7 @@
 	import CalcHistoryLog from '$lib/components/CalcHistoryLog.svelte';
 
 	const isScreedMan = $derived(authStore.org?.role === 'screed_man');
+	const isLaborer = $derived(authStore.org?.role === 'laborer');
 
 	const activeTool = $derived(findTool($page.url.searchParams.get('tool')));
 	const isHome = $derived(activeTool == null);
@@ -171,6 +172,13 @@
 		if (isHome) return true; // Can go to first tool from Home
 		const idx = allTools.findIndex((t) => t.id === activeTool?.id);
 		return idx >= 0 && idx < allTools.length - 1;
+	});
+
+	// Redirect laborer to field view once auth loads
+	$effect(() => {
+		if (!authStore.loading && isLaborer) {
+			goto('/app/field');
+		}
 	});
 </script>
 

@@ -11,6 +11,7 @@
 	import Toast from '$lib/components/ui/Toast.svelte';
 	import ConfirmModal from '$lib/components/ui/ConfirmModal.svelte';
 	import OnboardingOverlay from '$lib/components/ui/OnboardingOverlay.svelte';
+	import OfflineBanner from '$lib/components/ui/OfflineBanner.svelte';
 	import { offlineStore } from '$lib/stores/offline.svelte';
 	import { today } from '$lib/stores/today.svelte';
 	import '../app.css';
@@ -106,6 +107,7 @@
 </script>
 
 <div class="app-root" style={themeStyle}>
+	<OfflineBanner />
 	{#if isStandalone}
 		{@render children()}
 	{:else}

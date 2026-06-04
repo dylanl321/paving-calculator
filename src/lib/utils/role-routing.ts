@@ -37,7 +37,6 @@ export function viewTierForRole(role: string): ViewTier {
 
 /**
  * Returns the URL path for a given view tier.
- * Note: field routes to /app while /app/field is not yet built.
  */
 export function defaultRouteForTier(tier: ViewTier): string {
 	switch (tier) {
@@ -45,8 +44,7 @@ export function defaultRouteForTier(tier: ViewTier): string {
 		case 'office':
 			return '/dashboard';
 		case 'field':
-			// /app/field is planned but not yet built; use /app as interim
-			return '/app';
+			return '/app/field';
 		case 'screed':
 			return '/app';
 	}

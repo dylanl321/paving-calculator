@@ -69,12 +69,58 @@
 	let pickerLng = $state<number | null>(data.jobSite.longitude ?? null);
 
 	interface OverviewSection {
+		id: string;
+		name: string;
+		lane?: string | null;
+		station_start?: number | null;
+		station_end?: number | null;
 		status: 'active' | 'completed' | 'skipped';
+		paving_status?: string | null;
 		geometry_geojson: string | null;
+		crew_name?: string | null;
+		notes?: string | null;
 	}
 
 	let sections = $state<OverviewSection[]>([]);
 	let sectionsLoading = $state(true);
+	let selectedSection = $state<OverviewSection | null>(null);
+
+	type PavingStatus = 'planned' | 'scheduled_today' | 'in_progress' | 'completed' | 'behind_schedule' | 'skipped';
+
+	function dbStatus(s: string | undefined | null): PavingStatus {
+		switch (s) {
+			case 'completed': return 'completed';
+			case 'active':    return 'in_progress';
+			case 'skipped':   return 'skipped';
+			default:          return 'planned';
+		}
+	}
+
+	const STATUS_COLORS_MAP: Record<PavingStatus, string> = {
+		planned:         '#94a3b8',
+		scheduled_today: '#f2c037',
+		in_progress:     '#f59e0b',
+		completed:       '#22c55e',
+		behind_schedule: '#ef4444',
+		skipped:         '#475569',
+	};
+
+	const STATUS_LABELS: Record<PavingStatus, string> = {
+		planned:         'Planned',
+		scheduled_today: 'Today',
+		in_progress:     'In Progress',
+		completed:       'Completed',
+		behind_schedule: 'Behind',
+		skipped:         'Skipped',
+	};
+
+	function statusColor(s: PavingStatus): string {
+		return STATUS_COLORS_MAP[s] ?? '#94a3b8';
+	}
+
+	function statusLabel(s: PavingStatus): string {
+		return STATUS_LABELS[s] ?? s;
+	}
 
 	$effect(() => {
 		if (!browser) return;
@@ -1050,6 +1096,93 @@
 			</div>
 		{/if}
 
+		{#if sections.some((s) => s.geometry_geojson)}
+			<div class="progress-map-section">
+				<div class="progress-map-head">
+					<h4>Road Section Progress</h4>
+					<span class="progress-map-sub">Color-coded by paving status — tap a segment for details</span>
+				</div>
+				<!-- Status legend -->
+				<div class="rpl-legend">
+					{#each ([['planned','#94a3b8','Planned'],['scheduled_today','#f2c037','Today'],['in_progress','#f59e0b','In Progress'],['completed','#22c55e','Done'],['behind_schedule','#ef4444','Behind']] as const) as [, color, label]}
+						<div class="rpl-legend-item">
+							<span class="rpl-swatch" style:background={color}></span>
+							<span>{label}</span>
+						</div>
+					{/each}
+				</div>
+				{#await Promise.all([import('$lib/components/map-v2/MapView.svelte'), import('$lib/components/map-v2/RoadProgressLayer.svelte')])}
+					<div class="map-mini-loading">Loading road progress map&hellip;</div>
+				{:then [{ default: MapView }, { default: RoadProgressLayer }]}
+					{@const sectionsWithGeo = sections.filter((s) => s.geometry_geojson)}
+					{@const firstGeo = (() => { try { const g = JSON.parse(sectionsWithGeo[0]?.geometry_geojson ?? 'null'); return g?.type === 'LineString' ? g.coordinates as [number,number][] : null; } catch { return null; } })()}
+					{@const midPt = firstGeo ? firstGeo[Math.floor(firstGeo.length / 2)] : null}
+					{@const mapCenter = midPt ? ([midPt[1], midPt[0]] as [number,number]) : (data.jobSite.latitude != null ? [data.jobSite.latitude, data.jobSite.longitude ?? 0] as [number,number] : [39.5, -98.35] as [number,number])}
+					<div class="rpl-map-wrap">
+						<MapView center={mapCenter} zoom={14} height="340px">
+							{#snippet layers()}
+								<RoadProgressLayer
+									sections={sectionsWithGeo}
+									defaultLaneWidthFt={data.config?.lane_width_ft ?? 12}
+									onSectionClick={(sec) => { selectedSection = sec; }}
+								/>
+							{/snippet}
+						</MapView>
+						<!-- Today's progress overlay -->
+						<div class="rpl-overlay">
+							{#await import('$lib/components/map-v2/TodayProgressOverlay.svelte') then { default: TodayProgressOverlay }}
+								<TodayProgressOverlay
+									completedLengthFt={completedLengthFt}
+									targetLengthFt={routeLengthFt}
+								/>
+							{/await}
+						</div>
+					</div>
+				{/await}
+				<!-- Section detail drawer -->
+				{#if selectedSection}
+					<div class="rpl-detail-card" role="region" aria-label="Section details">
+						<div class="rpl-detail-head">
+							<strong>{selectedSection.name}</strong>
+							<button class="rpl-close" onclick={() => { selectedSection = null; }} aria-label="Close">✕</button>
+						</div>
+						<dl class="rpl-detail-list">
+							{#if selectedSection.station_start != null || selectedSection.station_end != null}
+								<div class="rpl-dl-row">
+									<dt>Stations</dt>
+									<dd>{selectedSection.station_start ?? '?'} – {selectedSection.station_end ?? '?'}</dd>
+								</div>
+							{/if}
+							<div class="rpl-dl-row">
+								<dt>Status</dt>
+								<dd class="rpl-status-badge" style:background={statusColor(selectedSection.paving_status ?? dbStatus(selectedSection.status))}>
+									{statusLabel(selectedSection.paving_status ?? dbStatus(selectedSection.status))}
+								</dd>
+							</div>
+							{#if selectedSection.lane}
+								<div class="rpl-dl-row">
+									<dt>Lane</dt>
+									<dd>{selectedSection.lane}</dd>
+								</div>
+							{/if}
+							{#if selectedSection.crew_name}
+								<div class="rpl-dl-row">
+									<dt>Crew</dt>
+									<dd>{selectedSection.crew_name}</dd>
+								</div>
+							{/if}
+							{#if selectedSection.notes}
+								<div class="rpl-dl-row">
+									<dt>Notes</dt>
+									<dd>{selectedSection.notes}</dd>
+								</div>
+							{/if}
+						</dl>
+					</div>
+				{/if}
+			</div>
+		{/if}
+
 		{#if data.routeWaypoints.length >= 2}
 			<div class="progress-map-section">
 				<div class="progress-map-head">
@@ -1768,6 +1901,116 @@
 	.route-info-rows .info-label {
 		font-weight: 600;
 		color: var(--text-muted);
+	}
+
+	/* Road Progress Layer section */
+	.rpl-legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px 14px;
+		margin-bottom: 10px;
+	}
+
+	.rpl-legend-item {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+
+	.rpl-swatch {
+		display: inline-block;
+		width: 14px;
+		height: 5px;
+		border-radius: 999px;
+		flex-shrink: 0;
+	}
+
+	.rpl-map-wrap {
+		position: relative;
+	}
+
+	.rpl-overlay {
+		position: absolute;
+		bottom: 12px;
+		right: 12px;
+		z-index: 10;
+		pointer-events: none;
+	}
+
+	.rpl-detail-card {
+		margin-top: 10px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 12px 14px;
+	}
+
+	.rpl-detail-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 10px;
+		gap: 8px;
+	}
+
+	.rpl-detail-head strong {
+		font-size: 0.95rem;
+	}
+
+	.rpl-close {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		font-size: 1rem;
+		min-width: 32px;
+		min-height: 32px;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.rpl-detail-list {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		margin: 0;
+	}
+
+	.rpl-dl-row {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+	}
+
+	.rpl-dl-row dt {
+		min-width: 80px;
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.4px;
+		padding-top: 2px;
+	}
+
+	.rpl-dl-row dd {
+		font-size: 0.85rem;
+		color: var(--text);
+		margin: 0;
+	}
+
+	.rpl-status-badge {
+		display: inline-block;
+		padding: 2px 8px;
+		border-radius: 999px;
+		font-size: 0.72rem;
+		font-weight: 700;
+		color: #fff;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
 	}
 
 	/* Progress map panel */

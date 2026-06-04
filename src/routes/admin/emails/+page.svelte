@@ -156,6 +156,11 @@
 		<a href="/admin">Back to Admin</a>
 	</header>
 
+	<nav class="email-subnav">
+		<a href="/admin/emails" class="subnav-link subnav-active">Log</a>
+		<a href="/admin/emails/templates" class="subnav-link">Templates</a>
+	</nav>
+
 	<p class="hint">Every send attempt from PaveRate (verification, password reset, invitations, welcome). Use this to debug delivery.</p>
 
 	<div class="filters">
@@ -557,7 +562,38 @@
 		text-align: center;
 	}
 
-	@media (max-width: 768px) {
+		.email-subnav {
+		display: flex;
+		gap: 0.25rem;
+		margin-bottom: 1.5rem;
+		border-bottom: 1px solid var(--border);
+		padding-bottom: 0;
+	}
+
+	.subnav-link {
+		padding: 0.625rem 1rem;
+		font-size: 0.9375rem;
+		font-weight: 500;
+		color: var(--text-muted);
+		text-decoration: none;
+		border-bottom: 2px solid transparent;
+		margin-bottom: -1px;
+		transition: color 0.15s, border-color 0.15s;
+		min-height: 48px;
+		display: flex;
+		align-items: center;
+	}
+
+	.subnav-link:hover {
+		color: var(--text);
+	}
+
+	.subnav-active {
+		color: var(--accent);
+		border-bottom-color: var(--accent);
+	}
+
+@media (max-width: 768px) {
 		thead {
 			display: none;
 		}

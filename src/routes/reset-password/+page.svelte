@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { config } from '$lib/config';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	const token = $derived($page.url.searchParams.get('token') ?? '');
@@ -31,26 +32,11 @@
 		loading = true;
 
 		try {
-			const response = await fetch('/api/auth/reset-password', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ token, password })
-			});
-
-			const data = (await response.json()) as { error?: string };
-
-			if (!response.ok) {
-				error = data.error || 'Something went wrong';
-				toastStore.error(error);
-				loading = false;
-				return;
-			}
-
+			await api.post('/api/auth/reset-password', { token, password });
 			toastStore.success('Password reset successfully');
 			goto('/login?reset=success');
-		} catch (err) {
-			error = 'Network error. Please try again.';
-			toastStore.error(error);
+		} catch (err: any) {
+			error = err.message || 'Something went wrong';
 			loading = false;
 		}
 	}

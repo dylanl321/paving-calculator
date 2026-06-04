@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Milestone } from '../+page';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 
 	interface MilestoneResponse {
 		milestone: Milestone;
@@ -28,19 +29,7 @@
 
 		milestoneSaving = true;
 		try {
-			const res = await fetch(`/api/job-sites/${jobSiteId}/milestones`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify(milestoneForm)
-			});
-
-			if (!res.ok) {
-				toastStore.error('Failed to create milestone');
-				throw new Error('Failed to create milestone');
-			}
-
-			const { milestone } = (await res.json()) as MilestoneResponse;
+			const { milestone } = await api.post(`/api/job-sites/${jobSiteId}/milestones`, milestoneForm) as MilestoneResponse;
 			milestones = [...milestones, milestone];
 
 			milestoneForm = {
@@ -53,7 +42,6 @@
 			toastStore.success('Milestone created');
 		} catch (err) {
 			console.error(err);
-			toastStore.error('Failed to create milestone');
 		} finally {
 			milestoneSaving = false;
 		}
@@ -62,24 +50,11 @@
 	async function updateMilestoneStatus(id: string, status: 'pending' | 'in_progress' | 'completed') {
 		milestoneSaving = true;
 		try {
-			const res = await fetch(`/api/job-sites/${jobSiteId}/milestones/${id}`, {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify({ status })
-			});
-
-			if (!res.ok) {
-				toastStore.error('Failed to update milestone');
-				throw new Error('Failed to update milestone');
-			}
-
-			const { milestone } = (await res.json()) as MilestoneResponse;
+			const { milestone } = await api.put(`/api/job-sites/${jobSiteId}/milestones/${id}`, { status }) as MilestoneResponse;
 			milestones = milestones.map((m) => (m.id === id ? milestone : m));
 			toastStore.success('Milestone updated');
 		} catch (err) {
 			console.error(err);
-			toastStore.error('Failed to update milestone');
 		} finally {
 			milestoneSaving = false;
 		}
@@ -88,21 +63,11 @@
 	async function deleteMilestone(id: string) {
 		milestoneSaving = true;
 		try {
-			const res = await fetch(`/api/job-sites/${jobSiteId}/milestones/${id}`, {
-				method: 'DELETE',
-				credentials: 'include'
-			});
-
-			if (!res.ok) {
-				toastStore.error('Failed to delete milestone');
-				throw new Error('Failed to delete milestone');
-			}
-
+			await api.delete(`/api/job-sites/${jobSiteId}/milestones/${id}`);
 			milestones = milestones.filter((m) => m.id !== id);
 			toastStore.success('Milestone deleted');
 		} catch (err) {
 			console.error(err);
-			toastStore.error('Failed to delete milestone');
 		} finally {
 			milestoneSaving = false;
 		}

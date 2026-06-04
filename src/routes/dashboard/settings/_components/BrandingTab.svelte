@@ -3,6 +3,7 @@
 	import type { EmailPreviewResult, LogoUploadResult } from './shared';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 
 	let {
 		canEdit,
@@ -47,15 +48,15 @@
 			destructive: true
 		});
 		if (!confirmed) return;
-		const res = await fetch('/api/org/logo', { method: 'DELETE', credentials: 'include' });
-		if (res.ok) {
+		try {
+			await api.delete('/api/org/logo');
 			hasLogo = false;
 			logoFile = null;
 			if (logoPreview) URL.revokeObjectURL(logoPreview);
 			logoPreview = null;
 			orgSettingsStore.apply({ hasLogo: false });
 			toastStore.success('Logo removed');
-		} else {
+		} catch {
 			toastStore.error('Failed to remove logo');
 		}
 	}
@@ -67,15 +68,7 @@
 	async function loadPreview() {
 		loadingPreview = true;
 		try {
-			const res = await fetch(`/api/org/email-preview?type=${previewType}`, {
-				credentials: 'include'
-			});
-			if (!res.ok) {
-				const error = await res.json();
-				console.error('Preview error:', error);
-				return;
-			}
-			const data = (await res.json()) as EmailPreviewResult;
+			const data = await api.get<EmailPreviewResult>(`/api/org/email-preview?type=${previewType}`);
 			previewHtml = data.html;
 			previewSubject = data.subject;
 			previewFrom = data.from;

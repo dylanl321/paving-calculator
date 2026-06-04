@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 	import type { EmailReportSchedule } from './shared';
 
 	let { initialSchedules }: { initialSchedules: EmailReportSchedule[] } = $props();
@@ -57,11 +58,8 @@
 
 	async function loadSchedules() {
 		try {
-			const res = await fetch('/api/org/email-report-schedules', { credentials: 'include' });
-			if (res.ok) {
-				const data = (await res.json()) as { schedules: EmailReportSchedule[] };
-				schedules = data.schedules;
-			}
+			const data = await api.get<{ schedules: EmailReportSchedule[] }>('/api/org/email-report-schedules');
+			schedules = data.schedules;
 		} catch (e) {
 			console.error('Failed to load schedules:', e);
 		}
@@ -90,28 +88,14 @@
 						? 'weekly'
 						: 'monthly';
 
-			const res = await fetch('/api/org/email-report-schedules', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify({
-					reportType: formReportType,
-					frequency,
-					sendHour: formSendHour,
-					dayOfWeek: frequency === 'weekly' ? formDayOfWeek : null,
-					recipients,
-					enabled: formEnabled
-				})
+			await api.post('/api/org/email-report-schedules', {
+				reportType: formReportType,
+				frequency,
+				sendHour: formSendHour,
+				dayOfWeek: frequency === 'weekly' ? formDayOfWeek : null,
+				recipients,
+				enabled: formEnabled
 			});
-
-			if (!res.ok) {
-				const error = (await res.json()) as { error?: string };
-				message = error.error || 'Failed to save schedule';
-				messageType = 'error';
-				toastStore.error(message);
-				saving = false;
-				return;
-			}
 
 			message = 'Schedule saved successfully';
 			messageType = 'ok';
@@ -121,7 +105,6 @@
 		} catch (e) {
 			message = 'Network error';
 			messageType = 'error';
-			toastStore.error('Network error');
 		} finally {
 			saving = false;
 		}
@@ -129,52 +112,30 @@
 
 	async function toggleSchedule(schedule: EmailReportSchedule) {
 		try {
-			const res = await fetch('/api/org/email-report-schedules', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify({
-					id: schedule.id,
-					reportType: schedule.reportType,
-					frequency: schedule.frequency,
-					sendHour: schedule.sendHour,
-					dayOfWeek: schedule.dayOfWeek,
-					recipients: schedule.recipients,
-					enabled: !schedule.enabled
-				})
+			await api.post('/api/org/email-report-schedules', {
+				id: schedule.id,
+				reportType: schedule.reportType,
+				frequency: schedule.frequency,
+				sendHour: schedule.sendHour,
+				dayOfWeek: schedule.dayOfWeek,
+				recipients: schedule.recipients,
+				enabled: !schedule.enabled
 			});
-
-			if (res.ok) {
-				await loadSchedules();
-				toastStore.success('Schedule updated');
-			} else {
-				toastStore.error('Failed to update schedule');
-			}
+			await loadSchedules();
+			toastStore.success('Schedule updated');
 		} catch (e) {
 			console.error('Failed to toggle schedule:', e);
-			toastStore.error('Failed to update schedule');
 		}
 	}
 
 	async function deleteSchedule(schedule: EmailReportSchedule) {
 		if (!confirm('Delete this scheduled report?')) return;
 		try {
-			const res = await fetch('/api/org/email-report-schedules', {
-				method: 'DELETE',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify({ id: schedule.id })
-			});
-
-			if (res.ok) {
-				await loadSchedules();
-				toastStore.success('Schedule deleted');
-			} else {
-				toastStore.error('Failed to delete schedule');
-			}
+			await api.delete(`/api/org/email-report-schedules?id=${schedule.id}`);
+			await loadSchedules();
+			toastStore.success('Schedule deleted');
 		} catch (e) {
 			console.error('Failed to delete schedule:', e);
-			toastStore.error('Failed to delete schedule');
 		}
 	}
 

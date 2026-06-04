@@ -13,6 +13,7 @@
 	} from 'lucide-svelte';
 	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 
 	// Step state
 	let currentStep = $state(1);
@@ -73,11 +74,8 @@
 
 	async function fetchOrg() {
 		try {
-			const res = await fetch('/api/org');
-			if (res.ok) {
-				const data = (await res.json()) as { name?: string };
-				orgName = data.name || 'Your Organization';
-			}
+			const data = await api.get<{ name?: string }>('/api/org');
+			orgName = data.name || 'Your Organization';
 		} catch (e) {
 			console.error('Failed to load org:', e);
 			orgName = 'Your Organization';
@@ -91,25 +89,16 @@
 		creatingJobSite = true;
 		try {
 			const locationDesc = roadLength ? `Road length: ${roadLength}ft` : '';
-			const res = await fetch('/api/job-sites', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					name: siteName,
-					latitude: siteLatitude,
-					longitude: siteLongitude,
-					location_description: locationDesc
-				})
+			await api.post('/api/job-sites', {
+				name: siteName,
+				latitude: siteLatitude,
+				longitude: siteLongitude,
+				location_description: locationDesc
 			});
-			if (res.ok) {
-				jobSiteCreated = true;
-				toastStore.success('Job site created');
-			} else {
-				toastStore.error('Failed to create job site');
-			}
+			jobSiteCreated = true;
+			toastStore.success('Job site created');
 		} catch (e) {
 			console.error('Failed to create job site:', e);
-			toastStore.error('Failed to create job site');
 		} finally {
 			creatingJobSite = false;
 		}

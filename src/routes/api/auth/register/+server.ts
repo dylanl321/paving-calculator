@@ -1,7 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { hashPassword, slugify, createSession, setSessionCookie } from '$lib/server/auth';
-import { sendVerificationEmail, buildOrgBranding } from '$lib/server/email';
+import { sendVerificationEmailTemplated } from '$lib/server/email-template-senders';
 import { checkRateLimit } from '$lib/server/rate-limit';
 import { logAuditEvent } from '$lib/server/db-audit';
 
@@ -118,15 +118,13 @@ export async function POST(event: RequestEvent) {
 		// Send verification email (24h expiry)
 		const verifyToken = await db.createEmailToken(user.id, 'verify_email', 24 * 60 * 60);
 		const baseUrl = new URL(event.request.url).origin;
-		const settings = await db.getOrgSettings(org.id);
-		const branding = buildOrgBranding(org, settings);
-		await sendVerificationEmail(
+		await sendVerificationEmailTemplated(
+			event.platform.env.DB,
 			event.platform?.env.RESEND_API_KEY,
 			user.email,
 			user.name,
 			verifyToken,
 			baseUrl,
-			branding,
 			{ logger: db, orgId: org.id, userId: user.id }
 		);
 
