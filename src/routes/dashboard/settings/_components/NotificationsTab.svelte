@@ -169,8 +169,7 @@
 
 		savingScheduleIndex = schedIdx;
 		try {
-<<<<<<< HEAD
-			const body: Record<string, unknown> = {
+		const body: Record<string, unknown> = {
 				scheduleType: sched.scheduleType,
 				enabled: sched.enabled,
 				sendTime: sched.sendTime,
@@ -179,14 +178,8 @@
 			};
 			if (sched.id) body.id = sched.id;
 
-			const res = await fetch('/api/org/notifications', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify(body)
-			});
-			const result = (await res.json()) as { ok?: boolean; id?: string; error?: string };
-			if (!res.ok) {
+			const result = await api.post<{ ok?: boolean; id?: string; error?: string }>('/api/org/notifications', body);
+			if (!result.ok && result.error) {
 				toastStore.error(result.error || 'Failed to save schedule');
 				return;
 			}
@@ -198,23 +191,6 @@
 			);
 		} catch {
 			toastStore.error('Network error while saving');
-=======
-			const result = await api.put<{ reportRecipients?: string[] }>('/api/org/settings', { reportRecipients });
-			reportRecipients = result.reportRecipients || reportRecipients;
-			recipientsMessage = 'Recipients saved successfully';
-			recipientsMessageType = 'ok';
-			toastStore.success('Recipients saved successfully');
-
-			// Clear message after 3 seconds
-			setTimeout(() => {
-				if (recipientsMessageType === 'ok') {
-					recipientsMessage = '';
-				}
-			}, 3000);
-		} catch (e) {
-			recipientsMessage = 'Network error while saving';
-			recipientsMessageType = 'error';
->>>>>>> d446879 (feat: wire ErrorBoundary and apiRequest across app)
 		} finally {
 			savingScheduleIndex = null;
 		}

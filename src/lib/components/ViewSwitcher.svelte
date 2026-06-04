@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { authStore } from '$lib/stores/auth.svelte';
 
 	interface Props {
 		currentView: 'field' | 'full';
@@ -10,9 +11,15 @@
 
 	let switching = $state(false);
 
+	// Laborer role stays in field tier; switching to "full" goes to /app (calcs), not /dashboard
+	const isLaborer = $derived(authStore.org?.role === 'laborer');
 	const label = $derived(currentView === 'field' ? 'Switch to Full View' : 'Switch to Simple View');
 	const targetView = $derived(currentView === 'field' ? 'full' : 'field');
-	const targetPath = $derived(currentView === 'field' ? '/dashboard' : '/app/field');
+	const targetPath = $derived(
+		currentView === 'field'
+			? (isLaborer ? '/app' : '/dashboard')
+			: '/app/field'
+	);
 
 	async function handleSwitch() {
 		if (switching) return;
