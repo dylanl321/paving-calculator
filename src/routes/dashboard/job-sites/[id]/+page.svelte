@@ -438,10 +438,28 @@
 		margin-bottom: 24px;
 		overflow-x: auto;
 		-webkit-overflow-scrolling: touch;
+		/* Hide the scrollbar chrome; the bar still scrolls on narrow screens. */
+		scrollbar-width: none;
+		-ms-overflow-style: none;
+	}
+
+	.tabs::-webkit-scrollbar {
+		display: none;
+	}
+
+	/* On wider screens there's room for every tab, so let them wrap instead of
+	   forcing a single scrolling row. */
+	@media (min-width: 900px) {
+		.tabs {
+			flex-wrap: wrap;
+			overflow-x: visible;
+		}
 	}
 
 	.tab {
-		padding: 12px 20px;
+		display: inline-flex;
+		align-items: center;
+		padding: 12px 18px;
 		background: transparent;
 		border: none;
 		border-bottom: 2px solid transparent;
