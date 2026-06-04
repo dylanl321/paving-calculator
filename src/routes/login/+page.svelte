@@ -49,7 +49,7 @@
 			loading = false;
 		} else {
 			toastStore.success('Signed in successfully');
-			goto('/dashboard');
+			goto(result.redirectTo || '/dashboard');
 		}
 	}
 
@@ -66,7 +66,7 @@
 			loading = false;
 		} else {
 			toastStore.success('Dev login successful');
-			goto('/dashboard');
+			goto(result.redirectTo || '/dashboard');
 		}
 	}
 </script>

@@ -60,7 +60,7 @@ class AuthStore {
 		}
 	}
 
-	async login(email: string, password: string): Promise<{ error?: string }> {
+	async login(email: string, password: string): Promise<{ error?: string; redirectTo?: string }> {
 		try {
 			const res = await fetch('/api/auth/login', {
 				method: 'POST',
@@ -69,35 +69,35 @@ class AuthStore {
 				credentials: 'include'
 			});
 
-			const data = (await res.json()) as { error?: string };
+			const data = (await res.json()) as { error?: string; redirectTo?: string };
 
 			if (!res.ok) {
 				return { error: data.error || 'Login failed' };
 			}
 
 			await this.fetch();
-			return {};
+			return { redirectTo: data.redirectTo };
 		} catch (err) {
 			console.error('Login error:', err);
 			return { error: 'Network error' };
 		}
 	}
 
-	async devLogin(): Promise<{ error?: string }> {
+	async devLogin(): Promise<{ error?: string; redirectTo?: string }> {
 		try {
 			const res = await fetch('/api/auth/dev-login', {
 				method: 'POST',
 				credentials: 'include'
 			});
 
-			const data = (await res.json()) as { error?: string };
+			const data = (await res.json()) as { error?: string; redirectTo?: string };
 
 			if (!res.ok) {
 				return { error: data.error || 'Dev login failed' };
 			}
 
 			await this.fetch();
-			return {};
+			return { redirectTo: data.redirectTo };
 		} catch (err) {
 			console.error('Dev login error:', err);
 			return { error: 'Network error' };

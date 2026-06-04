@@ -47,7 +47,8 @@ export async function POST(event: RequestEvent) {
 				id: user.id,
 				email: user.email,
 				name: user.name
-			}
+			},
+			redirectTo: '/dashboard'
 		});
 	} catch (error) {
 		console.error('Dev login error:', error);

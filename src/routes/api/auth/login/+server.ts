@@ -4,6 +4,7 @@ import { verifyPassword, createSession, setSessionCookie } from '$lib/server/aut
 import { recordAudit } from '$lib/server/audit';
 import { checkRateLimit } from '$lib/server/rate-limit';
 import { logAuditEvent } from '$lib/server/db-audit';
+import { getViewForRole, getRedirectForView } from '$lib/server/role-views';
 
 interface LoginRequest {
 	email: string;
@@ -74,6 +75,7 @@ export async function POST(event: RequestEvent) {
 			.run();
 
 		const org = await db.getOrgByUserId(user.id);
+		let redirectTo = '/dashboard';
 
 		// Log successful login
 		await logAuditEvent({
@@ -85,6 +87,7 @@ export async function POST(event: RequestEvent) {
 			userAgent,
 			metadata: { email: user.email }
 		});
+
 		if (org) {
 			await recordAudit(event.platform.env.DB, {
 				actorUserId: user.id,
@@ -99,30 +102,22 @@ export async function POST(event: RequestEvent) {
 					undefined,
 				userAgent: event.request.headers.get('user-agent') || undefined
 			});
+
+			// Look up user role and determine redirect
+			const role = await db.getUserRole(user.id, org.id);
+			if (role) {
+				const view = getViewForRole(role);
+				redirectTo = getRedirectForView(view);
+			}
 		}
-
-		// Log to admin audit log
-		const ipAddress = event.request.headers.get('CF-Connecting-IP') || event.request.headers.get('X-Forwarded-For') || undefined;
-		const userAgent = event.request.headers.get('user-agent') || undefined;
-		await logAuditEvent(event.platform.env.DB, {
-			user_id: user.id,
-			org_id: org?.id,
-			event_type: 'login',
-			ip_address: ipAddress,
-			user_agent: userAgent
-		});
-
-		// Update last login fields
-		await db.prepare('UPDATE users SET last_login_at = ?, last_login_ip = ? WHERE id = ?')
-			.bind(Math.floor(Date.now() / 1000), ipAddress, user.id)
-			.run();
 
 		return json({
 			user: {
 				id: user.id,
 				email: user.email,
 				name: user.name
-			}
+			},
+			redirectTo
 		});
 	} catch (error) {
 		console.error('Login error:', error);
