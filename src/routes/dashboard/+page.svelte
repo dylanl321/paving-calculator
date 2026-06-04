@@ -8,6 +8,7 @@
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import type { PageData } from './$types';
 	import { formatDate } from '$lib/utils/format';
+	import ViewSwitcher from '$lib/components/ViewSwitcher.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -468,6 +469,8 @@
 			</div>
 		{/if}
 	</section>
+
+	<ViewSwitcher currentView="full" />
 </div>
 </div>
 

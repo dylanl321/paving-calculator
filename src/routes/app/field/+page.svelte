@@ -3,6 +3,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { config } from '$lib/config';
+	import ViewSwitcher from '$lib/components/ViewSwitcher.svelte';
 
 	interface JobSite {
 		id: string;
@@ -330,10 +331,8 @@
 			</div>
 		</div>
 
-		<!-- Switch to Full View -->
-		<div class="footer-link">
-			<a href="/app">Switch to Full View</a>
-		</div>
+		<!-- View switcher -->
+		<ViewSwitcher currentView="field" />
 	{:else if sites.length === 0}
 		<div class="empty-state">
 			<p>No job sites available</p>
