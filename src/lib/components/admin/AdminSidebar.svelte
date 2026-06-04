@@ -18,8 +18,10 @@
 		Database,
 		Activity,
 		BarChart3,
+		TrendingUp,
 		ArrowLeft,
-		ShieldCheck
+		ShieldCheck,
+		AlertTriangle
 	} from 'lucide-svelte';
 
 	let {
@@ -67,7 +69,9 @@
 				{ href: '/admin/orgs', label: 'Organizations', icon: 'orgs' },
 				{ href: '/admin/users', label: 'Users', icon: 'users' },
 				{ href: '/admin/emails', label: 'Email', icon: 'mail', owns: ['/admin/emails/templates'] },
-				{ href: '/admin/audit', label: 'Audit Log', icon: 'audit' }
+			{ href: '/admin/analytics', label: 'Analytics', icon: 'analytics' },
+				{ href: '/admin/audit', label: 'Audit Log', icon: 'audit' },
+				{ href: '/admin/errors', label: 'Errors', icon: 'errors' }
 			]
 		}
 	]);
@@ -173,8 +177,12 @@
 		<Users size={22} />
 	{:else if icon === 'mail'}
 		<Mail size={22} />
+	{:else if icon === 'analytics'}
+		<TrendingUp size={22} />
 	{:else if icon === 'audit'}
 		<ScrollText size={22} />
+	{:else if icon === 'errors'}
+		<AlertTriangle size={22} />
 	{:else if icon === 'db'}
 		<Database size={22} />
 	{:else if icon === 'activity'}
