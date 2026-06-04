@@ -123,6 +123,7 @@ export interface ProductionMix {
 	target_spread_rate: number | null;
 	tack_type: string | null;
 	target_tack_rate: number | null;
+	contract_unit_price: number | null;
 	is_active: number;
 	sort_order: number;
 }

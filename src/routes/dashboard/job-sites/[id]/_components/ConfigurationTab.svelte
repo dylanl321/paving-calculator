@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { roadTypeLabels, scopeOfWorkLabels, tackTypeLabels, fmt, type ConfigForm } from './shared';
+	import { roadTypeLabels, scopeOfWorkLabels, tackTypeLabels, fmt, fmtDollars, type ConfigForm } from './shared';
 	import AutoSaveStatus from '$lib/components/AutoSaveStatus.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import GdotPanel from '$lib/components/GdotPanel.svelte';
@@ -34,6 +34,7 @@
 		target_spread_rate: number | null;
 		tack_type: string | null;
 		target_tack_rate: number | null;
+		contract_unit_price: number | null;
 		is_active: number;
 		sort_order: number;
 	}
@@ -117,7 +118,8 @@
 							target_thickness_in: mix.target_thickness_in,
 							target_spread_rate: mix.target_spread_rate,
 							tack_type: mix.tack_type,
-							target_tack_rate: mix.target_tack_rate
+							target_tack_rate: mix.target_tack_rate,
+							contract_unit_price: mix.contract_unit_price
 						})
 					});
 				} catch {
@@ -363,15 +365,30 @@
 							<label>Tack Rate (gal/yd²)</label>
 							<input type="number" bind:value={mix.target_tack_rate} oninput={() => saveMix(mix)} min="0" step="0.01" />
 						</div>
+						<div class="mix-field">
+							<label>Contract Unit Price ($)</label>
+							<input type="number" bind:value={mix.contract_unit_price} oninput={() => saveMix(mix)} min="0" step="0.01" />
+						</div>
 					</div>
 
 					{#if mix.bid_quantity != null && mix.takeoff_tonnage != null}
 						{@const variance = mix.takeoff_tonnage - mix.bid_quantity}
-						<div class="mix-variance" class:under={variance < 0} class:over={variance > 0}>
-							Target vs allotted: {variance > 0 ? '+' : ''}{fmt(variance, 1)} {mix.unit ?? ''}
-							{#if mix.bid_quantity > 0}
-								({fmt((variance / mix.bid_quantity) * 100, 1)}%)
+						{@const pct = mix.bid_quantity > 0 ? (variance / mix.bid_quantity) * 100 : null}
+						<div class="mix-variance">
+							{#if variance === 0}
+								Target matches the contract quantity.
+							{:else}
+								Target is {fmt(Math.abs(variance), 1)} {mix.unit ?? ''}
+								{variance < 0 ? 'below' : 'above'} the contract quantity{#if pct != null}
+									({fmt(Math.abs(pct), 1)}%){/if}.
 							{/if}
+						</div>
+					{/if}
+					{#if mix.contract_unit_price != null && configForm.cost_per_ton != null && mix.is_active === 1}
+						{@const margin = mix.contract_unit_price - configForm.cost_per_ton}
+						<div class="mix-margin">
+							Margin: contract {fmtDollars(mix.contract_unit_price)}/t − cost {fmtDollars(configForm.cost_per_ton)}/t =
+							<strong>{fmtDollars(margin)}/t</strong>
 						</div>
 					{/if}
 				</div>
@@ -659,12 +676,14 @@
 		color: var(--text-muted);
 	}
 
-	.mix-variance.over {
-		color: #22c55e;
+	.mix-margin {
+		margin-top: 4px;
+		font-size: 0.8rem;
+		color: var(--text-muted);
 	}
 
-	.mix-variance.under {
-		color: #ef4444;
+	.mix-margin strong {
+		color: var(--accent);
 	}
 
 	.mix-total {

@@ -127,10 +127,28 @@ export async function POST(event: RequestEvent) {
 				target_spread_rate: null,
 				tack_type: null,
 				target_tack_rate: null,
+				contract_unit_price: num(m.contract_unit_price),
 				is_active: isActive,
 				sort_order: i
 			});
 		}
+
+		// Derive contract costs from the bid items where possible:
+		//  - cost per ton  = primary asphalt mix's contract unit price
+		//  - cost per SY   = milling item (432-xxxx, unit SY)
+		//  - cost per mile = grading-per-mile item (210-xxxx, unit LM)
+		const items = Array.isArray(parsed.bid_items) ? parsed.bid_items : [];
+		const findUnitPrice = (test: (it: (typeof items)[number]) => boolean): number | null => {
+			const hit = items.find((it) => it.selected && it.unit_price != null && test(it));
+			return hit ? num(hit.unit_price) : null;
+		};
+		const costPerTon = primaryMix != null ? num(primaryMix.contract_unit_price) : null;
+		const costPerSy = findUnitPrice(
+			(it) => /^432-/.test(it.item_id ?? '') || /MILL ASPH/i.test(it.description)
+		);
+		const costPerMile = findUnitPrice(
+			(it) => /^210-/.test(it.item_id ?? '') || /GRADING PER MILE/i.test(it.description)
+		);
 
 		// Paving config: primary scope (mapped enum), primary mix, total tonnage,
 		// roadway length, and contract value (parsed total bid).
@@ -147,6 +165,9 @@ export async function POST(event: RequestEvent) {
 			mix_type: primaryMix ? str(primaryMix.mix_name) : null,
 			scope_of_work: primaryScope,
 			total_tonnage: totalTonnage > 0 ? totalTonnage : null,
+			cost_per_ton: costPerTon,
+			cost_per_sy: costPerSy,
+			cost_per_mile: costPerMile,
 			total_contract_value: num(parsed.contract_amount)
 		};
 		if (Object.values(configPatch).some((v) => v !== null && v !== undefined)) {
@@ -154,7 +175,6 @@ export async function POST(event: RequestEvent) {
 		}
 
 		// Bid items (carry alternate / selected flags).
-		const items = Array.isArray(parsed.bid_items) ? parsed.bid_items : [];
 		let itemCount = 0;
 		for (let i = 0; i < items.length; i++) {
 			const it = items[i];

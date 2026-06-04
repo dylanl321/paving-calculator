@@ -127,6 +127,7 @@ export interface DbProductionMix {
 	target_spread_rate: number | null;
 	tack_type: 'anionic' | 'cationic' | 'polymer_modified' | 'trackless' | null;
 	target_tack_rate: number | null;
+	contract_unit_price: number | null;
 	is_active: number;
 	sort_order: number;
 	created_at: number;
@@ -720,9 +721,9 @@ export class DbHelper {
 				`INSERT INTO job_production_mixes (
 					id, job_site_id, mix_name, unit, bid_quantity, takeoff_tonnage,
 					quantity_per_day, est_days, mix_type, target_thickness_in,
-					target_spread_rate, tack_type, target_tack_rate, is_active,
-					sort_order, created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					target_spread_rate, tack_type, target_tack_rate, contract_unit_price,
+					is_active, sort_order, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.bind(
 				id,
@@ -738,6 +739,7 @@ export class DbHelper {
 				mix.target_spread_rate ?? null,
 				mix.tack_type ?? null,
 				mix.target_tack_rate ?? null,
+				mix.contract_unit_price ?? null,
 				mix.is_active ?? 0,
 				mix.sort_order ?? 0,
 				now
@@ -770,6 +772,7 @@ export class DbHelper {
 			'target_spread_rate',
 			'tack_type',
 			'target_tack_rate',
+			'contract_unit_price',
 			'is_active',
 			'sort_order'
 		];

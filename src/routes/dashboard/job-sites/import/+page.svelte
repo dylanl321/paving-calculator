@@ -24,6 +24,7 @@
 		takeoff_tonnage: number | null;
 		quantity_per_day: number | null;
 		est_days: number | null;
+		contract_unit_price: number | null;
 	}
 
 	interface ParsedJob {
@@ -449,6 +450,7 @@
 								<th>Unit</th>
 								<th>Allotted</th>
 								<th>Target</th>
+								<th>$/Unit</th>
 								<th>Qty/Day</th>
 								<th>Est Days</th>
 							</tr>
@@ -461,6 +463,7 @@
 									<td>{mix.unit ?? '—'}</td>
 									<td>{fmtNum(mix.bid_quantity, 0)}</td>
 									<td>{fmtNum(mix.takeoff_tonnage, 0)}</td>
+									<td>{mix.contract_unit_price != null ? fmtDollars(mix.contract_unit_price) : '—'}</td>
 									<td>{fmtNum(mix.quantity_per_day, 0)}</td>
 									<td>{fmtNum(mix.est_days)}</td>
 								</tr>

@@ -36,6 +36,8 @@ export interface ParsedProductionMix {
 	takeoff_tonnage: number | null;
 	quantity_per_day: number | null;
 	est_days: number | null;
+	/** Contract unit price ($/unit) from the matching asphalt bid item. */
+	contract_unit_price: number | null;
 }
 
 export type GdotDocumentType = 'contract_summary' | 'job_setup' | 'unknown';
@@ -261,7 +263,8 @@ function parseProductionMixes(text: string): ParsedProductionMix[] {
 				bid_quantity: null,
 				takeoff_tonnage: null,
 				quantity_per_day: null,
-				est_days: null
+				est_days: null,
+				contract_unit_price: null
 			};
 			byName.set(key, mix);
 			order.push(key);
@@ -531,9 +534,59 @@ export function parseGdotDocuments(texts: string[]): ParsedGdotJob {
 			: result.project_number;
 	}
 
+	matchMixUnitPrices(result);
 	result.scopes = deriveScopes(result);
 
 	return result;
+}
+
+/**
+ * Link each production mix to its asphalt bid item so we can carry the contract
+ * unit price (the per-ton price the contract pays). Matching is by mapped mix
+ * type and item-code family, choosing the SELECTED bid item with the closest
+ * description, preferring tonnage (TN) items.
+ */
+function matchMixUnitPrices(result: ParsedGdotJob): void {
+	const tnItems = result.bid_items.filter(
+		(it) => it.unit && /^TN$/i.test(it.unit) && it.unit_price != null
+	);
+	if (tnItems.length === 0) return;
+
+	const scoreItem = (mix: ParsedProductionMix, it: ParsedBidItem): number => {
+		const id = it.item_id ?? '';
+		const desc = (it.description ?? '').toUpperCase();
+		const type = (mix.mix_type ?? '').toUpperCase();
+		let score = 0;
+		if (/OGI|OPEN GRADED/.test(type)) {
+			if (/^415-/.test(id) || /OPEN GRADED/.test(desc)) score += 10;
+		}
+		if (/PATCH/.test(type) || /PATCH/.test(mix.mix_name.toUpperCase())) {
+			if (/^402-18/.test(id) || /PATCH/.test(desc)) score += 10;
+		}
+		if (/9\.5/.test(type) || /9\.5/.test(mix.mix_name)) {
+			if (/^402-31/.test(id) || /9\.5\s*MM/.test(desc)) score += 10;
+		}
+		if (/12\.5/.test(type) && /12\.5/.test(desc)) score += 10;
+		if (/LEVEL/.test(type) && /LEVEL/.test(desc)) score += 8;
+		// Prefer selected (base/awarded) items over unselected alternates.
+		if (it.selected) score += 2;
+		return score;
+	};
+
+	for (const mix of result.production_mixes) {
+		let best: ParsedBidItem | null = null;
+		let bestScore = 0;
+		for (const it of tnItems) {
+			const s = scoreItem(mix, it);
+			if (s > bestScore) {
+				bestScore = s;
+				best = it;
+			}
+		}
+		if (best && best.unit_price != null && bestScore >= 10) {
+			mix.contract_unit_price = best.unit_price;
+		}
+	}
 }
 
 /**
