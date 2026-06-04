@@ -43,11 +43,10 @@ export async function POST(event: RequestEvent) {
 		const userAgent = event.request.headers.get('User-Agent') ?? '';
 
 		if (!user) {
-			await logAuditEvent({
-				db: event.platform.env.DB,
-				eventType: 'login_failed',
-				ipAddress,
-				userAgent,
+			await logAuditEvent(event.platform.env.DB, {
+				event_type: 'login_failed',
+				ip_address: ipAddress,
+				user_agent: userAgent,
 				metadata: { email: body.email, reason: 'user_not_found' }
 			});
 			return json({ error: 'Invalid credentials' }, { status: 401 });
@@ -55,12 +54,11 @@ export async function POST(event: RequestEvent) {
 
 		const isValid = await verifyPassword(body.password, user.password_hash);
 		if (!isValid) {
-			await logAuditEvent({
-				db: event.platform.env.DB,
-				userId: user.id,
-				eventType: 'login_failed',
-				ipAddress,
-				userAgent,
+			await logAuditEvent(event.platform.env.DB, {
+				user_id: user.id,
+				event_type: 'login_failed',
+				ip_address: ipAddress,
+				user_agent: userAgent,
 				metadata: { email: body.email, reason: 'invalid_password' }
 			});
 			return json({ error: 'Invalid credentials' }, { status: 401 });
@@ -78,13 +76,12 @@ export async function POST(event: RequestEvent) {
 		let redirectTo = '/dashboard';
 
 		// Log successful login
-		await logAuditEvent({
-			db: event.platform.env.DB,
-			userId: user.id,
-			orgId: org?.id,
-			eventType: 'login_success',
-			ipAddress,
-			userAgent,
+		await logAuditEvent(event.platform.env.DB, {
+			user_id: user.id,
+			org_id: org?.id,
+			event_type: 'login_success',
+			ip_address: ipAddress,
+			user_agent: userAgent,
 			metadata: { email: user.email }
 		});
 

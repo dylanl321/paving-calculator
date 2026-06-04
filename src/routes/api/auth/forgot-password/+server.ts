@@ -73,13 +73,12 @@ export async function POST(event: RequestEvent) {
 			}
 
 			// Log password reset request
-			await logAuditEvent({
-				db: event.platform.env.DB,
-				userId: user.id,
-				orgId: org?.id,
-				eventType: 'password_reset_requested',
-				ipAddress,
-				userAgent,
+			await logAuditEvent(event.platform.env.DB, {
+				user_id: user.id,
+				org_id: org?.id,
+				event_type: 'password_reset_request',
+				ip_address: ipAddress,
+				user_agent: userAgent,
 				metadata: { email: user.email }
 			});
 		}
