@@ -148,6 +148,7 @@ export class DbHelper {
 	getCalculationById(...args: Parameters<DbJobSitesHelper['getCalculationById']>) { return this.jobSites.getCalculationById(...args); }
 	getCalculations(...args: Parameters<DbJobSitesHelper['getCalculations']>) { return this.jobSites.getCalculations(...args); }
 	createCalculation(...args: Parameters<DbJobSitesHelper['createCalculation']>) { return this.jobSites.createCalculation(...args); }
+	deleteCalculation(...args: Parameters<DbJobSitesHelper['deleteCalculation']>) { return this.jobSites.deleteCalculation(...args); }
 
 	// logs sub-helper proxies
 	logEmail(...args: Parameters<DbLogHelper['logEmail']>) { return this.logs.logEmail(...args); }
