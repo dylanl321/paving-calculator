@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { MapContainer, MapPolyline, MapPolygon, ProgressPolyline, StationMarkers, ProgressOverlay } from '$lib/components/map';
+	import { MapView, MapPolyline, MapPolygon } from '$lib/components/map-v2';
 
 	interface Waypoint {
 		lat: number;
@@ -54,8 +54,6 @@
 	let error = $state<string | null>(null);
 
 	// UI toggles
-	let showAllLanes = $state(false);
-	let showStationMarkers = $state(true);
 	let overlayCollapsed = $state(false);
 
 	const hasRoute = $derived(waypoints.length >= 2);
@@ -147,7 +145,6 @@
 	}
 
 	// Build the green "paved" progress segments from logged progress entries.
-	// Used only for legacy rendering (no today distinction) when ProgressPolyline is unavailable.
 	function buildProgressSegments(entries: ProgressEntry[], wps: Waypoint[]): [number, number][][] {
 		const segments: [number, number][][] = [];
 
@@ -228,6 +225,14 @@
 		hasRoute ? buildProgressSegments(progressEntries, waypoints) : []
 	);
 
+	const todaySegments = $derived.by<[number, number][][]>(() => {
+		if (!hasRoute || !today) return [];
+		return buildProgressSegments(
+			progressEntries.filter((e) => e.log_date === today),
+			waypoints
+		);
+	});
+
 	const bounds = $derived.by<[[number, number], [number, number]] | undefined>(() => {
 		if (!hasRoute) return undefined;
 		const lats = waypoints.map((wp) => wp.lat);
@@ -262,19 +267,6 @@
 				}
 				return sum;
 			}, 0)
-	);
-
-	// Entries with date and tons info for new components
-	const enhancedEntries = $derived(
-		progressEntries.map((e) => ({
-			station_start: e.station_start,
-			station_end: e.station_end,
-			distance_ft: e.distance_ft,
-			lane: e.lane,
-			tons_placed: e.tons_placed,
-			log_date: e.log_date,
-			spread_rate_actual: e.spread_rate_actual
-		}))
 	);
 
 	onMount(async () => {
@@ -329,84 +321,84 @@
 			</span>
 		</div>
 
-		<!-- Map controls -->
-		<div class="map-controls">
-			{#if numLanes && numLanes > 1}
-				<button
-					class="ctrl-btn"
-					class:active={showAllLanes}
-					onclick={() => (showAllLanes = !showAllLanes)}
-					aria-pressed={showAllLanes}
-				>
-					{showAllLanes ? 'All Lanes' : 'Current Lane'}
-				</button>
-			{/if}
-			<button
-				class="ctrl-btn"
-				class:active={showStationMarkers}
-				onclick={() => (showStationMarkers = !showStationMarkers)}
-				aria-pressed={showStationMarkers}
-			>
-				{showStationMarkers ? 'Hide Stations' : 'Show Stations'}
-			</button>
-		</div>
-
 		<div class="map-wrap" style="height:{height}">
-			<MapContainer class="station-map" {height} center={center} zoom={15} bounds={bounds}>
-				<!-- Planned route (grey) -->
-				<MapPolyline
-					points={routePoints}
-					color="#64748b"
-					weight={4}
-					opacity={0.6}
-					dashArray="6 4"
-				/>
-				<!-- Road-width buffer -->
-				{#if bufferCoords.length > 0}
-					<MapPolygon
-						points={bufferCoords}
-						color="rgba(100, 116, 139, 0.4)"
-						fillColor="rgba(100, 116, 139, 0.1)"
-						fillOpacity={1}
-						weight={1}
+			<MapView
+				center={center ?? [waypoints[Math.floor(waypoints.length / 2)].lat, waypoints[Math.floor(waypoints.length / 2)].lng]}
+				bounds={bounds}
+				zoom={15}
+				{height}
+			>
+				{#snippet layers()}
+					<!-- Planned route (grey dashed) -->
+					<MapPolyline
+						id="planned-route"
+						coordinates={routePoints}
+						color="#64748b"
+						width={4}
+						opacity={0.6}
 					/>
-				{/if}
-				<!-- Color-coded progress polylines (green = paved, yellow = today) -->
-				{#if !loading && enhancedEntries.length > 0}
-					<ProgressPolyline
-						{waypoints}
-						entries={enhancedEntries}
-						{today}
-						{numLanes}
-						{laneWidthFt}
-						{showAllLanes}
-					/>
-				{:else if !loading}
-					<!-- Legacy fallback: single green layer -->
-					{#each progressSegments as seg, i (i)}
-						<MapPolyline points={seg} color="#22c55e" weight={7} opacity={0.85} lineCap="round" />
-					{/each}
-				{/if}
-				<!-- Station markers -->
-				<StationMarkers
-					{waypoints}
-					entries={enhancedEntries}
-					visible={showStationMarkers}
-					interval_ft={500}
-				/>
-			</MapContainer>
+					<!-- Road-width buffer polygon -->
+					{#if bufferCoords.length > 0}
+						<MapPolygon
+							id="road-buffer"
+							coordinates={bufferCoords}
+							color="#64748b"
+							opacity={0.3}
+							fillOpacity={0.08}
+						/>
+					{/if}
+					<!-- Paved segments (green) -->
+					{#if !loading}
+						{#each progressSegments as seg, i (i)}
+							<MapPolyline
+								id="paved-{i}"
+								coordinates={seg}
+								color="#22c55e"
+								width={7}
+								opacity={0.85}
+							/>
+						{/each}
+						<!-- Today's segments (yellow) -->
+						{#each todaySegments as seg, i (i)}
+							<MapPolyline
+								id="today-{i}"
+								coordinates={seg}
+								color="#f2c037"
+								width={7}
+								opacity={0.9}
+							/>
+						{/each}
+					{/if}
+				{/snippet}
+			</MapView>
 			{#if loading}
 				<div class="map-overlay-loading" aria-live="polite">Loading&hellip;</div>
 			{/if}
 			<!-- Progress summary overlay -->
-			{#if !loading && progressEntries.length > 0}
-				<ProgressOverlay
-					totalFt={effectiveTotalFt > 0 ? effectiveTotalFt : null}
-					pavedFt={totalPavedFt}
-					{activeTodayFt}
-					{daysWithData}
-					bind:collapsed={overlayCollapsed}
-				/>
+			{#if !loading && progressEntries.length > 0 && !overlayCollapsed}
+				<div class="progress-stats-overlay">
+					<div class="stat">
+						<span class="stat-val">{totalPavedFt.toLocaleString()}</span>
+						<span class="stat-lbl">ft paved</span>
+					</div>
+					{#if activeTodayFt > 0}
+						<div class="stat">
+							<span class="stat-val today">{activeTodayFt.toLocaleString()}</span>
+							<span class="stat-lbl">ft today</span>
+						</div>
+					{/if}
+					{#if pctComplete > 0}
+						<div class="stat">
+							<span class="stat-val accent">{pctComplete}%</span>
+							<span class="stat-lbl">complete</span>
+						</div>
+					{/if}
+					<button
+						class="overlay-close"
+						onclick={() => (overlayCollapsed = true)}
+						aria-label="Dismiss overlay"
+					>x</button>
+				</div>
 			{/if}
 		</div>
 	{/if}
@@ -522,51 +514,12 @@
 		font-size: 0.72rem;
 	}
 
-	/* Map control toggles */
-	.map-controls {
-		display: flex;
-		gap: 8px;
-		padding: 8px 14px;
-		background: var(--surface);
-		border-left: 1px solid var(--border);
-		border-right: 1px solid var(--border);
-	}
-
-	.ctrl-btn {
-		padding: 0 14px;
-		height: 36px;
-		min-height: 36px;
-		font-size: 0.8rem;
-		font-weight: 600;
-		background: var(--surface-alt, var(--surface));
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		color: var(--text-muted);
-		cursor: pointer;
-		transition: background 0.15s, color 0.15s, border-color 0.15s;
-	}
-
-	.ctrl-btn.active {
-		background: color-mix(in srgb, var(--accent) 15%, transparent);
-		border-color: var(--accent);
-		color: var(--accent);
-	}
-
-	.ctrl-btn:hover {
-		border-color: var(--accent);
-	}
-
 	.map-wrap {
 		position: relative;
 		width: 100%;
 		border-radius: 0 0 var(--radius-md, 12px) var(--radius-md, 12px);
 		overflow: hidden;
 		border: 1px solid var(--border);
-	}
-
-	.map-wrap :global(.station-map) {
-		height: 100%;
-		border-radius: 0;
 	}
 
 	.map-overlay-loading {
@@ -583,6 +536,56 @@
 		pointer-events: none;
 	}
 
+	.progress-stats-overlay {
+		position: absolute;
+		bottom: 16px;
+		left: 16px;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		padding: 8px 12px;
+		background: rgba(0, 0, 0, 0.72);
+		border-radius: 8px;
+		z-index: 400;
+		backdrop-filter: blur(4px);
+	}
+
+	.stat {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+	}
+
+	.stat-val {
+		font-size: 0.95rem;
+		font-weight: 700;
+		color: #22c55e;
+		line-height: 1.1;
+	}
+
+	.stat-val.today {
+		color: #f2c037;
+	}
+
+	.stat-val.accent {
+		color: var(--accent, #f2c037);
+	}
+
+	.stat-lbl {
+		font-size: 0.65rem;
+		color: rgba(255, 255, 255, 0.65);
+	}
+
+	.overlay-close {
+		background: none;
+		border: none;
+		color: rgba(255, 255, 255, 0.5);
+		cursor: pointer;
+		padding: 0 4px;
+		font-size: 0.75rem;
+		line-height: 1;
+	}
+
 	@media (max-width: 640px) {
 		.legend-bar {
 			padding: 8px 12px;
@@ -591,11 +594,6 @@
 
 		.legend-label {
 			font-size: 0.8rem;
-		}
-
-		.map-controls {
-			flex-wrap: wrap;
-			gap: 6px;
 		}
 	}
 </style>
