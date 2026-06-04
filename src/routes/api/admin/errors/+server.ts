@@ -44,7 +44,7 @@ export async function GET(event: RequestEvent) {
 		// Get resolved errors from KV
 		let resolvedFingerprints: string[] = [];
 		try {
-			const resolvedData = await kv.get('admin:resolved_errors', 'text');
+			const resolvedData = kv ? await kv.get('admin:resolved_errors', 'text') : null;
 			if (resolvedData) {
 				resolvedFingerprints = JSON.parse(resolvedData);
 			}
@@ -199,7 +199,7 @@ export async function POST(event: RequestEvent) {
 		// Get current resolved list
 		let resolvedFingerprints: string[] = [];
 		try {
-			const resolvedData = await kv.get('admin:resolved_errors', 'text');
+			const resolvedData = kv ? await kv.get('admin:resolved_errors', 'text') : null;
 			if (resolvedData) {
 				resolvedFingerprints = JSON.parse(resolvedData);
 			}
@@ -210,7 +210,7 @@ export async function POST(event: RequestEvent) {
 		// Add to resolved list if not already there
 		if (!resolvedFingerprints.includes(fingerprint)) {
 			resolvedFingerprints.push(fingerprint);
-			await kv.put('admin:resolved_errors', JSON.stringify(resolvedFingerprints));
+			if (kv) await kv.put('admin:resolved_errors', JSON.stringify(resolvedFingerprints));
 		}
 
 		return json({ success: true });
