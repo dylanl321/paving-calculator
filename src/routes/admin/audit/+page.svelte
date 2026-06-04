@@ -16,9 +16,11 @@
 	}
 
 	const EVENT_TYPES = [
-		'login',
-		'logout',
+		'login_success',
 		'login_failed',
+		'logout',
+		'register',
+		'email_verified',
 		'password_reset_request',
 		'password_reset_complete',
 		'password_changed',

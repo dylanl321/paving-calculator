@@ -98,7 +98,7 @@
 
 	const roleCounts = $derived(
 		Object.fromEntries(
-			['all', 'owner', 'admin', 'member'].map((r) => [
+			['all', 'owner', 'admin', 'member', 'foreman', 'operator', 'inspector', 'office', 'laborer', 'screed_man'].map((r) => [
 				r,
 				r === 'all' ? members.length : members.filter((m) => m.role === r).length
 			])
@@ -361,14 +361,14 @@
 						bind:value={searchQuery}
 					/>
 					<div class="role-filter-pills">
-						{#each ['all', 'owner', 'admin', 'member'] as role}
+						{#each ['all', 'owner', 'admin', 'member', 'foreman', 'operator', 'inspector', 'office', 'laborer', 'screed_man'] as role}
 							<button
 								type="button"
 								class="pill {roleFilter === role ? 'pill-active' : ''}"
 								onclick={() => (roleFilter = role)}
 								aria-pressed={roleFilter === role}
 							>
-								{role === 'all' ? 'All' : role.charAt(0).toUpperCase() + role.slice(1)}
+								{role === 'all' ? 'All' : role === 'screed_man' ? 'Screed' : role.charAt(0).toUpperCase() + role.slice(1)}
 								<span class="pill-count">{roleCounts[role]}</span>
 							</button>
 						{/each}
