@@ -1,5 +1,187 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { authStore } from '$lib/stores/auth.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
 	import { config } from '$lib/config';
+
+	interface JobSite {
+		id: string;
+		name: string;
+		status: string;
+	}
+
+	interface DailyTotals {
+		loads: number;
+		totalTons: number;
+		feetLogged: number;
+	}
+
+	let sites = $state<JobSite[]>([]);
+	let selectedSite = $state<JobSite | null>(null);
+	let loadingData = $state(true);
+	let showLoadForm = $state(false);
+	let showDistanceForm = $state(false);
+
+	// Load form state
+	let tons = $state(18.5);
+	let ticketNumber = $state('');
+	let submittingLoad = $state(false);
+
+	// Distance form state
+	let stationFrom = $state('');
+	let stationTo = $state('');
+	let submittingDistance = $state(false);
+
+	// Daily totals
+	let totals = $state<DailyTotals>({ loads: 0, totalTons: 0, feetLogged: 0 });
+
+	onMount(async () => {
+		await fetchSites();
+	});
+
+	async function fetchSites() {
+		try {
+			const res = await fetch('/api/job-sites', { credentials: 'include' });
+			if (!res.ok) throw new Error('Failed to fetch job sites');
+
+			const data = (await res.json()) as { job_sites?: JobSite[] } | JobSite[];
+			sites = Array.isArray(data) ? data : ((data as { job_sites?: JobSite[]; sites?: JobSite[] }).job_sites || (data as { job_sites?: JobSite[]; sites?: JobSite[] }).sites || []);
+
+			// Auto-select if only one site
+			if (sites.length === 1) {
+				selectedSite = sites[0];
+				await fetchTodayTotals();
+			}
+		} catch (err) {
+			console.error('Error fetching sites:', err);
+			toastStore.error('Failed to load job sites');
+		} finally {
+			loadingData = false;
+		}
+	}
+
+	async function fetchTodayTotals() {
+		if (!selectedSite) return;
+
+		try {
+			// Fetch loads for today using date filter
+			const today = new Date().toISOString().split('T')[0];
+			const loadsRes = await fetch(
+				`/api/job-sites/${selectedSite.id}/loads?start_date=${today}&end_date=${today}`,
+				{ credentials: 'include' }
+			);
+			if (loadsRes.ok) {
+				const loadsData = (await loadsRes.json()) as { loads?: { tons?: number }[] } | { tons?: number }[];
+				const loads: { tons?: number }[] = Array.isArray(loadsData) ? loadsData : (loadsData as { loads?: { tons?: number }[] }).loads || [];
+
+				// All loads returned are from today (date filtered by server)
+				totals.loads = loads.length;
+				totals.totalTons = loads.reduce((sum: number, load: { tons?: number }) => sum + (load.tons || 0), 0);
+			}
+
+			// Fetch distance calculations for today
+			// Note: The API may not support filtering by date, so we'll approximate
+			totals.feetLogged = 0; // Placeholder - would need API support for daily calculations
+		} catch (err) {
+			console.error('Error fetching totals:', err);
+		}
+	}
+
+	async function handleAddLoad() {
+		if (!selectedSite) {
+			toastStore.error('No job site selected');
+			return;
+		}
+
+		submittingLoad = true;
+		try {
+			const payload: { tons: number; ticket_number?: string; timestamp: number } = {
+				tons,
+				timestamp: Math.floor(Date.now() / 1000)
+			};
+			if (ticketNumber.trim()) {
+				payload.ticket_number = ticketNumber.trim();
+			}
+
+			const res = await fetch(`/api/job-sites/${selectedSite.id}/loads`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify(payload)
+			});
+
+			if (!res.ok) {
+				const errData = (await res.json()) as { error?: string };
+				throw new Error(errData.error || 'Failed to add load');
+			}
+
+			toastStore.success(`Added ${tons} tons`);
+
+			// Reset form
+			tons = 18.5;
+			ticketNumber = '';
+			showLoadForm = false;
+
+			// Refresh totals
+			await fetchTodayTotals();
+		} catch (err) {
+			console.error('Error adding load:', err);
+			toastStore.error(err instanceof Error ? err.message : 'Failed to add load');
+		} finally {
+			submittingLoad = false;
+		}
+	}
+
+	async function handleLogDistance() {
+		if (!selectedSite) {
+			toastStore.error('No job site selected');
+			return;
+		}
+
+		const from = parseFloat(stationFrom);
+		const to = parseFloat(stationTo);
+
+		if (isNaN(from) || isNaN(to)) {
+			toastStore.error('Enter valid station numbers');
+			return;
+		}
+
+		submittingDistance = true;
+		try {
+			const res = await fetch('/api/calculations', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({
+					calc_type: 'feet_left',
+					job_site_id: selectedSite.id,
+					inputs: { station_start: from, station_end: to },
+					result: { feet: Math.abs(to - from) }
+				})
+			});
+
+			if (!res.ok) {
+				const errData = (await res.json()) as { error?: string };
+				throw new Error(errData.error || 'Failed to log distance');
+			}
+
+			const feet = Math.abs(to - from);
+			toastStore.success(`Logged ${feet.toFixed(0)} feet`);
+
+			// Reset form
+			stationFrom = '';
+			stationTo = '';
+			showDistanceForm = false;
+
+			// Update totals
+			totals.feetLogged += feet;
+		} catch (err) {
+			console.error('Error logging distance:', err);
+			toastStore.error(err instanceof Error ? err.message : 'Failed to log distance');
+		} finally {
+			submittingDistance = false;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -7,27 +189,173 @@
 </svelte:head>
 
 <div class="field-view">
-	<header class="field-header">
-		<h1>Field View</h1>
-		<a href="/app" class="full-calc-link">
-			<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<circle cx="12" cy="12" r="10"/>
-				<path d="M8 12h8M12 8v8"/>
-			</svg>
-			Full Calculator
-		</a>
-	</header>
-
-	<main class="field-content">
-		<div class="message-card">
-			<svg class="icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-				<path d="M3 9h18M9 21V9"/>
-			</svg>
-			<h2>Simplified Field View</h2>
-			<p>A streamlined interface for field crew is coming soon. For now, you can use the full calculator.</p>
+	{#if loadingData}
+		<div class="loading">Loading...</div>
+	{:else if selectedSite}
+		<div class="site-header">
+			<div class="site-info">
+				<div class="site-name">{selectedSite.name}</div>
+				<div class="site-status">{selectedSite.status}</div>
+			</div>
 		</div>
-	</main>
+
+		<div class="field-content">
+			<!-- Add Load Button -->
+			<button
+				class="action-button green"
+				onclick={() => (showLoadForm = !showLoadForm)}
+				disabled={submittingLoad}
+			>
+				Add Load
+			</button>
+
+			{#if showLoadForm}
+				<div class="inline-form">
+					<div class="form-group">
+						<label for="tons">Tons</label>
+						<input
+							id="tons"
+							type="number"
+							step="0.1"
+							bind:value={tons}
+							disabled={submittingLoad}
+						/>
+					</div>
+					<div class="form-group">
+						<label for="ticket">Ticket Number (optional)</label>
+						<input
+							id="ticket"
+							type="text"
+							bind:value={ticketNumber}
+							disabled={submittingLoad}
+							placeholder="Optional"
+						/>
+					</div>
+					<div class="form-actions">
+						<button
+							class="submit-button"
+							onclick={handleAddLoad}
+							disabled={submittingLoad}
+						>
+							{submittingLoad ? 'Submitting...' : 'Submit'}
+						</button>
+						<button
+							class="cancel-button"
+							onclick={() => {
+								showLoadForm = false;
+								tons = 18.5;
+								ticketNumber = '';
+							}}
+							disabled={submittingLoad}
+						>
+							Cancel
+						</button>
+					</div>
+				</div>
+			{/if}
+
+			<!-- Log Distance Button -->
+			<button
+				class="action-button blue"
+				onclick={() => (showDistanceForm = !showDistanceForm)}
+				disabled={submittingDistance}
+			>
+				Log Distance
+			</button>
+
+			{#if showDistanceForm}
+				<div class="inline-form">
+					<div class="form-group">
+						<label for="station-from">Station From (feet)</label>
+						<input
+							id="station-from"
+							type="number"
+							step="1"
+							bind:value={stationFrom}
+							disabled={submittingDistance}
+							placeholder="e.g., 1000"
+						/>
+					</div>
+					<div class="form-group">
+						<label for="station-to">Station To (feet)</label>
+						<input
+							id="station-to"
+							type="number"
+							step="1"
+							bind:value={stationTo}
+							disabled={submittingDistance}
+							placeholder="e.g., 1500"
+						/>
+					</div>
+					<div class="form-actions">
+						<button
+							class="submit-button"
+							onclick={handleLogDistance}
+							disabled={submittingDistance}
+						>
+							{submittingDistance ? 'Submitting...' : 'Submit'}
+						</button>
+						<button
+							class="cancel-button"
+							onclick={() => {
+								showDistanceForm = false;
+								stationFrom = '';
+								stationTo = '';
+							}}
+							disabled={submittingDistance}
+						>
+							Cancel
+						</button>
+					</div>
+				</div>
+			{/if}
+
+			<!-- Today's Totals -->
+			<div class="totals-section">
+				<h2>Today's Totals</h2>
+				<div class="totals-grid">
+					<div class="total-item">
+						<div class="total-label">Loads</div>
+						<div class="total-value">{totals.loads}</div>
+					</div>
+					<div class="total-item">
+						<div class="total-label">Total Tons</div>
+						<div class="total-value">{totals.totalTons.toFixed(1)}</div>
+					</div>
+					<div class="total-item">
+						<div class="total-label">Feet Logged</div>
+						<div class="total-value">{totals.feetLogged.toFixed(0)}</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Switch to Full View -->
+		<div class="footer-link">
+			<a href="/app">Switch to Full View</a>
+		</div>
+	{:else if sites.length === 0}
+		<div class="empty-state">
+			<p>No job sites available</p>
+			<a href="/app">Go to Full View</a>
+		</div>
+	{:else}
+		<div class="site-selector">
+			<h2>Select a Job Site</h2>
+			{#each sites as site}
+				<button
+					class="site-option"
+					onclick={() => {
+						selectedSite = site;
+						fetchTodayTotals();
+					}}
+				>
+					<div class="site-option-name">{site.name}</div>
+					<div class="site-option-status">{site.status}</div>
+				</button>
+			{/each}
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -40,101 +368,305 @@
 		flex-direction: column;
 	}
 
-	.field-header {
+	.loading,
+	.empty-state {
+		flex: 1;
 		display: flex;
+		flex-direction: column;
 		align-items: center;
-		justify-content: space-between;
-		padding: 16px 20px;
+		justify-content: center;
+		gap: 16px;
+		padding: 24px;
+		text-align: center;
+		color: var(--text-muted);
+	}
+
+	.empty-state a {
+		color: var(--accent);
+		text-decoration: none;
+		font-weight: 600;
+	}
+
+	.site-header {
+		padding: 20px;
 		background: var(--surface);
 		border-bottom: 1px solid var(--border);
 	}
 
-	.field-header h1 {
+	.site-info {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.site-name {
+		font-size: 1.25rem;
+		font-weight: 700;
+		color: var(--text);
+	}
+
+	.site-status {
+		font-size: 0.9rem;
+		color: var(--text-muted);
+		text-transform: capitalize;
+	}
+
+	.field-content {
+		flex: 1;
+		padding: 20px;
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.action-button {
+		width: 100%;
+		height: 64px;
+		border: none;
+		border-radius: var(--radius);
+		font-size: 1.125rem;
+		font-weight: 600;
+		color: white;
+		cursor: pointer;
+		transition: transform 0.15s, box-shadow 0.15s;
+		min-height: 48px;
+	}
+
+	.action-button.green {
+		background: #22c55e;
+		box-shadow: 0 2px 8px -2px rgba(34, 197, 94, 0.5);
+	}
+
+	.action-button.green:hover {
+		background: #16a34a;
+		transform: translateY(-1px);
+		box-shadow: 0 4px 12px -2px rgba(34, 197, 94, 0.6);
+	}
+
+	.action-button.blue {
+		background: #3b82f6;
+		box-shadow: 0 2px 8px -2px rgba(59, 130, 246, 0.5);
+	}
+
+	.action-button.blue:hover {
+		background: #2563eb;
+		transform: translateY(-1px);
+		box-shadow: 0 4px 12px -2px rgba(59, 130, 246, 0.6);
+	}
+
+	.action-button:active {
+		transform: translateY(0);
+	}
+
+	.action-button:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.inline-form {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin-top: -8px;
+	}
+
+	.form-group {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.form-group label {
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.form-group input {
+		width: 100%;
+		padding: 12px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--bg);
+		color: var(--text);
+		font-size: 1rem;
+		min-height: 48px;
+	}
+
+	.form-group input:focus {
+		outline: none;
+		border-color: var(--accent);
+	}
+
+	.form-actions {
+		display: flex;
+		gap: 12px;
+		margin-top: 4px;
+	}
+
+	.submit-button,
+	.cancel-button {
+		flex: 1;
+		height: 48px;
+		border: none;
+		border-radius: var(--radius);
+		font-size: 1rem;
+		font-weight: 600;
+		cursor: pointer;
+		min-height: 48px;
+	}
+
+	.submit-button {
+		background: var(--accent);
+		color: var(--accent-text);
+	}
+
+	.submit-button:hover {
+		opacity: 0.9;
+	}
+
+	.submit-button:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.cancel-button {
+		background: var(--border);
+		color: var(--text);
+	}
+
+	.cancel-button:hover {
+		background: var(--border-hover, var(--border));
+	}
+
+	.totals-section {
+		margin-top: 24px;
+		padding: 20px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+	}
+
+	.totals-section h2 {
+		margin: 0 0 16px;
+		font-size: 1.125rem;
+		font-weight: 700;
+		color: var(--text);
+	}
+
+	.totals-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 16px;
+	}
+
+	.total-item {
+		text-align: center;
+	}
+
+	.total-label {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+		margin-bottom: 4px;
+	}
+
+	.total-value {
+		font-size: 1.5rem;
+		font-weight: 700;
+		color: var(--accent);
+	}
+
+	.footer-link {
+		padding: 20px;
+		text-align: center;
+		border-top: 1px solid var(--border);
+	}
+
+	.footer-link a {
+		display: inline-block;
+		padding: 12px 24px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text);
+		text-decoration: none;
+		font-weight: 600;
+		min-height: 48px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.footer-link a:hover {
+		background: var(--border);
+	}
+
+	.site-selector {
+		flex: 1;
+		padding: 20px;
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+
+	.site-selector h2 {
 		margin: 0;
 		font-size: 1.25rem;
 		font-weight: 700;
 		color: var(--text);
 	}
 
-	.full-calc-link {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		padding: 10px 16px;
-		min-height: var(--touch);
-		background: var(--accent);
-		color: var(--accent-text);
-		border-radius: var(--radius);
-		font-size: 0.9rem;
-		font-weight: 600;
-		text-decoration: none;
-		transition: transform 0.15s, box-shadow 0.15s;
-		box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--accent) 50%, transparent);
-	}
-
-	.full-calc-link:hover {
-		transform: translateY(-1px);
-		box-shadow: 0 4px 12px -2px color-mix(in srgb, var(--accent) 60%, transparent);
-	}
-
-	.full-calc-link:active {
-		transform: translateY(0);
-	}
-
-	.field-content {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 24px 16px;
-	}
-
-	.message-card {
-		max-width: 480px;
+	.site-option {
 		width: 100%;
-		padding: 40px 32px;
+		padding: 16px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
-		text-align: center;
-		box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.1);
+		border-radius: var(--radius);
+		text-align: left;
+		cursor: pointer;
+		min-height: 48px;
 	}
 
-	.icon {
-		margin: 0 auto 20px;
-		color: var(--accent);
+	.site-option:hover {
+		background: var(--border);
 	}
 
-	.message-card h2 {
-		margin: 0 0 12px;
-		font-size: 1.5rem;
-		font-weight: 700;
+	.site-option-name {
+		font-size: 1.125rem;
+		font-weight: 600;
 		color: var(--text);
+		margin-bottom: 4px;
 	}
 
-	.message-card p {
-		margin: 0;
+	.site-option-status {
+		font-size: 0.9rem;
 		color: var(--text-muted);
-		font-size: 1rem;
-		line-height: 1.5;
+		text-transform: capitalize;
 	}
 
 	@media (max-width: 480px) {
-		.message-card {
-			padding: 32px 24px;
+		.totals-grid {
+			grid-template-columns: 1fr;
+			gap: 12px;
 		}
 
-		.message-card h2 {
-			font-size: 1.3rem;
+		.total-item {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
 		}
 
-		.field-header h1 {
-			font-size: 1.1rem;
+		.total-label {
+			text-align: left;
+			margin-bottom: 0;
 		}
 
-		.full-calc-link {
-			font-size: 0.85rem;
-			padding: 8px 12px;
+		.total-value {
+			text-align: right;
 		}
 	}
 </style>
