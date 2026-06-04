@@ -869,34 +869,28 @@
 				</button>
 			</div>
 		{:else}
-			{#await Promise.all([
-				import('$lib/components/map/MapContainer.svelte'),
-				import('$lib/components/map/ProgressPolyline.svelte'),
-				import('$lib/components/map/StationMarkers.svelte'),
-				import('$lib/components/map/ProgressOverlay.svelte')
-			])}
+			{#await import('$lib/components/map-v2/MapView.svelte')}
 				<div class="map-mini-loading">Loading progress map&hellip;</div>
-			{:then [{ default: MapContainer }, { default: ProgressPolyline }, { default: StationMarkers }, { default: ProgressOverlay }]}
+			{:then { default: MapView }}
 				{@const pd = progressData!}
 				{@const geom = pd.geometry!}
 				{@const coords = geom.coordinates}
 				{@const midIndex = Math.floor(coords.length / 2)}
 				{@const center = [coords[midIndex][1], coords[midIndex][0]] as [number, number]}
-				<MapContainer {center} zoom={14} height="360px">
-					{#snippet children()}
-						<ProgressPolyline
-							geometry={geom}
-							logEntries={pd.logEntries}
-							totalLength={pd.totalLengthFt}
-						/>
-						<StationMarkers geometry={geom} logEntries={pd.logEntries} />
-						<ProgressOverlay
-							logEntries={pd.logEntries}
-							totalLengthFt={pd.totalLengthFt}
-							today={pd.today}
-						/>
-					{/snippet}
-				</MapContainer>
+				{@const routeGeojson = { type: 'Feature' as const, properties: {}, geometry: geom }}
+				<div class="progress-map-container">
+					<MapView {center} zoom={14} height="360px">
+						{#snippet layers()}
+							{#await import('$lib/components/map-v2/MapGeoJSON.svelte') then { default: MapGeoJSON }}
+								<MapGeoJSON
+									id="progress-route"
+									geojson={routeGeojson}
+									styleFunction={() => ({ color: '#22c55e', width: 5, opacity: 0.85 })}
+								/>
+							{/await}
+						{/snippet}
+					</MapView>
+				</div>
 			{/await}
 		{/if}
 	</section>
