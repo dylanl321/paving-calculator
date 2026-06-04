@@ -59,6 +59,8 @@
   let fillLayerId = `lyr-fill-${id}`;
   let outlineLayerId = `lyr-outline-${id}`;
   let addedToMap: MapLibreMap | null = null;
+  let onEnter: (() => void) | null = null;
+  let onLeave: (() => void) | null = null;
 
   function resolveColor(): string {
     return fillColor ?? STATUS_COLORS[status] ?? STATUS_COLORS.planned;
@@ -121,9 +123,11 @@
     }
 
     if (onclick) {
+      onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+      onLeave = () => { map.getCanvas().style.cursor = ''; };
       map.on('click', fillLayerId, onclick as never);
-      map.on('mouseenter', fillLayerId, () => { map.getCanvas().style.cursor = 'pointer'; });
-      map.on('mouseleave', fillLayerId, () => { map.getCanvas().style.cursor = ''; });
+      map.on('mouseenter', fillLayerId, onEnter);
+      map.on('mouseleave', fillLayerId, onLeave);
     }
 
     addedToMap = map;
@@ -133,12 +137,17 @@
     const map = addedToMap;
     if (!map) return;
     try {
+      if (onclick) map.off('click', fillLayerId, onclick as never);
+      if (onEnter) map.off('mouseenter', fillLayerId, onEnter);
+      if (onLeave) map.off('mouseleave', fillLayerId, onLeave);
       if (map.getLayer(outlineLayerId)) map.removeLayer(outlineLayerId);
       if (map.getLayer(fillLayerId)) map.removeLayer(fillLayerId);
       if (map.getSource(sourceId)) map.removeSource(sourceId);
     } catch {
       // Map may already be destroyed
     }
+    onEnter = null;
+    onLeave = null;
     addedToMap = null;
   }
 

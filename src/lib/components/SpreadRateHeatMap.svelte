@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
-	import L from 'leaflet';
-
-	// Leaflet's CSS references .png assets via url(); load it browser-only so it
-	// stays out of the SSR / Pages Functions bundle (esbuild has no .png loader).
-	if (browser) import('leaflet/dist/leaflet.css');
+	import MapView from '$lib/components/map-v2/MapView.svelte';
+	import MapPolyline from '$lib/components/map-v2/MapPolyline.svelte';
+	import MapPopup from '$lib/components/map-v2/MapPopup.svelte';
+	import { stationToFeet, feetToCoordinate, coordinatesToBounds } from '$lib/services/mapUtils';
+	import { formatStation } from '$lib/services/gpsStation';
 
 	interface Waypoint {
 		lat: number;
@@ -46,69 +46,18 @@
 		height = '360px'
 	}: Props = $props();
 
-	let mapEl: HTMLDivElement;
-	let mapInstance: L.Map | null = null;
 	let entries = $state<HeatEntry[]>([]);
 	let loading = $state(true);
 	let fetchError = $state<string | null>(null);
-	let segmentPolylines: L.Polyline[] = [];
-	let routePolyline: L.Polyline | null = null;
+
+	// Popup state (replaces Leaflet bindPopup)
+	let popupOpen = $state(false);
+	let popupLat = $state(0);
+	let popupLng = $state(0);
+	let popupHtml = $state('');
 
 	const hasRoute = $derived(waypoints.length >= 2);
 	const hasPinned = $derived(site.latitude != null && site.longitude != null);
-
-	// Stations use base-100 notation: station 1.5 = 150 ft from start
-	function stationToFeet(station: number): number {
-		return station * 100;
-	}
-
-	// Format feet as station notation: 150ft -> "1+50"
-	function feetToStation(ft: number): string {
-		const whole = Math.floor(ft / 100);
-		const remainder = Math.round(ft % 100);
-		return `${whole}+${String(remainder).padStart(2, '0')}`;
-	}
-
-	function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-		const R = 6371000;
-		const phi1 = (lat1 * Math.PI) / 180;
-		const phi2 = (lat2 * Math.PI) / 180;
-		const dphi = ((lat2 - lat1) * Math.PI) / 180;
-		const dlambda = ((lon2 - lon1) * Math.PI) / 180;
-		const a =
-			Math.sin(dphi / 2) * Math.sin(dphi / 2) +
-			Math.cos(phi1) * Math.cos(phi2) * Math.sin(dlambda / 2) * Math.sin(dlambda / 2);
-		return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-	}
-
-	// Convert cumulative feet along waypoints to a [lat, lng] coordinate
-	function feetToLatLng(targetFt: number, wps: Waypoint[]): [number, number] | null {
-		if (wps.length < 2) return null;
-		if (targetFt <= 0) return [wps[0].lat, wps[0].lng];
-
-		let cumFt = 0;
-		for (let i = 0; i < wps.length - 1; i++) {
-			const segFt = haversineMeters(wps[i].lat, wps[i].lng, wps[i + 1].lat, wps[i + 1].lng) * 3.28084;
-			if (cumFt + segFt >= targetFt) {
-				const frac = (targetFt - cumFt) / segFt;
-				const lat = wps[i].lat + frac * (wps[i + 1].lat - wps[i].lat);
-				const lng = wps[i].lng + frac * (wps[i + 1].lng - wps[i].lng);
-				return [lat, lng];
-			}
-			cumFt += segFt;
-		}
-		// Beyond end of route
-		return [wps[wps.length - 1].lat, wps[wps.length - 1].lng];
-	}
-
-	// Compute total route length in feet
-	function totalRouteFt(wps: Waypoint[]): number {
-		let total = 0;
-		for (let i = 0; i < wps.length - 1; i++) {
-			total += haversineMeters(wps[i].lat, wps[i].lng, wps[i + 1].lat, wps[i + 1].lng) * 3.28084;
-		}
-		return total;
-	}
 
 	type SegStatus = 'good' | 'warn' | 'bad' | 'nodata';
 
@@ -145,6 +94,54 @@
 		return sum / withRate.length;
 	});
 
+	interface Segment {
+		id: string;
+		coords: [number, number][];
+		color: string;
+		html: string;
+	}
+
+	// Per-segment polylines derived from progress entries projected onto the route.
+	const segments = $derived.by<Segment[]>(() => {
+		if (waypoints.length < 2) return [];
+		const out: Segment[] = [];
+		entries.forEach((entry, i) => {
+			if (entry.station_start == null || entry.station_end == null) return;
+			const startCoord = feetToCoordinate(stationToFeet(entry.station_start), waypoints);
+			const endCoord = feetToCoordinate(stationToFeet(entry.station_end), waypoints);
+			if (!startCoord || !endCoord) return;
+			const status = segmentStatus(entry.spread_rate_actual);
+			const rateLabel =
+				entry.spread_rate_actual != null
+					? `${entry.spread_rate_actual.toFixed(1)} lbs/yd\u00b2`
+					: 'No rate recorded';
+			const html =
+				`<div style="font-size:0.82rem;line-height:1.5">` +
+				`<strong>Sta ${formatStation(entry.station_start)} \u2013 ${formatStation(entry.station_end)}</strong><br>` +
+				`${rateLabel}` +
+				(entry.lane ? `<br>Lane: ${entry.lane}` : '') +
+				`</div>`;
+			out.push({ id: `seg-${i}`, coords: [startCoord, endCoord], color: STATUS_COLOR[status], html });
+		});
+		return out;
+	});
+
+	const routeCoords = $derived<[number, number][]>(waypoints.map((wp) => [wp.lat, wp.lng]));
+	const mapBounds = $derived.by<[[number, number], [number, number]] | null>(() => {
+		if (hasRoute) return coordinatesToBounds(routeCoords);
+		return null;
+	});
+	const mapCenter = $derived<[number, number]>(
+		hasPinned ? [site.latitude as number, site.longitude as number] : [33.749, -84.388]
+	);
+
+	function openSegmentPopup(seg: Segment) {
+		popupLat = (seg.coords[0][0] + seg.coords[1][0]) / 2;
+		popupLng = (seg.coords[0][1] + seg.coords[1][1]) / 2;
+		popupHtml = seg.html;
+		popupOpen = true;
+	}
+
 	async function loadEntries() {
 		loading = true;
 		fetchError = null;
@@ -160,109 +157,8 @@
 		}
 	}
 
-	function clearSegments() {
-		for (const pl of segmentPolylines) {
-			pl.remove();
-		}
-		segmentPolylines = [];
-	}
-
-	function drawSegments() {
-		if (!mapInstance) return;
-		clearSegments();
-
-		for (const entry of entries) {
-			if (entry.station_start == null || entry.station_end == null) continue;
-
-			const startFt = stationToFeet(entry.station_start);
-			const endFt = stationToFeet(entry.station_end);
-
-			const startCoord = feetToLatLng(startFt, waypoints);
-			const endCoord = feetToLatLng(endFt, waypoints);
-			if (!startCoord || !endCoord) continue;
-
-			const status = segmentStatus(entry.spread_rate_actual);
-			const color = STATUS_COLOR[status];
-
-			const rateLabel =
-				entry.spread_rate_actual != null
-					? `${entry.spread_rate_actual.toFixed(1)} lbs/yd\u00b2`
-					: 'No rate recorded';
-
-			const staStart = feetToStation(startFt);
-			const staEnd = feetToStation(endFt);
-
-			const pl = L.polyline([startCoord, endCoord], {
-				color,
-				weight: 8,
-				opacity: 0.82
-			});
-
-			pl.bindPopup(
-				`<div style="font-size:0.82rem;line-height:1.5">` +
-				`<strong>Sta ${staStart} \u2013 ${staEnd}</strong><br>` +
-				`${rateLabel}` +
-				(entry.lane ? `<br>Lane: ${entry.lane}` : '') +
-				`</div>`
-			);
-
-			pl.addTo(mapInstance);
-			segmentPolylines.push(pl);
-		}
-	}
-
-	function initMap() {
-		if (!browser || !mapEl) return;
-		if (mapInstance) return;
-
-		mapInstance = L.map(mapEl, { zoomControl: true });
-
-		// Dark / light tile detection
-		const isDark = document.documentElement.classList.contains('dark');
-		const tileUrl = isDark
-			? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-			: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-
-		L.tileLayer(tileUrl, {
-			attribution: '&copy; <a href="https://carto.com">CARTO</a>',
-			maxZoom: 19
-		}).addTo(mapInstance);
-
-		if (hasRoute) {
-			// Draw baseline planned route (dashed gray)
-			routePolyline = L.polyline(
-				waypoints.map((wp) => [wp.lat, wp.lng]),
-				{ color: '#64748b', weight: 4, opacity: 0.55, dashArray: '6 4' }
-			).addTo(mapInstance);
-
-			const bounds = L.latLngBounds(waypoints.map((wp) => [wp.lat, wp.lng] as [number, number]));
-			mapInstance.fitBounds(bounds, { padding: [30, 30] });
-		} else if (hasPinned) {
-			mapInstance.setView([site.latitude as number, site.longitude as number], 15);
-		}
-
-		drawSegments();
-	}
-
-	onMount(async () => {
-		await loadEntries();
-		if (browser && (hasRoute || hasPinned)) {
-			initMap();
-		}
-	});
-
-	// Re-draw segments when data loads
-	$effect(() => {
-		if (!loading && mapInstance) {
-			drawSegments();
-		}
-	});
-
-	onDestroy(() => {
-		if (mapInstance) {
-			mapInstance.remove();
-			mapInstance = null;
-		}
+	onMount(() => {
+		void loadEntries();
 	});
 </script>
 
@@ -307,7 +203,34 @@
 		</div>
 
 		<div class="map-wrap" style="height:{height}">
-			<div bind:this={mapEl} class="map-el"></div>
+			{#if browser}
+				<MapView center={mapCenter} bounds={mapBounds} zoom={15} height="100%">
+					{#snippet layers()}
+						{#if hasRoute}
+							<MapPolyline id="srhm-route" coordinates={routeCoords} color="#64748b" width={4} opacity={0.55} />
+						{/if}
+						{#each segments as seg (seg.id)}
+							<MapPolyline
+								id={`srhm-${seg.id}`}
+								coordinates={seg.coords}
+								color={seg.color}
+								width={8}
+								opacity={0.82}
+								onclick={() => openSegmentPopup(seg)}
+							/>
+						{/each}
+						{#if popupOpen}
+							<MapPopup
+								lat={popupLat}
+								lng={popupLng}
+								open={popupOpen}
+								html={popupHtml}
+								onclose={() => (popupOpen = false)}
+							/>
+						{/if}
+					{/snippet}
+				</MapView>
+			{/if}
 			{#if loading}
 				<div class="map-overlay-loading" aria-live="polite">Loading&hellip;</div>
 			{/if}
@@ -408,19 +331,6 @@
 		border-radius: 0 0 var(--radius-md, 12px) var(--radius-md, 12px);
 		overflow: hidden;
 		border: 1px solid var(--border);
-	}
-
-	.map-el {
-		width: 100%;
-		height: 100%;
-	}
-
-	.map-el :global(.leaflet-pane) {
-		z-index: 1;
-	}
-	.map-el :global(.leaflet-top),
-	.map-el :global(.leaflet-bottom) {
-		z-index: 2;
 	}
 
 	.map-overlay-loading {

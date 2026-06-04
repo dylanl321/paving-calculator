@@ -73,6 +73,12 @@ export interface ParsedGdotJob {
 	// Roadway / config
 	total_length_ft: number | null;
 	location_description: string | null;
+	/** Route designation (e.g. "SR 13", "I-85", "CR 124") used to fetch GDOT route geometry. */
+	route_designation: string | null;
+	/** Begin terminus / starting point description (e.g. "FROM SR 9"). */
+	begin_terminus: string | null;
+	/** End terminus / ending point description (e.g. "TO HALL COUNTY LINE"). */
+	end_terminus: string | null;
 	// Multi-scope tags (e.g. ["milling","resurfacing","shoulder_rehab"])
 	scopes: string[];
 	// Line items
@@ -89,6 +95,17 @@ export interface ParsedGdotJob {
 }
 
 const FT_PER_MILE = 5280;
+
+/**
+ * Normalise a captured route number into a compact designation (e.g. "SR 13").
+ * Returns null when the capture is empty, so we never invent a route.
+ */
+function normaliseRoute(num: string | null, prefix: 'SR' | 'I' | 'US' | 'CR'): string | null {
+	if (!num) return null;
+	const n = num.trim().toUpperCase();
+	if (!n) return null;
+	return prefix === 'I' ? `I-${n}` : `${prefix} ${n}`;
+}
 
 function emptyResult(): ParsedGdotJob {
 	return {
@@ -114,6 +131,9 @@ function emptyResult(): ParsedGdotJob {
 		asphalt_supplier: null,
 		total_length_ft: null,
 		location_description: null,
+		route_designation: null,
+		begin_terminus: null,
+		end_terminus: null,
 		scopes: [],
 		bid_items: [],
 		production_mixes: [],
@@ -348,6 +368,23 @@ function parseContractSummary(text: string, result: ParsedGdotJob): boolean {
 	if (headline) {
 		result.location_description = result.location_description ?? headline.replace(/\s+/g, ' ').trim();
 		if (!result.work_type && /RESURFAC/i.test(headline)) result.work_type = 'RESURFACING';
+	}
+
+	// Route designation (SR/State Route/US/I-Interstate/CR). Search the headline
+	// first, then the whole text. Normalised to a compact form like "SR 13".
+	const routeText = result.location_description ?? text;
+	result.route_designation = result.route_designation
+		?? normaliseRoute(firstMatch(routeText, /\b(?:STATE ROUTE|S\.?R\.?)\s*[-#]?\s*(\d+[A-Z]?)\b/i), 'SR')
+		?? normaliseRoute(firstMatch(routeText, /\bINTERSTATE\s*[-#]?\s*(\d+)\b/i), 'I')
+		?? normaliseRoute(firstMatch(routeText, /\bI-(\d+)\b/i), 'I')
+		?? normaliseRoute(firstMatch(routeText, /\bU\.?S\.?\s*(?:ROUTE|HWY|HIGHWAY)?\s*[-#]?\s*(\d+)\b/i), 'US')
+		?? normaliseRoute(firstMatch(routeText, /\b(?:COUNTY ROAD|C\.?R\.?)\s*[-#]?\s*(\d+[A-Z]?)\b/i), 'CR');
+
+	// Begin / end termini ("FROM ... TO ..."), commonly in the project headline.
+	const termini = routeText.match(/\bFROM\s+(.+?)\s+TO\s+(.+?)(?:[.;,]|\s{2,}|$)/i);
+	if (termini) {
+		result.begin_terminus = result.begin_terminus ?? termini[1].replace(/\s+/g, ' ').trim();
+		result.end_terminus = result.end_terminus ?? termini[2].replace(/\s+/g, ' ').trim();
 	}
 
 	// Net length of project (miles -> feet).
@@ -669,6 +706,9 @@ export interface ParsedGdotJobV2 {
 	asphalt_supplier: ParsedField<string>;
 	total_length_ft: ParsedField<number>;
 	location_description: ParsedField<string>;
+	route_designation: ParsedField<string>;
+	begin_terminus: ParsedField<string>;
+	end_terminus: ParsedField<string>;
 	// Derived (no confidence needed — evidence-backed)
 	scopes: string[];
 	// Line items and mixes
@@ -708,6 +748,9 @@ function emptyV2(): ParsedGdotJobV2 {
 		asphalt_supplier: missing('unset'),
 		total_length_ft: missing('unset'),
 		location_description: missing('unset'),
+		route_designation: missing('unset'),
+		begin_terminus: missing('unset'),
+		end_terminus: missing('unset'),
 		scopes: [],
 		bid_items: [],
 		production_mixes: [],
@@ -771,6 +814,9 @@ function mergeV1IntoV2(
 	setIfBetter('asphalt_supplier', v1.asphalt_supplier, conf, src);
 	setIfBetter('total_length_ft', v1.total_length_ft, 'medium', src);
 	setIfBetter('location_description', v1.location_description, 'medium', src);
+	setIfBetter('route_designation', v1.route_designation, 'medium', src);
+	setIfBetter('begin_terminus', v1.begin_terminus, 'low', src);
+	setIfBetter('end_terminus', v1.end_terminus, 'low', src);
 }
 
 /**
@@ -827,12 +873,16 @@ function applyZonePass(text: string, docType: GdotDocumentType, v2: ParsedGdotJo
 
 	v2.warnings.push(...allWarnings);
 
-	// Collect low-confidence zones for Phase 2 LLM fallback.
+	// Collect low-confidence zones for Phase 2 LLM fallback. Geographic fields
+	// (county/route/location) feed the map's geocoding + route geometry, so a
+	// miss on any of them makes the header zone eligible for the LLM pass.
 	if (zones.header.lines.length > 0) {
 		const hasLowConf =
 			v2.contract_id.confidence === 'low' ||
-			v2.county.confidence === 'low' ||
-			v2.contract_amount.confidence === 'low';
+			v2.county.confidence === 'low' || v2.county.value == null ||
+			v2.contract_amount.confidence === 'low' ||
+			v2.route_designation.value == null ||
+			v2.location_description.value == null;
 		if (hasLowConf) v2.lowConfidenceZones.push(zones.header);
 	}
 	for (const tz of zones.tables) {
@@ -961,6 +1011,9 @@ export function toV1(v2: ParsedGdotJobV2): ParsedGdotJob {
 		asphalt_supplier: v2.asphalt_supplier.value,
 		total_length_ft: v2.total_length_ft.value,
 		location_description: v2.location_description.value,
+		route_designation: v2.route_designation.value,
+		begin_terminus: v2.begin_terminus.value,
+		end_terminus: v2.end_terminus.value,
 		scopes: v2.scopes,
 		bid_items: v2.bid_items,
 		production_mixes: v2.production_mixes,

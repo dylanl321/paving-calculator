@@ -4,6 +4,9 @@ import { requireAuth } from '$lib/server/auth';
 import { recordAudit } from '$lib/server/audit';
 import { deliverWebhook } from '$lib/server/webhooks';
 import type { ParsedGdotJob } from '$lib/server/pdf/parse-gdot';
+import { resolveImportLocation } from '$lib/server/gdot-geometry';
+import { lookupGdotBoundaries } from '$lib/server/gdot-boundaries';
+import { geoJsonToD1, metersToFeet, haversineMeters } from '$lib/services/mapUtils';
 
 interface FromImportRequest {
 	parsed: ParsedGdotJob;
@@ -37,6 +40,72 @@ function isAsphaltMix(name: string): boolean {
 	// Asphalt mixes are measured in tons and carry mix-like names; patching is
 	// asphalt but its takeoff is small. We sum every TN mix takeoff for tonnage.
 	return /OGI|SUPERPAVE|9\.5|12\.5|19|25|MM|RECYC|ASPH|LEVELING|PATCH/i.test(name);
+}
+
+interface LineGeom {
+	type: 'LineString';
+	coordinates: [number, number][];
+}
+
+/** Total length of a [lng,lat] LineString in feet. */
+function lineLengthFt(line: LineGeom): number {
+	let ft = 0;
+	for (let i = 0; i < line.coordinates.length - 1; i++) {
+		const [lng1, lat1] = line.coordinates[i];
+		const [lng2, lat2] = line.coordinates[i + 1];
+		ft += metersToFeet(haversineMeters(lat1, lng1, lat2, lng2));
+	}
+	return ft;
+}
+
+/**
+ * Split a route LineString into N road sections of roughly equal length,
+ * each carrying its own [lng,lat] LineString geometry and station_start/end
+ * (1 station = 100 ft). Returns [] when the line is too short to split.
+ */
+function buildRoadSectionsFromRoute(
+	line: LineGeom,
+	scopeLabel: string,
+	sectionCount = 4
+): Array<{ name: string; geometry: LineGeom; station_start: number; station_end: number }> {
+	const coords = line.coordinates;
+	if (coords.length < 2) return [];
+
+	// Cumulative distance (ft) at each vertex.
+	const cum: number[] = [0];
+	for (let i = 0; i < coords.length - 1; i++) {
+		const [lng1, lat1] = coords[i];
+		const [lng2, lat2] = coords[i + 1];
+		cum.push(cum[i] + metersToFeet(haversineMeters(lat1, lng1, lat2, lng2)));
+	}
+	const totalFt = cum[cum.length - 1];
+	if (totalFt < 100) return [];
+
+	const n = Math.max(1, Math.min(sectionCount, Math.ceil(totalFt / 1000)));
+	const sliceFt = totalFt / n;
+	const out: Array<{ name: string; geometry: LineGeom; station_start: number; station_end: number }> = [];
+
+	for (let s = 0; s < n; s++) {
+		const startFt = s * sliceFt;
+		const endFt = (s + 1) * sliceFt;
+		const slice: [number, number][] = [];
+		for (let i = 0; i < coords.length; i++) {
+			if (cum[i] >= startFt && cum[i] <= endFt) slice.push(coords[i]);
+		}
+		// Guarantee at least the endpoints so the geometry is a valid 2-point line.
+		if (slice.length < 2) {
+			slice.length = 0;
+			slice.push(coords[Math.min(coords.length - 1, Math.floor((s / n) * (coords.length - 1)))]);
+			slice.push(coords[Math.min(coords.length - 1, Math.floor(((s + 1) / n) * (coords.length - 1)))]);
+		}
+		out.push({
+			name: `${scopeLabel} ${s + 1}`,
+			geometry: { type: 'LineString', coordinates: slice },
+			station_start: startFt / 100,
+			station_end: endFt / 100
+		});
+	}
+	return out;
 }
 
 /**
@@ -175,6 +244,82 @@ export async function POST(event: RequestEvent) {
 			await db.upsertJobSiteConfig(jobSite.id, configPatch);
 		}
 
+		// Resolve the project's geographic location from the parsed fields and,
+		// when a route is named, fetch its real GDOT polyline so the project opens
+		// with the road already drawn (sections + stationing). Best-effort: any
+		// failure leaves coordinates null and the user can place the pin manually.
+		let locationSource: string = 'none';
+		let sectionCount = 0;
+		try {
+			const resolved = await resolveImportLocation({
+				routeDesignation: str(parsed.route_designation),
+				county: str(parsed.county),
+				locationDescription: str(parsed.location_description)
+			});
+			locationSource = resolved.source;
+
+			if (resolved.latitude != null && resolved.longitude != null) {
+				// County/district from the PDF's coordinates (authoritative GDOT lookup).
+				const { county, district } = await lookupGdotBoundaries(
+					resolved.latitude,
+					resolved.longitude
+				).catch(() => ({ county: null, district: null }));
+
+				await db.updateJobSite(jobSite.id, {
+					latitude: resolved.latitude,
+					longitude: resolved.longitude,
+					gdot_county: county ?? str(parsed.county),
+					gdot_district: district
+				});
+			}
+
+			// When we have the actual route polyline, store it as the route
+			// waypoints and split it into stationed road sections.
+			if (resolved.routeGeometry && resolved.routeGeometry.coordinates.length >= 2) {
+				const line = {
+					type: 'LineString' as const,
+					coordinates: resolved.routeGeometry.coordinates as [number, number][]
+				};
+
+				// Route waypoints are stored as {lat,lng} (GeoJSON is [lng,lat]).
+				const waypoints = line.coordinates.map(([lng, lat]) => ({ lat, lng }));
+				await db.upsertJobSiteRoute(jobSite.id, waypoints);
+
+				const scopeLabel = (scopes[0] ?? 'Section')
+					.replace(/_/g, ' ')
+					.replace(/\b\w/g, (c) => c.toUpperCase());
+				const sections = buildRoadSectionsFromRoute(line, scopeLabel);
+				const now = Math.floor(Date.now() / 1000);
+				for (let s = 0; s < sections.length; s++) {
+					const sec = sections[s];
+					const id = 'sec_' + crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+					await event.platform!.env.DB.prepare(
+						`INSERT INTO road_sections
+						(id, job_site_id, name, lane, station_start, station_end, status, geometry_geojson, notes, sort_order, created_at, updated_at)
+						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					)
+						.bind(
+							id,
+							jobSite.id,
+							sec.name,
+							'1',
+							sec.station_start,
+							sec.station_end,
+							'active',
+							geoJsonToD1(sec.geometry),
+							null,
+							s,
+							now,
+							now
+						)
+						.run();
+					sectionCount++;
+				}
+			}
+		} catch (err) {
+			console.error('Import location resolution failed (non-fatal):', err);
+		}
+
 		// Bid items (carry alternate / selected flags).
 		let itemCount = 0;
 		for (let i = 0; i < items.length; i++) {
@@ -221,7 +366,9 @@ export async function POST(event: RequestEvent) {
 				source: 'pdf_import',
 				bid_items: itemCount,
 				production_mixes: mixes.length,
-				scopes
+				scopes,
+				location_source: locationSource,
+				road_sections: sectionCount
 			},
 			ipAddress:
 				event.request.headers.get('cf-connecting-ip') ||

@@ -16,9 +16,7 @@ export default defineConfig({
 			)
 		}
 	},
-	ssr: {
-		noExternal: ['leaflet']
-	},
+	ssr: {},
 	plugins: [
 		yaml(),
 		sveltekit(),

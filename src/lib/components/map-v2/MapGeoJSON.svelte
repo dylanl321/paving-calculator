@@ -65,6 +65,8 @@
   let layerId = `lyr-${id}`;
   let outlineLayerId = `lyr-outline-${id}`;
   let addedToMap: MapLibreMap | null = null;
+  let onEnter: (() => void) | null = null;
+  let onLeave: (() => void) | null = null;
 
   function defaultStyle(): LayerStyle {
     return styleFunction ? styleFunction(null) : {
@@ -150,9 +152,11 @@
     }
 
     if (onclick) {
+      onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+      onLeave = () => { map.getCanvas().style.cursor = ''; };
       map.on('click', layerId, onclick as never);
-      map.on('mouseenter', layerId, () => { map.getCanvas().style.cursor = 'pointer'; });
-      map.on('mouseleave', layerId, () => { map.getCanvas().style.cursor = ''; });
+      map.on('mouseenter', layerId, onEnter);
+      map.on('mouseleave', layerId, onLeave);
     }
 
     addedToMap = map;
@@ -162,12 +166,17 @@
     const map = addedToMap;
     if (!map) return;
     try {
+      if (onclick) map.off('click', layerId, onclick as never);
+      if (onEnter) map.off('mouseenter', layerId, onEnter);
+      if (onLeave) map.off('mouseleave', layerId, onLeave);
       if (map.getLayer(outlineLayerId)) map.removeLayer(outlineLayerId);
       if (map.getLayer(layerId)) map.removeLayer(layerId);
       if (map.getSource(sourceId)) map.removeSource(sourceId);
     } catch {
       // Map may already be destroyed
     }
+    onEnter = null;
+    onLeave = null;
     addedToMap = null;
   }
 

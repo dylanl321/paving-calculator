@@ -72,7 +72,7 @@
 	});
 
 	// Default center — Georgia/Alabama region
-	const mapCenter = $derived<[number, number]>(() => {
+	const mapCenter = $derived.by<[number, number]>(() => {
 		if (pinnedSites.length === 1) {
 			return [pinnedSites[0].latitude, pinnedSites[0].longitude];
 		}
@@ -278,7 +278,7 @@
 	<!-- Map container -->
 	<div class="map-container">
 		<MapView
-			center={mapCenter()}
+			center={mapCenter}
 			zoom={pinnedSites.length === 1 ? 15 : 9}
 			height="100%"
 			bind:map={mapInstance}

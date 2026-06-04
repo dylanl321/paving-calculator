@@ -1,5 +1,7 @@
 # Map System Refactor Design
 
+> STATUS: COMPLETED / HISTORICAL. This document describes the planned migration from Leaflet to MapLibre GL JS. The migration is now done: the only map layer is `src/lib/components/map-v2/` (`MapView` + composable layer components), `leaflet`/`@types/leaflet` have been removed as dependencies, and no component uses raw `L.map()`. The `src/lib/components/map/` Leaflet directory and the planned `MapContainer`/`map/layers/` structure described below no longer exist. Kept for historical context only — see the "Map Conventions" section of `AGENTS.md` for the current rules.
+
 ## Current State Audit
 
 ### Components using Leaflet (25 imports across 15 files)

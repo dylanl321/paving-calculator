@@ -20,5 +20,8 @@
 			"binding": "ASSETS_BUCKET",
 			"bucket_name": "paverate-org-assets"
 		}
-	]
+	],
+	"ai": {
+		"binding": "AI"
+	}
 }

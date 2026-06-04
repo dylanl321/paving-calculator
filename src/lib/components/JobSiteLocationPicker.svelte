@@ -1,8 +1,10 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import { MapPin, Crosshair, X } from 'lucide-svelte';
 	import { searchPlaces, type GeoResult } from '$lib/services/weather';
+	import MapView from '$lib/components/map-v2/MapView.svelte';
+	import type { Map as MapLibreMap, Marker } from 'maplibre-gl';
 
 	interface Props {
 		latitude?: number | null;
@@ -35,16 +37,17 @@
 	let gpsError = $state('');
 
 	// Map state
-	let mapEl: HTMLDivElement | undefined;
-	let leafletMap: any = null;
-	let marker: any = null;
+	let map: MapLibreMap | null = $state(null);
+	let marker: Marker | null = null;
 	let mapMounted = $state(false);
-	let mapReady = $state(false);
 
 	const hasCoords = $derived(latitude != null && longitude != null);
-
-	// Show map when we have coords or eager mode
 	const showMap = $derived(hasCoords || showMapEager || mapMounted);
+
+	const initialCenter = $derived<[number, number]>(
+		latitude != null && longitude != null ? [latitude, longitude] : [39.5, -98.35]
+	);
+	const initialZoom = $derived(latitude != null ? 13 : 4);
 
 	function onSearchInput() {
 		clearTimeout(searchTimer);
@@ -75,13 +78,10 @@
 		latitude = lat;
 		longitude = lng;
 		onchange?.(lat, lng);
-		if (browser && !mapMounted) {
-			// Mount map now that we have coords
-			mapMounted = true;
-		}
-		// Move/create marker on existing map
-		if (leafletMap) {
+		if (browser && !mapMounted) mapMounted = true;
+		if (map) {
 			updateMarker(lat, lng);
+			map.flyTo({ center: [lng, lat], zoom: map.getZoom() < 12 ? 13 : map.getZoom() });
 		}
 	}
 
@@ -91,7 +91,7 @@
 		query = '';
 		results = [];
 		onchange?.(null, null);
-		if (marker && leafletMap) {
+		if (marker) {
 			marker.remove();
 			marker = null;
 		}
@@ -108,7 +108,6 @@
 			(pos) => {
 				gpsLoading = false;
 				setCoords(pos.coords.latitude, pos.coords.longitude);
-				// Clear query since GPS doesn't have a name
 				query = '';
 			},
 			(err) => {
@@ -124,122 +123,46 @@
 		);
 	}
 
-	function updateMarker(lat: number, lng: number) {
-		if (!leafletMap) return;
-		const L = (window as any).L || (leafletMap as any)._leaflet_map;
+	async function updateMarker(lat: number, lng: number) {
+		if (!map) return;
 		if (marker) {
-			marker.setLatLng([lat, lng]);
-		} else {
-			const L2 = (leafletMap as any)._L;
-			if (!L2) return;
-			marker = L2
-				.marker([lat, lng], { draggable: true })
-				.addTo(leafletMap)
-				.on('dragend', (e: any) => {
-					const ll = e.target.getLatLng();
-					latitude = +ll.lat.toFixed(6);
-					longitude = +ll.lng.toFixed(6);
-					onchange?.(latitude, longitude);
-				});
+			marker.setLngLat([lng, lat]);
+			return;
 		}
-		leafletMap.setView([lat, lng], leafletMap.getZoom() < 12 ? 13 : leafletMap.getZoom());
+		const { Marker: MarkerClass } = await import('maplibre-gl');
+		const el = document.createElement('div');
+		el.className = 'jslp-pin';
+		marker = new MarkerClass({ element: el, anchor: 'bottom', draggable: true })
+			.setLngLat([lng, lat])
+			.addTo(map);
+		marker.on('dragend', () => {
+			const ll = marker!.getLngLat();
+			latitude = +ll.lat.toFixed(6);
+			longitude = +ll.lng.toFixed(6);
+			onchange?.(latitude, longitude);
+		});
 	}
 
-	async function initMap() {
-		if (!browser || !mapEl) return;
-
-		// Dynamic import to avoid SSR issues
-		const L = (await import('leaflet')).default;
-		await import('leaflet/dist/leaflet.css');
-
-		if (leafletMap) return; // already initialised
-
-		const isDark = document.documentElement.classList.contains('dark');
-		const tileUrl = isDark
-			? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-			: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-
-		const initialCenter: [number, number] =
-			latitude != null && longitude != null ? [latitude, longitude] : [39.5, -98.35];
-		const initialZoom = latitude != null ? 13 : 4;
-
-		leafletMap = L.map(mapEl, {
-			scrollWheelZoom: false,
-			zoomControl: true,
-			attributionControl: true
-		}).setView(initialCenter, initialZoom);
-
-		// Store L reference for later use
-		(leafletMap as any)._L = L;
-
-		L.tileLayer(tileUrl, {
-			attribution:
-				'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-			subdomains: 'abcd',
-			maxZoom: 20
-		}).addTo(leafletMap);
-
-		// Click to drop pin
-		leafletMap.on('click', (e: any) => {
-			const lat = +e.latlng.lat.toFixed(6);
-			const lng = +e.latlng.lng.toFixed(6);
+	function handleReady(m: MapLibreMap) {
+		map = m;
+		m.on('click', (e) => {
+			const lat = +e.lngLat.lat.toFixed(6);
+			const lng = +e.lngLat.lng.toFixed(6);
 			latitude = lat;
 			longitude = lng;
 			onchange?.(lat, lng);
 			updateMarker(lat, lng);
 			query = '';
 		});
-
-		// Create marker if coords already set
 		if (latitude != null && longitude != null) {
-			marker = L.marker([latitude, longitude], { draggable: true })
-				.addTo(leafletMap)
-				.on('dragend', (e: any) => {
-					const ll = e.target.getLatLng();
-					latitude = +ll.lat.toFixed(6);
-					longitude = +ll.lng.toFixed(6);
-					onchange?.(latitude, longitude);
-				});
-		}
-
-		// Theme change observer
-		const obs = new MutationObserver(() => {
-			const dark = document.documentElement.classList.contains('dark');
-			const url = dark
-				? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-				: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-			leafletMap.eachLayer((layer: any) => {
-				if (layer.setUrl) layer.setUrl(url);
-			});
-		});
-		obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-
-		// Invalidate size after layout
-		setTimeout(() => {
-			if (leafletMap) leafletMap.invalidateSize();
-		}, 120);
-
-		mapReady = true;
-	}
-
-	// Init map when mapEl becomes available and we should show it
-	$effect(() => {
-		if (browser && (hasCoords || showMapEager || mapMounted) && mapEl) {
-			initMap();
-		}
-	});
-
-	// When latitude/longitude change externally, sync the marker
-	$effect(() => {
-		if (mapReady && latitude != null && longitude != null) {
 			updateMarker(latitude, longitude);
 		}
-	});
+	}
 
 	onDestroy(() => {
-		if (leafletMap) {
-			leafletMap.remove();
-			leafletMap = null;
+		if (marker) {
+			marker.remove();
+			marker = null;
 		}
 	});
 </script>
@@ -306,12 +229,9 @@
 	{/if}
 
 	<!-- Map area -->
-	{#if hasCoords || showMapEager || mapMounted}
+	{#if showMap}
 		<div class="map-wrap" style="height: {mapHeight}">
-			<div bind:this={mapEl} class="map-el"></div>
-			{#if !mapReady}
-				<div class="map-loading" aria-live="polite">Loading map&hellip;</div>
-			{/if}
+			<MapView center={initialCenter} zoom={initialZoom} height="100%" onready={handleReady} />
 		</div>
 	{:else}
 		<div class="map-placeholder" role="button" tabindex="0" onclick={() => { mapMounted = true; }} onkeydown={(e) => e.key === 'Enter' && (mapMounted = true)}>
@@ -460,21 +380,15 @@
 		position: relative;
 	}
 
-	.map-el {
-		width: 100%;
-		height: 100%;
-	}
-
-	.map-loading {
-		position: absolute;
-		inset: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: var(--surface);
-		color: var(--text-muted);
-		font-size: var(--fs-sm);
-		z-index: 10;
+	:global(.jslp-pin) {
+		width: 24px;
+		height: 30px;
+		background: var(--accent, #f2c037);
+		border-radius: 50% 50% 50% 0;
+		transform: rotate(-45deg);
+		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+		border: 2px solid rgba(255, 255, 255, 0.4);
+		cursor: grab;
 	}
 
 	.map-placeholder {

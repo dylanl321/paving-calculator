@@ -27,8 +27,10 @@ export interface StationResult {
 	distanceFt: number;
 }
 
-const EARTH_RADIUS_M = 6_371_000;
-const FEET_PER_METER = 3.280_84;
+import { constant } from '$lib/config';
+
+const EARTH_RADIUS_M = () => constant('CONST.EARTH_RADIUS_M');
+const FEET_PER_METER = () => constant('CONST.FT_PER_M');
 
 /** Haversine distance in metres between two lat/lng points */
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -38,7 +40,7 @@ function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): num
 	const a =
 		Math.sin(dLat / 2) ** 2 +
 		Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-	return EARTH_RADIUS_M * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+	return EARTH_RADIUS_M() * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 /**
@@ -84,8 +86,8 @@ function toLocal(
 	refLng: number
 ): { x: number; y: number } {
 	const latRad = (refLat * Math.PI) / 180;
-	const y = ((lat - refLat) * Math.PI * EARTH_RADIUS_M) / 180;
-	const x = ((lng - refLng) * Math.PI * EARTH_RADIUS_M * Math.cos(latRad)) / 180;
+	const y = ((lat - refLat) * Math.PI * EARTH_RADIUS_M()) / 180;
+	const x = ((lng - refLng) * Math.PI * EARTH_RADIUS_M() * Math.cos(latRad)) / 180;
 	return { x, y };
 }
 
@@ -142,9 +144,9 @@ export function detectStation(
 	}
 	cumM += bestT * segLengths[bestSegIdx];
 
-	const distanceFt = cumM * FEET_PER_METER;
+	const distanceFt = cumM * FEET_PER_METER();
 	const station = distanceFt / 100;
-	const offsetFt = Math.sqrt(bestDistSq) * FEET_PER_METER;
+	const offsetFt = Math.sqrt(bestDistSq) * FEET_PER_METER();
 
 	return { station, offsetFt, distanceFt };
 }

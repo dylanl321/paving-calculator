@@ -1,11 +1,10 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
-	import L from 'leaflet';
-
-	// Leaflet's CSS references .png assets via url(); load it browser-only so it
-	// stays out of the SSR / Pages Functions bundle (esbuild has no .png loader).
-	if (browser) import('leaflet/dist/leaflet.css');
+	import MapView from '$lib/components/map-v2/MapView.svelte';
+	import MapMarker from '$lib/components/map-v2/MapMarker.svelte';
+	import { coordinatesToBounds } from '$lib/services/mapUtils';
+	import type { Map as MapLibreMap } from 'maplibre-gl';
 
 	interface MapSite {
 		id: string;
@@ -28,9 +27,7 @@
 
 	let { height = '100%' }: Props = $props();
 
-	let mapEl: HTMLDivElement;
-	let mapInstance: L.Map | null = null;
-	let markerMap: Map<string, L.Marker> = new Map();
+	let map: MapLibreMap | null = $state(null);
 	let sites = $state<MapSite[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
@@ -65,110 +62,38 @@
 	const loggingCount = $derived(pinnedSites.filter((s) => s.status === 'logging').length);
 	const activeCount = $derived(pinnedSites.filter((s) => s.status === 'active').length);
 
-	function createPinIcon(color: string): L.DivIcon {
-		return L.divIcon({
-			html: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
-				<path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="${color}" stroke="rgba(0,0,0,0.3)" stroke-width="1.5"/>
-				<circle cx="14" cy="14" r="5" fill="rgba(255,255,255,0.9)"/>
-			</svg>`,
-			className: '',
-			iconSize: [28, 36],
-			iconAnchor: [14, 36],
-			popupAnchor: [0, -40]
-		});
-	}
+	const mapBounds = $derived.by<[[number, number], [number, number]] | null>(() => {
+		if (pinnedSites.length === 0) return null;
+		return coordinatesToBounds(pinnedSites.map((s) => [s.latitude, s.longitude]));
+	});
 
 	function createPopupContent(site: MapSite): string {
 		const color = STATUS_COLORS[site.status];
 		const statusLabel = STATUS_LABELS[site.status];
-		const isDark = document.documentElement.classList.contains('dark');
-		const textColor = isDark ? '#e5e7eb' : '#1f2937';
-		const mutedColor = isDark ? '#9ca3af' : '#6b7280';
 
-		let content = `<div style="min-width:200px;font-family:system-ui,sans-serif;color:${textColor}">
+		let content = `<div style="min-width:200px;font-family:system-ui,sans-serif;color:#1f2937">
 			<strong style="font-size:0.95rem">${site.name}</strong><br>
 			<span style="display:inline-block;margin:6px 0;padding:3px 10px;border-radius:999px;background:${color};color:#000;font-size:0.7rem;font-weight:700;text-transform:uppercase">${statusLabel}</span>`;
 
 		if (site.today_log_open && (site.today_tons > 0 || site.today_loads > 0)) {
-			content += `<br><span style="font-size:0.85rem;color:${textColor};font-weight:600">${site.today_tons.toFixed(1)} T • ${site.today_loads} loads</span>`;
+			content += `<br><span style="font-size:0.85rem;font-weight:600">${site.today_tons.toFixed(1)} T • ${site.today_loads} loads</span>`;
 		}
 
 		if (site.crew_name) {
-			content += `<br><span style="display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:0.85rem;color:${textColor}">
+			content += `<br><span style="display:inline-flex;align-items:center;gap:6px;margin-top:4px;font-size:0.85rem">
 				<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${site.crew_color}"></span>
 				${site.crew_name}
 			</span>`;
 		}
 
 		if (site.location_description) {
-			content += `<br><span style="font-size:0.8rem;color:${mutedColor};margin-top:4px;display:block">${site.location_description}</span>`;
+			content += `<br><span style="font-size:0.8rem;color:#6b7280;margin-top:4px;display:block">${site.location_description}</span>`;
 		}
 
 		content += `<br><a href="/dashboard/job-sites/${site.id}" style="display:inline-block;margin-top:8px;font-size:0.82rem;color:#3b82f6;text-decoration:underline">Open site →</a>
 		</div>`;
 
 		return content;
-	}
-
-	function initMap() {
-		if (!browser || !mapEl || pinnedSites.length === 0) return;
-
-		// Destroy existing instance
-		if (mapInstance) {
-			mapInstance.remove();
-			mapInstance = null;
-		}
-
-		const isDark = document.documentElement.classList.contains('dark');
-		const tileLayer = isDark
-			? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-			: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-
-		mapInstance = L.map(mapEl, {
-			zoomControl: true,
-			attributionControl: true
-		});
-
-		L.tileLayer(tileLayer, {
-			attribution:
-				'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-			maxZoom: 19
-		}).addTo(mapInstance);
-
-		const bounds: [number, number][] = [];
-		markerMap.clear();
-
-		for (const site of pinnedSites) {
-			bounds.push([site.latitude, site.longitude]);
-
-			const color = STATUS_COLORS[site.status];
-			const icon = createPinIcon(color);
-			const popup = L.popup({ closeButton: true }).setContent(createPopupContent(site));
-
-			const marker = L.marker([site.latitude, site.longitude], { icon })
-				.bindPopup(popup)
-				.addTo(mapInstance);
-
-			markerMap.set(site.id, marker);
-		}
-
-		if (bounds.length === 1) {
-			mapInstance.setView(bounds[0], 13);
-		} else if (bounds.length > 1) {
-			mapInstance.fitBounds(bounds, { padding: [50, 50] });
-		}
-
-		// Watch for theme changes
-		const observer = new MutationObserver(() => {
-			if (mapInstance) {
-				initMap();
-			}
-		});
-
-		observer.observe(document.documentElement, {
-			attributes: true,
-			attributeFilter: ['class']
-		});
 	}
 
 	async function fetchSites() {
@@ -183,11 +108,6 @@
 			sites = data.sites;
 			lastUpdated = new Date();
 			loading = false;
-
-			// Initialize or update map after data loads
-			if (browser && pinnedSites.length > 0) {
-				setTimeout(() => initMap(), 50);
-			}
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load map data';
 			loading = false;
@@ -206,10 +126,6 @@
 	});
 
 	onDestroy(() => {
-		if (mapInstance) {
-			mapInstance.remove();
-			mapInstance = null;
-		}
 		if (refreshInterval) {
 			clearInterval(refreshInterval);
 		}
@@ -217,10 +133,8 @@
 
 	export function flyToSite(siteId: string) {
 		const site = pinnedSites.find((s) => s.id === siteId);
-		if (!site || !mapInstance) return;
-		mapInstance.flyTo([site.latitude, site.longitude], 15, { duration: 1 });
-		const marker = markerMap.get(siteId);
-		if (marker) marker.openPopup();
+		if (!site || !map) return;
+		map.flyTo({ center: [site.longitude, site.latitude], zoom: 15, duration: 1000 });
 	}
 </script>
 
@@ -265,7 +179,20 @@
 	</div>
 {:else}
 	<div class="map-container" style="height:{height}">
-		<div bind:this={mapEl} class="map-element"></div>
+		{#if browser && mapBounds}
+			<MapView bind:map bounds={mapBounds} height="100%">
+				{#snippet layers()}
+					{#each pinnedSites as site (site.id)}
+						<MapMarker
+							lat={site.latitude}
+							lng={site.longitude}
+							color={STATUS_COLORS[site.status]}
+							popupHtml={createPopupContent(site)}
+						/>
+					{/each}
+				{/snippet}
+			</MapView>
+		{/if}
 
 		<!-- Top-left stats bar -->
 		<div class="stats-overlay">
@@ -385,11 +312,6 @@
 		border-radius: var(--radius-md, 12px);
 		overflow: hidden;
 		border: 1px solid var(--border);
-	}
-
-	.map-element {
-		width: 100%;
-		height: 100%;
 	}
 
 	.stats-overlay {

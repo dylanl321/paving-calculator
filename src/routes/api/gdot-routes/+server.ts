@@ -12,10 +12,13 @@ export interface GdotRoute {
 	county: string;
 	function_type: string;
 	system_code: string;
+	/** GeoJSON LineString [lng,lat][] when geometry was requested and available. */
+	geometry?: { type: 'LineString'; coordinates: [number, number][] } | null;
 }
 
 export const GET: RequestHandler = async ({ url }) => {
 	const q = url.searchParams.get('q')?.trim();
+	const withGeometry = url.searchParams.get('geometry') === 'true';
 	if (!q || q.length < 2) {
 		return json({ routes: [] });
 	}
@@ -29,7 +32,8 @@ export const GET: RequestHandler = async ({ url }) => {
 		const params = new URLSearchParams({
 			where,
 			outFields: 'ROUTE_ID,ROAD_NAME,COUNTY,FUNCTION_TYPE,SYSTEM_CODE',
-			returnGeometry: 'false',
+			returnGeometry: withGeometry ? 'true' : 'false',
+			outSR: '4326',
 			resultRecordCount: '20',
 			orderByFields: 'ROUTE_ID ASC',
 			f: 'json'
@@ -52,6 +56,7 @@ export const GET: RequestHandler = async ({ url }) => {
 					FUNCTION_TYPE: string;
 					SYSTEM_CODE: string;
 				};
+				geometry?: { paths?: number[][][] };
 			}>;
 			error?: { message: string };
 		};
@@ -69,12 +74,20 @@ export const GET: RequestHandler = async ({ url }) => {
 			const key = a.ROUTE_ID;
 			if (!seen.has(key)) {
 				seen.add(key);
+				let geometry: GdotRoute['geometry'] = null;
+				if (withGeometry && f.geometry?.paths?.[0]?.length) {
+					geometry = {
+						type: 'LineString',
+						coordinates: f.geometry.paths[0].map((p) => [p[0], p[1]] as [number, number])
+					};
+				}
 				routes.push({
 					route_id: a.ROUTE_ID ?? '',
 					road_name: a.ROAD_NAME ?? '',
 					county: a.COUNTY ?? '',
 					function_type: a.FUNCTION_TYPE ?? '',
-					system_code: a.SYSTEM_CODE ?? ''
+					system_code: a.SYSTEM_CODE ?? '',
+					...(withGeometry ? { geometry } : {})
 				});
 			}
 		}

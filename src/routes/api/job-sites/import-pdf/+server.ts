@@ -3,6 +3,7 @@ import { DbHelper } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
 import { parseGdotDocumentsV2, toV1, pdfToText, detectDocumentType, type ParsedGdotJob, type ParsedGdotJobV2, type GdotDocumentType } from '$lib/server/pdf/parse-gdot';
 import type { FieldConfidence } from '$lib/server/pdf/confidence';
+import { runLlmFallback, type WorkersAi } from '$lib/server/pdf/llm-fallback';
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB per file
 
@@ -210,6 +211,14 @@ export async function POST(event: RequestEvent) {
 		}
 
 		const v2 = parseGdotDocumentsV2(texts);
+
+		// Phase 2 (optional): supplement low-confidence geographic/identity fields
+		// with the Workers AI fallback. Best-effort — fills ONLY low/null fields,
+		// never overrides medium/high deterministic values, and degrades silently
+		// to the deterministic result on any error or unmet JSON Mode.
+		const ai = event.platform.env.AI as WorkersAi | undefined;
+		await runLlmFallback(ai, v2);
+
 		const parsed = toV1(v2);
 
 		// Build a flat field_confidence map for the UI (scalar fields only).
@@ -219,7 +228,7 @@ export async function POST(event: RequestEvent) {
 			'est_start_date', 'completion_date', 'customer_name', 'customer_address',
 			'customer_contact', 'customer_phone', 'customer_email', 'owner_name',
 			'owner_address', 'project_manager', 'asphalt_supplier', 'total_length_ft',
-			'location_description'
+			'location_description', 'route_designation', 'begin_terminus', 'end_terminus'
 		];
 		const field_confidence: FieldConfidenceMap = {};
 		for (const k of scalarFields) {
