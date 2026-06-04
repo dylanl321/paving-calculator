@@ -4,6 +4,7 @@ import { verifyPassword, createSession, setSessionCookie } from '$lib/server/aut
 import { recordAudit } from '$lib/server/audit';
 import { checkRateLimit } from '$lib/server/rate-limit';
 import { logAuditEvent } from '$lib/server/db-audit';
+import { getViewForRole, getRedirectForView } from '$lib/server/role-views';
 
 interface LoginRequest {
 	email: string;
@@ -51,6 +52,8 @@ export async function POST(event: RequestEvent) {
 		setSessionCookie(event.cookies, sessionToken);
 
 		const org = await db.getOrgByUserId(user.id);
+		let redirectTo = '/dashboard';
+
 		if (org) {
 			await recordAudit(event.platform.env.DB, {
 				actorUserId: user.id,
@@ -65,6 +68,13 @@ export async function POST(event: RequestEvent) {
 					undefined,
 				userAgent: event.request.headers.get('user-agent') || undefined
 			});
+
+			// Look up user role and determine redirect
+			const role = await db.getUserRole(user.id, org.id);
+			if (role) {
+				const view = getViewForRole(role);
+				redirectTo = getRedirectForView(view);
+			}
 		}
 
 		// Log to admin audit log
@@ -79,7 +89,8 @@ export async function POST(event: RequestEvent) {
 		});
 
 		// Update last login fields
-		await db.prepare('UPDATE users SET last_login_at = ?, last_login_ip = ? WHERE id = ?')
+		await db
+			.prepare('UPDATE users SET last_login_at = ?, last_login_ip = ? WHERE id = ?')
 			.bind(Math.floor(Date.now() / 1000), ipAddress, user.id)
 			.run();
 
@@ -88,7 +99,8 @@ export async function POST(event: RequestEvent) {
 				id: user.id,
 				email: user.email,
 				name: user.name
-			}
+			},
+			redirectTo
 		});
 	} catch (error) {
 		console.error('Login error:', error);
