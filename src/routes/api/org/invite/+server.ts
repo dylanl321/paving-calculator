@@ -2,6 +2,7 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireAuth } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
 import { recordAudit } from '$lib/server/audit';
+import { sendInvitationEmailTemplated } from '$lib/server/email-template-senders';
 
 type OrgRole =
 	| 'owner'
@@ -75,9 +76,20 @@ export async function POST(event: RequestEvent) {
 			userAgent: event.request.headers.get('user-agent') || undefined
 		});
 
-		// TODO: Send email with invitation link
-		// For now, just return the token
-		console.log(`Invitation token for ${email}: ${invitation.token}`);
+		// Send invitation email via template system
+		const baseUrl = new URL(event.request.url).origin;
+		sendInvitationEmailTemplated(
+			event.platform!.env.DB,
+			event.platform!.env.RESEND_API_KEY,
+			email,
+			user.name,
+			org.id,
+			invitation.token,
+			baseUrl,
+			{ logger: db, orgId: org.id, userId: user.id }
+		).catch((err) => {
+			console.error('Failed to send invitation email:', err);
+		});
 
 		return json({
 			invitation: {

@@ -350,6 +350,18 @@ export interface DbCrewLocation {
 	updated_at: number;
 }
 
+export interface DbNotificationSchedule {
+	id: string;
+	org_id: string;
+	schedule_type: 'eod_summary' | 'weekly_report';
+	enabled: number; // 0|1
+	send_time: string; // 'HH:MM'
+	timezone: string;
+	recipients: string; // JSON array of emails
+	created_at: number;
+	updated_at: number;
+}
+
 export interface DbEmailReportSchedule {
 	id: string;
 	org_id: string;
@@ -2062,6 +2074,52 @@ export class DbHelper {
 		await this.db
 			.prepare('UPDATE email_report_schedules SET last_sent_at = ? WHERE id = ?')
 			.bind(sentAt, id)
+			.run();
+	}
+
+	// ── Notification Schedules ────────────────────────────────────────────────
+
+	async getNotificationSchedules(orgId: string): Promise<DbNotificationSchedule[]> {
+		return await this.db
+			.prepare('SELECT * FROM notification_schedules WHERE org_id = ? ORDER BY schedule_type ASC')
+			.bind(orgId)
+			.all<DbNotificationSchedule>()
+			.then((r) => r.results);
+	}
+
+	async upsertNotificationSchedule(
+		schedule: Omit<DbNotificationSchedule, 'created_at' | 'updated_at'>
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				`INSERT INTO notification_schedules (id, org_id, schedule_type, enabled, send_time, timezone, recipients, created_at, updated_at)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				 ON CONFLICT(org_id, schedule_type) DO UPDATE SET
+				   enabled = excluded.enabled,
+				   send_time = excluded.send_time,
+				   timezone = excluded.timezone,
+				   recipients = excluded.recipients,
+				   updated_at = excluded.updated_at`
+			)
+			.bind(
+				schedule.id,
+				schedule.org_id,
+				schedule.schedule_type,
+				schedule.enabled,
+				schedule.send_time,
+				schedule.timezone,
+				schedule.recipients,
+				now,
+				now
+			)
+			.run();
+	}
+
+	async deleteNotificationSchedule(id: string, orgId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM notification_schedules WHERE id = ? AND org_id = ?')
+			.bind(id, orgId)
 			.run();
 	}
 }

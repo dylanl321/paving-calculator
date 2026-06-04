@@ -1,6 +1,6 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
-import { sendPasswordResetEmail, buildOrgBranding } from '$lib/server/email';
+import { sendPasswordResetEmailTemplated } from '$lib/server/email-template-senders';
 import { checkRateLimit } from '$lib/server/rate-limit';
 import { logAuditEvent } from '$lib/server/db-audit';
 
@@ -52,16 +52,15 @@ export async function POST(event: RequestEvent) {
 			const baseUrl = new URL(event.request.url).origin;
 
 			const org = await db.getOrgByUserId(user.id);
-			const settings = org ? await db.getOrgSettings(org.id) : null;
-			const branding = buildOrgBranding(org, settings);
 
-			const result = await sendPasswordResetEmail(
+			const result = await sendPasswordResetEmailTemplated(
+				event.platform.env.DB,
 				event.platform?.env.RESEND_API_KEY,
 				user.email,
 				user.name,
 				resetToken,
 				baseUrl,
-				branding,
+				org?.id ?? null,
 				{ logger: db, orgId: org?.id ?? null, userId: user.id }
 			);
 
