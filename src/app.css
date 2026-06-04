@@ -310,11 +310,45 @@ input[type='time'] {
 	margin-bottom: var(--sp-4);
 }
 
+/* Remove double-spacing when .field is a grid cell */
+.form-grid .field,
+.form-grid-2 .field,
+.form-grid-3 .field {
+	margin-bottom: 0;
+}
+
 .field label {
 	display: block;
 	font-size: var(--fs-sm);
 	color: var(--text-muted);
 	margin-bottom: var(--sp-2);
+}
+
+/* Responsive input sizing for .field wrappers (settings, org pages) */
+.field input:not([type='checkbox']):not([type='radio']):not([type='color']),
+.field select,
+.field textarea {
+	width: 100%;
+	min-height: var(--input-height, 48px);
+	padding: 10px 12px;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	color: var(--text);
+	font-size: var(--fs-md);
+	font-family: inherit;
+}
+
+.field input:not([type='checkbox']):not([type='radio']):not([type='color']):focus,
+.field select:focus,
+.field textarea:focus {
+	outline: 2px solid var(--accent);
+	outline-offset: 0;
+}
+
+.field textarea {
+	min-height: 80px;
+	resize: vertical;
 }
 
 .field-label {
