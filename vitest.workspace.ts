@@ -23,6 +23,17 @@ export default defineConfig({
 					environment: 'node',
 					globals: false,
 					setupFiles: ['tests/setup-d1.ts']
+				},
+				resolve: {
+					alias: {
+						'$lib': '/tmp/worktrees/t_198c9d47/src/lib',
+						'$app/environment': '/tmp/worktrees/t_198c9d47/tests/mocks/app-environment.ts'
+					}
+				},
+				server: {
+					deps: {
+						inline: ['better-sqlite3']
+					}
 				}
 			}),
 			// Component tests: Svelte components with jsdom

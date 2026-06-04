@@ -76,7 +76,7 @@ export function slugify(text: string): string {
 
 export async function createSession(db: DbHelper, userId: string): Promise<string> {
 	const expiresAt = Math.floor(Date.now() / 1000) + SESSION_DURATION_SECONDS;
-	return await db.createSession(userId, expiresAt);
+	return await db.auth.createSession(userId, expiresAt);
 }
 
 export function setSessionCookie(cookies: RequestEvent['cookies'], token: string): void {
@@ -103,20 +103,20 @@ export async function getAuthUser(event: RequestEvent): Promise<AuthUser | null>
 
 	const db = new DbHelper(event.platform.env.DB);
 
-	const session = await db.getSession(token);
+	const session = await db.auth.getSession(token);
 	if (!session) return null;
 
 	const now = Math.floor(Date.now() / 1000);
 	if (session.expires_at < now) {
-		await db.deleteSession(token);
+		await db.auth.deleteSession(token);
 		return null;
 	}
 
-	const user = await db.getUserById(session.user_id);
+	const user = await db.auth.getUserById(session.user_id);
 	if (!user) return null;
 
 	if (user.disabled) {
-		await db.deleteSession(token);
+		await db.auth.deleteSession(token);
 		return null;
 	}
 
@@ -125,7 +125,7 @@ export async function getAuthUser(event: RequestEvent): Promise<AuthUser | null>
 	if (superEmails && !user.is_global_admin) {
 		const allowed = superEmails.split(',').map((e) => e.trim().toLowerCase());
 		if (allowed.includes(user.email.toLowerCase())) {
-			await db.updateUser(user.id, { is_global_admin: true });
+			await db.auth.updateUser(user.id, { is_global_admin: true });
 			// reflect in this response
 			return {
 				id: user.id,
@@ -181,7 +181,7 @@ export async function requireOrgRole(
 		});
 	}
 	const db = new DbHelper(event.platform.env.DB);
-	const role = await db.getUserRole(user.id, orgId);
+	const role = await db.auth.getUserRole(user.id, orgId);
 
 	if (!role || !allowedRoles.includes(role as 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man')) {
 		throw new Response(JSON.stringify({ error: 'Forbidden: Insufficient permissions' }), {
