@@ -2,6 +2,7 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireAuth } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
 import { recordAudit } from '$lib/server/audit';
+import { sendInvitationEmailTemplated } from '$lib/server/email-template-senders';
 
 export async function DELETE(event: RequestEvent) {
 	try {
@@ -125,8 +126,20 @@ export async function POST(event: RequestEvent) {
 			userAgent: event.request.headers.get('user-agent') || undefined
 		});
 
-		// TODO: Send email with invitation link
-		console.log(`Resent invitation token for ${newInvitation.email}: ${newInvitation.token}`);
+		// Send re-invitation email via template system
+		const baseUrl = new URL(event.request.url).origin;
+		sendInvitationEmailTemplated(
+			event.platform!.env.DB,
+			event.platform!.env.RESEND_API_KEY,
+			newInvitation.email,
+			user.name,
+			org.id,
+			newInvitation.token,
+			baseUrl,
+			{ logger: db, orgId: org.id, userId: user.id }
+		).catch((err) => {
+			console.error('Failed to send re-invitation email:', err);
+		});
 
 		return json({
 			invitation: {
