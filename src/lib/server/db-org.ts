@@ -1,11 +1,49 @@
 import type { D1Database } from '../../cloudflare';
 import { toHex } from '$lib/utils/format';
-import type {
-	DbOrganization,
-	DbOrgMember,
-	DbOrgSettings,
-	DbInvitation
-} from './db';
+
+export interface DbOrganization {
+	id: string;
+	name: string;
+	slug: string;
+	address?: string | null;
+	superintendent_email?: string | null;
+	superintendent_phone?: string | null;
+	archived_at?: number | null;
+	created_at: number;
+}
+
+export interface DbOrgMember {
+	user_id: string;
+	org_id: string;
+	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man';
+	invited_at: number;
+	accepted_at: number | null;
+}
+
+export interface DbOrgSettings {
+	org_id: string;
+	accent_color: string | null;
+	logo_key: string | null;
+	logo_content_type: string | null;
+	overrides: string | null;
+	email_from_name: string | null;
+	email_reply_to: string | null;
+	report_recipients: string | null;
+	updated_by: string | null;
+	updated_at: number;
+}
+
+export interface DbInvitation {
+	id: string;
+	org_id: string;
+	email: string;
+	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man';
+	token: string;
+	invited_by: string;
+	created_at: number;
+	accepted_at: number | null;
+	expires_at: number;
+}
 
 export type OrgRole =
 	| 'owner'
@@ -440,5 +478,41 @@ export class DbOrgHelper {
 			.prepare('DELETE FROM invitations WHERE expires_at < ? AND accepted_at IS NULL')
 			.bind(now)
 			.run();
+	}
+
+	// ── Admin Stats ───────────────────────────────────────────────────────
+
+	async getAdminStats(): Promise<{
+		totalOrgs: number;
+		totalUsers: number;
+		activeUsers: number;
+		disabledUsers: number;
+		unverifiedUsers: number;
+		globalAdmins: number;
+	}> {
+		const [orgs, users] = await Promise.all([
+			this.db.prepare('SELECT COUNT(*) as c FROM organizations').first<{ c: number }>(),
+			this.db
+				.prepare(
+					`SELECT
+						COUNT(*) as total,
+						SUM(CASE WHEN disabled = 1 THEN 1 ELSE 0 END) as disabled,
+						SUM(CASE WHEN email_verified = 0 THEN 1 ELSE 0 END) as unverified,
+						SUM(CASE WHEN is_global_admin = 1 THEN 1 ELSE 0 END) as admins
+					FROM users`
+				)
+				.first<{ total: number; disabled: number; unverified: number; admins: number }>()
+		]);
+
+		const totalUsers = users?.total ?? 0;
+		const disabledUsers = users?.disabled ?? 0;
+		return {
+			totalOrgs: orgs?.c ?? 0,
+			totalUsers,
+			activeUsers: totalUsers - disabledUsers,
+			disabledUsers,
+			unverifiedUsers: users?.unverified ?? 0,
+			globalAdmins: users?.admins ?? 0
+		};
 	}
 }
