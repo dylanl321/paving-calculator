@@ -16,6 +16,8 @@
 		created_at: number;
 	}
 
+	const PAGE_SIZE = 50;
+
 	let emails = $state<EmailRow[]>([]);
 	let loading = $state(true);
 	let error = $state('');
@@ -23,6 +25,14 @@
 	let statusFilter = $state('all');
 	let typeFilter = $state('all');
 	let toFilter = $state('');
+	let orgIdFilter = $state('');
+	let dateFromFilter = $state('');
+	let dateToFilter = $state('');
+
+	let currentPage = $state(0);
+	let totalEmails = $state(0);
+
+	const totalPages = $derived(Math.ceil(totalEmails / PAGE_SIZE));
 
 	let previewHtml = $state('');
 	let previewSubject = $state('');
@@ -49,14 +59,31 @@
 			}
 			if (typeFilter !== 'all') params.set('type', typeFilter);
 			if (toFilter.trim()) params.set('to', toFilter.trim());
+			if (orgIdFilter.trim()) params.set('orgId', orgIdFilter.trim());
+			if (dateFromFilter) {
+				const ts = Math.floor(new Date(dateFromFilter).getTime() / 1000);
+				params.set('dateFrom', String(ts));
+			}
+			if (dateToFilter) {
+				const ts = Math.floor(new Date(dateToFilter + 'T23:59:59').getTime() / 1000);
+				params.set('dateTo', String(ts));
+			}
+			params.set('page', String(currentPage));
+			params.set('limit', String(PAGE_SIZE));
 
 			const res = await fetch(`/api/admin/emails?${params.toString()}`);
 			if (!res.ok) {
 				error = res.status === 403 ? 'Access denied' : 'Failed to load email log';
 				return;
 			}
-			const data = (await res.json()) as { emails: EmailRow[] };
+			const data = (await res.json()) as {
+				emails: EmailRow[];
+				total: number;
+				page: number;
+				pageSize: number;
+			};
 			emails = data.emails;
+			totalEmails = data.total;
 		} catch {
 			error = 'Failed to load email log';
 		} finally {
@@ -64,10 +91,25 @@
 		}
 	}
 
+	function onFilterChange() {
+		currentPage = 0;
+		loadEmails();
+	}
+
+	function goToPage(page: number) {
+		if (page >= 0 && page < totalPages) {
+			currentPage = page;
+			loadEmails();
+		}
+	}
+
 	async function openPreview(row: EmailRow) {
 		const previewType = PREVIEWABLE[row.type];
 		if (!previewType) {
-			toastStore.info('No HTML preview available for this email type.');
+			previewLoading = false;
+			showPreview = true;
+			previewSubject = row.subject;
+			previewHtml = `<div style="padding: 2rem; text-align: center; color: #666;">No preview available for type: ${row.type}</div>`;
 			return;
 		}
 		previewLoading = true;
@@ -117,14 +159,14 @@
 	<p class="hint">Every send attempt from PaveRate (verification, password reset, invitations, welcome). Use this to debug delivery.</p>
 
 	<div class="filters">
-		<select bind:value={statusFilter} onchange={loadEmails}>
+		<select bind:value={statusFilter} onchange={onFilterChange}>
 			<option value="all">All statuses</option>
 			<option value="sent">Sent</option>
 			<option value="failed">Failed / Skipped</option>
 			<option value="skipped_no_key">Skipped (no key)</option>
 		</select>
-		<select bind:value={typeFilter} onchange={loadEmails}>
-			<option value="all">All types</option>
+		<select bind:value={typeFilter} onchange={onFilterChange}>
+			<option value="all">All templates</option>
 			<option value="verification">Verification</option>
 			<option value="password-reset">Password reset</option>
 			<option value="invitation">Invitation</option>
@@ -134,8 +176,16 @@
 			type="search"
 			placeholder="Filter by recipient…"
 			bind:value={toFilter}
-			oninput={loadEmails}
+			oninput={onFilterChange}
 		/>
+		<input
+			type="text"
+			placeholder="Org ID"
+			bind:value={orgIdFilter}
+			oninput={onFilterChange}
+		/>
+		<input type="date" bind:value={dateFromFilter} onchange={onFilterChange} />
+		<input type="date" bind:value={dateToFilter} onchange={onFilterChange} />
 	</div>
 
 	{#if loading}
@@ -151,8 +201,9 @@
 					<tr>
 						<th>Sent</th>
 						<th>To</th>
-						<th>Type</th>
+						<th>Template</th>
 						<th>Subject</th>
+						<th>Org</th>
 						<th>Status</th>
 						<th>Detail</th>
 						<th></th>
@@ -163,8 +214,15 @@
 						<tr class:row-failed={row.status !== 'sent'}>
 							<td data-label="Sent">{formatDateTime(row.created_at)}</td>
 							<td data-label="To">{row.to_email}</td>
-							<td data-label="Type">{row.type}</td>
+							<td data-label="Template">{row.type}</td>
 							<td data-label="Subject">{row.subject}</td>
+							<td data-label="Org">
+								{#if row.org_id}
+									<span class="muted">{row.org_id}</span>
+								{:else}
+									—
+								{/if}
+							</td>
 							<td data-label="Status">
 								<span
 									class="status-badge"
@@ -191,6 +249,26 @@
 				</tbody>
 			</table>
 		</div>
+
+		{#if totalPages > 1}
+			<div class="pagination">
+				<button
+					class="page-btn"
+					onclick={() => goToPage(currentPage - 1)}
+					disabled={currentPage === 0}
+				>
+					Prev
+				</button>
+				<span class="page-info">Page {currentPage + 1} of {totalPages}</span>
+				<button
+					class="page-btn"
+					onclick={() => goToPage(currentPage + 1)}
+					disabled={currentPage >= totalPages - 1}
+				>
+					Next
+				</button>
+			</div>
+		{/if}
 	{/if}
 </div>
 
@@ -437,6 +515,46 @@
 		width: 100%;
 		height: 70vh;
 		background: #fff;
+	}
+
+	.pagination {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 1.5rem;
+		margin-top: 1.5rem;
+		padding: 1rem;
+		min-height: var(--touch);
+	}
+
+	.page-btn {
+		padding: 0.75rem 1.5rem;
+		min-height: var(--touch);
+		min-width: 100px;
+		background: var(--surface-alt);
+		color: var(--text);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		cursor: pointer;
+		font-size: 1rem;
+		font-weight: 500;
+	}
+
+	.page-btn:hover:not(:disabled) {
+		background: var(--surface-hover);
+	}
+
+	.page-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	.page-info {
+		color: var(--text);
+		font-size: 1rem;
+		font-weight: 500;
+		min-width: 120px;
+		text-align: center;
 	}
 
 	@media (max-width: 768px) {

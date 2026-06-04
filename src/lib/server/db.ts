@@ -1773,35 +1773,60 @@ export class DbHelper {
 		type?: string;
 		toEmail?: string;
 		failedOnly?: boolean;
+		dateFrom?: number;
+		dateTo?: number;
+		orgId?: string;
+		offset?: number;
 		limit?: number;
-	}): Promise<DbEmailLog[]> {
-		let query = 'SELECT * FROM email_log WHERE 1=1';
+	}): Promise<{ rows: DbEmailLog[]; total: number }> {
+		let whereClause = 'WHERE 1=1';
 		const bindings: (string | number)[] = [];
 
 		if (filters?.status) {
-			query += ' AND status = ?';
+			whereClause += ' AND status = ?';
 			bindings.push(filters.status);
 		}
 		if (filters?.failedOnly) {
-			query += " AND status IN ('failed', 'skipped_no_key')";
+			whereClause += " AND status IN ('failed', 'skipped_no_key')";
 		}
 		if (filters?.type) {
-			query += ' AND type = ?';
+			whereClause += ' AND type = ?';
 			bindings.push(filters.type);
 		}
 		if (filters?.toEmail) {
-			query += ' AND to_email LIKE ?';
+			whereClause += ' AND to_email LIKE ?';
 			bindings.push(`%${filters.toEmail}%`);
 		}
+		if (filters?.dateFrom) {
+			whereClause += ' AND created_at >= ?';
+			bindings.push(filters.dateFrom);
+		}
+		if (filters?.dateTo) {
+			whereClause += ' AND created_at <= ?';
+			bindings.push(filters.dateTo);
+		}
+		if (filters?.orgId) {
+			whereClause += ' AND org_id = ?';
+			bindings.push(filters.orgId);
+		}
 
-		query += ' ORDER BY created_at DESC LIMIT ?';
-		bindings.push(filters?.limit ?? 100);
-
-		return await this.db
-			.prepare(query)
+		const countQuery = `SELECT COUNT(*) as count FROM email_log ${whereClause}`;
+		const countResult = await this.db
+			.prepare(countQuery)
 			.bind(...bindings)
+			.first<{ count: number }>();
+		const total = countResult?.count ?? 0;
+
+		const dataQuery = `SELECT * FROM email_log ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+		const limit = filters?.limit ?? 50;
+		const offset = filters?.offset ?? 0;
+		const rows = await this.db
+			.prepare(dataQuery)
+			.bind(...bindings, limit, offset)
 			.all<DbEmailLog>()
 			.then((r) => r.results);
+
+		return { rows, total };
 	}
 
 	async getJobSiteRoute(jobSiteId: string): Promise<DbJobSiteRoute | null> {

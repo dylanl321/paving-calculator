@@ -12,7 +12,7 @@ export const load: PageServerLoad = async (event) => {
 		db.getRecentUsers(6),
 		db.getRecentOrganizations(6),
 		db.getOrgsNeedingAttention(),
-		db.getEmailLog({ failedOnly: true, limit: 8 }).catch(() => [])
+		db.getEmailLog({ failedOnly: true, limit: 8 }).then((r) => r.rows).catch(() => [])
 	]);
 
 	return {
