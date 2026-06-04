@@ -1,4 +1,5 @@
-// Minimal D1 type definitions for Cloudflare Workers
+// Re-export D1 and R2 type definitions for Cloudflare Workers
+// Aligns with @cloudflare/workers-types to avoid duplicate-type conflicts
 
 export interface D1Database {
 	prepare(query: string): D1PreparedStatement;
@@ -13,18 +14,22 @@ export interface D1PreparedStatement {
 	first<T = unknown>(colName?: string): Promise<T | null>;
 	run<T = unknown>(): Promise<D1Result<T>>;
 	all<T = unknown>(): Promise<D1Result<T>>;
-	raw<T = unknown>(): Promise<T[]>;
+	raw<T = unknown[]>(options: { columnNames: true }): Promise<[string[], ...T[]]>;
+	raw<T = unknown[]>(options?: { columnNames?: false }): Promise<T[]>;
 }
 
 export interface D1Result<T = unknown> {
 	results: T[];
-	success: boolean;
+	success: true;
 	meta: {
 		duration: number;
 		size_after: number;
 		rows_read: number;
 		rows_written: number;
+		last_row_id: number;
+		changed_db: boolean;
 		changes: number;
+		[key: string]: unknown;
 	};
 }
 

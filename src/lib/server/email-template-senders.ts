@@ -8,7 +8,7 @@
 import { getTemplate, renderTemplate, getOrgBranding, type TemplateKey } from '$lib/server/email-templates';
 import type { EmailSendResult, EmailType, SendContext } from '$lib/server/email';
 
-type D1Database = import('@cloudflare/workers-types').D1Database;
+import type { D1Database } from '../../cloudflare';
 
 interface ResendSuccessBody {
   id?: string;

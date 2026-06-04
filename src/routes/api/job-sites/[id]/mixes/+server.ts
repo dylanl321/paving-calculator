@@ -43,6 +43,7 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		target_spread_rate: body.target_spread_rate ?? null,
 		tack_type: body.tack_type ?? null,
 		target_tack_rate: body.target_tack_rate ?? null,
+		contract_unit_price: body.contract_unit_price ?? null,
 		is_active: makeActive ? 1 : 0,
 		sort_order: existing.length
 	});

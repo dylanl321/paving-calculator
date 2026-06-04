@@ -1,4 +1,4 @@
-type D1Database = import('@cloudflare/workers-types').D1Database;
+import type { D1Database } from '../../cloudflare';
 
 export interface EmailTemplate {
   id: string;
