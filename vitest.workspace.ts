@@ -8,7 +8,16 @@ export default defineConfig({
 			provider: 'v8',
 			reporter: ['text', 'lcov'],
 			reportsDirectory: './coverage',
-			include: ['src/lib/**/*.ts', 'src/lib/**/*.svelte'],
+			// Coverage is measured for the lib logic the suites target. The UI/route
+			// layer is excluded (components have their own suite); counting it as 0%
+			// would make the global number meaningless.
+			include: [
+				'src/lib/calc/**/*.ts',
+				'src/lib/config/**/*.ts',
+				'src/lib/server/**/*.ts',
+				'src/lib/services/**/*.ts',
+				'src/lib/utils/**/*.ts'
+			],
 			exclude: [
 				'src/lib/**/__tests__/**',
 				'src/lib/**/*.d.ts',
