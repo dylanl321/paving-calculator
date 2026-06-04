@@ -12,6 +12,7 @@
 	} from './_components/shared';
 	import OverviewTab from './_components/OverviewTab.svelte';
 	import ConfigurationTab from './_components/ConfigurationTab.svelte';
+	import VerificationTab from './_components/VerificationTab.svelte';
 	import EquipmentTab from './_components/EquipmentTab.svelte';
 	import CalculationsTab from './_components/CalculationsTab.svelte';
 	import DailyLogTab from './_components/DailyLogTab.svelte';
@@ -250,6 +251,13 @@
 		</button>
 		<button
 			class="tab"
+			class:active={activeTab === 'verification'}
+			onclick={() => (activeTab = 'verification')}
+		>
+			Verification
+		</button>
+		<button
+			class="tab"
 			class:active={activeTab === 'equipment'}
 			onclick={() => (activeTab = 'equipment')}
 		>
@@ -296,6 +304,8 @@
 		/>
 	{:else if activeTab === 'configuration'}
 		<ConfigurationTab jobSiteId={data.jobSite.id} bind:configForm {estTonnage} lat={data.jobSite.latitude} lng={data.jobSite.longitude} />
+	{:else if activeTab === 'verification'}
+		<VerificationTab jobSiteId={data.jobSite.id} {configForm} onGoToTab={(tab) => (activeTab = tab)} />
 	{:else if activeTab === 'equipment'}
 		<EquipmentTab jobSiteId={data.jobSite.id} bind:equipmentList />
 	{:else if activeTab === 'calculations'}
