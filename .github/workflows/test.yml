@@ -48,8 +48,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run unit tests
-        run: npx vitest run --config vitest.workspace.ts --project unit --reporter=verbose --reporter=github-actions
+      - name: Run unit tests with coverage
+        # --coverage.thresholds.lines=80 enforces 80% line coverage; CI fails if below
+        run: >-
+          npx vitest run
+          --config vitest.workspace.ts
+          --project unit
+          --coverage
+          --coverage.thresholds.lines=80
+          --coverage.thresholds.branches=80
+          --coverage.thresholds.functions=80
+          --coverage.thresholds.statements=80
+          --reporter=verbose
+          --reporter=github-actions
+
+      - name: Upload unit coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-unit
+          path: coverage/
+          retention-days: 7
 
   integration-tests:
     name: Integration Tests
@@ -65,8 +84,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run integration tests
-        run: npx vitest run --config vitest.workspace.ts --project integration --reporter=verbose --reporter=github-actions
+      - name: Run integration tests with coverage
+        # --coverage.thresholds.lines=60 enforces 60% line coverage; CI fails if below
+        run: >-
+          npx vitest run
+          --config vitest.workspace.ts
+          --project integration
+          --coverage
+          --coverage.thresholds.lines=60
+          --coverage.thresholds.branches=60
+          --coverage.thresholds.functions=60
+          --coverage.thresholds.statements=60
+          --reporter=verbose
+          --reporter=github-actions
+
+      - name: Upload integration coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-integration
+          path: coverage/
+          retention-days: 7
 
   component-tests:
     name: Component Tests
@@ -82,8 +120,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run component tests
-        run: npx vitest run --config vitest.workspace.ts --project components --reporter=verbose --reporter=github-actions
+      - name: Run component tests with coverage
+        # --coverage.thresholds.lines=50 enforces 50% line coverage; CI fails if below
+        run: >-
+          npx vitest run
+          --config vitest.workspace.ts
+          --project components
+          --coverage
+          --coverage.thresholds.lines=50
+          --coverage.thresholds.branches=50
+          --coverage.thresholds.functions=50
+          --coverage.thresholds.statements=50
+          --reporter=verbose
+          --reporter=github-actions
+
+      - name: Upload component coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-components
+          path: coverage/
+          retention-days: 7
 
   e2e:
     name: E2E Tests (Playwright)

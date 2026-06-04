@@ -4,6 +4,29 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 export default defineConfig({
 	test: {
+		coverage: {
+			provider: 'v8',
+			reporter: ['text', 'lcov'],
+			reportsDirectory: './coverage',
+			include: ['src/lib/**/*.ts', 'src/lib/**/*.svelte'],
+			exclude: [
+				'src/lib/**/__tests__/**',
+				'src/lib/**/*.d.ts',
+				'node_modules',
+				'src/lib/components/__tests__/**'
+			],
+			// Default threshold (components floor — 50%).
+			// CI jobs override per-project:
+			//   unit        -> 80 lines/branches/functions/statements
+			//   integration -> 60 lines/branches/functions/statements
+			//   components  -> 50 lines/branches/functions/statements
+			thresholds: {
+				lines: 50,
+				branches: 50,
+				functions: 50,
+				statements: 50
+			}
+		},
 		projects: [
 			// Unit tests: pure logic in src/lib (excluding components)
 			defineProject({
