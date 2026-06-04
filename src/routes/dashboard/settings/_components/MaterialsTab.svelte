@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { toastStore } from '$lib/stores/toast.svelte';
-	import { api } from '$lib/utils/api-error';
+	import { api, ApiRequestError } from '$lib/utils/api-error';
 	import { config } from '$lib/config';
 
 	interface Material {
@@ -51,16 +51,13 @@
 		loading = true;
 		error = null;
 		try {
-			const res = await fetch('/api/org/materials', { credentials: 'include' });
-			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				error = data.error || 'Failed to load materials';
-				return;
-			}
-			const data = await res.json();
+			const data = await api.get<{ materials?: Material[] }>('/api/org/materials', {
+				credentials: 'include',
+				silent: true
+			});
 			materials = data.materials || [];
 		} catch (e) {
-			error = 'Network error while loading materials';
+			error = e instanceof ApiRequestError ? e.message : 'Network error while loading materials';
 		} finally {
 			loading = false;
 		}
@@ -108,24 +105,16 @@
 				body.notes = editNotes.trim() || null;
 			}
 
-			const res = await fetch(`/api/org/materials/${selectedMaterial.id}`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(body),
-				credentials: 'include'
+			await api.put(`/api/org/materials/${selectedMaterial.id}`, body, {
+				credentials: 'include',
+				errorMessage: 'Failed to save changes'
 			});
-
-			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				toastStore.error(data.error || 'Failed to save changes');
-				return;
-			}
 
 			toastStore.success('Material updated successfully');
 			cancelEdit();
 			await loadMaterials();
 		} catch (e) {
-			toastStore.error('Network error while saving');
+			if (!(e instanceof ApiRequestError)) toastStore.error('Network error while saving');
 		} finally {
 			saving = false;
 		}
@@ -136,22 +125,16 @@
 
 		saving = true;
 		try {
-			const res = await fetch(`/api/org/materials/${selectedMaterial.id}`, {
-				method: 'DELETE',
-				credentials: 'include'
+			await api.delete(`/api/org/materials/${selectedMaterial.id}`, {
+				credentials: 'include',
+				errorMessage: 'Failed to reset override'
 			});
-
-			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				toastStore.error(data.error || 'Failed to reset override');
-				return;
-			}
 
 			toastStore.success('Material reset to default');
 			cancelEdit();
 			await loadMaterials();
 		} catch (e) {
-			toastStore.error('Network error while resetting');
+			if (!(e instanceof ApiRequestError)) toastStore.error('Network error while resetting');
 		} finally {
 			saving = false;
 		}
@@ -166,22 +149,16 @@
 
 		saving = true;
 		try {
-			const res = await fetch(`/api/org/materials/${selectedMaterial.id}`, {
-				method: 'DELETE',
-				credentials: 'include'
+			await api.delete(`/api/org/materials/${selectedMaterial.id}`, {
+				credentials: 'include',
+				errorMessage: 'Failed to delete material'
 			});
-
-			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				toastStore.error(data.error || 'Failed to delete material');
-				return;
-			}
 
 			toastStore.success('Material deleted');
 			cancelEdit();
 			await loadMaterials();
 		} catch (e) {
-			toastStore.error('Network error while deleting');
+			if (!(e instanceof ApiRequestError)) toastStore.error('Network error while deleting');
 		} finally {
 			saving = false;
 		}
@@ -222,24 +199,16 @@
 				notes: addNotes.trim() || null
 			};
 
-			const res = await fetch('/api/org/materials', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(body),
-				credentials: 'include'
+			await api.post('/api/org/materials', body, {
+				credentials: 'include',
+				errorMessage: 'Failed to add material'
 			});
-
-			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				toastStore.error(data.error || 'Failed to add material');
-				return;
-			}
 
 			toastStore.success('Material added successfully');
 			cancelAdd();
 			await loadMaterials();
 		} catch (e) {
-			toastStore.error('Network error while adding material');
+			if (!(e instanceof ApiRequestError)) toastStore.error('Network error while adding material');
 		} finally {
 			saving = false;
 		}
@@ -319,12 +288,11 @@
 		</h3>
 
 		{#if selectedMaterial.source === 'builtin' || selectedMaterial.source === 'override'}
-			{@const defaultDensity = getBuiltinDensity(
-				selectedMaterial.base_material_id || selectedMaterial.id
-			)}
+			{@const baseMaterialId = selectedMaterial.base_material_id}
+			{@const defaultDensity = getBuiltinDensity(baseMaterialId || selectedMaterial.id)}
 			<p class="card-desc">
-				Original: {selectedMaterial.base_material_id
-					? config.materials?.find((m) => m.id === selectedMaterial.base_material_id)?.label ||
+				Original: {baseMaterialId
+					? config.materials?.find((m) => m.id === baseMaterialId)?.label ||
 						selectedMaterial.name
 					: selectedMaterial.name}
 				— Default: {defaultDensity != null ? `${defaultDensity.toFixed(2)} tons/yd³` : 'N/A'}

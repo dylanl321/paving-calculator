@@ -1,6 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { MapView, MapPolyline, MapPolygon } from '$lib/components/map-v2';
+	import {
+		stationToFeet,
+		feetToStation,
+		polylineLengthFt,
+		laneCorridorPolygon,
+		sliceRouteByStations,
+		feetToMeters
+	} from '$lib/services/mapUtils';
 
 	interface Waypoint {
 		lat: number;
@@ -59,132 +67,31 @@
 	const hasRoute = $derived(waypoints.length >= 2);
 	const hasPinned = $derived(site.latitude != null && site.longitude != null);
 
-	// Stations use base-100 notation: station 1.5 = 150 ft from start
-	function stationToFeet(station: number): number {
-		return station * 100;
-	}
-
-	function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-		const R = 6371000;
-		const phi1 = (lat1 * Math.PI) / 180;
-		const phi2 = (lat2 * Math.PI) / 180;
-		const dphi = ((lat2 - lat1) * Math.PI) / 180;
-		const dlambda = ((lon2 - lon1) * Math.PI) / 180;
-		const a =
-			Math.sin(dphi / 2) * Math.sin(dphi / 2) +
-			Math.cos(phi1) * Math.cos(phi2) * Math.sin(dlambda / 2) * Math.sin(dlambda / 2);
-		return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-	}
-
-	// Convert cumulative feet along waypoints to a [lat, lng] coordinate
-	function feetToLatLng(targetFt: number, wps: Waypoint[]): [number, number] | null {
-		if (wps.length < 2) return null;
-		if (targetFt <= 0) return [wps[0].lat, wps[0].lng];
-
-		let accumulated = 0;
-		for (let i = 0; i < wps.length - 1; i++) {
-			const segMeters = haversineMeters(wps[i].lat, wps[i].lng, wps[i + 1].lat, wps[i + 1].lng);
-			const segFt = segMeters * 3.28084;
-			if (accumulated + segFt >= targetFt) {
-				const fraction = (targetFt - accumulated) / segFt;
-				const lat = wps[i].lat + fraction * (wps[i + 1].lat - wps[i].lat);
-				const lng = wps[i].lng + fraction * (wps[i + 1].lng - wps[i].lng);
-				return [lat, lng];
-			}
-			accumulated += segFt;
-		}
-		// Past end — return last waypoint
-		return [wps[wps.length - 1].lat, wps[wps.length - 1].lng];
-	}
-
-	function totalRouteFt(wps: Waypoint[]): number {
-		if (wps.length < 2) return 0;
-		let meters = 0;
-		for (let i = 0; i < wps.length - 1; i++) {
-			meters += haversineMeters(wps[i].lat, wps[i].lng, wps[i + 1].lat, wps[i + 1].lng);
-		}
-		return meters * 3.28084;
-	}
-
-	function computeBufferPolygon(wps: Waypoint[], widthMeters: number): [number, number][] {
-		if (wps.length < 2) return [];
-		const halfWidth = widthMeters / 2;
-		const leftSide: [number, number][] = [];
-		const rightSide: [number, number][] = [];
-
-		for (let i = 0; i < wps.length; i++) {
-			const curr = wps[i];
-			let perpAngle: number;
-			if (i === 0) {
-				const next = wps[i + 1];
-				perpAngle = Math.atan2(next.lat - curr.lat, next.lng - curr.lng);
-			} else if (i === wps.length - 1) {
-				const prev = wps[i - 1];
-				perpAngle = Math.atan2(curr.lat - prev.lat, curr.lng - prev.lng);
-			} else {
-				const prev = wps[i - 1];
-				const next = wps[i + 1];
-				const angle1 = Math.atan2(curr.lat - prev.lat, curr.lng - prev.lng);
-				const angle2 = Math.atan2(next.lat - curr.lat, next.lng - curr.lng);
-				perpAngle = (angle1 + angle2) / 2;
-			}
-			const latOffsetPerMeter = 1 / 111320;
-			const lngOffsetPerMeter = 1 / (111320 * Math.cos((curr.lat * Math.PI) / 180));
-			const perpLat = Math.sin(perpAngle + Math.PI / 2);
-			const perpLng = Math.cos(perpAngle + Math.PI / 2);
-			leftSide.push([
-				curr.lat + perpLat * halfWidth * latOffsetPerMeter,
-				curr.lng + perpLng * halfWidth * lngOffsetPerMeter
-			]);
-			rightSide.push([
-				curr.lat - perpLat * halfWidth * latOffsetPerMeter,
-				curr.lng - perpLng * halfWidth * lngOffsetPerMeter
-			]);
-		}
-		return [...leftSide, ...rightSide.reverse()];
-	}
-
-	// Build the green "paved" progress segments from logged progress entries.
+	// Build the green "paved" progress segments from logged progress entries by
+	// slicing the route between each entry's start/end stations. The slice
+	// follows the road centerline (curves included), so segments lie on the road.
 	function buildProgressSegments(entries: ProgressEntry[], wps: Waypoint[]): [number, number][][] {
 		const segments: [number, number][][] = [];
 
 		for (const entry of entries) {
-			let startFt: number | null = null;
-			let endFt: number | null = null;
+			let startStation: number | null = null;
+			let endStation: number | null = null;
 
 			if (entry.station_start != null) {
-				startFt = stationToFeet(entry.station_start);
+				startStation = entry.station_start;
 			}
 			if (entry.station_end != null) {
-				endFt = stationToFeet(entry.station_end);
-			} else if (startFt != null && entry.distance_ft != null) {
-				endFt = startFt + entry.distance_ft;
+				endStation = entry.station_end;
+			} else if (startStation != null && entry.distance_ft != null) {
+				endStation = feetToStation(stationToFeet(startStation) + entry.distance_ft);
 			}
 
-			if (startFt == null || endFt == null) continue;
-			if (endFt <= startFt) continue;
+			if (startStation == null || endStation == null) continue;
+			if (endStation <= startStation) continue;
 
-			const startLL = feetToLatLng(startFt, wps);
-			const endLL = feetToLatLng(endFt, wps);
-			if (!startLL || !endLL) continue;
-
-			const segPoints: [number, number][] = [startLL];
-			let accumulated = 0;
-			for (let i = 0; i < wps.length - 1; i++) {
-				const segMeters = haversineMeters(wps[i].lat, wps[i].lng, wps[i + 1].lat, wps[i + 1].lng);
-				const segFt = segMeters * 3.28084;
-				const segStart = accumulated;
-				const segEnd = accumulated + segFt;
-				if (segEnd > startFt && segStart < endFt) {
-					const wpFt = accumulated + segFt;
-					if (wpFt > startFt && wpFt < endFt) {
-						segPoints.push([wps[i + 1].lat, wps[i + 1].lng]);
-					}
-				}
-				accumulated += segFt;
-			}
-			segPoints.push(endLL);
-			segments.push(segPoints);
+			const slice = sliceRouteByStations(wps, startStation, endStation);
+			if (!slice) continue;
+			segments.push(slice.coordinates.map(([lng, lat]) => [lat, lng] as [number, number]));
 		}
 
 		return segments;
@@ -217,8 +124,8 @@
 
 	const bufferCoords = $derived.by<[number, number][]>(() => {
 		if (!hasRoute || !numLanes || !laneWidthFt || numLanes <= 0 || laneWidthFt <= 0) return [];
-		const totalWidthMeters = numLanes * laneWidthFt * 0.3048;
-		return computeBufferPolygon(waypoints, totalWidthMeters);
+		const totalWidthMeters = feetToMeters(numLanes * laneWidthFt);
+		return laneCorridorPolygon(waypoints, totalWidthMeters);
 	});
 
 	const progressSegments = $derived.by<[number, number][][]>(() =>
@@ -247,7 +154,7 @@
 		!hasRoute && hasPinned ? [site.latitude as number, site.longitude as number] : undefined
 	);
 
-	const routeTotalFt = $derived(totalRouteFt(waypoints));
+	const routeTotalFt = $derived(polylineLengthFt(waypoints));
 	const effectiveTotalFt = $derived(
 		totalLengthFt && totalLengthFt > 0 ? totalLengthFt : routeTotalFt
 	);
@@ -261,7 +168,7 @@
 			.filter((e) => e.log_date === today)
 			.reduce((sum, e) => {
 				if (e.station_start != null && e.station_end != null) {
-					return sum + (e.station_end - e.station_start) * 100;
+					return sum + stationToFeet(e.station_end - e.station_start);
 				} else if (e.distance_ft != null) {
 					return sum + e.distance_ft;
 				}

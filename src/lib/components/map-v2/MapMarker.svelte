@@ -52,7 +52,7 @@
   let marker: Marker | null = null;
   let popupInstance: Popup | null = null;
   let el: HTMLDivElement | null = null;
-  let popupEl: HTMLDivElement | null = null;
+  let popupEl = $state<HTMLDivElement | null>(null);
 
   function resolveColor(): string {
     return color ?? STATUS_COLORS[status] ?? STATUS_COLORS.planned;

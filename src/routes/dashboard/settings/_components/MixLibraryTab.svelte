@@ -1,20 +1,9 @@
 <script lang="ts">
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { api } from '$lib/utils/api-error';
+	import type { OrgMixPreset } from './shared';
 
-	interface DbOrgMixPreset {
-		id: string;
-		name: string;
-		mix_type: string | null;
-		target_thickness_in: number | null;
-		target_spread_rate: number | null;
-		tack_type: string | null;
-		target_tack_rate: number | null;
-		plant_supplier: string | null;
-		notes: string | null;
-		is_default: number;
-		sort_order: number;
-	}
+	type DbOrgMixPreset = OrgMixPreset;
 
 	let { canEdit, initialPresets }: { canEdit: boolean; initialPresets: DbOrgMixPreset[] } = $props();
 

@@ -13,7 +13,8 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createTestDb } from '../../../../../tests/helpers/db.js';
-import { mockRequestEvent } from '../../../../../tests/helpers/request.js';
+import { mockRequestEvent, type MockRequestEvent } from '../../../../../tests/helpers/request.js';
+import { callHandler as call } from '../../../../../tests/helpers/handler.js';
 import { createTestUser } from '../../../../../tests/fixtures/users.js';
 import { createTestOrg, createTestMembership } from '../../../../../tests/fixtures/orgs.js';
 import { createTestJobSite } from '../../../../../tests/fixtures/job-sites.js';
@@ -26,38 +27,8 @@ import { POST as POSTReject, DELETE as DELETEReject } from '../[id]/loads/[loadI
 
 // ── SvelteKit HttpError shim ──────────────────────────────────────────────────
 // Handlers throw error(N, msg) which produces an HttpError, not a Response.
-// Wrap calls to normalise both paths to a Response-like object.
+// `call` (callHandler) normalises both paths to a Response — see tests/helpers/handler.ts.
 
-interface HttpErrorLike {
-  status: number;
-  body?: { message?: string };
-}
-
-function isHttpError(e: unknown): e is HttpErrorLike {
-  return (
-    typeof e === 'object' &&
-    e !== null &&
-    'status' in e &&
-    typeof (e as Record<string, unknown>).status === 'number'
-  );
-}
-
-async function call(
-  fn: (ev: unknown) => Promise<Response>,
-  event: unknown
-): Promise<Response> {
-  try {
-    return await fn(event);
-  } catch (err) {
-    if (isHttpError(err)) {
-      return new Response(JSON.stringify(err.body ?? {}), {
-        status: err.status,
-        headers: { 'content-type': 'application/json' }
-      });
-    }
-    throw err;
-  }
-}
 
 // ── World setup ────────────────────────────────────────────────────────────────
 
@@ -123,15 +94,15 @@ async function makeEvent(
     .bind(userId)
     .first<{ id: string; email: string; name: string }>();
   if (userRow) {
-    (event as Record<string, unknown>).locals = {
+    (event as { locals: App.Locals }).locals = {
       user: { id: userRow.id, email: userRow.email, name: userRow.name }
-    };
+    } as App.Locals;
   }
 
   if (opts.formData) {
     const url = new URL(opts.pathname ?? '/', 'http://localhost:5173');
     const req = new Request(url, { method: opts.method ?? 'POST', body: opts.formData });
-    (event as Record<string, unknown>).request = req;
+    (event as { request: Request }).request = req;
   }
 
   return event;
@@ -588,7 +559,7 @@ describe('totals aggregate correctly in log summary', () => {
     }
 
     const { DbLogHelper } = await import('$lib/server/db-logs.js');
-    const logHelper = new DbLogHelper(testDb.d1 as unknown as D1Database);
+    const logHelper = new DbLogHelper(testDb.d1);
     const summary = await logHelper.getProjectSummary(jobSiteId);
 
     expect(summary.total_loads).toBe(20);
@@ -621,7 +592,7 @@ describe('totals aggregate correctly in log summary', () => {
     }
 
     const { DbLogHelper } = await import('$lib/server/db-logs.js');
-    const logHelper = new DbLogHelper(testDb.d1 as unknown as D1Database);
+    const logHelper = new DbLogHelper(testDb.d1);
     const summary = await logHelper.getProjectSummary(jobSiteId);
 
     expect(summary.total_loads).toBe(30);
@@ -632,7 +603,7 @@ describe('totals aggregate correctly in log summary', () => {
   it('project summary returns zeros for a site with no logs', async () => {
     const { testDb, otherJobSiteId } = world;
     const { DbLogHelper } = await import('$lib/server/db-logs.js');
-    const logHelper = new DbLogHelper(testDb.d1 as unknown as D1Database);
+    const logHelper = new DbLogHelper(testDb.d1);
     const summary = await logHelper.getProjectSummary(otherJobSiteId);
 
     expect(summary.total_loads).toBe(0);

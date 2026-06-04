@@ -36,3 +36,18 @@ export interface EmailReportSchedule {
 	enabled: boolean;
 	lastSentAt: number | null;
 }
+
+/** An org-defined mix preset row (matches the API/DB shape). */
+export interface OrgMixPreset {
+	id: string;
+	name: string;
+	mix_type: string | null;
+	target_thickness_in: number | null;
+	target_spread_rate: number | null;
+	tack_type: string | null;
+	target_tack_rate: number | null;
+	plant_supplier: string | null;
+	notes: string | null;
+	is_default: number;
+	sort_order: number;
+}

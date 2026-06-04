@@ -160,15 +160,12 @@ describe('POST /api/job-sites/[id]/logs — create daily log', () => {
 
 describe('GET /api/job-sites/[id]/logs — list daily logs', () => {
   let ctx: TestContext;
-  let logId: string;
 
   beforeEach(async () => {
     ctx = await buildContext();
     // Create one log
     const event = authedEvent(ctx, { method: 'POST', params: { id: ctx.siteId } });
-    const res = await createLog(event as any);
-    const body = await res.json() as { log: { id: string } };
-    logId = body.log.id;
+    await createLog(event as any);
   });
 
   afterEach(() => ctx.db.close());
@@ -208,9 +205,6 @@ describe('GET /api/job-sites/[id]/logs — list daily logs', () => {
     const event = anonEvent(ctx, { params: { id: ctx.siteId } });
     await expect(listLogs(event as any)).rejects.toMatchObject({ status: 401 });
   });
-
-  // Silence unused variable warning
-  void logId;
 });
 
 describe('POST /api/job-sites/[id]/logs/[logId]/entries — add entry', () => {
@@ -590,7 +584,4 @@ describe('GET /api/job-sites/[id]/logs/summary — rollup math', () => {
     const event = anonEvent(ctx, { params: { id: ctx.siteId } });
     await expect(getSummary(event as any)).rejects.toMatchObject({ status: 401 });
   });
-
-  // Silence unused variable warning
-  void logId;
 });

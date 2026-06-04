@@ -38,7 +38,8 @@ export { placementCheck, spreadSpecCheck, tackTempCheck, rainCheck } from '../co
 
 interface LoadData {
 	tons: number;
-	rejected: boolean;
+	/** Accepts SQLite's 0/1 number form or a boolean. */
+	rejected: number | boolean;
 	timestamp: number;
 }
 

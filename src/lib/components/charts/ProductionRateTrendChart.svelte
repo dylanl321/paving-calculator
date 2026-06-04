@@ -106,10 +106,6 @@
 		min-width: 80px;
 	}
 
-	.stat-pill.target {
-		border-style: dashed;
-	}
-
 	.pill-label {
 		font-size: 0.7rem;
 		color: var(--text-muted);

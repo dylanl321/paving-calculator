@@ -10,6 +10,7 @@
 import Database from 'better-sqlite3';
 import { readFileSync, readdirSync } from 'fs';
 import { join, resolve } from 'path';
+import type { D1Database } from '../../src/cloudflare';
 
 // ── Types mirroring the D1 API ────────────────────────────────────────────────
 
@@ -26,9 +27,13 @@ export interface D1PreparedStatement {
 	run(): Promise<D1Result>;
 }
 
-export interface D1DatabaseCompat {
-	prepare(query: string): D1PreparedStatement;
-}
+/**
+ * The compat DB exposed to tests is structurally a real `D1Database` (the
+ * project shim). `DbHelper` and the domain helpers only call `.prepare()`, but
+ * typing it as the full interface lets it pass anywhere a `D1Database` is
+ * expected without per-call-site casts.
+ */
+export type D1DatabaseCompat = D1Database;
 
 // ── Migration runner ──────────────────────────────────────────────────────────
 
@@ -111,11 +116,29 @@ function wrapStatement(
 }
 
 function createD1Compat(db: Database.Database): D1DatabaseCompat {
-	return {
+	const compat = {
 		prepare(query: string): D1PreparedStatement {
 			return wrapStatement(db, query, []);
+		},
+		async dump(): Promise<ArrayBuffer> {
+			return new ArrayBuffer(0);
+		},
+		async batch(statements: D1PreparedStatement[]): Promise<D1Result[]> {
+			const out: D1Result[] = [];
+			for (const stmt of statements) {
+				out.push(await stmt.run());
+			}
+			return out;
+		},
+		async exec(query: string): Promise<{ count: number; duration: number }> {
+			db.exec(query);
+			return { count: 0, duration: 0 };
+		},
+		withSession() {
+			return compat as unknown as D1DatabaseCompat;
 		}
 	};
+	return compat as unknown as D1DatabaseCompat;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

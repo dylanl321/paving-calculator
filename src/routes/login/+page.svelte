@@ -321,7 +321,7 @@
 		border-radius: 22px;
 	}
 
-	[data-theme='light'] :global(.auth-card) {
+	:global([data-theme='light']) .auth-card {
 		background: rgba(255, 255, 255, 0.98);
 		border: 1px solid rgba(0, 0, 0, 0.12);
 		box-shadow:
@@ -329,8 +329,8 @@
 			inset 0 1px 0 rgba(255, 255, 255, 0.6);
 	}
 
-	[data-theme='dark'] :global(.auth-card),
-	[data-theme='sunlight'] :global(.auth-card) {
+	:global([data-theme='dark']) .auth-card,
+	:global([data-theme='sunlight']) .auth-card {
 		background: rgba(24, 31, 37, 0.92);
 		border: 1px solid rgba(159, 176, 189, 0.18);
 		box-shadow:
@@ -346,11 +346,11 @@
 			backdrop-filter: blur(18px) saturate(120%);
 			-webkit-backdrop-filter: blur(18px) saturate(120%);
 		}
-		[data-theme='light'] :global(.auth-card) {
+		:global([data-theme='light']) .auth-card {
 			background: rgba(255, 255, 255, 0.9);
 		}
-		[data-theme='dark'] :global(.auth-card),
-		[data-theme='sunlight'] :global(.auth-card) {
+		:global([data-theme='dark']) .auth-card,
+		:global([data-theme='sunlight']) .auth-card {
 			background: rgba(24, 31, 37, 0.78);
 		}
 	}

@@ -189,25 +189,6 @@
 		font-weight: var(--fw-bold);
 		color: var(--text);
 	}
-	.status-message {
-		margin-top: var(--sp-3);
-		padding: var(--sp-3);
-		border-radius: var(--radius-lg);
-		font-size: var(--fs-sm);
-		line-height: 1.4;
-	}
-	.status-message.pass {
-		background: color-mix(in srgb, var(--good) 12%, transparent);
-		color: var(--good);
-	}
-	.status-message.warn {
-		background: color-mix(in srgb, var(--warn) 12%, transparent);
-		color: var(--warn);
-	}
-	.status-message.fail {
-		background: color-mix(in srgb, var(--bad) 12%, transparent);
-		color: var(--bad);
-	}
 	.ogfc-check {
 		margin-top: var(--sp-3);
 		padding: var(--sp-3);

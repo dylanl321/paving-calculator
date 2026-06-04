@@ -38,3 +38,7 @@ e2e-report/
 
 # Vitest coverage output
 coverage/
+
+# Dev-server runtime logs
+dev-server.out.log
+dev-server.err.log

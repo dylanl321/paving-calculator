@@ -50,7 +50,7 @@
   const { getMap } = getMapContext();
 
   let popupInstance: Popup | null = null;
-  let contentEl: HTMLDivElement | null = null;
+  let contentEl = $state<HTMLDivElement | null>(null);
 
   function buildHtml(): string {
     if (html) return title ? `<div class="map-popup"><strong>${title}</strong>${html}</div>` : html;

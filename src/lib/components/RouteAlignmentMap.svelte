@@ -2,7 +2,8 @@
 	import { onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import { MapView, MapMarker, MapPolyline, MapPolygon } from '$lib/components/map-v2';
-	import { haversineFeet } from '$lib/services/mapUtils';
+	import { polylineLengthFt, laneCorridorPolygon, feetToMeters } from '$lib/services/mapUtils';
+	import { buildRoadAlignment, snapToNearestRoad } from '$lib/services/roadSnap';
 	import type { Map as MapLibreMap } from 'maplibre-gl';
 
 	interface Waypoint {
@@ -38,9 +39,18 @@
 	}: Props = $props();
 
 	let mapInstance = $state<MapLibreMap | null>(null);
+	/**
+	 * Road-following alignment that gets saved. On first load this is the stored
+	 * route; while drawing it is rebuilt from snapped control points so the line
+	 * always lies on real roads.
+	 */
 	let waypoints = $state<Waypoint[]>([...initialWaypoints]);
+	/** User-clicked control points (already snapped to the nearest road). */
+	let controlPoints = $state<Waypoint[]>([]);
 	let drawMode = $state(false);
 	let saving = $state(false);
+	let snapping = $state(false);
+	let snapError = $state('');
 
 	const isMobile = $derived(
 		browser && typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
@@ -54,62 +64,7 @@
 
 	const pinned = $derived(site.latitude != null && site.longitude != null);
 
-	const totalLengthFt = $derived.by(() => {
-		if (waypoints.length < 2) return 0;
-
-		let totalFt = 0;
-		for (let i = 0; i < waypoints.length - 1; i++) {
-			const from = waypoints[i];
-			const to = waypoints[i + 1];
-			totalFt += haversineFeet(from.lat, from.lng, to.lat, to.lng);
-		}
-
-		return totalFt;
-	});
-
-	function computeBufferPolygon(wps: Waypoint[], widthMeters: number): [number, number][] {
-		if (wps.length < 2) return [];
-
-		const halfWidth = widthMeters / 2;
-		const leftSide: [number, number][] = [];
-		const rightSide: [number, number][] = [];
-
-		for (let i = 0; i < wps.length; i++) {
-			const curr = wps[i];
-			let perpAngle: number;
-
-			if (i === 0) {
-				const next = wps[i + 1];
-				perpAngle = Math.atan2(next.lat - curr.lat, next.lng - curr.lng);
-			} else if (i === wps.length - 1) {
-				const prev = wps[i - 1];
-				perpAngle = Math.atan2(curr.lat - prev.lat, curr.lng - prev.lng);
-			} else {
-				const prev = wps[i - 1];
-				const next = wps[i + 1];
-				const angle1 = Math.atan2(curr.lat - prev.lat, curr.lng - prev.lng);
-				const angle2 = Math.atan2(next.lat - curr.lat, next.lng - curr.lng);
-				perpAngle = (angle1 + angle2) / 2;
-			}
-
-			const latOffsetPerMeter = 1 / 111320;
-			const lngOffsetPerMeter = 1 / (111320 * Math.cos((curr.lat * Math.PI) / 180));
-
-			const perpLat = Math.sin(perpAngle + Math.PI / 2);
-			const perpLng = Math.cos(perpAngle + Math.PI / 2);
-
-			leftSide.push([
-				curr.lat + perpLat * halfWidth * latOffsetPerMeter,
-				curr.lng + perpLng * halfWidth * lngOffsetPerMeter
-			]);
-			rightSide.push([
-				curr.lat - perpLat * halfWidth * latOffsetPerMeter,
-				curr.lng - perpLng * halfWidth * lngOffsetPerMeter
-			]);
-		}
-
-		return [...leftSide, ...rightSide.reverse()];
-	}
+	const totalLengthFt = $derived(polylineLengthFt(waypoints));
 
 	const color = $derived(STATUS_COLORS[site.status] ?? STATUS_COLORS.active);
 
@@ -127,15 +82,15 @@
 	const bufferCoords = $derived.by<[number, number][]>(() => {
 		if (waypoints.length < 2 || !numLanes || !laneWidthFt || numLanes <= 0 || laneWidthFt <= 0)
 			return [];
-		const totalWidthMeters = numLanes * laneWidthFt * 0.3048;
-		return computeBufferPolygon(waypoints, totalWidthMeters);
+		const totalWidthMeters = feetToMeters(numLanes * laneWidthFt);
+		return laneCorridorPolygon(waypoints, totalWidthMeters);
 	});
 
 	function handleMapReady(map: MapLibreMap) {
 		mapInstance = map;
 		map.on('click', (e) => {
 			if (drawMode && !isMobile) {
-				waypoints = [...waypoints, { lat: e.lngLat.lat, lng: e.lngLat.lng }];
+				addControlPoint(e.lngLat.lat, e.lngLat.lng);
 			}
 		});
 	}
@@ -147,14 +102,53 @@
 		}
 	}
 
+	/**
+	 * Add a clicked point: snap it to the nearest real road, then rebuild the
+	 * road-following alignment. Roads-only by design — a click that isn't near a
+	 * road is rejected rather than dropping an off-road waypoint.
+	 */
+	async function addControlPoint(lat: number, lng: number) {
+		snapError = '';
+		snapping = true;
+		try {
+			const snapped = await snapToNearestRoad(lat, lng);
+			if (!snapped) {
+				snapError = 'Could not snap to a road there — tap on a road.';
+				return;
+			}
+			controlPoints = [...controlPoints, { lat: snapped.lat, lng: snapped.lng }];
+			await rebuildAlignment();
+		} finally {
+			snapping = false;
+		}
+	}
+
+	/** Rebuild the saved alignment so it follows real roads between control points. */
+	async function rebuildAlignment() {
+		if (controlPoints.length === 0) {
+			waypoints = [];
+			return;
+		}
+		const aligned = await buildRoadAlignment(controlPoints);
+		waypoints = aligned.map(([lat, lng]) => ({ lat, lng }));
+	}
+
 	function addPointAtCenter() {
 		if (!mapInstance || !drawMode) return;
 		const center = mapInstance.getCenter();
-		waypoints = [...waypoints, { lat: center.lat, lng: center.lng }];
+		void addControlPoint(center.lat, center.lng);
+	}
+
+	function undoLastPoint() {
+		if (controlPoints.length === 0) return;
+		controlPoints = controlPoints.slice(0, -1);
+		void rebuildAlignment();
 	}
 
 	function clearRoute() {
+		controlPoints = [];
 		waypoints = [];
+		snapError = '';
 	}
 
 	async function saveRoute() {
@@ -228,10 +222,10 @@
 				{/if}
 
 				{#if drawMode}
-					{#each waypoints as wp, i (i)}
+					{#each controlPoints as cp, i (i)}
 						<MapMarker
-							lat={wp.lat}
-							lng={wp.lng}
+							lat={cp.lat}
+							lng={cp.lng}
 							color="#f2c037"
 							label={String(i + 1)}
 						/>
@@ -265,7 +259,7 @@
 			</button>
 
 			{#if drawMode && isMobile}
-				<button class="map-btn" onclick={addPointAtCenter} title="Add point at center">
+				<button class="map-btn" onclick={addPointAtCenter} title="Add point at center" disabled={snapping}>
 					<svg
 						width="18"
 						height="18"
@@ -284,7 +278,26 @@
 				</button>
 			{/if}
 
-			{#if waypoints.length > 0}
+			{#if drawMode && controlPoints.length > 0}
+				<button class="map-btn" onclick={undoLastPoint} title="Undo last point" disabled={snapping}>
+					<svg
+						width="18"
+						height="18"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<path d="M9 14L4 9l5-5"></path>
+						<path d="M4 9h10a6 6 0 0 1 6 6v1"></path>
+					</svg>
+					Undo
+				</button>
+			{/if}
+
+			{#if waypoints.length > 0 || controlPoints.length > 0}
 				<button class="map-btn map-btn-warn" onclick={clearRoute} title="Clear route">
 					<svg
 						width="18"
@@ -337,10 +350,24 @@
 					<span class="stat-label">Length</span>
 					<span class="stat-value">{totalLengthFt.toFixed(0)} ft</span>
 				</div>
-				<div class="stat">
-					<span class="stat-label">Points</span>
-					<span class="stat-value">{waypoints.length}</span>
-				</div>
+				{#if controlPoints.length > 0}
+					<div class="stat">
+						<span class="stat-label">Points</span>
+						<span class="stat-value">{controlPoints.length}</span>
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		{#if drawMode || snapping || snapError}
+			<div class="snap-pill" class:snap-pill--error={!!snapError}>
+				{#if snapError}
+					{snapError}
+				{:else if snapping}
+					Snapping to road…
+				{:else}
+					Tap the road to add points — the line follows real roads
+				{/if}
 			</div>
 		{/if}
 
@@ -490,6 +517,29 @@
 		pointer-events: none;
 		z-index: 450;
 		text-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+	}
+
+	.snap-pill {
+		position: absolute;
+		top: 12px;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 500;
+		pointer-events: none;
+		background: rgba(0, 0, 0, 0.72);
+		color: #fff;
+		font-size: 0.8rem;
+		font-weight: 600;
+		padding: 5px 14px;
+		border-radius: 20px;
+		white-space: nowrap;
+		max-width: calc(100% - 24px);
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.snap-pill--error {
+		background: rgba(239, 68, 68, 0.92);
 	}
 
 	@media (max-width: 640px) {

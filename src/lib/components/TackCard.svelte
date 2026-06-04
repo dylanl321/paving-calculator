@@ -303,10 +303,6 @@
 		margin-bottom: var(--sp-3);
 		line-height: 1.35;
 	}
-	.weather-warn.warn {
-		background: color-mix(in srgb, var(--warn) 18%, transparent);
-		color: var(--warn);
-	}
 	.weather-warn.fail {
 		background: color-mix(in srgb, var(--bad) 18%, transparent);
 		color: var(--bad);

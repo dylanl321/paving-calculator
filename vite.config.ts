@@ -56,6 +56,23 @@ export default defineConfig({
 						}
 					},
 					{
+						// OpenFreeMap basemap: style JSON, vector tiles (.pbf), glyphs and
+						// sprites. Cache-first so the map still renders offline. statuses
+						// [0, 200] include opaque/CORS responses.
+						urlPattern: /^https:\/\/tiles\.openfreemap\.org\//,
+						handler: 'CacheFirst',
+						options: {
+							cacheName: 'openfreemap-tiles',
+							expiration: {
+								maxEntries: 1000,
+								maxAgeSeconds: 60 * 60 * 24 * 30
+							},
+							cacheableResponse: {
+								statuses: [0, 200]
+							}
+						}
+					},
+					{
 						urlPattern: /^\/api\//,
 						handler: 'NetworkFirst',
 						options: {

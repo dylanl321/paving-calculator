@@ -5,8 +5,12 @@
 	 */
 	import { browser } from '$app/environment';
 	import { MapView, MapPolyline, MapMarker } from '$lib/components/map-v2';
-	import { constant } from '$lib/config';
-	import { haversineFeet } from '$lib/services/mapUtils';
+	import {
+		coordinateToStation,
+		stationToCoordinate,
+		sliceRouteByStations,
+		lineStringLengthFt
+	} from '$lib/services/mapUtils';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import type { Map as MapLibreMap } from 'maplibre-gl';
@@ -46,12 +50,15 @@
 
 	let sections = $state<RoadSection[]>([]);
 	let mapInstance = $state<MapLibreMap | null>(null);
-	let drawMode: 'idle' | 'pick-start' | 'pick-end' = $state('idle');
-	let tempStart: [number, number] | null = $state(null);
+	let drawMode = $state<'idle' | 'pick-start' | 'pick-end'>('idle');
+	/** Station offset of the pending section start, set on the first click. */
+	let tempStartStation: number | null = $state(null);
+	let flashMessage = $state('');
+	let flashTimer: ReturnType<typeof setTimeout> | null = null;
 	let nextSectionNumber = $state(1);
 	let editingSectionId: string | null = $state(null);
 
-	const FT_PER_STATION = constant('CONST.FT_PER_STATION');
+	const hasRoute = $derived(waypoints.length >= 2);
 
 	const STATUS_COLORS = {
 		active: '#f59e0b',
@@ -65,18 +72,28 @@
 		}
 	});
 
-	// Wire up MapLibre click handler whenever map instance changes
+	// Wire up MapLibre click handler whenever map instance changes.
+	// Roads-only: every click snaps to the route centerline (a station), so a
+	// section can only ever start/end ON the road — no free off-road points.
 	$effect(() => {
 		if (!mapInstance) return;
 		const m = mapInstance;
 		function onMapClick(e: { lngLat: { lat: number; lng: number } }) {
+			if (drawMode === 'idle') return;
+			const station = coordinateToStation(
+				{ lat: e.lngLat.lat, lng: e.lngLat.lng },
+				waypoints
+			);
+			if (station === null) {
+				flash('Tap closer to the road');
+				return;
+			}
 			if (drawMode === 'pick-start') {
-				tempStart = [e.lngLat.lat, e.lngLat.lng];
+				tempStartStation = station;
 				drawMode = 'pick-end';
-			} else if (drawMode === 'pick-end' && tempStart) {
-				const end: [number, number] = [e.lngLat.lat, e.lngLat.lng];
-				createSection(tempStart, end);
-				tempStart = null;
+			} else if (drawMode === 'pick-end' && tempStartStation !== null) {
+				createSection(tempStartStation, station);
+				tempStartStation = null;
 				drawMode = 'idle';
 			}
 		}
@@ -87,6 +104,14 @@
 			m.off('click', onMapClick);
 		};
 	});
+
+	function flash(msg: string) {
+		flashMessage = msg;
+		if (flashTimer) clearTimeout(flashTimer);
+		flashTimer = setTimeout(() => {
+			flashMessage = '';
+		}, 1400);
+	}
 
 	// Update map cursor based on draw mode
 	$effect(() => {
@@ -108,28 +133,37 @@
 	}
 
 	function startAddSection() {
+		if (!hasRoute) {
+			toastStore.error('Define the route alignment first');
+			return;
+		}
 		drawMode = 'pick-start';
-		tempStart = null;
+		tempStartStation = null;
 		editingSectionId = null;
 	}
 
-	async function createSection(start: [number, number], end: [number, number]) {
-		const startStation = waypoints.length > 0 ? calculateStation(start) : null;
-		const endStation = waypoints.length > 0 ? calculateStation(end) : null;
-
-		const geometry = {
-			type: 'LineString' as const,
-			coordinates: [
-				[start[1], start[0]],
-				[end[1], end[0]]
-			]
-		};
+	/**
+	 * Create a road section between two stations. The geometry is sliced from the
+	 * route centerline so the section line always lies on the road.
+	 */
+	async function createSection(startStation: number, endStation: number) {
+		if (Math.abs(endStation - startStation) < 1e-6) {
+			toastStore.error('Section start and end are the same point');
+			return;
+		}
+		const lo = Math.min(startStation, endStation);
+		const hi = Math.max(startStation, endStation);
+		const geometry = sliceRouteByStations(waypoints, lo, hi);
+		if (!geometry) {
+			toastStore.error('Could not build section on the road');
+			return;
+		}
 
 		const newSection = {
 			name: `Section ${nextSectionNumber}`,
 			lane: '1',
-			station_start: startStation,
-			station_end: endStation,
+			station_start: lo,
+			station_end: hi,
 			status: 'active' as const,
 			geometry_geojson: JSON.stringify(geometry),
 			notes: null,
@@ -155,62 +189,6 @@
 			console.error('Failed to create section:', err);
 			toastStore.error('Failed to create section');
 		}
-	}
-
-	/** Find the closest point on segment AB to point P (all in [lat, lng]). */
-	function closestPointOnSegment(
-		p: [number, number],
-		a: [number, number],
-		b: [number, number]
-	): [number, number] {
-		const dx = b[1] - a[1];
-		const dy = b[0] - a[0];
-		const len2 = dx * dx + dy * dy;
-		if (len2 === 0) return a;
-		const t = Math.max(0, Math.min(1, ((p[1] - a[1]) * dx + (p[0] - a[0]) * dy) / len2));
-		return [a[0] + t * dy, a[1] + t * dx];
-	}
-
-	function calculateStation(point: [number, number]): number | null {
-		if (waypoints.length < 2) return null;
-
-		const routePoints: [number, number][] = waypoints.map((w) => [w.lat, w.lng]);
-
-		let minDist = Infinity;
-		let nearestSegmentIdx = 0;
-		let nearestPointOnSegment: [number, number] | null = null;
-
-		for (let i = 0; i < routePoints.length - 1; i++) {
-			const closest = closestPointOnSegment(point, routePoints[i], routePoints[i + 1]);
-			const dist = haversineFeet(point[0], point[1], closest[0], closest[1]);
-
-			if (dist < minDist) {
-				minDist = dist;
-				nearestSegmentIdx = i;
-				nearestPointOnSegment = closest;
-			}
-		}
-
-		if (!nearestPointOnSegment) return null;
-
-		let distanceFt = 0;
-		for (let i = 0; i < nearestSegmentIdx; i++) {
-			distanceFt += haversineFeet(
-				routePoints[i][0],
-				routePoints[i][1],
-				routePoints[i + 1][0],
-				routePoints[i + 1][1]
-			);
-		}
-
-		distanceFt += haversineFeet(
-			routePoints[nearestSegmentIdx][0],
-			routePoints[nearestSegmentIdx][1],
-			nearestPointOnSegment[0],
-			nearestPointOnSegment[1]
-		);
-
-		return distanceFt / FT_PER_STATION;
 	}
 
 	function formatStation(station: number | null): string {
@@ -276,15 +254,16 @@
 		return null;
 	}
 
-	/** Length of a section's polyline geometry in feet. */
+	/** Length of a section's stored LineString geometry in feet. */
 	function sectionLengthFt(section: RoadSection): number {
-		const pts = getSectionGeometry(section);
-		if (!pts || pts.length < 2) return 0;
-		let ft = 0;
-		for (let i = 0; i < pts.length - 1; i++) {
-			ft += haversineFeet(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]);
+		if (!section.geometry_geojson) return 0;
+		try {
+			const geom = JSON.parse(section.geometry_geojson);
+			if (geom.type !== 'LineString' || !Array.isArray(geom.coordinates)) return 0;
+			return lineStringLengthFt(geom.coordinates as [number, number][]);
+		} catch {
+			return 0;
 		}
-		return ft;
 	}
 
 	const completedLengthFt = $derived(
@@ -307,12 +286,18 @@
 		waypoints.map((w) => [w.lat, w.lng])
 	);
 
+	const tempStartCoord = $derived<[number, number] | null>(
+		tempStartStation !== null ? stationToCoordinate(tempStartStation, waypoints) : null
+	);
+
 	const instructionText = $derived(
-		drawMode === 'pick-start'
-			? 'Tap map to set section START'
-			: drawMode === 'pick-end'
-				? 'Tap map to set section END'
-				: ''
+		flashMessage
+			? flashMessage
+			: drawMode === 'pick-start'
+				? 'Tap the road to set section START'
+				: drawMode === 'pick-end'
+					? 'Tap the road to set section END'
+					: ''
 	);
 </script>
 
@@ -329,9 +314,9 @@
 					<MapPolyline
 						id="route-waypoints"
 						coordinates={routePoints}
-						color="#6b7280"
-						width={3}
-						opacity={0.6}
+						color="#f59e0b"
+						width={4}
+						opacity={0.85}
 					/>
 				{/if}
 
@@ -360,10 +345,10 @@
 					{/if}
 				{/each}
 
-				{#if tempStart}
+				{#if tempStartCoord}
 					<MapMarker
-						lat={tempStart[0]}
-						lng={tempStart[1]}
+						lat={tempStartCoord[0]}
+						lng={tempStartCoord[1]}
 						color="#f59e0b"
 						status="active"
 					/>
@@ -396,7 +381,7 @@
 					</div>
 				</div>
 			{/if}
-			<button class="btn-add" onclick={startAddSection} disabled={drawMode !== 'idle'}>
+			<button class="btn-add" onclick={startAddSection} disabled={drawMode !== 'idle' || !hasRoute}>
 				<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M10 5v10M5 10h10" />
 				</svg>
@@ -407,8 +392,13 @@
 		<div class="section-list">
 			{#if sections.length === 0}
 				<div class="empty-state">
-					<p>No sections yet</p>
-					<p class="hint">Tap the map to mark a section start point</p>
+					{#if !hasRoute}
+						<p>No route yet</p>
+						<p class="hint">Define the road alignment first — sections snap to the road</p>
+					{:else}
+						<p>No sections yet</p>
+						<p class="hint">Tap the road to mark a section start point</p>
+					{/if}
 				</div>
 			{:else}
 				{#each sections as section (section.id)}

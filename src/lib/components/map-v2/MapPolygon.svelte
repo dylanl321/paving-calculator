@@ -30,12 +30,20 @@
     coordinates: [number, number][];
     /** Status drives fill colour — see STATUS_COLORS */
     status?: RoadStatus;
-    /** Override fill colour (takes precedence over status) */
+    /** Override fill colour (takes precedence over status). Alias: `color`. */
     fillColor?: string;
+    /** Alias for `fillColor` — sets both fill and (unless overridden) outline colour. */
+    color?: string;
     /** Fill opacity 0–1 */
     fillOpacity?: number;
-    /** Outline colour. Defaults to fill colour at full opacity. */
+    /** Outline opacity 0–1 */
+    opacity?: number;
+    /** Outline colour. Defaults to fill colour at full opacity. Alias: `strokeColor`. */
     outlineColor?: string;
+    /** Alias for `outlineColor`. */
+    strokeColor?: string;
+    /** Outline width in pixels */
+    strokeWidth?: number;
     /** Whether to render an outline layer */
     showOutline?: boolean;
     /** Called when the polygon is clicked */
@@ -47,11 +55,18 @@
     coordinates,
     status = 'planned',
     fillColor,
+    color,
     fillOpacity = 0.3,
+    opacity = 0.8,
     outlineColor,
+    strokeColor,
+    strokeWidth = 2,
     showOutline = true,
     onclick,
   }: Props = $props();
+
+  const resolvedFill = $derived(fillColor ?? color);
+  const resolvedOutline = $derived(outlineColor ?? strokeColor);
 
   const { getMap } = getMapContext();
 
@@ -63,7 +78,7 @@
   let onLeave: (() => void) | null = null;
 
   function resolveColor(): string {
-    return fillColor ?? STATUS_COLORS[status] ?? STATUS_COLORS.planned;
+    return resolvedFill ?? STATUS_COLORS[status] ?? STATUS_COLORS.planned;
   }
 
   function toGeoJSON(coords: [number, number][]) {
@@ -115,9 +130,9 @@
           'line-cap': 'round',
         },
         paint: {
-          'line-color': outlineColor ?? col,
-          'line-width': 2,
-          'line-opacity': 0.8,
+          'line-color': resolvedOutline ?? col,
+          'line-width': strokeWidth,
+          'line-opacity': opacity,
         },
       });
     }
@@ -153,10 +168,10 @@
 
   $effect(() => {
     const _coords = coordinates;
-    const _fillColor = fillColor;
+    const _fillColor = resolvedFill;
     const _status = status;
     const _fillOpacity = fillOpacity;
-    const _outlineColor = outlineColor;
+    const _outlineColor = resolvedOutline;
 
     if (!browser) return;
     const map = getMap();

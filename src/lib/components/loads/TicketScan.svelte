@@ -184,8 +184,7 @@
 		color: var(--text);
 	}
 
-	.field input[type='text'],
-	.field input[type='number'] {
+	.field input[type='text'] {
 		min-height: 48px;
 		padding: var(--sp-3);
 		background: var(--surface);

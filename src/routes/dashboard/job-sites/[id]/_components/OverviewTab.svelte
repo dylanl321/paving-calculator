@@ -14,8 +14,9 @@
 	import { fmt, fmtDollars, type ConfigForm } from './shared';
 	import type { PageData } from '../$types';
 	import { browser } from '$app/environment';
-	import { haversineFeet } from '$lib/services/mapUtils';
+	import { polylineLengthFt, lineStringLengthFt } from '$lib/services/mapUtils';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import type { PavingStatus } from '$lib/components/map-v2/RoadProgressLayer.svelte';
 
 	interface Photo {
 		id: string;
@@ -133,9 +134,10 @@
 		lane?: string | null;
 		station_start?: number | null;
 		station_end?: number | null;
-		status: 'active' | 'completed' | 'skipped';
-		paving_status?: string | null;
-		geometry_geojson: string | null;
+		status?: 'active' | 'completed' | 'skipped' | string;
+		paving_status?: PavingStatus | null;
+		geometry_geojson?: string | null;
+		lane_width_ft?: number | null;
 		crew_name?: string | null;
 		notes?: string | null;
 	}
@@ -143,8 +145,6 @@
 	let sections = $state<OverviewSection[]>([]);
 	let sectionsLoading = $state(true);
 	let selectedSection = $state<OverviewSection | null>(null);
-
-	type PavingStatus = 'planned' | 'scheduled_today' | 'in_progress' | 'completed' | 'behind_schedule' | 'skipped';
 
 	function dbStatus(s: string | undefined | null): PavingStatus {
 		switch (s) {
@@ -288,7 +288,7 @@
 	$effect(() => {
 		if (!browser) return;
 		fetch(`/api/job-sites/${data.jobSite.id}/schematics`, { credentials: 'include' })
-			.then((res) => (res.ok ? res.json() : { schematics: [] }))
+			.then((res) => (res.ok ? res.json() : { schematics: [] }) as Promise<{ schematics?: Schematic[] }>)
 			.then((d: { schematics?: Schematic[] }) => {
 				schematics = d.schematics ?? [];
 			})
@@ -308,7 +308,7 @@
 	$effect(() => {
 		if (!browser) return;
 		fetch(`/api/job-sites/${data.jobSite.id}/documents`, { credentials: 'include' })
-			.then((res) => (res.ok ? res.json() : { documents: [] }))
+			.then((res) => (res.ok ? res.json() : { documents: [] }) as Promise<{ documents?: SourceDocument[] }>)
 			.then((d: { documents?: SourceDocument[] }) => {
 				sourceDocuments = d.documents ?? [];
 			})
@@ -349,11 +349,7 @@
 	const routeLengthFt = $derived.by(() => {
 		const wps = data.routeWaypoints;
 		if (wps && wps.length >= 2) {
-			let ft = 0;
-			for (let i = 0; i < wps.length - 1; i++) {
-				ft += haversineFeet(wps[i].lat, wps[i].lng, wps[i + 1].lat, wps[i + 1].lng);
-			}
-			return ft;
+			return polylineLengthFt(wps);
 		}
 		return data.config?.total_length_ft ?? null;
 	});
@@ -363,12 +359,7 @@
 		try {
 			const geom = JSON.parse(section.geometry_geojson);
 			if (geom.type !== 'LineString' || !Array.isArray(geom.coordinates)) return 0;
-			const pts = geom.coordinates as number[][];
-			let ft = 0;
-			for (let i = 0; i < pts.length - 1; i++) {
-				ft += haversineFeet(pts[i][1], pts[i][0], pts[i + 1][1], pts[i + 1][0]);
-			}
-			return ft;
+			return lineStringLengthFt(geom.coordinates as [number, number][]);
 		} catch {
 			return 0;
 		}
@@ -1624,35 +1615,6 @@
 	}
 	.psb-item :global(.status-badge) {
 		align-self: flex-start;
-	}
-
-	.setup-banner {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 16px;
-		flex-wrap: wrap;
-		background: var(--surface);
-		border: 1px solid var(--accent);
-		border-left-width: 4px;
-		border-radius: var(--radius);
-		padding: 16px 20px;
-		margin-bottom: 24px;
-	}
-
-	.setup-banner-text {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-
-	.setup-banner-text strong {
-		font-size: 0.95rem;
-	}
-
-	.setup-banner-text span {
-		font-size: 0.85rem;
-		color: var(--text-muted);
 	}
 
 	.overview-grid {

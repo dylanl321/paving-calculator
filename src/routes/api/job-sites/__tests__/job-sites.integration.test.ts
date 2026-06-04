@@ -16,8 +16,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import type { RequestHandler } from '@sveltejs/kit';
 import { createTestDb, type TestDb } from '../../../../../tests/helpers/db.js';
-import { mockRequestEvent } from '../../../../../tests/helpers/request.js';
+import { mockRequestEvent, type MockRequestEvent } from '../../../../../tests/helpers/request.js';
 import { createTestUser } from '../../../../../tests/fixtures/users.js';
 import { createTestOrg, createTestMembership } from '../../../../../tests/fixtures/orgs.js';
 import { createTestJobSite } from '../../../../../tests/fixtures/job-sites.js';
@@ -93,11 +94,11 @@ function authedEvent(
  * a SvelteKit HttpError or returns a normal Response.
  */
 async function callConfig(
-	handler: (event: any) => Promise<Response>,
-	event: any
+	handler: RequestHandler<any, any>,
+	event: MockRequestEvent
 ): Promise<{ status: number; json: () => Promise<any> }> {
 	try {
-		const res = await handler(event);
+		const res = await handler(event as unknown as Parameters<RequestHandler<any, any>>[0]);
 		return {
 			status: res.status,
 			json: () => res.json()

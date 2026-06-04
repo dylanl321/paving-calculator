@@ -92,11 +92,6 @@
 		justify-content: center;
 	}
 
-	.toast-icon svg {
-		width: 100%;
-		height: 100%;
-	}
-
 	.toast-success .toast-icon {
 		color: var(--good);
 	}
@@ -131,11 +126,6 @@
 		opacity: 0.7;
 		cursor: pointer;
 		transition: opacity 0.2s, background 0.2s;
-	}
-
-	.toast-dismiss svg {
-		width: 18px;
-		height: 18px;
 	}
 
 	.toast-dismiss:hover {

@@ -346,7 +346,7 @@
 								sites={[{
 									id: data.jobSite.id,
 									name: data.jobSite.name,
-									status: data.jobSite.status,
+									status: data.jobSite.status as 'active' | 'completed' | 'archived',
 									latitude: data.jobSite.latitude,
 									longitude: data.jobSite.longitude,
 									location_description: data.jobSite.location_description

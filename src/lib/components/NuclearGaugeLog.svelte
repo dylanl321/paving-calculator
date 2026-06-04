@@ -555,7 +555,6 @@
 	}
 
 	.field input[type='text'],
-	.field input[type='number'],
 	.field select {
 		min-height: 48px;
 		padding: var(--sp-3);

@@ -604,31 +604,6 @@
 		color: var(--accent);
 	}
 
-	.footer-link {
-		padding: 20px;
-		text-align: center;
-		border-top: 1px solid var(--border);
-	}
-
-	.footer-link a {
-		display: inline-block;
-		padding: 12px 24px;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text);
-		text-decoration: none;
-		font-weight: 600;
-		min-height: 48px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.footer-link a:hover {
-		background: var(--border);
-	}
-
 	.site-selector {
 		flex: 1;
 		padding: 20px;

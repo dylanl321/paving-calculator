@@ -1,7 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import type { OrgOverrides } from '$lib/config/overrides';
-import type { EmailReportSchedule } from './_components/shared';
+import type { EmailReportSchedule, OrgMixPreset } from './_components/shared';
 
 export interface OrgSettings {
 	role: string;
@@ -32,8 +32,8 @@ export const load: PageLoad = async ({ fetch }) => {
 				errorStatus: settingsRes.status,
 				settings: null as OrgSettings | null,
 				notificationPrefs: {} as Record<string, boolean>,
-				emailReportSchedules: [],
-				mixPresets: []
+				emailReportSchedules: [] as EmailReportSchedule[],
+				mixPresets: [] as OrgMixPreset[]
 			};
 		}
 
@@ -53,7 +53,7 @@ export const load: PageLoad = async ({ fetch }) => {
 				: ([] as EmailReportSchedule[]);
 
 		const mixPresetsRes = await fetch('/api/org/mix-presets', { credentials: 'include' });
-		const mixPresets = mixPresetsRes.ok ? await mixPresetsRes.json() : [];
+		const mixPresets = (mixPresetsRes.ok ? await mixPresetsRes.json() : []) as OrgMixPreset[];
 
 		return {
 			error: false,
@@ -73,8 +73,8 @@ export const load: PageLoad = async ({ fetch }) => {
 			errorStatus: 0,
 			settings: null as OrgSettings | null,
 			notificationPrefs: {} as Record<string, boolean>,
-			emailReportSchedules: [],
-			mixPresets: []
+			emailReportSchedules: [] as EmailReportSchedule[],
+			mixPresets: [] as OrgMixPreset[]
 		};
 	}
 };
