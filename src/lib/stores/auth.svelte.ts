@@ -12,6 +12,7 @@ interface OrgData {
 	name: string;
 	slug: string;
 	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man';
+	preferred_view?: string | null;
 }
 
 interface AuthState {
