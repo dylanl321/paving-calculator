@@ -22,6 +22,36 @@
 
 	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
+	const REQUIRED_CONFIG_FIELDS = [
+		'road_type',
+		'num_lanes',
+		'lane_width_ft',
+		'total_length_ft',
+		'scope_of_work',
+		'mix_type',
+		'target_thickness_in',
+		'target_spread_rate'
+	];
+
+	function isEmpty(value: any): boolean {
+		return value === null || value === undefined || value === '' || value === 0;
+	}
+
+	function isFieldRequired(field: string): boolean {
+		return REQUIRED_CONFIG_FIELDS.includes(field);
+	}
+
+	function isFieldEmpty(field: string): boolean {
+		return isEmpty((configForm as any)[field]);
+	}
+
+	// Derived booleans for each required field
+	const roadTypeEmpty = $derived(isEmpty(configForm.road_type));
+	const numLanesEmpty = $derived(isEmpty(configForm.num_lanes));
+	const laneWidthEmpty = $derived(isEmpty(configForm.lane_width_ft));
+	const totalLengthEmpty = $derived(isEmpty(configForm.total_length_ft));
+	const scopeEmpty = $derived(isEmpty(configForm.scope_of_work));
+
 	interface Mix {
 		id: string;
 		mix_name: string;
@@ -154,39 +184,55 @@
 <section class="section">
 	<h3>Road Details</h3>
 	<form class="config-form" onchange={saveConfig}>
-		<div class="form-group">
-			<label for="road_type">Road Type</label>
-			<div class="selector-grid">
-				{#each Object.entries(roadTypeLabels) as [value, label]}
-					<button
-						type="button"
-						class="selector-card"
-						class:active={configForm.road_type === value}
-						onclick={() => {
-							configForm.road_type = value as any;
-							saveConfig();
-						}}
-					>
-						{label}
-					</button>
-				{/each}
+		<div class="form-grid">
+			<div class="form-group form-row-full">
+				<label for="road_type">
+					Road Type
+					{#if roadTypeEmpty}
+						<span class="required-badge">Required</span>
+					{/if}
+				</label>
+				<div class="selector-grid" class:required-empty={roadTypeEmpty}>
+					{#each Object.entries(roadTypeLabels) as [value, label]}
+						<button
+							type="button"
+							class="selector-card"
+							class:active={configForm.road_type === value}
+							onclick={() => {
+								configForm.road_type = value as any;
+								saveConfig();
+							}}
+						>
+							{label}
+						</button>
+					{/each}
+				</div>
 			</div>
-		</div>
 
-		<div class="form-row">
 			<div class="form-group">
-				<label for="num_lanes">Number of Lanes</label>
+				<label for="num_lanes">
+					Number of Lanes
+					{#if numLanesEmpty}
+						<span class="required-badge">Required</span>
+					{/if}
+				</label>
 				<input
 					type="number"
 					id="num_lanes"
 					bind:value={configForm.num_lanes}
 					min="1"
 					placeholder="e.g., 2"
+					class:required-empty={numLanesEmpty}
 				/>
 			</div>
 
 			<div class="form-group">
-				<label for="lane_width_ft">Lane Width (ft)</label>
+				<label for="lane_width_ft">
+					Lane Width (ft)
+					{#if laneWidthEmpty}
+						<span class="required-badge">Required</span>
+					{/if}
+				</label>
 				<input
 					type="number"
 					id="lane_width_ft"
@@ -194,30 +240,37 @@
 					min="1"
 					step="0.5"
 					placeholder="e.g., 12"
+					class:required-empty={laneWidthEmpty}
 				/>
 			</div>
-		</div>
 
-		<div class="form-group">
-			<label for="total_length_ft">Total Length (ft)</label>
-			<input
-				type="number"
-				id="total_length_ft"
-				bind:value={configForm.total_length_ft}
-				min="1"
-				placeholder="e.g., 5280"
-			/>
-		</div>
+			<div class="form-group">
+				<label for="total_length_ft">
+					Total Length (ft)
+					{#if totalLengthEmpty}
+						<span class="required-badge">Required</span>
+					{/if}
+				</label>
+				<input
+					type="number"
+					id="total_length_ft"
+					bind:value={configForm.total_length_ft}
+					min="1"
+					placeholder="e.g., 5280"
+					class:required-empty={totalLengthEmpty}
+				/>
+			</div>
 
-		<div class="form-group">
-			<label for="num_lifts">Number of Lifts</label>
-			<input
-				type="number"
-				id="num_lifts"
-				bind:value={configForm.num_lifts}
-				min="1"
-				placeholder="e.g., 2"
-			/>
+			<div class="form-group">
+				<label for="num_lifts">Number of Lifts</label>
+				<input
+					type="number"
+					id="num_lifts"
+					bind:value={configForm.num_lifts}
+					min="1"
+					placeholder="e.g., 2"
+				/>
+			</div>
 		</div>
 	</form>
 </section>
@@ -274,8 +327,13 @@
 
 					<div class="mix-fields">
 						<div class="mix-field">
-							<label>Mix Type</label>
-							<select bind:value={mix.mix_type} onchange={() => saveMix(mix)}>
+							<label>
+								Mix Type
+								{#if mix.is_active === 1 && isEmpty(mix.mix_type)}
+									<span class="required-badge">Required</span>
+								{/if}
+							</label>
+							<select bind:value={mix.mix_type} onchange={() => saveMix(mix)} class:required-empty={mix.is_active === 1 && isEmpty(mix.mix_type)}>
 								<option value={null}>Select type</option>
 								{#each MIX_TYPE_OPTIONS as opt}
 									<option value={opt}>{opt}</option>
@@ -303,12 +361,22 @@
 							<input type="number" bind:value={mix.est_days} oninput={() => saveMix(mix)} min="0" step="0.5" />
 						</div>
 						<div class="mix-field">
-							<label>Thickness (in)</label>
-							<input type="number" bind:value={mix.target_thickness_in} oninput={() => saveMix(mix)} min="0" step="0.25" />
+							<label>
+								Thickness (in)
+								{#if mix.is_active === 1 && isEmpty(mix.target_thickness_in)}
+									<span class="required-badge">Required</span>
+								{/if}
+							</label>
+							<input type="number" bind:value={mix.target_thickness_in} oninput={() => saveMix(mix)} min="0" step="0.25" class:required-empty={mix.is_active === 1 && isEmpty(mix.target_thickness_in)} />
 						</div>
 						<div class="mix-field">
-							<label>Spread (lbs/yd²)</label>
-							<input type="number" bind:value={mix.target_spread_rate} oninput={() => saveMix(mix)} min="0" step="any" />
+							<label>
+								Spread (lbs/yd²)
+								{#if mix.is_active === 1 && isEmpty(mix.target_spread_rate)}
+									<span class="required-badge">Required</span>
+								{/if}
+							</label>
+							<input type="number" bind:value={mix.target_spread_rate} oninput={() => saveMix(mix)} min="0" step="any" class:required-empty={mix.is_active === 1 && isEmpty(mix.target_spread_rate)} />
 						</div>
 						<div class="mix-field">
 							<label>Tack Type</label>
@@ -389,61 +457,68 @@
 
 		<h3 class="form-section-title">Contract Costs</h3>
 
-		<div class="form-group">
-			<label for="cost_per_ton">Cost per Ton ($/ton)</label>
-			<input
-				type="number"
-				id="cost_per_ton"
-				bind:value={configForm.cost_per_ton}
-				min="0"
-				step="0.01"
-				placeholder="e.g., 85.00"
-				onchange={() => saveConfig()}
-			/>
+		<div class="form-grid">
+			<div class="form-group">
+				<label for="cost_per_ton">Cost per Ton ($/ton)</label>
+				<input
+					type="number"
+					id="cost_per_ton"
+					bind:value={configForm.cost_per_ton}
+					min="0"
+					step="0.01"
+					placeholder="e.g., 85.00"
+					onchange={() => saveConfig()}
+				/>
+			</div>
+
+			<div class="form-group">
+				<label for="cost_per_sy">Cost per SY ($/yd²)</label>
+				<input
+					type="number"
+					id="cost_per_sy"
+					bind:value={configForm.cost_per_sy}
+					min="0"
+					step="0.01"
+					placeholder="e.g., 12.50"
+					onchange={() => saveConfig()}
+				/>
+			</div>
+
+			<div class="form-group">
+				<label for="cost_per_mile">Cost per Mile ($/mile)</label>
+				<input
+					type="number"
+					id="cost_per_mile"
+					bind:value={configForm.cost_per_mile}
+					min="0"
+					step="0.01"
+					placeholder="e.g., 50000.00"
+					onchange={() => saveConfig()}
+				/>
+			</div>
+
+			<div class="form-group">
+				<label for="total_contract_value">Total Contract Value ($)</label>
+				<input
+					type="number"
+					id="total_contract_value"
+					bind:value={configForm.total_contract_value}
+					min="0"
+					step="0.01"
+					placeholder="e.g., 250000.00"
+					onchange={() => saveConfig()}
+				/>
+			</div>
 		</div>
 
 		<div class="form-group">
-			<label for="cost_per_sy">Cost per SY ($/yd²)</label>
-			<input
-				type="number"
-				id="cost_per_sy"
-				bind:value={configForm.cost_per_sy}
-				min="0"
-				step="0.01"
-				placeholder="e.g., 12.50"
-				onchange={() => saveConfig()}
-			/>
-		</div>
-
-		<div class="form-group">
-			<label for="cost_per_mile">Cost per Mile ($/mile)</label>
-			<input
-				type="number"
-				id="cost_per_mile"
-				bind:value={configForm.cost_per_mile}
-				min="0"
-				step="0.01"
-				placeholder="e.g., 50000.00"
-				onchange={() => saveConfig()}
-			/>
-		</div>
-
-		<div class="form-group">
-			<label for="total_contract_value">Total Contract Value ($)</label>
-			<input
-				type="number"
-				id="total_contract_value"
-				bind:value={configForm.total_contract_value}
-				min="0"
-				step="0.01"
-				placeholder="e.g., 250000.00"
-				onchange={() => saveConfig()}
-			/>
-		</div>
-
-		<div class="form-group">
-			<label for="scope_of_work">Scope of Work</label>
-			<div class="selector-grid">
+			<label for="scope_of_work">
+				Scope of Work
+				{#if scopeEmpty}
+					<span class="required-badge">Required</span>
+				{/if}
+			</label>
+			<div class="selector-grid" class:required-empty={scopeEmpty}>
 				{#each Object.entries(scopeOfWorkLabels) as [value, label]}
 					<button
 						type="button"
@@ -672,5 +747,22 @@
 	.mix-total strong {
 		font-size: 1.1rem;
 		color: var(--accent);
+	}
+
+	.required-badge {
+		display: inline-block;
+		margin-left: 6px;
+		padding: 2px 6px;
+		background: #f59e0b;
+		color: white;
+		border-radius: 4px;
+		font-size: 0.65rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.3px;
+	}
+
+	.required-empty {
+		border-color: #f59e0b !important;
 	}
 </style>

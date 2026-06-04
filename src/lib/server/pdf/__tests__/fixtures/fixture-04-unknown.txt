@@ -1,0 +1,12 @@
+UTILITY BILL
+
+Customer: John Doe
+Account: 12345
+Amount Due: $150.00
+Due Date: 2024-01-15
+
+Previous Balance: $0.00
+Current Charges: $150.00
+Total Amount Due: $150.00
+
+Please pay by the due date to avoid late fees.
