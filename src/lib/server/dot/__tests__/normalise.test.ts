@@ -46,7 +46,12 @@ const LINE: GeoJsonLineString = {
 describe('normaliseAldot', () => {
 	const base: AldotCpmsRaw = {
 		OBJECTID: 1001,
-		route: 'US-280'
+		route: 'US-280',
+		type_of_work: null,
+		project_start: null,
+		project_completion: null,
+		project_cost: null,
+		funding_source: null
 	};
 
 	it('sets state_dot to AL and source to aldot', () => {
@@ -89,21 +94,21 @@ describe('normaliseAldot', () => {
 	});
 
 	it('sets road_name and route_id to null when route is falsy empty string', () => {
-		const raw: AldotCpmsRaw = { OBJECTID: 2, route: '' };
+		const raw: AldotCpmsRaw = { OBJECTID: 2, route: '', type_of_work: null, project_start: null, project_completion: null, project_cost: null, funding_source: null };
 		const result = normaliseAldot(raw, null);
 		expect(result.road_name).toBeNull();
 		expect(result.route_id).toBeNull();
 	});
 
 	it('sets road_name and route_id to null when route is null', () => {
-		const raw: AldotCpmsRaw = { OBJECTID: 3, route: null as unknown as string };
+		const raw: AldotCpmsRaw = { OBJECTID: 3, route: null as unknown as string, type_of_work: null, project_start: null, project_completion: null, project_cost: null, funding_source: null };
 		const result = normaliseAldot(raw, null);
 		expect(result.road_name).toBeNull();
 		expect(result.route_id).toBeNull();
 	});
 
 	it('handles large OBJECTID values without truncation', () => {
-		const raw: AldotCpmsRaw = { OBJECTID: 999_999_999, route: 'SR-14' };
+		const raw: AldotCpmsRaw = { OBJECTID: 999_999_999, route: 'SR-14', type_of_work: null, project_start: null, project_completion: null, project_cost: null, funding_source: null };
 		const result = normaliseAldot(raw, null);
 		expect(result.external_id).toBe('999999999');
 	});
