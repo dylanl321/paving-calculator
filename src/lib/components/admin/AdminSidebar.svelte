@@ -20,7 +20,8 @@
 		BarChart3,
 		ArrowLeft,
 		ShieldCheck,
-		FileText
+		FileText,
+		AlertTriangle
 	} from 'lucide-svelte';
 
 	let {
@@ -69,7 +70,8 @@
 				{ href: '/admin/users', label: 'Users', icon: 'users' },
 				{ href: '/admin/emails', label: 'Email', icon: 'mail', owns: ['/admin/emails/templates'] },
 				{ href: '/admin/audit', label: 'Audit Log', icon: 'audit' },
-				{ href: '/admin/logs', label: 'Logs', icon: 'logs' }
+				{ href: '/admin/logs', label: 'Logs', icon: 'logs' },
+				{ href: '/admin/errors', label: 'Errors', icon: 'errors' }
 			]
 		}
 	]);
@@ -179,6 +181,8 @@
 		<ScrollText size={22} />
 	{:else if icon === 'logs'}
 		<FileText size={22} />
+	{:else if icon === 'errors'}
+		<AlertTriangle size={22} />
 	{:else if icon === 'db'}
 		<Database size={22} />
 	{:else if icon === 'activity'}
