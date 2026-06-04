@@ -5,7 +5,7 @@
 	import type { DbLoad } from '$lib/server/db';
 	import { unitsStore } from '$lib/stores/units.svelte';
 	import { UNIT_LABELS, toMetricTonnes, fromMetricTonnes } from '$lib/utils/unitConvert';
-	import SpreadRateHistogram from './charts/SpreadRateHistogram.svelte';
+	import SpreadRateHistogram from './charts/SpreadRateHistogramChart.svelte';
 	import YieldEfficiencyGauge from './YieldEfficiencyGauge.svelte';
 	import { job } from '$lib/stores/job.svelte';
 	import { spreadToleranceFor } from '$lib/config';
