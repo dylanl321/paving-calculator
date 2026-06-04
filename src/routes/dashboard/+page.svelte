@@ -403,6 +403,7 @@
 				</div>
 			</div>
 		{:else}
+			<!-- Card grid for mobile/tablet -->
 			<div class="job-sites-grid">
 				{#each data.jobSites as site}
 					<a href="/dashboard/job-sites/{site.id}" class="job-site-card">
@@ -441,6 +442,47 @@
 								{formatDate(site.created_at)}
 							</div>
 						</div>
+					</a>
+				{/each}
+			</div>
+
+			<!-- Desktop table -->
+			<div class="sites-table">
+				<div class="sites-table-header">
+					<div class="table-cell th-name">Name</div>
+					<div class="table-cell th-status">Status</div>
+					<div class="table-cell th-location">Location</div>
+					<div class="table-cell th-crew">Crew</div>
+					<div class="table-cell th-tons">Tons Today</div>
+					<div class="table-cell th-calcs">Calcs</div>
+					<div class="table-cell th-date">Created</div>
+				</div>
+				{#each data.jobSites as site}
+					<a href="/dashboard/job-sites/{site.id}" class="sites-table-row">
+						<div class="table-cell td-name">{site.name}</div>
+						<div class="table-cell td-status">
+							<span class="status-badge status-{site.today_log_open ? 'logging' : site.status.toLowerCase()}">
+								{site.today_log_open ? 'Logging' : site.status}
+							</span>
+						</div>
+						<div class="table-cell td-location">{site.location_description || '—'}</div>
+						<div class="table-cell td-crew">
+							{#if site.crew_name}
+								<span class="crew-dot" style="background: {site.crew_color || 'var(--accent)'}"></span>
+								{site.crew_name}
+							{:else}
+								—
+							{/if}
+						</div>
+						<div class="table-cell td-tons">
+							{#if site.today_tons != null && (site.today_tons > 0 || site.today_log_open)}
+								{site.today_tons.toLocaleString()} t · {site.today_loads ?? 0} lds
+							{:else}
+								—
+							{/if}
+						</div>
+						<div class="table-cell td-calcs">{site.calculation_count}</div>
+						<div class="table-cell td-date">{formatDate(site.created_at)}</div>
 					</a>
 				{/each}
 			</div>
@@ -1029,18 +1071,42 @@
 		margin-bottom: 0;
 	}
 
-	@media (min-width: 1100px) {
+	/* Tablet: 2-col KPI grid */
+	@media (min-width: 640px) and (max-width: 1023px) {
+		.stats-column {
+			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+
+	/* Desktop: horizontal stats, table layout, density */
+	@media (min-width: 1024px) {
+		.page-header {
+			margin-bottom: 16px;
+		}
+
+		.page-title {
+			font-size: 1.4rem;
+		}
+
 		.dashboard-grid {
-			display: grid;
-			grid-template-columns: 340px 1fr;
-			gap: var(--sp-6);
-			align-items: start;
+			display: flex;
+			flex-direction: column;
+			gap: var(--sp-4);
 		}
 
 		.stats-column {
-			display: flex;
-			flex-direction: column;
-			gap: 14px;
+			display: grid;
+			grid-template-columns: repeat(4, 1fr);
+			gap: 12px;
+		}
+
+		.stat-card {
+			padding: 12px 14px;
+			min-height: 72px;
+		}
+
+		.stat-num {
+			font-size: 1.4rem;
 		}
 
 		.header-btn {
@@ -1054,6 +1120,112 @@
 
 		.mobile-header {
 			display: none;
+		}
+
+		.section {
+			margin-bottom: 24px;
+		}
+
+		/* Hide card grid on desktop */
+		.job-sites-grid {
+			display: none;
+		}
+
+		/* Show table on desktop */
+		.sites-table {
+			display: block;
+			width: 100%;
+			background: var(--surface);
+			border: 1px solid var(--border);
+			border-radius: var(--radius);
+			overflow: hidden;
+		}
+
+		.sites-table-header {
+			display: grid;
+			grid-template-columns: 2fr 1fr 2fr 1.5fr 1.5fr 0.8fr 1fr;
+			gap: 12px;
+			padding: 10px 16px;
+			background: var(--bg);
+			border-bottom: 1px solid var(--border);
+			font-size: 0.75rem;
+			font-weight: 700;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			color: var(--text-muted);
+		}
+
+		.sites-table-row {
+			display: grid;
+			grid-template-columns: 2fr 1fr 2fr 1.5fr 1.5fr 0.8fr 1fr;
+			gap: 12px;
+			padding: 10px 16px;
+			border-bottom: 1px solid var(--border);
+			text-decoration: none;
+			color: var(--text);
+			transition: background 0.15s;
+			align-items: center;
+			min-height: 36px;
+		}
+
+		.sites-table-row:last-child {
+			border-bottom: none;
+		}
+
+		.sites-table-row:hover {
+			background: var(--surface-hover);
+		}
+
+		.table-cell {
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+
+		.td-name {
+			font-weight: 600;
+			white-space: nowrap;
+		}
+
+		.td-location {
+			color: var(--text-muted);
+			font-size: 0.85rem;
+			white-space: nowrap;
+		}
+
+		.td-crew {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			font-size: 0.85rem;
+		}
+
+		.td-tons,
+		.td-calcs {
+			font-size: 0.85rem;
+		}
+
+		.td-date {
+			font-size: 0.8rem;
+			color: var(--text-muted);
+		}
+
+		.sites-table .status-badge {
+			font-size: 0.65rem;
+			padding: 3px 8px;
+		}
+	}
+
+	/* Hide table on mobile/tablet */
+	@media (max-width: 1023px) {
+		.sites-table {
+			display: none;
+		}
+	}
+
+	@media (min-width: 1100px) {
+		.dashboard-grid {
+			display: flex;
+			flex-direction: column;
 		}
 	}
 </style>
