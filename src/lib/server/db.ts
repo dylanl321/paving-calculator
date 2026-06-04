@@ -14,6 +14,8 @@ export interface DbUser {
 	phone: string | null;
 	created_at: number;
 	updated_at: number;
+	last_login_at: number | null;
+	last_login_ip: string | null;
 }
 
 export interface DbOrganization {
@@ -403,7 +405,9 @@ export class DbHelper {
 			email_verified: false,
 			phone: null,
 			created_at: now,
-			updated_at: now
+			updated_at: now,
+			last_login_at: null,
+			last_login_ip: null
 		};
 	}
 
