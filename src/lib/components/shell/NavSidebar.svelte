@@ -6,80 +6,19 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import { navCollapsedStore } from '$lib/stores/navCollapsed.svelte';
-	import { triggerOnboarding } from '$lib/stores/onboarding';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import UserMenu from '$lib/components/UserMenu.svelte';
 	import { fade } from 'svelte/transition';
-	import {
-		Menu,
-		Calculator,
-		BookOpen,
-		BookMarked,
-		LayoutDashboard,
-		Clock,
-		Upload,
-		Users,
-		Settings,
-		Map,
-		ChevronDown,
-		PanelLeftClose,
-		PanelLeftOpen,
-		Search,
-		ShieldCheck
-	} from 'lucide-svelte';
+	import { navItems, type NavItem } from './navConfig';
+	import NavMobileBar from './NavMobileBar.svelte';
+	import NavSidebarFooter from './NavSidebarFooter.svelte';
+	import NavList from './NavList.svelte';
 
 	let { onOpenPalette = () => {} }: { onOpenPalette?: () => void } = $props();
 
 	let drawerOpen = $state(false);
 	let sidebarEl = $state<HTMLElement | null>(null);
 
-	function closeDrawer() {
-		drawerOpen = false;
-	}
-
 	const brandLogo = $derived(orgSettingsStore.logoUrl ?? '/icons/icon-192.png');
 	const brandName = $derived(orgSettingsStore.orgName ?? config.app.name);
-
-	interface NavItem {
-		href: string;
-		label: string;
-		icon: string;
-		authed?: boolean;
-		adminOnly?: boolean;
-		/** Visible to admin-console users (global admin or org owner/admin). */
-		adminConsole?: boolean;
-		/** Extra path prefixes this item owns (beyond `href`) for active matching. */
-		owns?: string[];
-		children?: NavItem[];
-	}
-
-	const navItems: NavItem[] = [
-		{
-			href: '/dashboard',
-			label: 'Projects',
-			icon: 'layout',
-			authed: true,
-			owns: ['/dashboard/job-sites'],
-			children: [
-				{ href: '/dashboard/map', label: 'Map', icon: 'map', authed: true },
-				{ href: '/dashboard/team', label: 'Team', icon: 'users', authed: true },
-				{ href: '/dashboard/settings', label: 'Settings', icon: 'settings', authed: true }
-			]
-		},
-		{ href: '/app', label: 'Quick Calc', icon: 'calc' },
-		{
-			href: '/reference',
-			label: 'Reference',
-			icon: 'book',
-			children: [{ href: '/reference/formulas', label: 'Formulas', icon: 'calc' }]
-		},
-		{ href: '/glossary', label: 'Glossary', icon: 'book' },
-		{ href: '/dashboard/guides', label: 'Guides', icon: 'guide', authed: true },
-		{ href: '/dashboard/completeness', label: 'Setup Status', icon: 'shield-check', authed: true, adminOnly: true },
-		{ href: '/dashboard/import', label: 'Import', icon: 'upload', authed: true },
-		{ href: '/dashboard/activity', label: 'Activity', icon: 'clock', authed: true, adminOnly: true },
-		{ href: '/admin', label: 'Admin', icon: 'shield-check', authed: true, adminConsole: true, owns: ['/admin'] }
-	];
 
 	function isItemVisible(item: NavItem): boolean {
 		// screed_man sees only the standalone calculator link
@@ -108,24 +47,16 @@
 
 	const currentPath = $derived($page.url.pathname);
 
-	/** Every path prefix (including children) that a nav item can claim. */
 	function ownedPaths(item: NavItem): string[] {
 		const paths = [item.href, ...(item.owns ?? [])];
-		for (const child of item.children ?? []) {
-			paths.push(...ownedPaths(child));
-		}
+		for (const child of item.children ?? []) paths.push(...ownedPaths(child));
 		return paths;
 	}
 
-	/** Does `path` match `owned`: exact, or a descendant segment (`/owned/...`)? */
 	function pathMatches(path: string, owned: string): boolean {
 		return path === owned || path.startsWith(owned + '/');
 	}
 
-	/**
-	 * Single source of truth: the href whose owned paths best (longest-prefix)
-	 * match the current path. Guarantees mutually-exclusive highlighting.
-	 */
 	const activeHref = $derived.by(() => {
 		let bestHref: string | null = null;
 		let bestLen = -1;
@@ -146,33 +77,13 @@
 		return bestHref;
 	});
 
-	function isActive(item: NavItem): boolean {
-		return activeHref === item.href;
-	}
-
-	/** A parent is highlighted-on-child when one of its descendants is active. */
-	function hasActiveChild(item: NavItem): boolean {
-		return (item.children ?? []).some(
-			(child) => isActive(child) || hasActiveChild(child)
-		);
-	}
-
-	// Track which expandable parents are manually toggled open.
 	let expanded = $state<Record<string, boolean>>({});
 
-	function isExpanded(item: NavItem): boolean {
-		// Auto-expand when a child is active, unless the user collapsed it.
-		if (item.href in expanded) return expanded[item.href];
-		return hasActiveChild(item);
-	}
-
 	function toggleExpanded(item: NavItem) {
-		expanded[item.href] = !isExpanded(item);
+		expanded[item.href] = !expanded[item.href];
 	}
 
-	// --- Mobile drawer behaviour: scroll lock + central reset on navigation ---
-
-	// Reset the drawer whenever the route changes (replaces per-link onclick=closeDrawer).
+	// Reset the drawer whenever the route changes.
 	let lastPath = $state(currentPath);
 	$effect(() => {
 		if (currentPath !== lastPath) {
@@ -181,7 +92,6 @@
 		}
 	});
 
-	// Lock body scroll while the drawer is open and move focus into it.
 	$effect(() => {
 		if (!browser) return;
 		if (drawerOpen) {
@@ -213,10 +123,7 @@
 		if (event.key === 'Escape') {
 			event.preventDefault();
 			drawerOpen = false;
-			return;
-		}
-		// Basic focus trap (only meaningful in the mobile off-canvas state).
-		if (event.key === 'Tab') {
+		} else if (event.key === 'Tab') {
 			const focusable = focusableInDrawer();
 			if (focusable.length === 0) return;
 			const first = focusable[0];
@@ -235,51 +142,19 @@
 
 <svelte:window onkeydown={handleDrawerKeydown} />
 
-<!-- Mobile top bar (hidden once the shell has a permanent nav column) -->
-<header class="mobile-bar">
-	<button class="hamburger" onclick={() => (drawerOpen = true)} aria-label="Open navigation">
-		<Menu size={24} aria-hidden="true" />
-	</button>
-	<a href="/app" class="mobile-brand">
-		<img src={brandLogo} alt="" />
-		<span>{brandName}</span>
-	</a>
-	<div class="mobile-actions">
-		<button
-			class="cmd-trigger-btn"
-			onclick={onOpenPalette}
-			aria-label="Open command palette"
-			title="Search (Ctrl+K)"
-		>
-			<Search size={20} aria-hidden="true" />
-		</button>
-		<ThemeToggle />
-		{#if authStore.isAuthenticated}
-			<UserMenu />
-		{:else}
-			<a href="/login" class="mobile-signin-btn">Sign In</a>
-		{/if}
-	</div>
-</header>
+<NavMobileBar
+	{brandLogo}
+	{brandName}
+	{onOpenPalette}
+	onOpenDrawer={() => (drawerOpen = true)}
+	isAuthenticated={authStore.isAuthenticated}
+/>
 
-<!-- Drawer scrim (mobile) -->
 {#if drawerOpen}
-	<button
-		class="scrim"
-		onclick={closeDrawer}
-		aria-label="Close navigation"
-		transition:fade={{ duration: 280 }}
-	></button>
+	<button class="scrim" onclick={() => (drawerOpen = false)} aria-label="Close navigation" transition:fade={{ duration: 280 }}></button>
 {/if}
 
-<!-- Sidebar / drawer -->
-<nav
-	class="sidebar"
-	class:open={drawerOpen}
-	class:nav-collapsed={navCollapsedStore.collapsed}
-	aria-label="Primary"
-	bind:this={sidebarEl}
->
+<nav class="sidebar" class:open={drawerOpen} class:nav-collapsed={navCollapsedStore.collapsed} aria-label="Primary" bind:this={sidebarEl}>
 	<div class="brand">
 		<img src={brandLogo} alt={brandName} />
 		<div class="brand-text">
@@ -295,287 +170,11 @@
 		</div>
 	{/if}
 
-	{#snippet navIcon(icon: string)}
-		{#if icon === 'calc'}
-			<Calculator size={22} />
-		{:else if icon === 'book'}
-			<BookOpen size={22} />
-		{:else if icon === 'guide'}
-			<BookMarked size={22} />
-		{:else if icon === 'layout'}
-			<LayoutDashboard size={22} />
-		{:else if icon === 'upload'}
-			<Upload size={22} />
-		{:else if icon === 'clock'}
-			<Clock size={22} />
-		{:else if icon === 'map'}
-			<Map size={22} />
-		{:else if icon === 'users'}
-			<Users size={22} />
-		{:else if icon === 'settings'}
-			<Settings size={22} />
-		{:else if icon === 'shield-check'}
-			<ShieldCheck size={22} />
-		{/if}
-	{/snippet}
-
-	<ul class="nav-list">
-		{#each visibleItems as item (item.href)}
-			{@const childrenVisible = item.children && item.children.length > 0}
-			<li>
-				{#if childrenVisible}
-					<div class="nav-row">
-						<a
-							href={item.href}
-							class="nav-link"
-							class:active={isActive(item)}
-							class:active-child={!isActive(item) && hasActiveChild(item)}
-							title={item.label}
-							aria-current={isActive(item) ? 'page' : undefined}
-						>
-							<span class="nav-icon" aria-hidden="true">
-								{@render navIcon(item.icon)}
-							</span>
-							<span class="nav-label">{item.label}</span>
-						</a>
-						<button
-							type="button"
-							class="nav-expand"
-							class:expanded={isExpanded(item)}
-							onclick={() => toggleExpanded(item)}
-							aria-expanded={isExpanded(item)}
-							aria-label={`${isExpanded(item) ? 'Collapse' : 'Expand'} ${item.label}`}
-						>
-							<ChevronDown size={18} aria-hidden="true" />
-						</button>
-					</div>
-					{#if isExpanded(item)}
-						<ul class="nav-sublist">
-							{#each item.children ?? [] as child (child.href)}
-								<li>
-									<a
-										href={child.href}
-										class="nav-link nav-sublink"
-										class:active={isActive(child)}
-										title={child.label}
-										aria-current={isActive(child) ? 'page' : undefined}
-									>
-										<span class="nav-icon" aria-hidden="true">
-											{@render navIcon(child.icon)}
-										</span>
-										<span class="nav-label">{child.label}</span>
-									</a>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				{:else}
-					<a
-						href={item.href}
-						class="nav-link"
-						class:active={isActive(item)}
-						title={item.label}
-						aria-current={isActive(item) ? 'page' : undefined}
-					>
-						<span class="nav-icon" aria-hidden="true">
-							{@render navIcon(item.icon)}
-						</span>
-						<span class="nav-label">{item.label}</span>
-					</a>
-				{/if}
-			</li>
-		{/each}
-	</ul>
-
-	<div class="sidebar-footer">
-		<div class="footer-actions">
-			<ThemeToggle />
-			<UserMenu direction="up" align="left" />
-		</div>
-		{#if authStore.isAuthenticated}
-			<button
-				class="tutorial-btn"
-				onclick={triggerOnboarding}
-				title="Replay tutorial"
-			>
-				<svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-					<circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5" />
-					<path d="M8 5V8L10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-				</svg>
-				<span class="tutorial-label">Replay Tutorial</span>
-			</button>
-		{/if}
-		<div class="footer-tools">
-			<button
-				class="cmd-trigger-btn"
-				onclick={onOpenPalette}
-				aria-label="Open command palette"
-				title="Search (Ctrl+K / Cmd+K)"
-			>
-				<Search size={18} aria-hidden="true" />
-				<span class="cmd-trigger-label">Search</span>
-				<kbd class="cmd-kbd">⌘K</kbd>
-			</button>
-			<button
-				class="collapse-btn"
-				onclick={() => navCollapsedStore.toggle()}
-				aria-label={navCollapsedStore.collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-				title={navCollapsedStore.collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-			>
-				{#if navCollapsedStore.collapsed}
-					<PanelLeftOpen size={18} aria-hidden="true" />
-				{:else}
-					<PanelLeftClose size={18} aria-hidden="true" />
-				{/if}
-			</button>
-		</div>
-		{#if orgSettingsStore.orgName}
-			<a href="/app" class="powered-by">
-				<img src="/icons/icon-192.png" alt="" />
-				<span>Powered by {config.app.name}</span>
-			</a>
-		{/if}
-	</div>
+	<NavList items={visibleItems} {activeHref} {expanded} onToggleExpanded={toggleExpanded} />
+	<NavSidebarFooter {onOpenPalette} isAuthenticated={authStore.isAuthenticated} isCollapsed={navCollapsedStore.collapsed} orgName={orgSettingsStore.orgName} />
 </nav>
 
 <style>
-	/* ---- Mobile top bar ---- */
-	.mobile-bar {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		padding: 8px 12px;
-		background: var(--surface-alt);
-		border-bottom: 1px solid var(--border);
-		position: sticky;
-		top: 0;
-		z-index: 20;
-	}
-
-	.hamburger {
-		min-width: 48px;
-		min-height: 48px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background: none;
-		border: 0;
-		color: var(--text);
-		cursor: pointer;
-		border-radius: 10px;
-		transition:
-			background var(--dur-normal) var(--ease),
-			transform var(--dur-fast) var(--ease);
-	}
-
-	.hamburger:hover {
-		background: var(--surface-hover);
-	}
-
-	@media (prefers-reduced-motion: no-preference) {
-		.hamburger:active {
-			transform: scale(0.95);
-		}
-	}
-
-	.mobile-brand {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		flex: 1;
-		font-weight: 700;
-		font-size: 1.1rem;
-		letter-spacing: 0.5px;
-	}
-
-	.mobile-brand img {
-		width: 34px;
-		height: 34px;
-		border-radius: 8px;
-	}
-
-	.mobile-actions {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-
-	/* ---- Mobile Sign In button (unauthenticated state) ---- */
-	.mobile-signin-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 80px;
-		min-height: 48px;
-		padding: 0 16px;
-		background: var(--accent);
-		border-radius: 10px;
-		color: var(--accent-text);
-		font-weight: 700;
-		font-size: 0.875rem;
-		white-space: nowrap;
-		transition:
-			opacity var(--dur-normal) var(--ease),
-			transform var(--dur-fast) var(--ease);
-	}
-
-	.mobile-signin-btn:hover {
-		opacity: 0.9;
-	}
-
-	@media (prefers-reduced-motion: no-preference) {
-		.mobile-signin-btn:active {
-			transform: scale(0.96);
-		}
-	}
-
-	/* ---- Sidebar Sign In CTA (unauthenticated state) ---- */
-	.signin-cta {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		padding: 14px 16px;
-		border-bottom: 1px solid var(--border);
-	}
-
-	.signin-cta-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		min-height: 48px;
-		background: var(--accent);
-		border-radius: 10px;
-		color: var(--accent-text);
-		font-weight: 700;
-		font-size: 0.9375rem;
-		text-align: center;
-		transition:
-			opacity var(--dur-normal) var(--ease),
-			transform var(--dur-fast) var(--ease);
-	}
-
-	.signin-cta-btn:hover {
-		opacity: 0.9;
-	}
-
-	.signin-cta-link {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		min-height: 40px;
-		background: transparent;
-		border-radius: 10px;
-		color: var(--text-muted);
-		font-size: 0.875rem;
-		text-align: center;
-		transition: color var(--dur-normal) var(--ease);
-	}
-
-	.signin-cta-link:hover {
-		color: var(--text);
-	}
-
-	/* ---- Scrim ---- */
 	.scrim {
 		position: fixed;
 		inset: 0;
@@ -585,7 +184,6 @@
 		cursor: pointer;
 	}
 
-	/* ---- Sidebar (mobile = off-canvas drawer) ---- */
 	.sidebar {
 		position: fixed;
 		top: 0;
@@ -600,10 +198,7 @@
 		transition: transform var(--dur-slow) var(--ease);
 		z-index: 40;
 	}
-
-	.sidebar.open {
-		transform: translateX(0);
-	}
+	.sidebar.open { transform: translateX(0); }
 
 	.brand {
 		display: flex;
@@ -612,513 +207,63 @@
 		padding: 18px 16px;
 		border-bottom: 1px solid var(--border);
 	}
+	.brand img { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; }
+	.brand-text { display: flex; flex-direction: column; min-width: 0; }
+	.brand-name { font-weight: 700; font-size: 1.15rem; letter-spacing: 0.5px; }
+	.brand-tag { font-size: 0.72rem; color: var(--text-muted); line-height: 1.3; }
 
-	.brand img {
-		width: 40px;
-		height: 40px;
-		border-radius: 10px;
-		flex-shrink: 0;
-	}
-
-	.brand-text {
+	.signin-cta {
 		display: flex;
 		flex-direction: column;
-		min-width: 0;
+		gap: 8px;
+		padding: 14px 16px;
+		border-bottom: 1px solid var(--border);
 	}
-
-	.brand-name {
-		font-weight: 700;
-		font-size: 1.15rem;
-		letter-spacing: 0.5px;
-	}
-
-	.brand-tag {
-		font-size: 0.72rem;
-		color: var(--text-muted);
-		line-height: 1.3;
-	}
-
-	.nav-list {
-		list-style: none;
-		margin: 0;
-		padding: 12px 10px;
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-		overflow-y: auto;
-	}
-
-	.nav-link {
+	.signin-cta-btn {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		padding: 0 14px;
+		justify-content: center;
 		min-height: 48px;
-		border-radius: 10px;
-		color: var(--text-muted);
-		font-weight: 600;
-		font-size: 0.95rem;
-		transition:
-			background var(--dur-normal) var(--ease),
-			color var(--dur-normal) var(--ease),
-			transform var(--dur-fast) var(--ease);
-	}
-
-	@media (prefers-reduced-motion: no-preference) {
-		.nav-link:active {
-			transform: scale(0.98);
-		}
-	}
-
-	.nav-link:hover {
-		background: var(--surface-hover);
-		color: var(--text);
-	}
-
-	.nav-link.active {
 		background: var(--accent);
-		color: var(--accent-text);
-	}
-
-	/* Parent whose child is active: subtle highlight, no full accent fill. */
-	.nav-link.active-child {
-		color: var(--text);
-		background: var(--surface-hover);
-	}
-
-	.nav-row {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
-
-	.nav-row .nav-link {
-		flex: 1;
-		min-width: 0;
-	}
-
-	.nav-expand {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 48px;
-		min-height: 48px;
-		background: none;
-		border: 0;
-		color: var(--text-muted);
-		cursor: pointer;
 		border-radius: 10px;
-		transition:
-			background var(--dur-normal) var(--ease),
-			color var(--dur-normal) var(--ease);
+		color: var(--accent-text);
+		font-weight: 700;
+		font-size: 0.9375rem;
+		transition: opacity var(--dur-normal) var(--ease);
 	}
-
-	.nav-expand:hover {
-		background: var(--surface-hover);
-		color: var(--text);
-	}
-
-	.nav-expand :global(svg) {
-		transition: transform var(--dur-normal) var(--ease);
-	}
-
-	.nav-expand.expanded :global(svg) {
-		transform: rotate(180deg);
-	}
-
-	.nav-sublist {
-		list-style: none;
-		margin: 4px 0 4px 0;
-		padding: 0 0 0 18px;
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		border-left: 2px solid var(--border);
-	}
-
-	.nav-sublink {
-		min-height: 44px;
-		font-size: 0.9rem;
-		font-weight: 500;
-	}
-
-	.nav-icon {
+	.signin-cta-btn:hover { opacity: 0.9; }
+	.signin-cta-link {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		flex-shrink: 0;
-	}
-
-	.nav-icon :global(svg) {
-		width: 22px;
-		height: 22px;
-	}
-
-	.sidebar-footer {
-		margin-top: auto;
-		border-top: 1px solid var(--border);
-		padding: 12px;
-	}
-
-	.footer-actions {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		justify-content: space-between;
-	}
-
-	.powered-by {
-		display: flex;
-		align-items: center;
-		gap: 7px;
-		margin-top: 10px;
-		color: var(--text-muted);
-		font-size: 0.72rem;
-		font-weight: 600;
-		letter-spacing: 0.2px;
-		text-decoration: none;
-		transition: color var(--dur-normal) var(--ease);
-	}
-
-	.powered-by:hover {
-		color: var(--text);
-	}
-
-	.powered-by img {
-		width: 16px;
-		height: 16px;
-		border-radius: 4px;
-		flex-shrink: 0;
-	}
-
-	.tutorial-btn {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		width: 100%;
 		min-height: 40px;
-		padding: 0 12px;
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: 10px;
 		color: var(--text-muted);
 		font-size: 0.875rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.15s ease;
-		margin-top: 8px;
+		transition: color var(--dur-normal) var(--ease);
 	}
-
-	.tutorial-btn:hover {
-		background: var(--surface-hover);
-		color: var(--text);
-		border-color: var(--accent);
-	}
-
-	.tutorial-btn svg {
-		flex-shrink: 0;
-	}
-
-	.footer-tools {
-		display: none;
-	}
-
-	.cmd-trigger-btn {
-		display: none;
-	}
-
-	/* Mobile bar search button is always visible on mobile */
-	.mobile-bar .cmd-trigger-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 48px;
-		min-height: 48px;
-		background: none;
-		border: 0;
-		color: var(--text);
-		cursor: pointer;
-		border-radius: 10px;
-		transition: background var(--dur-normal) var(--ease);
-	}
-
-	.mobile-bar .cmd-trigger-btn:hover {
-		background: var(--surface-hover);
-	}
-
-	/* ---- Tablet: static icon rail ---- */
-	@media (min-width: 900px) {
-		.mobile-bar,
-		.scrim {
-			display: none;
-		}
-	}
+	.signin-cta-link:hover { color: var(--text); }
 
 	@media (min-width: 900px) {
-		.sidebar {
-			position: sticky;
-			top: 0;
-			height: 100vh;
-			align-self: start;
-			transform: none;
-			transition: none;
-		}
+		.scrim { display: none; }
+		.sidebar { position: sticky; top: 0; height: 100vh; align-self: start; transform: none; transition: none; }
 	}
 
 	@media (min-width: 900px) and (max-width: 1099px) {
-		.sidebar {
-			width: var(--sidebar-rail-w);
-		}
-
-		.brand {
-			justify-content: center;
-			padding: 18px 8px;
-		}
-
-		.brand-text {
-			display: none;
-		}
-
-		.nav-link {
-			justify-content: center;
-			padding: 0;
-		}
-
-		.nav-label {
-			display: none;
-		}
-
-		/* The icon rail has no room for labels/expansion: collapse the
-		   parent/expander row and render children as flat centered icons so
-		   their active state is still visible. */
-		.nav-row {
-			gap: 0;
-		}
-
-		.nav-expand {
-			display: none;
-		}
-
-		.nav-sublist {
-			margin: 4px 0;
-			padding: 0;
-			border-left: 0;
-			gap: 4px;
-		}
-
-		.nav-sublink {
-			min-height: 48px;
-		}
-
-		.footer-actions {
-			flex-direction: column;
-			gap: 10px;
-		}
-
-		.powered-by {
-			justify-content: center;
-		}
-
-		.powered-by span {
-			display: none;
-		}
-	}
-
-	/* ---- Desktop: full labelled sidebar ---- */
-	@media (min-width: 1100px) {
-		.sidebar {
-			width: var(--sidebar-w);
-		}
-
-		.brand {
-			justify-content: flex-start;
-			padding: 18px 16px;
-		}
-
-		.brand-text {
-			display: flex;
-		}
-
-		.nav-link {
-			justify-content: flex-start;
-			padding: 0 14px;
-		}
-
-		.nav-label {
-			display: inline;
-		}
-
-		.footer-actions {
-			flex-direction: row;
-		}
-
-		.powered-by {
-			justify-content: flex-start;
-		}
-
-		.powered-by span {
-			display: inline;
-		}
-
-		.tutorial-label {
-			display: inline;
-		}
-
-		.tutorial-btn {
-			justify-content: flex-start;
-			padding: 0 12px;
-		}
-
-		.footer-tools {
-			display: flex;
-			align-items: center;
-			gap: 6px;
-			margin-top: 8px;
-		}
-
-		.cmd-trigger-btn {
-			flex: 1;
-			display: flex;
-			align-items: center;
-			gap: 8px;
-			min-height: 36px;
-			padding: 0 10px;
-			background: var(--surface-alt);
-			border: 1px solid var(--border);
-			border-radius: 8px;
-			color: var(--text-muted);
-			cursor: pointer;
-			font-size: 0.85rem;
-			font-family: inherit;
-			transition: background var(--dur-normal) var(--ease), color var(--dur-normal) var(--ease);
-		}
-
-		.cmd-trigger-btn:hover {
-			background: var(--surface-hover);
-			color: var(--text);
-		}
-
-		.cmd-trigger-label {
-			flex: 1;
-			text-align: left;
-		}
-
-		.cmd-kbd {
-			font-size: 0.7rem;
-			color: var(--text-muted);
-			background: var(--surface);
-			border: 1px solid var(--border);
-			border-radius: 4px;
-			padding: 1px 4px;
-			font-family: inherit;
-		}
-
-		.collapse-btn {
-			display: flex;
-			align-items: center;
-			justify-content: center;
-			min-width: 36px;
-			min-height: 36px;
-			background: var(--surface-alt);
-			border: 1px solid var(--border);
-			border-radius: 8px;
-			color: var(--text-muted);
-			cursor: pointer;
-			transition: background var(--dur-normal) var(--ease), color var(--dur-normal) var(--ease);
-		}
-
-		.collapse-btn:hover {
-			background: var(--surface-hover);
-			color: var(--text);
-		}
-	}
-
-	/* Collapsed state on desktop: hide labels, center icons */
-	:global(.sidebar-collapsed) .sidebar {
-		width: var(--sidebar-rail-w) !important;
+		.sidebar { width: var(--sidebar-rail-w); }
+		.brand { justify-content: center; padding: 18px 8px; }
+		.brand-text { display: none; }
 	}
 
 	@media (min-width: 1100px) {
-		:global(body.nav-collapsed) .sidebar,
-		.sidebar.nav-collapsed {
-			width: var(--sidebar-rail-w);
-		}
+		.sidebar { width: var(--sidebar-w); }
+		.brand { justify-content: flex-start; padding: 18px 16px; }
+		.brand-text { display: flex; }
+	}
 
-		.sidebar.nav-collapsed .brand {
-			justify-content: center;
-			padding: 18px 8px;
-		}
-
-		.sidebar.nav-collapsed .brand-text {
-			display: none;
-		}
-
-		.sidebar.nav-collapsed .nav-link {
-			justify-content: center;
-			padding: 0;
-		}
-
-		.sidebar.nav-collapsed .nav-label {
-			display: none;
-		}
-
-		.sidebar.nav-collapsed .nav-row {
-			gap: 0;
-		}
-
-		.sidebar.nav-collapsed .nav-expand {
-			display: none;
-		}
-
-		.sidebar.nav-collapsed .nav-sublist {
-			margin: 4px 0;
-			padding: 0;
-			border-left: 0;
-			gap: 4px;
-		}
-
-		.sidebar.nav-collapsed .nav-sublink {
-			min-height: 48px;
-		}
-
-		.sidebar.nav-collapsed .footer-actions {
-			flex-direction: column;
-			gap: 10px;
-		}
-
-		.sidebar.nav-collapsed .footer-tools {
-			flex-direction: column;
-		}
-
-		.sidebar.nav-collapsed .cmd-trigger-btn {
-			flex: none;
-			min-width: 36px;
-			min-height: 36px;
-			padding: 0;
-			justify-content: center;
-		}
-
-		.sidebar.nav-collapsed .cmd-trigger-label,
-		.sidebar.nav-collapsed .cmd-kbd {
-			display: none;
-		}
-
-		.sidebar.nav-collapsed .powered-by {
-			justify-content: center;
-		}
-
-		.sidebar.nav-collapsed .powered-by span {
-			display: none;
-		}
-
-		.sidebar.nav-collapsed .tutorial-label {
-			display: none;
-		}
-
-		.sidebar.nav-collapsed .tutorial-btn {
-			justify-content: center;
-			min-width: 40px;
-			padding: 0;
-		}
+	@media (min-width: 1100px) {
+		.sidebar.nav-collapsed { width: var(--sidebar-rail-w); }
+		.sidebar.nav-collapsed .brand { justify-content: center; padding: 18px 8px; }
+		.sidebar.nav-collapsed .brand-text { display: none; }
 	}
 </style>

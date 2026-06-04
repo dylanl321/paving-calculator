@@ -1,5 +1,5 @@
 <script lang="ts">
-	import SpreadRateHistogramChart from './charts/SpreadRateHistogram.svelte';
+	import SpreadRateHistogramChart from './charts/SpreadRateHistogramChart.svelte';
 	import { fetchJson } from '$lib/utils/api';
 
 	interface DbLoad {
