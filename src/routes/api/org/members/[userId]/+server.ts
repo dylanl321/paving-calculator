@@ -22,7 +22,7 @@ export async function PATCH(event: RequestEvent) {
 		const body = (await event.request.json()) as { role?: OrgRole };
 		const { role } = body;
 
-		if (!role || !['owner', 'admin', 'member', 'foreman', 'operator', 'inspector', 'office'].includes(role)) {
+		if (!role || !['owner', 'admin', 'member', 'foreman', 'operator', 'inspector', 'office', 'laborer', 'screed_man'].includes(role)) {
 			return json({ error: 'Valid role is required' }, { status: 400 });
 		}
 

@@ -3,7 +3,7 @@ import { requireAuth } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
 import { recordAudit } from '$lib/server/audit';
 
-const VALID_ROLES = ['owner', 'admin', 'member', 'foreman', 'operator', 'inspector', 'office'];
+const VALID_ROLES = ['owner', 'admin', 'member', 'foreman', 'operator', 'inspector', 'office', 'laborer', 'screed_man'];
 const MAX_ROWS = 100;
 
 interface InviteResult {

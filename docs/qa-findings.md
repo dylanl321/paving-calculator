@@ -241,3 +241,179 @@ Comprehensive mobile responsiveness review across all major pages and components
 **Severity:** Low (minor layout issues on mobile viewports)
 
 All pages and components now work correctly at 375px (iPhone SE) and 768px (iPad) viewports. The app is truly mobile-first with proper touch targets, responsive grids, and no horizontal overflow.
+
+---
+
+## Admin Role QA Pass (2026-06-04)
+
+**QA Date:** 2026-06-04
+**Role focus:** owner/admin
+**Task:** t_918718a7
+
+---
+
+### Summary
+
+Reviewed admin workflows: team management, org settings, reports, admin dashboard (/admin),
+user management, and audit log. Five bugs found and fixed inline.
+
+---
+
+### Issues Found and Fixed
+
+#### 1. Audit log EVENT_TYPES used 'login' instead of 'login_success' (FIXED)
+**Severity:** High
+**File:** src/routes/admin/audit/+page.svelte
+
+The audit log filter dropdown listed 'login' as a filter option, but the actual
+event_type written by the login endpoint is 'login_success'. Filtering by 'login'
+would always return 0 results, making the filter appear broken.
+
+Also added missing event types 'register' and 'email_verified' which are emitted
+by their respective endpoints but were absent from the filter list.
+
+**Fix:** Replaced 'login' with 'login_success', added 'register' and 'email_verified'
+to EVENT_TYPES. Also reordered to put login_success/login_failed/logout first for
+easier scanning.
+
+#### 2. Invite endpoint rejected 'laborer' and 'screed_man' roles (FIXED)
+**Severity:** High
+**File:** src/routes/api/org/invite/+server.ts
+
+The role validation allowlist in POST /api/org/invite only included 7 roles
+(owner, admin, member, foreman, operator, inspector, office) and rejected laborer
+and screed_man with a 400 error. The UI allows inviting those roles, causing a
+silent failure where the invite button shows success on the client but the API
+returns 400.
+
+**Fix:** Added 'laborer' and 'screed_man' to the role validation allowlist.
+
+#### 3. Same role rejection bug in bulk invite endpoint (FIXED)
+**Severity:** High
+**File:** src/routes/api/org/invite/bulk/+server.ts
+
+Same root cause: VALID_ROLES constant missing 'laborer' and 'screed_man'.
+Bulk CSV imports with those roles would fail per-row with "Invalid role" reason.
+
+**Fix:** Added 'laborer' and 'screed_man' to VALID_ROLES.
+
+#### 4. Role change API rejected 'laborer' and 'screed_man' (FIXED)
+**Severity:** High
+**File:** src/routes/api/org/members/[userId]/+server.ts
+
+Same pattern: PATCH /api/org/members/:userId validated role against a hardcoded
+list that excluded laborer and screed_man. Changing a member's role to laborer
+or screed_man via the Team page would return 400.
+
+**Fix:** Added 'laborer' and 'screed_man' to role validation allowlist.
+
+#### 5. Team page role filter pills missing field roles (FIXED)
+**Severity:** Medium
+**File:** src/routes/dashboard/team/+page.svelte
+
+The role filter pills (All, Owner, Admin, Member) only showed 4 of 9 roles.
+Foreman, Operator, Inspector, Office, Laborer, and Screed Man were not
+filterable. Teams with field crew couldn't filter the member list by those roles.
+
+The roleCounts derived also only computed counts for 4 roles, so even if you
+hard-coded a pill for 'laborer', it would show undefined as the count.
+
+**Fix:** Extended roleCounts to include all 9 roles. Added all roles as filter
+pills. Used 'Screed' as the abbreviated label for screed_man to keep pills compact.
+
+#### 6. NotificationsTab.svelte had unresolved merge conflict markers (FIXED)
+**Severity:** Critical (build-time)
+**File:** src/routes/dashboard/settings/_components/NotificationsTab.svelte
+
+The file contained live git conflict markers (<<<<<<< HEAD, =======, >>>>>>>)
+from a failed merge of feat/wire-error-boundary. This would cause a Svelte
+parse error at runtime and a broken Notifications settings tab.
+
+**Fix:** Resolved the conflict by keeping the HEAD version (the full notifications
+schedule save logic using /api/org/notifications). The conflicting branch's
+version (which saved to /api/org/settings with a reportRecipients array) was
+the older, less complete approach.
+
+---
+
+### Admin Dashboard (/admin) Assessment
+
+#### Orgs list page (/admin/orgs)
+- Create org modal functional: name + optional owner email. PASS
+- Org list shows name, slug, member count, created date. PASS
+- Search filters correctly across name and slug. PASS
+
+#### Org detail page (/admin/orgs/:id)
+- 4 tabs: Overview, Members, Job Sites, Audit. PASS
+- Overview shows org stats and quick actions (archive/unarchive). PASS
+- Members tab shows full member list with role display. PASS
+- Admin can change member roles from this view. PASS (uses same role list including laborer/screed_man)
+- Audit tab shows org-scoped events with pagination. PASS
+
+#### Users list page (/admin/users)
+- User list loads with search and status filter. PASS
+- Create user form: name, email, password, optional org+role. PASS
+- Disable/enable user action available. PASS
+
+#### User detail page (/admin/users/:id)
+- Shows user profile: name, email, phone, org membership. PASS
+- Login history section uses login_success event type correctly. PASS
+- Actions: reset password email, verify email, logout all sessions. PASS
+
+#### Audit log page (/admin/audit)
+- Full filter bar: event type, user email, date range. PASS (after fix #1)
+- Email filter resolves to user_id via /api/admin/users search. PASS
+- Date range uses start/end-of-day correctly. PASS
+- Pagination with first/prev/next/last buttons, all 48px touch targets. PASS
+- Event type badge coloring: green=success, red=failure, yellow=changes. PASS
+
+---
+
+### Org Settings Assessment
+
+#### General tab
+- Org name, address, superintendent email/phone fields. PASS
+- Admin/owner can edit; other roles see read-only view. PASS
+
+#### Branding tab
+- Custom name and logo upload. PASS
+- Logo stored in R2 ASSETS_BUCKET. PASS
+
+#### Defaults tab
+- Calculator defaults (road width, lift thickness, etc.). PASS
+- Values saved to org settings and populate calcContext. PASS
+
+#### Reports tab
+- Schedule creation: report type, frequency, send hour, recipients. PASS
+- Schedule list shows all saved schedules. PASS
+- Enable/disable toggle per schedule. PASS
+
+#### Notifications tab
+- Personal notification preferences by role group. PASS (after merge conflict fix)
+- Schedule save uses /api/org/notifications correctly. PASS
+
+---
+
+### Team Management Assessment
+
+- Invite member modal with email + role select (all 9 roles visible). PASS
+- Role change via inline select with confirmation dialog. PASS
+- Remove member button with confirm dialog. PASS
+- Pending invitations shown with expiry date. PASS
+- Cancel invitation button available to admins. PASS
+- Filter by role now works for all 9 roles (after fix #5). PASS
+
+---
+
+### Remaining Notes (not blocking)
+
+- The 'logout' event type is in the filter list but no logout endpoint currently
+  calls logAuditEvent. It can be filtered but will always return 0 results until
+  a logout audit is wired up.
+
+- /admin route is guarded by global_admin flag. Org-level admins cannot access
+  /admin, which is correct. The layout guard is in +layout.server.ts and works.
+
+- Report schedule edit (inline vs modal) is not yet built; schedules can be
+  created and deleted but not edited in place. This is a gap for a future task.
+

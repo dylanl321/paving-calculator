@@ -169,7 +169,7 @@
 
 		savingScheduleIndex = schedIdx;
 		try {
-		const body: Record<string, unknown> = {
+			const body: Record<string, unknown> = {
 				scheduleType: sched.scheduleType,
 				enabled: sched.enabled,
 				sendTime: sched.sendTime,
