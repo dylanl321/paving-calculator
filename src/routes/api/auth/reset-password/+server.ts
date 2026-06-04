@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { hashPassword } from '$lib/server/auth';
+import { logAuditEvent } from '$lib/server/db-audit';
 
 interface ResetPasswordRequest {
 	token: string;
@@ -51,6 +52,19 @@ export async function POST(event: RequestEvent) {
 
 		// Delete all user sessions to force re-login
 		await db.deleteSessionsByUserId(tokenData.user_id);
+
+		// Log to admin audit log
+		const ipAddress = event.request.headers.get('CF-Connecting-IP') || event.request.headers.get('X-Forwarded-For') || undefined;
+		const userAgent = event.request.headers.get('user-agent') || undefined;
+		const user = await db.getUserById(tokenData.user_id);
+		const org = user ? await db.getOrgByUserId(user.id) : null;
+		await logAuditEvent(event.platform.env.DB, {
+			user_id: tokenData.user_id,
+			org_id: org?.id,
+			event_type: 'password_reset',
+			ip_address: ipAddress,
+			user_agent: userAgent
+		});
 
 		return json({ success: true });
 	} catch (error) {
