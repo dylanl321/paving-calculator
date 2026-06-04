@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { api } from '$lib/utils/api-error';
 	import CrewProductivityDashboard from '$lib/components/CrewProductivityDashboard.svelte';
 
 	let userRole = $state<string | null>(null);
@@ -8,16 +9,10 @@
 
 	onMount(async () => {
 		try {
-			const res = await fetch('/api/auth/me', { credentials: 'include' });
-			if (!res.ok) {
-				goto('/login');
-				return;
-			}
-
-			const userData = (await res.json()) as {
+			const userData = await api.get<{
 				user?: unknown | null;
 				org?: { role?: string | null } | null;
-			};
+			}>('/api/auth/me');
 
 			if (!userData.user) {
 				goto('/login');

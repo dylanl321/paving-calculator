@@ -2,6 +2,7 @@
 	import type { NotificationPrefsResult } from './shared';
 	import { onMount } from 'svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 
 	let { initialPrefs }: { initialPrefs: Record<string, boolean> } = $props();
 
@@ -12,17 +13,7 @@
 	async function saveNotificationPrefs() {
 		savingNotifications = true;
 		try {
-			const res = await fetch('/api/user/notification-prefs', {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify({ prefs: notificationPrefs })
-			});
-			const result = (await res.json()) as NotificationPrefsResult;
-			if (!res.ok) {
-				toastStore.error(result.error || 'Failed to save preferences');
-				return;
-			}
+			const result = await api.put<NotificationPrefsResult>('/api/user/notification-prefs', { prefs: notificationPrefs });
 			notificationPrefs = result.prefs ?? notificationPrefs;
 			toastStore.success('Notification preferences saved');
 		} catch {
@@ -178,6 +169,7 @@
 
 		savingScheduleIndex = schedIdx;
 		try {
+<<<<<<< HEAD
 			const body: Record<string, unknown> = {
 				scheduleType: sched.scheduleType,
 				enabled: sched.enabled,
@@ -206,6 +198,23 @@
 			);
 		} catch {
 			toastStore.error('Network error while saving');
+=======
+			const result = await api.put<{ reportRecipients?: string[] }>('/api/org/settings', { reportRecipients });
+			reportRecipients = result.reportRecipients || reportRecipients;
+			recipientsMessage = 'Recipients saved successfully';
+			recipientsMessageType = 'ok';
+			toastStore.success('Recipients saved successfully');
+
+			// Clear message after 3 seconds
+			setTimeout(() => {
+				if (recipientsMessageType === 'ok') {
+					recipientsMessage = '';
+				}
+			}, 3000);
+		} catch (e) {
+			recipientsMessage = 'Network error while saving';
+			recipientsMessageType = 'error';
+>>>>>>> d446879 (feat: wire ErrorBoundary and apiRequest across app)
 		} finally {
 			savingScheduleIndex = null;
 		}
