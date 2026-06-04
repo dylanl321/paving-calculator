@@ -15,14 +15,14 @@ export async function GET(event: RequestEvent) {
 		const db = new DbHelper(event.platform.env.DB);
 
 		// Pull the full user row so the client gets verification state.
-		const fullUser = await db.getUserById(user.id);
+		const fullUser = await db.auth.getUserById(user.id);
 
-		const org = await db.getOrgByUserId(user.id);
+		const org = await db.org.getOrgByUserId(user.id);
 		if (!org) {
 			return json({ error: 'Organization not found' }, { status: 404 });
 		}
 
-		const member = await db.getUserMember(user.id, org.id);
+		const member = await db.org.getUserMember(user.id, org.id);
 
 		return json({
 			user: {
