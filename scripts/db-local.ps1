@@ -17,12 +17,21 @@
     user table/trigger/view (via DROP statements, so it works even while
     `vite dev` holds the SQLite file open) and lets wrangler re-apply 0001..NNNN.
 
+.PARAMETER Fresh
+    Bootstrap a brand-new environment using migrations/fresh/0001_full_schema.sql
+    instead of replaying the full 0001..NNNN sequence. This is faster and
+    intended for new dev setups, CI, and test environments.
+    Implies a reset: any existing local D1 objects are dropped first.
+    DO NOT use on an environment that has already run the numbered migrations.
+
 .EXAMPLE
     pwsh ./scripts/db-local.ps1
     pwsh ./scripts/db-local.ps1 -Reset
+    pwsh ./scripts/db-local.ps1 -Fresh
 #>
 param(
-    [switch]$Reset
+    [switch]$Reset,
+    [switch]$Fresh
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,6 +39,9 @@ $ErrorActionPreference = 'Stop'
 # Resolve repo root (this script lives in <root>/scripts).
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
+
+# -Fresh implies a reset: we always wipe before applying the consolidated schema.
+if ($Fresh) { $Reset = $true }
 
 if ($Reset) {
     Write-Host "Resetting local D1 (dropping all objects)..." -ForegroundColor Yellow
@@ -64,8 +76,20 @@ if ($Reset) {
     }
 }
 
-Write-Host "Applying migrations to local D1 (paverate-db)..." -ForegroundColor Cyan
-npx wrangler d1 migrations apply paverate-db --local
-if ($LASTEXITCODE -ne 0) { Write-Error "Migration apply failed."; exit $LASTEXITCODE }
-
-Write-Host "Local D1 ready. Start the app with: npm run dev" -ForegroundColor Cyan
+if ($Fresh) {
+    $freshSchema = Join-Path $repoRoot 'migrations\fresh\0001_full_schema.sql'
+    if (-not (Test-Path $freshSchema)) {
+        Write-Error "Fresh schema not found: $freshSchema"
+        exit 1
+    }
+    Write-Host "Applying consolidated fresh schema to local D1..." -ForegroundColor Cyan
+    npx wrangler d1 execute paverate-db --local --file="$freshSchema"
+    if ($LASTEXITCODE -ne 0) { Write-Error "Fresh schema apply failed."; exit $LASTEXITCODE }
+    Write-Host "Local D1 ready (fresh schema). Start the app with: npm run dev" -ForegroundColor Cyan
+}
+else {
+    Write-Host "Applying migrations to local D1 (paverate-db)..." -ForegroundColor Cyan
+    npx wrangler d1 migrations apply paverate-db --local
+    if ($LASTEXITCODE -ne 0) { Write-Error "Migration apply failed."; exit $LASTEXITCODE }
+    Write-Host "Local D1 ready. Start the app with: npm run dev" -ForegroundColor Cyan
+}
