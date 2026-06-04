@@ -15,6 +15,8 @@ declare global {
 				SUPER_ADMIN_EMAILS?: string;
 				RESEND_API_KEY?: string;
 				CRON_SECRET?: string;
+				CLOUDFLARE_GLOBAL_API_KEY?: string;
+				CLOUDFLARE_EMAIL?: string;
 			};
 			ctx: ExecutionContext;
 			caches: CacheStorage;
