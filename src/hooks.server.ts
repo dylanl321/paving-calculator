@@ -118,8 +118,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 		const logPromise = insertLog(db, logRow).catch((e) =>
 			console.error('[app_logs] insert error:', e)
 		);
-		if (event.platform?.context?.waitUntil) {
-			event.platform.context.waitUntil(logPromise);
+		if (event.platform?.ctx?.waitUntil) {
+			event.platform.ctx.waitUntil(logPromise);
 		}
 		// Re-throw so SvelteKit renders the error page normally.
 		throw err;
@@ -151,8 +151,8 @@ export const handle: Handle = async ({ event, resolve }) => {
 	const logPromise = insertLog(db, logRow).catch((e) =>
 		console.error('[app_logs] insert error:', e)
 	);
-	if (event.platform?.context?.waitUntil) {
-		event.platform.context.waitUntil(logPromise);
+	if (event.platform?.ctx?.waitUntil) {
+		event.platform.ctx.waitUntil(logPromise);
 	}
 
 	return response;
