@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { MapContainer, MapMarker } from '$lib/components/map';
+	import { MapView, MapMarker } from '$lib/components/map-v2';
 
 	interface SitePin {
 		id: string;
@@ -60,26 +60,25 @@
 	</div>
 {:else}
 	<div class="map-wrap" style="height:{height}">
-		<MapContainer
-			class="job-site-map"
-			{height}
-			center={center}
-			zoom={13}
+		<MapView
+			center={center ?? [pinned[0].latitude as number, pinned[0].longitude as number]}
 			bounds={bounds}
-			boundsPadding={32}
+			zoom={13}
+			{height}
 		>
-			{#each pinned as site (site.id)}
-				{@const color = STATUS_COLORS[site.status] ?? STATUS_COLORS.active}
-				<MapMarker
-					lat={site.latitude as number}
-					lng={site.longitude as number}
-					title={site.name}
-					{color}
-					popupHtml={popupFor(site, color)}
-					popupMinWidth={160}
-				/>
-			{/each}
-		</MapContainer>
+			{#snippet layers()}
+				{#each pinned as site (site.id)}
+					{@const color = STATUS_COLORS[site.status] ?? STATUS_COLORS.active}
+					<MapMarker
+						lat={site.latitude as number}
+						lng={site.longitude as number}
+						color={color}
+						label={site.name.charAt(0)}
+						popupHtml={popupFor(site, color)}
+					/>
+				{/each}
+			{/snippet}
+		</MapView>
 	</div>
 {/if}
 
@@ -89,11 +88,6 @@
 		border-radius: var(--radius-md, 12px);
 		overflow: hidden;
 		border: 1px solid var(--border);
-	}
-
-	.map-wrap :global(.job-site-map) {
-		height: 100%;
-		border-radius: 0;
 	}
 
 	.empty-map {
