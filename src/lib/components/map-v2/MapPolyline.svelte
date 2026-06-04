@@ -50,7 +50,10 @@
 
   const { getMap } = getMapContext();
 
+  // ids are intentionally captured once — `id` must be stable across re-renders.
+  // svelte-ignore state_referenced_locally
   let sourceId = `src-${id}`;
+  // svelte-ignore state_referenced_locally
   let layerId = `lyr-${id}`;
   let addedToMap: MapLibreMap | null = null;
   let onEnter: (() => void) | null = null;

@@ -589,10 +589,14 @@
 {#if editingMember}
 	<div
 		class="modal-overlay"
+		role="button"
+		tabindex="-1"
+		aria-label="Close dialog"
 		onclick={() => {
 			editingMember = null;
 			statusMessage = '';
 		}}
+		onkeydown={(e) => { if (e.key === 'Escape') { editingMember = null; statusMessage = ''; } }}
 	></div>
 	<div class="modal">
 		<h2>Change Member Role</h2>

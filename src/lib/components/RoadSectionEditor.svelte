@@ -447,7 +447,7 @@
 							</div>
 						</div>
 
-						<button class="btn-delete" onclick={() => deleteSection(section.id)}>
+						<button class="btn-delete" aria-label="Delete section" onclick={() => deleteSection(section.id)}>
 							<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
 								<path d="M4 6h8M6 6V4h4v2M5 6v8h6V6" />
 							</svg>

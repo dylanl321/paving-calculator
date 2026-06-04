@@ -24,6 +24,7 @@
 	const org = $derived(data.org as DashboardOrg);
 	const user = $derived(data.user as DashboardUser);
 
+	// svelte-ignore state_referenced_locally
 	let emailVerified = $state((data.user as DashboardUser)?.email_verified ?? true);
 	let resendingVerification = $state(false);
 	let sortBy = $state<'name' | 'status' | 'completeness'>('name');
@@ -360,7 +361,7 @@
 					</div>
 
 					<div class="form-field">
-						<label>Map Pin <span class="optional-label">(optional)</span></label>
+						<span class="field-label">Map Pin <span class="optional-label">(optional)</span></span>
 						<JobSiteLocationPicker
 							bind:latitude={newSiteLat}
 							bind:longitude={newSiteLng}
@@ -780,7 +781,8 @@
 		margin-bottom: 16px;
 	}
 
-	.form-field label {
+	.form-field label,
+	.form-field .field-label {
 		display: block;
 		font-size: 0.85rem;
 		font-weight: 600;

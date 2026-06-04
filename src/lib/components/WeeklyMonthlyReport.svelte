@@ -16,6 +16,7 @@
 	type PeriodType = 'week' | 'month';
 
 	let periodType = $state<PeriodType>('week');
+	// svelte-ignore state_referenced_locally
 	let currentDate = $state(initialDate || new Date().toISOString().split('T')[0]);
 	let loading = $state(true);
 	let data = $state<any>(null);
@@ -148,7 +149,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="overlay" onclick={handleBackdrop} role="dialog" aria-modal="true" aria-label="Weekly and Monthly Reports">
+<div class="overlay" onclick={handleBackdrop} role="dialog" aria-modal="true" tabindex="-1" aria-label="Weekly and Monthly Reports">
 	<div class="sheet">
 		<!-- Header -->
 		<div class="sheet-header">

@@ -7,6 +7,7 @@
 	let { initialPrefs }: { initialPrefs: Record<string, boolean> } = $props();
 
 	// ─── Personal prefs ───────────────────────────────────────────────────────
+	// svelte-ignore state_referenced_locally
 	let notificationPrefs = $state<Record<string, boolean>>(initialPrefs ?? {});
 	let savingNotifications = $state(false);
 

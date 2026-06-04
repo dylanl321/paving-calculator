@@ -28,6 +28,9 @@
 
 	let activeTab = $state('overview');
 
+	// Intentional one-time snapshot of loaded data for an editable form; should
+	// NOT re-derive from `data` on every change.
+	// svelte-ignore state_referenced_locally
 	let configForm = $state<ConfigForm>({
 		road_type: data.config?.road_type || null,
 		num_lanes: data.config?.num_lanes || null,
@@ -57,7 +60,9 @@
 		total_contract_value: data.config?.total_contract_value || null
 	});
 
+	// svelte-ignore state_referenced_locally
 	let equipmentList = $state([...data.equipment]);
+	// svelte-ignore state_referenced_locally
 	let milestones = $state([...data.milestones]);
 
 	$effect(() => {

@@ -227,6 +227,8 @@
 			<div
 				class="upload-zone"
 				class:drag-over={dragOver}
+				role="group"
+				aria-label="CSV file drop zone"
 				ondragover={handleDragOver}
 				ondragleave={handleDragLeave}
 				ondrop={handleDrop}

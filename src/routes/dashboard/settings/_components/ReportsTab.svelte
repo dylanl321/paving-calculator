@@ -5,6 +5,7 @@
 
 	let { initialSchedules }: { initialSchedules: EmailReportSchedule[] } = $props();
 
+	// svelte-ignore state_referenced_locally
 	let schedules = $state<EmailReportSchedule[]>(initialSchedules ?? []);
 	let showAddForm = $state(false);
 	let saving = $state(false);

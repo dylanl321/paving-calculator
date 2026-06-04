@@ -373,7 +373,13 @@
 		<div class="zone-list">
 			{#each zones as zone (zone.id)}
 				<div class="zone-item" class:selected={selectedZone?.id === zone.id}>
-					<div class="zone-item-header" onclick={() => selectedZone = selectedZone?.id === zone.id ? null : zone}>
+					<div
+						class="zone-item-header"
+						role="button"
+						tabindex="0"
+						onclick={() => selectedZone = selectedZone?.id === zone.id ? null : zone}
+						onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectedZone = selectedZone?.id === zone.id ? null : zone; } }}
+					>
 						<span class="zone-dot-sm" style="background:{zone.color || ZONE_TYPE_COLORS[zone.zone_type]}"></span>
 						<span class="zone-item-name">{zone.name}</span>
 						<span class="zone-type-badge">{ZONE_TYPE_LABELS[zone.zone_type]}</span>

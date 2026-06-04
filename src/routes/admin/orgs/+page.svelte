@@ -153,7 +153,14 @@
 </div>
 
 {#if showCreateModal}
-	<div class="modal-overlay" onclick={() => (showCreateModal = false)}></div>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="-1"
+		aria-label="Close dialog"
+		onclick={() => (showCreateModal = false)}
+		onkeydown={(e) => { if (e.key === 'Escape') showCreateModal = false; }}
+	></div>
 	<div class="modal">
 		<h2>Create Organization</h2>
 		{#if createStatus}
@@ -162,6 +169,7 @@
 		<form onsubmit={(e) => { e.preventDefault(); createOrg(); }}>
 			<label>
 				Organization Name
+				<!-- svelte-ignore a11y_autofocus -->
 				<input
 					type="text"
 					bind:value={newOrgName}

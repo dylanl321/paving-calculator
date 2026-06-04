@@ -112,6 +112,7 @@
 	}
 
 	// Reset the drawer whenever the route changes.
+	// svelte-ignore state_referenced_locally
 	let lastPath = $state(currentPath);
 	$effect(() => {
 		if (currentPath !== lastPath) {

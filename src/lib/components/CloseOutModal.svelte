@@ -29,9 +29,12 @@
 		onComplete
 	}: Props = $props();
 
+	// svelte-ignore state_referenced_locally
 	let endTime = $state(currentLog.end_time || '');
+	// svelte-ignore state_referenced_locally
 	let crewCount = $state(currentLog.crew_count || null);
 	let foremanName = $state('');
+	// svelte-ignore state_referenced_locally
 	let notes = $state(currentLog.notes || '');
 	let isSubmitting = $state(false);
 	let showSuccess = $state(false);
@@ -203,8 +206,16 @@
 	}
 </script>
 
-<div class="modal-overlay" onclick={handleBackdropClick}>
-	<div class="modal" onclick={(e) => e.stopPropagation()}>
+<div
+	class="modal-overlay"
+	role="button"
+	tabindex="-1"
+	aria-label="Close dialog"
+	onclick={handleBackdropClick}
+	onkeydown={(e) => { if (e.key === 'Escape' && !isSubmitting) onClose(); }}
+>
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="modal" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()}>
 		<div class="modal-header">
 			<h3>Close Out Day</h3>
 			<button class="btn-close" onclick={onClose} disabled={isSubmitting}>✕</button>

@@ -207,7 +207,13 @@
 			<div class="errors-list">
 				{#each data.errors as err (err.fingerprint)}
 					<div class="error-card">
-						<div class="error-header" onclick={() => toggleExpanded(err.fingerprint)}>
+						<div
+							class="error-header"
+							role="button"
+							tabindex="0"
+							onclick={() => toggleExpanded(err.fingerprint)}
+							onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpanded(err.fingerprint); } }}
+						>
 							<div class="error-main">
 								<div class="error-message">
 									{truncate(err.sample_message, 80)}

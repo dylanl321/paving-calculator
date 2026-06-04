@@ -219,7 +219,14 @@
 </div>
 
 {#if editor}
-	<div class="modal-backdrop" onclick={closeEditor}></div>
+	<div
+		class="modal-backdrop"
+		role="button"
+		tabindex="-1"
+		aria-label="Close editor"
+		onclick={closeEditor}
+		onkeydown={(e) => { if (e.key === 'Escape') closeEditor(); }}
+	></div>
 	<div class="modal">
 		<div class="modal-header">
 			<h2 class="modal-title">Edit Template: {templateNames[editor.key] || editor.key}</h2>

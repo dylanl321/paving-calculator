@@ -129,7 +129,8 @@
 
 {#if fullscreen && active}
 	<dialog class="fs" open onclick={closeFullscreen}>
-		<div class="fs-bar" onclick={(e) => e.stopPropagation()}>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div class="fs-bar" role="presentation" onclick={(e) => e.stopPropagation()}>
 			<span class="fs-title">{labelFor(active)} · {activeIndex + 1}/{schematics.length}</span>
 			<div class="fs-tools">
 				<button onclick={() => (zoom = Math.max(1, zoom - 0.5))} aria-label="Zoom out">−</button>
@@ -138,7 +139,8 @@
 				<button class="fs-close" onclick={closeFullscreen} aria-label="Close">✕</button>
 			</div>
 		</div>
-		<div class="fs-stage" onclick={(e) => e.stopPropagation()}>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div class="fs-stage" role="presentation" onclick={(e) => e.stopPropagation()}>
 			<button class="fs-nav prev" onclick={() => go(-1)} disabled={activeIndex === 0} aria-label="Previous">
 				<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
 			</button>

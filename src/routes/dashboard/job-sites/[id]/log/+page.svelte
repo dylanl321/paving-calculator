@@ -59,6 +59,7 @@
 
 	let isHistoricalView = $derived(!!data.isHistoricalView);
 	let viewedLog = $derived(data.activeLog ?? data.todayLog);
+	// svelte-ignore state_referenced_locally
 	let currentLog = $state<any>(data.activeLog);
 	let entries = $state<any[]>([]);
 	let entrySummary = $state<any>({ total_distance_ft: 0, total_tons: 0, total_loads: 0 });
@@ -642,7 +643,7 @@
 			{/if}
 		</div>
 		{#if showCalendarPicker}
-			<div class="calendar-picker-popover" onkeydown={handleCalendarKeydown}>
+			<div class="calendar-picker-popover" role="dialog" aria-label="Select date" tabindex="-1" onkeydown={handleCalendarKeydown}>
 				<input
 					type="date"
 					value={viewedLog?.log_date ?? data.today}
@@ -1053,7 +1054,7 @@
 </div>
 
 {#if currentLog && !showEntryForm && !isHistoricalView}
-	<button class="fab" onclick={openEntryForm}>
+	<button class="fab" aria-label="Add log entry" onclick={openEntryForm}>
 		<svg
 			width="24"
 			height="24"
@@ -1071,8 +1072,16 @@
 {/if}
 
 {#if showEntryForm}
-	<div class="modal-overlay" onclick={() => (showEntryForm = false)}>
-		<div class="modal" onclick={(e) => e.stopPropagation()}>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="-1"
+		aria-label="Close dialog"
+		onclick={() => (showEntryForm = false)}
+		onkeydown={(e) => { if (e.key === 'Escape') showEntryForm = false; }}
+	>
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+		<div class="modal" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()}>
 			<div class="modal-header">
 				<h3>{editingEntry ? 'Edit Entry' : 'Add Entry'}</h3>
 				<button class="btn-icon" onclick={() => (showEntryForm = false)}>✕</button>

@@ -418,6 +418,8 @@
 		<div
 			class="drop-zone"
 			class:drag-over={dragOver}
+			role="group"
+			aria-label="PDF file drop zone"
 			ondragover={(e) => { e.preventDefault(); dragOver = true; }}
 			ondragleave={() => (dragOver = false)}
 			ondrop={handleDrop}

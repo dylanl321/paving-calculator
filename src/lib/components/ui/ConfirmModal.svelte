@@ -37,7 +37,14 @@
 </script>
 
 {#if open}
-	<div class="modal-overlay" onclick={handleBackdropClick}></div>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="-1"
+		aria-label="Close dialog"
+		onclick={handleBackdropClick}
+		onkeydown={(e) => { if (e.key === 'Escape') handleBackdropClick(); }}
+	></div>
 	<div class="modal-container" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
 		<div class="modal-content">
 			<h2 id="confirm-title" class="modal-title">{title}</h2>

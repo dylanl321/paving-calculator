@@ -513,12 +513,20 @@
 </div>
 
 {#if showInviteModal}
-	<div class="modal-overlay" onclick={() => (showInviteModal = false)}></div>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="-1"
+		aria-label="Close dialog"
+		onclick={() => (showInviteModal = false)}
+		onkeydown={(e) => { if (e.key === 'Escape') showInviteModal = false; }}
+	></div>
 	<div class="modal">
 		<h2>Invite Team Member</h2>
 		<form onsubmit={(e) => { e.preventDefault(); sendInvite(); }}>
 			<label>
 				Email
+				<!-- svelte-ignore a11y_autofocus -->
 				<input
 					type="email"
 					bind:value={inviteForm.email}
@@ -552,7 +560,14 @@
 {/if}
 
 {#if roleChangeConfirm}
-	<div class="modal-overlay" onclick={() => (roleChangeConfirm = null)}></div>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="-1"
+		aria-label="Close dialog"
+		onclick={() => (roleChangeConfirm = null)}
+		onkeydown={(e) => { if (e.key === 'Escape') roleChangeConfirm = null; }}
+	></div>
 	<div class="modal confirm-dialog">
 		<h2>Confirm Role Change</h2>
 		<p class="confirm-message">

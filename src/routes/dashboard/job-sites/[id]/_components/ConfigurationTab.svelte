@@ -332,33 +332,33 @@
 								{#if mix.is_active === 1 && isEmpty(mix.mix_type)}
 									<span class="required-badge">Required</span>
 								{/if}
+								<select bind:value={mix.mix_type} onchange={() => saveMix(mix)} class:required-empty={mix.is_active === 1 && isEmpty(mix.mix_type)}>
+									<option value={null}>Select type</option>
+									{#each MIX_TYPE_OPTIONS as opt}
+										<option value={opt}>{opt}</option>
+									{/each}
+								</select>
 							</label>
-							<select bind:value={mix.mix_type} onchange={() => saveMix(mix)} class:required-empty={mix.is_active === 1 && isEmpty(mix.mix_type)}>
-								<option value={null}>Select type</option>
-								{#each MIX_TYPE_OPTIONS as opt}
-									<option value={opt}>{opt}</option>
-								{/each}
-							</select>
 						</div>
 						<div class="mix-field">
-							<label>Unit</label>
-							<input type="text" bind:value={mix.unit} oninput={() => saveMix(mix)} placeholder="TN" />
+							<label>Unit
+							<input type="text" bind:value={mix.unit} oninput={() => saveMix(mix)} placeholder="TN" /></label>
 						</div>
 						<div class="mix-field allotted">
-							<label>Allotted (Contract)</label>
-							<input type="number" bind:value={mix.bid_quantity} oninput={() => saveMix(mix)} min="0" step="any" />
+							<label>Allotted (Contract)
+							<input type="number" bind:value={mix.bid_quantity} oninput={() => saveMix(mix)} min="0" step="any" /></label>
 						</div>
 						<div class="mix-field target">
-							<label>Target (Our Goal)</label>
-							<input type="number" bind:value={mix.takeoff_tonnage} oninput={() => saveMix(mix)} min="0" step="any" />
+							<label>Target (Our Goal)
+							<input type="number" bind:value={mix.takeoff_tonnage} oninput={() => saveMix(mix)} min="0" step="any" /></label>
 						</div>
 						<div class="mix-field">
-							<label>Qty / Day</label>
-							<input type="number" bind:value={mix.quantity_per_day} oninput={() => saveMix(mix)} min="0" step="any" />
+							<label>Qty / Day
+							<input type="number" bind:value={mix.quantity_per_day} oninput={() => saveMix(mix)} min="0" step="any" /></label>
 						</div>
 						<div class="mix-field">
-							<label>Est. Days</label>
-							<input type="number" bind:value={mix.est_days} oninput={() => saveMix(mix)} min="0" step="0.5" />
+							<label>Est. Days
+							<input type="number" bind:value={mix.est_days} oninput={() => saveMix(mix)} min="0" step="0.5" /></label>
 						</div>
 						<div class="mix-field">
 							<label>
@@ -366,8 +366,8 @@
 								{#if mix.is_active === 1 && isEmpty(mix.target_thickness_in)}
 									<span class="required-badge">Required</span>
 								{/if}
+								<input type="number" bind:value={mix.target_thickness_in} oninput={() => saveMix(mix)} min="0" step="0.25" class:required-empty={mix.is_active === 1 && isEmpty(mix.target_thickness_in)} />
 							</label>
-							<input type="number" bind:value={mix.target_thickness_in} oninput={() => saveMix(mix)} min="0" step="0.25" class:required-empty={mix.is_active === 1 && isEmpty(mix.target_thickness_in)} />
 						</div>
 						<div class="mix-field">
 							<label>
@@ -375,25 +375,25 @@
 								{#if mix.is_active === 1 && isEmpty(mix.target_spread_rate)}
 									<span class="required-badge">Required</span>
 								{/if}
+								<input type="number" bind:value={mix.target_spread_rate} oninput={() => saveMix(mix)} min="0" step="any" class:required-empty={mix.is_active === 1 && isEmpty(mix.target_spread_rate)} />
 							</label>
-							<input type="number" bind:value={mix.target_spread_rate} oninput={() => saveMix(mix)} min="0" step="any" class:required-empty={mix.is_active === 1 && isEmpty(mix.target_spread_rate)} />
 						</div>
 						<div class="mix-field">
-							<label>Tack Type</label>
+							<label>Tack Type
 							<select bind:value={mix.tack_type} onchange={() => saveMix(mix)}>
 								<option value={null}>None</option>
 								{#each Object.entries(tackTypeLabels) as [value, label]}
 									<option value={value}>{label}</option>
 								{/each}
-							</select>
+							</select></label>
 						</div>
 						<div class="mix-field">
-							<label>Tack Rate (gal/yd²)</label>
-							<input type="number" bind:value={mix.target_tack_rate} oninput={() => saveMix(mix)} min="0" step="0.01" />
+							<label>Tack Rate (gal/yd²)
+							<input type="number" bind:value={mix.target_tack_rate} oninput={() => saveMix(mix)} min="0" step="0.01" /></label>
 						</div>
 						<div class="mix-field">
-							<label>Contract Unit Price ($)</label>
-							<input type="number" bind:value={mix.contract_unit_price} oninput={() => saveMix(mix)} min="0" step="0.01" />
+							<label>Contract Unit Price ($)
+							<input type="number" bind:value={mix.contract_unit_price} oninput={() => saveMix(mix)} min="0" step="0.01" /></label>
 						</div>
 					</div>
 
@@ -683,6 +683,9 @@
 	}
 
 	.mix-field label {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
 		font-size: 0.72rem;
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
@@ -699,6 +702,9 @@
 		color: var(--text);
 		font-size: 0.9rem;
 		min-height: 44px;
+		text-transform: none;
+		letter-spacing: normal;
+		font-weight: 400;
 	}
 
 	.mix-field.allotted label {

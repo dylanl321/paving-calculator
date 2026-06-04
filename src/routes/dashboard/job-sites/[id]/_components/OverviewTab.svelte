@@ -66,7 +66,9 @@
 
 	let showLocationSearch = $state(false);
 	let locationSaving = $state(false);
+	// svelte-ignore state_referenced_locally
 	let pickerLat = $state<number | null>(data.jobSite.latitude ?? null);
+	// svelte-ignore state_referenced_locally
 	let pickerLng = $state<number | null>(data.jobSite.longitude ?? null);
 
 	const REQUIRED_CONFIG_FIELDS = [
@@ -1548,7 +1550,8 @@
 
 {#if selectedPhoto}
 	<dialog class="lightbox" open onclick={closeLightbox}>
-		<div class="lightbox-content" onclick={(e) => e.stopPropagation()}>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<div class="lightbox-content" role="presentation" onclick={(e) => e.stopPropagation()}>
 			<button type="button" class="lightbox-close" onclick={closeLightbox} aria-label="Close">
 				<svg
 					width="24"

@@ -89,8 +89,4 @@
 		flex-direction: column;
 		gap: 16px;
 	}
-
-	.card-section {
-		/* Cards manage their own padding/border; this section just spaces them */
-	}
 </style>

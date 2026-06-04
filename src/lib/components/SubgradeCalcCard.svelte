@@ -21,6 +21,7 @@
 	let lengthFt = $state<number | null>(null);
 	let widthFt = $state<number | null>(null);
 	let depthIn = $state<number | null>(null);
+	// svelte-ignore state_referenced_locally
 	let materialId = $state<string>(materials[0]?.id ?? 'MAT.GAB');
 
 	function clearInputs() {

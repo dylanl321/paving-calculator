@@ -238,7 +238,7 @@
 		</div>
 
 		<div class="field-compact">
-			<label>Pass # (optional)</label>
+			<span class="group-label">Pass # (optional)</span>
 			<div class="picker-row">
 				{#each [1, 2, 3, 4, 5, 6, 7, 8] as num}
 					<button
@@ -379,9 +379,14 @@
 		gap: 6px;
 	}
 
-	.field-compact label {
+	.field-compact label,
+	.field-compact .group-label {
 		font-size: 0.8rem;
 		color: var(--text-muted);
+	}
+
+	.field-compact .group-label {
+		display: block;
 	}
 
 	.input-standard {

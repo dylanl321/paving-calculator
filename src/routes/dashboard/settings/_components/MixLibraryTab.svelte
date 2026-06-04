@@ -7,6 +7,7 @@
 
 	let { canEdit, initialPresets }: { canEdit: boolean; initialPresets: DbOrgMixPreset[] } = $props();
 
+	// svelte-ignore state_referenced_locally
 	let presets = $state<DbOrgMixPreset[]>(initialPresets ?? []);
 	let showModal = $state(false);
 	let saving = $state(false);
@@ -253,8 +254,16 @@
 </section>
 
 {#if showModal}
-	<div class="modal-overlay" onclick={closeModal}>
-		<div class="modal" onclick={(e) => e.stopPropagation()}>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="-1"
+		aria-label="Close dialog"
+		onclick={closeModal}
+		onkeydown={(e) => { if (e.key === 'Escape') closeModal(); }}
+	>
+		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+		<div class="modal" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()}>
 			<h4>{editingId ? 'Edit Preset' : 'Add Preset'}</h4>
 			<form
 				onsubmit={(e) => {

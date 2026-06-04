@@ -24,12 +24,16 @@
 
 	const canEdit = $derived(data.settings?.role === 'owner' || data.settings?.role === 'admin');
 
+	// One-time snapshots of loaded settings, used to seed the editable form state
+	// below; intentionally not re-derived from `data`.
+	// svelte-ignore state_referenced_locally
 	const ov: OrgOverrides = data.settings?.overrides ?? {};
 
 	// --- Tab navigation ---
 	let activeTab = $state<TabId>('general');
 
 	// --- Organization identity / branding ---
+	// svelte-ignore state_referenced_locally
 	const settingsOrg = data.settings?.org as
 		| {
 				name?: string;
@@ -43,14 +47,19 @@
 	let orgAddress = $state(settingsOrg?.address ?? '');
 	let superintendentEmail = $state(settingsOrg?.superintendentEmail ?? '');
 	let superintendentPhone = $state(settingsOrg?.superintendentPhone ?? '');
+	// svelte-ignore state_referenced_locally
 	let accentColor = $state(data.settings?.accentColor ?? config.theme.dark.accent);
+	// svelte-ignore state_referenced_locally
 	let useCustomAccent = $state(!!data.settings?.accentColor);
+	// svelte-ignore state_referenced_locally
 	let hasLogo = $state(!!data.settings?.hasLogo);
 	let logoFile = $state<File | null>(null);
 	let logoPreview = $state<string | null>(null);
 
 	// --- Email branding ---
+	// svelte-ignore state_referenced_locally
 	let emailFromName = $state(data.settings?.emailFromName ?? '');
+	// svelte-ignore state_referenced_locally
 	let emailReplyTo = $state(data.settings?.emailReplyTo ?? '');
 
 	// --- Default job setup (seeded from YAML, overridden where present) ---

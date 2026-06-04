@@ -33,7 +33,7 @@
 	let saving = $state(false);
 	let loading = $state(true);
 
-	const STORAGE_KEY = `loads_${jobSiteId}`;
+	const STORAGE_KEY = $derived(`loads_${jobSiteId}`);
 
 	// Load data
 	$effect(() => {

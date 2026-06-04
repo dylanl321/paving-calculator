@@ -278,7 +278,14 @@
 </div>
 
 {#if showPreview}
-	<div class="modal-overlay" onclick={closePreview}></div>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="-1"
+		aria-label="Close preview"
+		onclick={closePreview}
+		onkeydown={(e) => { if (e.key === 'Escape') closePreview(); }}
+	></div>
 	<div class="modal">
 		<div class="modal-head">
 			<h2>{previewSubject}</h2>

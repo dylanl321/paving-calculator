@@ -377,7 +377,14 @@
 </div>
 
 {#if editingUser}
-	<div class="modal-overlay" onclick={() => { editingUser = null; statusMessage = ''; }}></div>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="-1"
+		aria-label="Close dialog"
+		onclick={() => { editingUser = null; statusMessage = ''; }}
+		onkeydown={(e) => { if (e.key === 'Escape') { editingUser = null; statusMessage = ''; } }}
+	></div>
 	<div class="modal">
 		<h2>Edit User</h2>
 		<form onsubmit={(e) => { e.preventDefault(); saveEdit(); }}>
@@ -410,7 +417,14 @@
 {/if}
 
 {#if showCreate}
-	<div class="modal-overlay" onclick={() => (showCreate = false)}></div>
+	<div
+		class="modal-overlay"
+		role="button"
+		tabindex="-1"
+		aria-label="Close dialog"
+		onclick={() => (showCreate = false)}
+		onkeydown={(e) => { if (e.key === 'Escape') showCreate = false; }}
+	></div>
 	<div class="modal">
 		<h2>New User</h2>
 		{#if createError}

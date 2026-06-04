@@ -299,7 +299,7 @@
 
 	<!-- Mobile overlay -->
 	{#if sidebarOpen}
-		<button class="overlay" onclick={toggleSidebar}></button>
+		<button class="overlay" aria-label="Close sidebar" onclick={toggleSidebar}></button>
 	{/if}
 </div>
 

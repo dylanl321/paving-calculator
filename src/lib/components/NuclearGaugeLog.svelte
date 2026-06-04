@@ -25,7 +25,9 @@
 	let readingNumberInput = $state(1);
 	let wetDensityInput = $state<number | null>(null);
 	let moistureInput = $state<number | null>(null);
+	// svelte-ignore state_referenced_locally
 	let targetDensityInput = $state<number | null>(targetDensityPcf);
+	// svelte-ignore state_referenced_locally
 	let depthInput = $state<number | null>(targetThicknessIn);
 	let notesInput = $state('');
 

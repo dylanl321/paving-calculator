@@ -29,8 +29,16 @@
 	}
 </script>
 
-<div class="modal-overlay" onclick={onCancel}>
-	<div class="modal" onclick={(e) => e.stopPropagation()}>
+<div
+	class="modal-overlay"
+	role="button"
+	tabindex="-1"
+	aria-label="Close dialog"
+	onclick={onCancel}
+	onkeydown={(e) => { if (e.key === 'Escape') onCancel(); }}
+>
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+	<div class="modal" role="dialog" aria-modal="true" tabindex="-1" onclick={(e) => e.stopPropagation()}>
 		<div class="modal-header">
 			<h3>Sign Report</h3>
 			<button class="btn-close" onclick={onCancel} aria-label="Close">✕</button>

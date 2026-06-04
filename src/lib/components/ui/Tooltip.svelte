@@ -70,6 +70,7 @@
 		class="tooltip-trigger with-slot"
 		bind:this={triggerEl}
 		onclick={handleTriggerClick}
+		onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTriggerClick(); } }}
 		onmouseenter={handleMouseEnter}
 		onmouseleave={handleMouseLeave}
 		aria-describedby={show ? tooltipId : undefined}
@@ -89,6 +90,7 @@
 		class="tooltip-trigger"
 		bind:this={triggerEl}
 		onclick={handleTriggerClick}
+		onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleTriggerClick(); } }}
 		onmouseenter={handleMouseEnter}
 		onmouseleave={handleMouseLeave}
 		aria-describedby={show ? tooltipId : undefined}

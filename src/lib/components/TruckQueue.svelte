@@ -35,7 +35,7 @@
 	let departureTimeInput = $state('');
 	let travelTimeInput = $state(30);
 
-	const STORAGE_KEY = `trucks_${jobSiteId}`;
+	const STORAGE_KEY = $derived(`trucks_${jobSiteId}`);
 
 	// Auto-refresh every 30 seconds
 	let refreshInterval: ReturnType<typeof setInterval>;

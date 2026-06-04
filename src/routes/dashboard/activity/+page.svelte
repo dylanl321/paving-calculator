@@ -6,7 +6,9 @@
 
 	let { data }: { data: PageData } = $props();
 
+	// svelte-ignore state_referenced_locally
 	let entries = $state(data.entries);
+	// svelte-ignore state_referenced_locally
 	let nextCursor = $state(data.nextCursor);
 	let loading = $state(false);
 

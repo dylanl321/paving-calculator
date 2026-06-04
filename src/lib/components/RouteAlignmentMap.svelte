@@ -44,6 +44,7 @@
 	 * route; while drawing it is rebuilt from snapped control points so the line
 	 * always lies on real roads.
 	 */
+	// svelte-ignore state_referenced_locally
 	let waypoints = $state<Waypoint[]>([...initialWaypoints]);
 	/** User-clicked control points (already snapped to the nearest road). */
 	let controlPoints = $state<Waypoint[]>([]);
