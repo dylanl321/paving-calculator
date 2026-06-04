@@ -123,31 +123,35 @@ export async function fetchGdotRouteGeometry(
 	const num = routeDesignation.match(/(\d+[A-Z]?)/)?.[1];
 	if (!num) return null;
 
-	const clauses = [
-		`UPPER(ROUTE_ID) LIKE UPPER('%${sqlEscape(num)}%')`,
-		`UPPER(ROAD_NAME) LIKE UPPER('%${sqlEscape(routeDesignation)}%')`
-	];
-	let where = `(${clauses.join(' OR ')})`;
-	if (county) {
-		where += ` AND UPPER(COUNTY) LIKE UPPER('%${sqlEscape(county)}%')`;
-	}
+	const routeClause = `(UPPER(ROUTE_ID) LIKE UPPER('%${sqlEscape(num)}%') OR UPPER(ROAD_NAME) LIKE UPPER('%${sqlEscape(routeDesignation)}%'))`;
+
+	// Try the county-filtered query first (precise), then fall back to route-only.
+	// GPAS COUNTY is often a numeric code rather than the county name, so a name
+	// LIKE filter can wrongly exclude every row — the route-only retry guarantees
+	// we still find the centerline when that happens.
+	const wheres = county
+		? [`${routeClause} AND UPPER(COUNTY) LIKE UPPER('%${sqlEscape(county)}%')`, routeClause]
+		: [routeClause];
 
 	try {
-		const features = await fetchArcgisFeatures(
-			GDOT_GPAS_LAYER5,
-			{ where, outFields: 'ROUTE_ID,ROAD_NAME,COUNTY' },
-			500
-		);
+		for (const where of wheres) {
+			const features = await fetchArcgisFeatures(
+				GDOT_GPAS_LAYER5,
+				{ where, outFields: 'ROUTE_ID,ROAD_NAME,COUNTY' },
+				500
+			);
 
-		const lines = features
-			.map((f) => f.geometry)
-			.filter((g): g is GeoJsonLineString => g != null && g.coordinates.length >= 2);
+			const lines = features
+				.map((f) => f.geometry)
+				.filter((g): g is GeoJsonLineString => g != null && g.coordinates.length >= 2);
 
-		if (lines.length === 0) return null;
+			if (lines.length === 0) continue;
 
-		// Prefer the longest single path (most complete route segment).
-		lines.sort((a, b) => b.coordinates.length - a.coordinates.length);
-		return lines[0];
+			// Prefer the longest single path (most complete route segment).
+			lines.sort((a, b) => b.coordinates.length - a.coordinates.length);
+			return lines[0];
+		}
+		return null;
 	} catch (err) {
 		console.error('[gdot-geometry] route geometry fetch failed:', err);
 		return null;
@@ -224,6 +228,7 @@ export async function resolveImportLocation(opts: {
 	locationDescription: string | null;
 }): Promise<ResolvedLocation> {
 	const routeGeometry = await fetchGdotRouteGeometry(opts.routeDesignation, opts.county);
+
 	if (routeGeometry) {
 		const centroid = lineStringCentroid(routeGeometry);
 		if (centroid) {

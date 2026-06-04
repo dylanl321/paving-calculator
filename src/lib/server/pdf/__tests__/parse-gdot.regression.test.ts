@@ -417,6 +417,53 @@ describe('route_designation extraction', () => {
 	});
 });
 
+describe('Roadway-Log spec extraction', () => {
+	const logText =
+		'Contract Schedule\nContract ID: T-LOG\nCounties: Echols\nNET LENGTH OF PROJECT 5.505 MILES\n' +
+		'5.505 MILES OF MILLING, PLANT MIX RESURFACING ON SR 11 (NOTICE)\n' +
+		'LOG ROADWAY WIDTH\n' +
+		'BEGIN FULL WIDTH VARIABLE DEPTH MILLING (1 1/4 INCHES TYPICAL)\n' +
+		'BEGIN FULL WIDTH 135 POUNDS PER SQUARE YARD 9.5 MM RESURFACING\n' +
+		'2-12 FT TRAVEL LANES WITH 8 FT SHOULDERS\n' +
+		'Total Bid: $1,000,000.00\n';
+
+	it('extracts spread rate (lbs/yd^2) from the log', () => {
+		expect(parseGdotDocuments([logText]).spread_rate_lbs_sy).toBe(135);
+	});
+
+	it('extracts milling depth as a decimal from a fraction (1 1/4 -> 1.25)', () => {
+		expect(parseGdotDocuments([logText]).milling_depth_in).toBeCloseTo(1.25, 5);
+	});
+
+	it('extracts lane count and width from "2-12 FT TRAVEL LANES"', () => {
+		const r = parseGdotDocuments([logText]);
+		expect(r.num_lanes).toBe(2);
+		expect(r.lane_width_ft).toBe(12);
+	});
+
+	it('handles a unicode-fraction milling depth (1¼)', () => {
+		const t =
+			'Contract Schedule\nContract ID: T-U\nCounties: Hall\nNET LENGTH OF PROJECT 1.000 MILES\n' +
+			'1.000 MILES OF MILLING ON SR 9 (NOTICE)\nVARIABLE DEPTH MILLING (1¼ INCHES)\nTotal Bid: $1.00\n';
+		expect(parseGdotDocuments([t]).milling_depth_in).toBeCloseTo(1.25, 5);
+	});
+
+	it('leaves log fields null when no log sheet is present', () => {
+		const r = parseGdotDocuments([loadFixture('fixture-01-contract-summary.txt')]);
+		expect(r.spread_rate_lbs_sy).toBe(null);
+		expect(r.milling_depth_in).toBe(null);
+		expect(r.lane_width_ft).toBe(null);
+	});
+
+	it('carries log specs through the V2 -> V1 round-trip', () => {
+		const v2 = parseGdotDocumentsV2([logText]);
+		expect(v2.spread_rate_lbs_sy).toBe(135);
+		const v1 = toV1(v2);
+		expect(v1.spread_rate_lbs_sy).toBe(135);
+		expect(v1.lane_width_ft).toBe(12);
+	});
+});
+
 describe('parseGdotDocumentsV2 - geographic field confidence', () => {
 	it('route_designation is medium confidence when found by regex', () => {
 		const v2 = parseGdotDocumentsV2([loadFixture('fixture-01-contract-summary.txt')]);

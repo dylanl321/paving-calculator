@@ -241,7 +241,11 @@ export async function POST(event: RequestEvent) {
 			total_contract_value: num(parsed.contract_amount),
 			route_designation: str(parsed.route_designation),
 			begin_terminus: str(parsed.begin_terminus),
-			end_terminus: str(parsed.end_terminus)
+			end_terminus: str(parsed.end_terminus),
+			// Roadway-Log derived specs (only when the log sheet was parseable).
+			lane_width_ft: num(parsed.lane_width_ft),
+			num_lanes: num(parsed.num_lanes),
+			target_spread_rate: num(parsed.spread_rate_lbs_sy)
 		};
 		if (Object.values(configPatch).some((v) => v !== null && v !== undefined)) {
 			await db.upsertJobSiteConfig(jobSite.id, configPatch);

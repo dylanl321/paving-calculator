@@ -55,11 +55,24 @@
 		else if (e.key === 'Escape' && fullscreen) closeFullscreen();
 	}
 
+	let mounted = $state(false);
+
 	$effect(() => {
-		// Scroll the active thumbnail into view in the filmstrip.
+		// Scroll the active thumbnail into view WITHIN the filmstrip only — never
+		// scroll the page. Skip the initial mount so opening the Overview doesn't
+		// yank the viewport (the reported "weird auto-scroll").
+		const idx = activeIndex;
 		if (typeof document === 'undefined') return;
-		const el = document.querySelector<HTMLElement>(`[data-thumb="${activeIndex}"]`);
-		el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+		if (!mounted) {
+			mounted = true;
+			return;
+		}
+		const el = document.querySelector<HTMLElement>(`[data-thumb="${idx}"]`);
+		const strip = el?.parentElement;
+		if (!el || !strip) return;
+		// Horizontal-only scroll of the filmstrip container; no page movement.
+		const target = el.offsetLeft - strip.clientWidth / 2 + el.clientWidth / 2;
+		strip.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
 	});
 </script>
 

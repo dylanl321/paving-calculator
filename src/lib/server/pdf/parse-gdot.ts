@@ -79,6 +79,15 @@ export interface ParsedGdotJob {
 	begin_terminus: string | null;
 	/** End terminus / ending point description (e.g. "TO HALL COUNTY LINE"). */
 	end_terminus: string | null;
+	/**
+	 * Roadway-Log derived fields (from the plan-set "LOG ROADWAY" sheet when
+	 * present). These feed job_site_config so calculators get real defaults.
+	 * Each stays null when the log isn't present/parseable — never invented.
+	 */
+	lane_width_ft: number | null;
+	num_lanes: number | null;
+	milling_depth_in: number | null;
+	spread_rate_lbs_sy: number | null;
 	// Multi-scope tags (e.g. ["milling","resurfacing","shoulder_rehab"])
 	scopes: string[];
 	// Line items
@@ -95,6 +104,54 @@ export interface ParsedGdotJob {
 }
 
 const FT_PER_MILE = 5280;
+
+/**
+ * Extract roadway-spec fields from a plan-set "LOG ROADWAY" sheet when present
+ * in the document text (GDOT contract PDFs embed it). Best-effort and additive:
+ * only sets a field when a confident match exists, never invents a value.
+ *
+ * Examples handled (from real GDOT logs):
+ *   "135 POUNDS PER SQUARE YARD"            -> spread_rate_lbs_sy
+ *   "VARIABLE DEPTH MILLING (1 1/4 INCHES)" -> milling_depth_in (fractions ok)
+ *   "2-12 FT TRAVEL LANES"                  -> num_lanes + lane_width_ft
+ */
+function parseRoadwayLog(text: string, result: ParsedGdotJob): void {
+	// Spread rate: "135 POUNDS PER SQUARE YARD"
+	if (result.spread_rate_lbs_sy == null) {
+		const m = text.match(/(\d{2,3})\s+POUNDS\s+PER\s+SQUARE\s+YARD/i);
+		if (m) result.spread_rate_lbs_sy = toNumber(m[1]);
+	}
+
+	// Milling depth: "1 1/4 INCHES", "1¼ INCHES", "1.25 INCHES" near MILLING.
+	if (result.milling_depth_in == null) {
+		const near = text.match(/MILLING[^\n]{0,40}?([\d]+(?:\s*[¼½¾]|\s+\d\/\d|\.\d+)?)\s*(?:INCH|IN\b|")/i);
+		if (near) result.milling_depth_in = parseInchValue(near[1]);
+	}
+
+	// Travel lanes: "2-12 FT TRAVEL LANES" => 2 lanes, 12 ft each.
+	const lanes = text.match(/(\d)\s*-\s*(\d{1,2})\s*(?:FT|FOOT|')\s+TRAVEL\s+LANES?/i);
+	if (lanes) {
+		if (result.num_lanes == null) result.num_lanes = toNumber(lanes[1]);
+		if (result.lane_width_ft == null) result.lane_width_ft = toNumber(lanes[2]);
+	}
+}
+
+/** Parse an inch value that may be a decimal, ASCII fraction, or unicode fraction. */
+function parseInchValue(raw: string): number | null {
+	const s = raw.trim();
+	const uni: Record<string, number> = { '¼': 0.25, '½': 0.5, '¾': 0.75 };
+	// "1¼"
+	const um = s.match(/^(\d+)\s*([¼½¾])$/);
+	if (um) return toNumber(um[1])! + uni[um[2]];
+	// "1 1/4"
+	const fm = s.match(/^(\d+)\s+(\d)\/(\d)$/);
+	if (fm) return toNumber(fm[1])! + Number(fm[2]) / Number(fm[3]);
+	// "1/4"
+	const f2 = s.match(/^(\d)\/(\d)$/);
+	if (f2) return Number(f2[1]) / Number(f2[2]);
+	// decimal / integer
+	return toNumber(s);
+}
 
 /**
  * Normalise a captured route number into a compact designation (e.g. "SR 13").
@@ -177,6 +234,10 @@ function emptyResult(): ParsedGdotJob {
 		route_designation: null,
 		begin_terminus: null,
 		end_terminus: null,
+		lane_width_ft: null,
+		num_lanes: null,
+		milling_depth_in: null,
+		spread_rate_lbs_sy: null,
 		scopes: [],
 		bid_items: [],
 		production_mixes: [],
@@ -431,6 +492,10 @@ function parseContractSummary(text: string, result: ParsedGdotJob): boolean {
 		result.begin_terminus = result.begin_terminus ?? termini.begin;
 		result.end_terminus = result.end_terminus ?? termini.end;
 	}
+
+	// Roadway-Log specs (spread rate, milling depth, lane count/width) when the
+	// plan-set log sheet is embedded in this document.
+	parseRoadwayLog(text, result);
 
 	// Net length of project (miles -> feet).
 	const lenMiles = toNumber(
@@ -754,6 +819,12 @@ export interface ParsedGdotJobV2 {
 	route_designation: ParsedField<string>;
 	begin_terminus: ParsedField<string>;
 	end_terminus: ParsedField<string>;
+	/** Roadway-Log derived specs (plain; first non-null wins across documents). */
+	lane_width_ft: number | null;
+	num_lanes: number | null;
+	milling_depth_in: number | null;
+	spread_rate_lbs_sy: number | null;
+	// Derived (no confidence needed — evidence-backed)
 	// Derived (no confidence needed — evidence-backed)
 	scopes: string[];
 	// Line items and mixes
@@ -796,6 +867,10 @@ function emptyV2(): ParsedGdotJobV2 {
 		route_designation: missing('unset'),
 		begin_terminus: missing('unset'),
 		end_terminus: missing('unset'),
+		lane_width_ft: null,
+		num_lanes: null,
+		milling_depth_in: null,
+		spread_rate_lbs_sy: null,
 		scopes: [],
 		bid_items: [],
 		production_mixes: [],
@@ -869,6 +944,13 @@ function mergeV1IntoV2(
 	setIfBetter('route_designation', v1.route_designation, 'medium', src);
 	setIfBetter('begin_terminus', v1.begin_terminus, 'low', src);
 	setIfBetter('end_terminus', v1.end_terminus, 'low', src);
+	// Plain Roadway-Log specs: first non-null across documents wins.
+	if (v2.lane_width_ft == null && v1.lane_width_ft != null) v2.lane_width_ft = v1.lane_width_ft;
+	if (v2.num_lanes == null && v1.num_lanes != null) v2.num_lanes = v1.num_lanes;
+	if (v2.milling_depth_in == null && v1.milling_depth_in != null)
+		v2.milling_depth_in = v1.milling_depth_in;
+	if (v2.spread_rate_lbs_sy == null && v1.spread_rate_lbs_sy != null)
+		v2.spread_rate_lbs_sy = v1.spread_rate_lbs_sy;
 }
 
 /**
@@ -1066,6 +1148,10 @@ export function toV1(v2: ParsedGdotJobV2): ParsedGdotJob {
 		route_designation: v2.route_designation.value,
 		begin_terminus: v2.begin_terminus.value,
 		end_terminus: v2.end_terminus.value,
+		lane_width_ft: v2.lane_width_ft,
+		num_lanes: v2.num_lanes,
+		milling_depth_in: v2.milling_depth_in,
+		spread_rate_lbs_sy: v2.spread_rate_lbs_sy,
 		scopes: v2.scopes,
 		bid_items: v2.bid_items,
 		production_mixes: v2.production_mixes,
