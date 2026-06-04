@@ -24,7 +24,8 @@
 		ChevronDown,
 		PanelLeftClose,
 		PanelLeftOpen,
-		Search
+		Search,
+		ShieldCheck
 	} from 'lucide-svelte';
 
 	let { onOpenPalette = () => {} }: { onOpenPalette?: () => void } = $props();
@@ -72,6 +73,7 @@
 		},
 		{ href: '/glossary', label: 'Glossary', icon: 'book' },
 		{ href: '/dashboard/guides', label: 'Guides', icon: 'guide', authed: true },
+		{ href: '/dashboard/completeness', label: 'Setup Status', icon: 'shield-check', authed: true, adminOnly: true },
 		{ href: '/dashboard/import', label: 'Import', icon: 'upload', authed: true },
 		{ href: '/dashboard/activity', label: 'Activity', icon: 'clock', authed: true, adminOnly: true }
 	];
@@ -306,6 +308,8 @@
 			<Users size={22} />
 		{:else if icon === 'settings'}
 			<Settings size={22} />
+		{:else if icon === 'shield-check'}
+			<ShieldCheck size={22} />
 		{/if}
 	{/snippet}
 
