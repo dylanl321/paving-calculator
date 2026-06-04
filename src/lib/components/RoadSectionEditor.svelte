@@ -1,11 +1,15 @@
 <script lang="ts">
+	/**
+	 * RoadSectionEditor — map-v2 version using MapLibre GL JS.
+	 * Replaces old Leaflet-based MapContainer/MapPolyline/MapMarker version.
+	 */
 	import { browser } from '$app/environment';
-	import L from 'leaflet';
-	import { MapContainer, MapPolyline, MapMarker } from '$lib/components/map';
+	import { MapView, MapPolyline, MapMarker } from '$lib/components/map-v2';
 	import { constant } from '$lib/config';
-	import { metersToFeet, haversineFeet } from '$lib/services/mapUtils';
+	import { haversineFeet } from '$lib/services/mapUtils';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import type { Map as MapLibreMap } from 'maplibre-gl';
 
 	interface Waypoint {
 		lat: number;
@@ -41,7 +45,7 @@
 	}: Props = $props();
 
 	let sections = $state<RoadSection[]>([]);
-	let map: L.Map | null = $state(null);
+	let mapInstance = $state<MapLibreMap | null>(null);
 	let drawMode: 'idle' | 'pick-start' | 'pick-end' = $state('idle');
 	let tempStart: [number, number] | null = $state(null);
 	let nextSectionNumber = $state(1);
@@ -61,6 +65,35 @@
 		}
 	});
 
+	// Wire up MapLibre click handler whenever map instance changes
+	$effect(() => {
+		if (!mapInstance) return;
+		const m = mapInstance;
+		function onMapClick(e: { lngLat: { lat: number; lng: number } }) {
+			if (drawMode === 'pick-start') {
+				tempStart = [e.lngLat.lat, e.lngLat.lng];
+				drawMode = 'pick-end';
+			} else if (drawMode === 'pick-end' && tempStart) {
+				const end: [number, number] = [e.lngLat.lat, e.lngLat.lng];
+				createSection(tempStart, end);
+				tempStart = null;
+				drawMode = 'idle';
+			}
+		}
+		// @ts-ignore — MapLibre event typing
+		m.on('click', onMapClick);
+		return () => {
+			// @ts-ignore
+			m.off('click', onMapClick);
+		};
+	});
+
+	// Update map cursor based on draw mode
+	$effect(() => {
+		if (!mapInstance) return;
+		mapInstance.getCanvas().style.cursor = drawMode !== 'idle' ? 'crosshair' : '';
+	});
+
 	async function loadSections() {
 		try {
 			const res = await fetch(`/api/job-sites/${siteId}/sections`);
@@ -78,18 +111,6 @@
 		drawMode = 'pick-start';
 		tempStart = null;
 		editingSectionId = null;
-	}
-
-	function handleMapClick(e: L.LeafletMouseEvent) {
-		if (drawMode === 'pick-start') {
-			tempStart = [e.latlng.lat, e.latlng.lng];
-			drawMode = 'pick-end';
-		} else if (drawMode === 'pick-end' && tempStart) {
-			const end: [number, number] = [e.latlng.lat, e.latlng.lng];
-			createSection(tempStart, end);
-			tempStart = null;
-			drawMode = 'idle';
-		}
 	}
 
 	async function createSection(start: [number, number], end: [number, number]) {
@@ -136,21 +157,32 @@
 		}
 	}
 
+	/** Find the closest point on segment AB to point P (all in [lat, lng]). */
+	function closestPointOnSegment(
+		p: [number, number],
+		a: [number, number],
+		b: [number, number]
+	): [number, number] {
+		const dx = b[1] - a[1];
+		const dy = b[0] - a[0];
+		const len2 = dx * dx + dy * dy;
+		if (len2 === 0) return a;
+		const t = Math.max(0, Math.min(1, ((p[1] - a[1]) * dx + (p[0] - a[0]) * dy) / len2));
+		return [a[0] + t * dy, a[1] + t * dx];
+	}
+
 	function calculateStation(point: [number, number]): number | null {
 		if (waypoints.length < 2) return null;
 
-		const routePoints = waypoints.map((w) => L.latLng(w.lat, w.lng));
-		const clickPoint = L.latLng(point[0], point[1]);
+		const routePoints: [number, number][] = waypoints.map((w) => [w.lat, w.lng]);
 
 		let minDist = Infinity;
 		let nearestSegmentIdx = 0;
-		let nearestPointOnSegment: L.LatLng | null = null;
+		let nearestPointOnSegment: [number, number] | null = null;
 
 		for (let i = 0; i < routePoints.length - 1; i++) {
-			const a = routePoints[i];
-			const b = routePoints[i + 1];
-			const closest = closestPointOnSegment(clickPoint, a, b);
-			const dist = clickPoint.distanceTo(closest);
+			const closest = closestPointOnSegment(point, routePoints[i], routePoints[i + 1]);
+			const dist = haversineFeet(point[0], point[1], closest[0], closest[1]);
 
 			if (dist < minDist) {
 				minDist = dist;
@@ -163,28 +195,26 @@
 
 		let distanceFt = 0;
 		for (let i = 0; i < nearestSegmentIdx; i++) {
-			distanceFt += metersToFeet(routePoints[i].distanceTo(routePoints[i + 1]));
+			distanceFt += haversineFeet(
+				routePoints[i][0],
+				routePoints[i][1],
+				routePoints[i + 1][0],
+				routePoints[i + 1][1]
+			);
 		}
 
-		distanceFt += metersToFeet(routePoints[nearestSegmentIdx].distanceTo(nearestPointOnSegment));
+		distanceFt += haversineFeet(
+			routePoints[nearestSegmentIdx][0],
+			routePoints[nearestSegmentIdx][1],
+			nearestPointOnSegment[0],
+			nearestPointOnSegment[1]
+		);
 
 		return distanceFt / FT_PER_STATION;
 	}
 
-	function closestPointOnSegment(p: L.LatLng, a: L.LatLng, b: L.LatLng): L.LatLng {
-		const dx = b.lng - a.lng;
-		const dy = b.lat - a.lat;
-		const len2 = dx * dx + dy * dy;
-
-		if (len2 === 0) return a;
-
-		const t = Math.max(0, Math.min(1, ((p.lng - a.lng) * dx + (p.lat - a.lat) * dy) / len2));
-
-		return L.latLng(a.lat + t * dy, a.lng + t * dx);
-	}
-
 	function formatStation(station: number | null): string {
-		if (station === null) return '—';
+		if (station === null) return '\u2014';
 		const whole = Math.floor(station);
 		const frac = Math.round((station - whole) * 100);
 		return `${whole}+${String(frac).padStart(2, '0')}`;
@@ -269,86 +299,80 @@
 		return `${Math.round(ft).toLocaleString()} ft`;
 	}
 
-	function handleMapReady(m: L.Map) {
-		map = m;
-		m.on('click', handleMapClick);
-	}
-
 	const mapCenter = $derived<[number, number]>(
-		waypoints.length > 0 ? [waypoints[0].lat, waypoints[0].lng] : [33.7490, -84.3880]
+		waypoints.length > 0 ? [waypoints[0].lat, waypoints[0].lng] : [33.749, -84.388]
 	);
 
 	const routePoints = $derived<[number, number][]>(
 		waypoints.map((w) => [w.lat, w.lng])
 	);
 
-	const instructionText = $derived(() => {
-		if (drawMode === 'pick-start') return 'Tap map to set section START';
-		if (drawMode === 'pick-end') return 'Tap map to set section END';
-		return '';
-	});
+	const instructionText = $derived(
+		drawMode === 'pick-start'
+			? 'Tap map to set section START'
+			: drawMode === 'pick-end'
+				? 'Tap map to set section END'
+				: ''
+	);
 </script>
 
 <div class="road-section-editor" style="--editor-height: {height}">
 	<div class="map-panel">
-		<MapContainer
+		<MapView
 			center={mapCenter}
 			zoom={15}
 			height="100%"
-			onready={handleMapReady}
-			style="cursor: {drawMode !== 'idle' ? 'crosshair' : 'grab'}"
+			bind:map={mapInstance}
 		>
-			{#if waypoints.length > 1}
-				<MapPolyline
-					points={routePoints}
-					color="#6b7280"
-					weight={3}
-					opacity={0.6}
-					dashArray="5, 10"
-				/>
-			{/if}
-
-			{#each sections as section (section.id)}
-				{@const geometry = getSectionGeometry(section)}
-				{#if geometry}
+			{#snippet layers()}
+				{#if waypoints.length > 1}
 					<MapPolyline
-						points={geometry}
-						color={STATUS_COLORS[section.status]}
-						weight={5}
-						opacity={0.9}
-					/>
-
-					<MapMarker
-						lat={geometry[0][0]}
-						lng={geometry[0][1]}
-						iconHtml={`<div style="width: 12px; height: 12px; background: ${STATUS_COLORS[section.status]}; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`}
-						iconSize={[12, 12]}
-						iconAnchor={[6, 6]}
-					/>
-
-					<MapMarker
-						lat={geometry[1][0]}
-						lng={geometry[1][1]}
-						iconHtml={`<div style="width: 12px; height: 12px; background: ${STATUS_COLORS[section.status]}; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`}
-						iconSize={[12, 12]}
-						iconAnchor={[6, 6]}
+						id="route-waypoints"
+						coordinates={routePoints}
+						color="#6b7280"
+						width={3}
+						opacity={0.6}
 					/>
 				{/if}
-			{/each}
 
-			{#if tempStart}
-				<MapMarker
-					lat={tempStart[0]}
-					lng={tempStart[1]}
-					iconHtml={`<div style="width: 12px; height: 12px; background: #f59e0b; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.3); animation: pulse 1s infinite;"></div>`}
-					iconSize={[12, 12]}
-					iconAnchor={[6, 6]}
-				/>
-			{/if}
-		</MapContainer>
+				{#each sections as section, i (section.id)}
+					{@const geometry = getSectionGeometry(section)}
+					{#if geometry}
+						<MapPolyline
+							id="section-{section.id}"
+							coordinates={geometry}
+							color={STATUS_COLORS[section.status]}
+							width={5}
+							opacity={0.9}
+						/>
 
-		{#if instructionText()}
-			<div class="instruction-banner">{instructionText()}</div>
+						<MapMarker
+							lat={geometry[0][0]}
+							lng={geometry[0][1]}
+							color={STATUS_COLORS[section.status]}
+						/>
+
+						<MapMarker
+							lat={geometry[geometry.length - 1][0]}
+							lng={geometry[geometry.length - 1][1]}
+							color={STATUS_COLORS[section.status]}
+						/>
+					{/if}
+				{/each}
+
+				{#if tempStart}
+					<MapMarker
+						lat={tempStart[0]}
+						lng={tempStart[1]}
+						color="#f59e0b"
+						status="active"
+					/>
+				{/if}
+			{/snippet}
+		</MapView>
+
+		{#if instructionText}
+			<div class="instruction-banner">{instructionText}</div>
 		{/if}
 	</div>
 
@@ -367,7 +391,7 @@
 					<div class="length-item">
 						<span class="length-label">Remaining</span>
 						<span class="length-value remaining"
-							>{remainingLengthFt != null ? formatFt(remainingLengthFt) : '—'}</span
+							>{remainingLengthFt != null ? formatFt(remainingLengthFt) : '\u2014'}</span
 						>
 					</div>
 				</div>
@@ -702,18 +726,6 @@
 
 	.btn-delete:hover {
 		background: rgba(239, 68, 68, 0.1);
-	}
-
-	@keyframes pulse {
-		0%,
-		100% {
-			transform: scale(1);
-			opacity: 1;
-		}
-		50% {
-			transform: scale(1.2);
-			opacity: 0.7;
-		}
 	}
 
 	@media (min-width: 768px) {
