@@ -1,4 +1,7 @@
 import { getDocument } from 'pdfjs-serverless';
+import { extractZones } from './zone-extractor.js';
+import { parseTableZone, applyBidQuantities } from './table-parser.js';
+import { field, mergeField, type ParsedField, type FieldConfidence } from './confidence.js';
 
 /**
  * Parser for GDOT-style paving documents:
@@ -618,4 +621,352 @@ function deriveScopes(result: ParsedGdotJob): string[] {
 	if (has(/^150-/) || desc(/TRAFFIC CONTROL/)) tags.add('traffic_control');
 
 	return [...tags];
+}
+
+// ---------------------------------------------------------------------------
+// V2 — Zone-based, confidence-scored pipeline
+// ---------------------------------------------------------------------------
+
+/** Version of ParsedBidItem with per-field confidence. */
+export interface ParsedBidItemV2 extends ParsedBidItem {
+	confidence: FieldConfidence;
+}
+
+/** Version of ParsedProductionMix with per-field confidence. */
+export interface ParsedProductionMixV2 extends ParsedProductionMix {
+	confidence: FieldConfidence;
+}
+
+/**
+ * Confidence-annotated result.  Every scalar field is wrapped in ParsedField<T>
+ * so the UI can render confidence indicators and the merge logic can make
+ * principled decisions when two source documents overlap.
+ */
+export interface ParsedGdotJobV2 {
+	// Identity
+	name: ParsedField<string>;
+	job_number: ParsedField<string>;
+	project_number: ParsedField<string>;
+	contract_id: ParsedField<string>;
+	county: ParsedField<string>;
+	// Contract
+	work_type: ParsedField<string>;
+	contract_type: ParsedField<string>;
+	contract_amount: ParsedField<number>;
+	retainage_pct: ParsedField<number>;
+	est_start_date: ParsedField<string>;
+	completion_date: ParsedField<string>;
+	// Customer / owner
+	customer_name: ParsedField<string>;
+	customer_address: ParsedField<string>;
+	customer_contact: ParsedField<string>;
+	customer_phone: ParsedField<string>;
+	customer_email: ParsedField<string>;
+	owner_name: ParsedField<string>;
+	owner_address: ParsedField<string>;
+	// Project management
+	project_manager: ParsedField<string>;
+	asphalt_supplier: ParsedField<string>;
+	total_length_ft: ParsedField<number>;
+	location_description: ParsedField<string>;
+	// Derived (no confidence needed — evidence-backed)
+	scopes: string[];
+	// Line items and mixes
+	bid_items: ParsedBidItemV2[];
+	production_mixes: ParsedProductionMixV2[];
+	// Meta
+	detected_documents: GdotDocumentType[];
+	has_contract_summary: boolean;
+	has_job_setup: boolean;
+	warnings: string[];
+	/** Zones where extraction confidence was low — passed to Phase 2 LLM fallback. */
+	lowConfidenceZones: import('./zone-extractor.js').Zone[];
+}
+
+function emptyV2(): ParsedGdotJobV2 {
+	const missing = <T>(src: string): ParsedField<T> => field.missing<T>(src);
+	return {
+		name: missing('unset'),
+		job_number: missing('unset'),
+		project_number: missing('unset'),
+		contract_id: missing('unset'),
+		county: missing('unset'),
+		work_type: missing('unset'),
+		contract_type: missing('unset'),
+		contract_amount: missing('unset'),
+		retainage_pct: missing('unset'),
+		est_start_date: missing('unset'),
+		completion_date: missing('unset'),
+		customer_name: missing('unset'),
+		customer_address: missing('unset'),
+		customer_contact: missing('unset'),
+		customer_phone: missing('unset'),
+		customer_email: missing('unset'),
+		owner_name: missing('unset'),
+		owner_address: missing('unset'),
+		project_manager: missing('unset'),
+		asphalt_supplier: missing('unset'),
+		total_length_ft: missing('unset'),
+		location_description: missing('unset'),
+		scopes: [],
+		bid_items: [],
+		production_mixes: [],
+		detected_documents: [],
+		has_contract_summary: false,
+		has_job_setup: false,
+		warnings: [],
+		lowConfidenceZones: []
+	};
+}
+
+/**
+ * Merge a single V1 result (from the existing flat-regex parsers) into a V2
+ * result, assigning confidence based on which parser produced each field.
+ *
+ * For labelled form fields parsed from the job_setup doc we use 'high'.
+ * For regex-inferred fields from the contract_summary we use 'medium'.
+ * For positional/heuristic fields we use 'low'.
+ */
+function mergeV1IntoV2(
+	v1: ParsedGdotJob,
+	v2: ParsedGdotJobV2,
+	docType: GdotDocumentType
+): void {
+	// Confidence level depends on the document that produced the data.
+	const conf: FieldConfidence = docType === 'job_setup' ? 'high' : 'medium';
+	const src = docType === 'job_setup' ? 'job_setup_regex' : 'contract_summary_regex';
+
+	const setIfBetter = <T>(
+		key: keyof ParsedGdotJobV2,
+		value: T | null,
+		confidence: FieldConfidence,
+		source: string
+	) => {
+		if (value == null) return;
+		const current = v2[key] as ParsedField<T>;
+		const incoming: ParsedField<T> = { value, confidence, source };
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		(v2 as any)[key] = mergeField(current, incoming);
+	};
+
+	setIfBetter('name', v1.name, conf, src);
+	setIfBetter('job_number', v1.job_number, conf, src);
+	setIfBetter('project_number', v1.project_number, conf, src);
+	setIfBetter('contract_id', v1.contract_id, 'high', src); // labelled field
+	setIfBetter('county', v1.county, docType === 'contract_summary' ? 'medium' : 'low', src);
+	setIfBetter('work_type', v1.work_type, conf, src);
+	setIfBetter('contract_type', v1.contract_type, conf, src);
+	setIfBetter('contract_amount', v1.contract_amount, 'high', src);
+	setIfBetter('retainage_pct', v1.retainage_pct, conf, src);
+	setIfBetter('est_start_date', v1.est_start_date, conf, src);
+	setIfBetter('completion_date', v1.completion_date, conf, src);
+	setIfBetter('customer_name', v1.customer_name, conf, src);
+	setIfBetter('customer_address', v1.customer_address, conf, src);
+	setIfBetter('customer_contact', v1.customer_contact, conf, src);
+	setIfBetter('customer_phone', v1.customer_phone, conf, src);
+	setIfBetter('customer_email', v1.customer_email, conf, src);
+	setIfBetter('owner_name', v1.owner_name, conf, src);
+	setIfBetter('owner_address', v1.owner_address, conf, src);
+	setIfBetter('project_manager', v1.project_manager, conf, src);
+	setIfBetter('asphalt_supplier', v1.asphalt_supplier, conf, src);
+	setIfBetter('total_length_ft', v1.total_length_ft, 'medium', src);
+	setIfBetter('location_description', v1.location_description, 'medium', src);
+}
+
+/**
+ * Zone-based V2 parsing pass.  Runs zone extraction on the text and passes
+ * each table zone through the zone-aware table parsers.  Results are merged
+ * into v2 using the same mergeField logic.
+ */
+function applyZonePass(text: string, docType: GdotDocumentType, v2: ParsedGdotJobV2): void {
+	const zones = extractZones(text, docType);
+
+	const allWarnings: string[] = [];
+	let allBidItems: ParsedBidItemV2[] = [];
+	let allMixes: ParsedProductionMixV2[] = [];
+	let bidQuantityMap: Map<string, number> | null = null;
+
+	for (const tableZone of zones.tables) {
+		const result = parseTableZone(tableZone);
+		if (result.scheduleOfItems) {
+			allWarnings.push(...result.scheduleOfItems.warnings);
+			// Zone parser wins over regex parser when it produced rows.
+			if (result.scheduleOfItems.items.length > 0) {
+				allBidItems = result.scheduleOfItems.items.map((it) => ({
+					...it,
+					confidence: 'high' as FieldConfidence
+				}));
+			}
+		}
+		if (result.productionGoals) {
+			allWarnings.push(...result.productionGoals.warnings);
+			if (result.productionGoals.mixes.length > 0) {
+				allMixes = result.productionGoals.mixes.map((m) => ({
+					...m,
+					mix_type: mapMixType(m.mix_name),
+					confidence: 'high' as FieldConfidence
+				}));
+			}
+		}
+		if (result.bidQuantities) {
+			allWarnings.push(...result.bidQuantities.warnings);
+			if (result.bidQuantities.quantities.value) {
+				bidQuantityMap = result.bidQuantities.quantities.value;
+			}
+		}
+	}
+
+	// Apply bid quantities to mixes.
+	if (bidQuantityMap && allMixes.length > 0) {
+		applyBidQuantities(allMixes, bidQuantityMap);
+	}
+
+	// Zone parser results override regex results when they produced data.
+	if (allBidItems.length > 0) v2.bid_items = allBidItems;
+	if (allMixes.length > 0) v2.production_mixes = allMixes;
+
+	v2.warnings.push(...allWarnings);
+
+	// Collect low-confidence zones for Phase 2 LLM fallback.
+	if (zones.header.lines.length > 0) {
+		const hasLowConf =
+			v2.contract_id.confidence === 'low' ||
+			v2.county.confidence === 'low' ||
+			v2.contract_amount.confidence === 'low';
+		if (hasLowConf) v2.lowConfidenceZones.push(zones.header);
+	}
+	for (const tz of zones.tables) {
+		if (v2.bid_items.length === 0 || v2.production_mixes.length === 0) {
+			v2.lowConfidenceZones.push(tz);
+		}
+	}
+}
+
+/**
+ * Zone-based, confidence-scored entry point.  Processes one or more GDOT
+ * document texts (job_setup and/or contract_summary) and returns a
+ * ParsedGdotJobV2 with ParsedField<T> wrappers on every scalar field.
+ *
+ * The existing regex parsers still run first (they handle the common flat-text
+ * format well), and their results are tagged with appropriate confidence levels.
+ * The zone-based table parsers then run as a second pass and upgrade bid-item /
+ * production-mix rows from medium to high confidence when they can parse the
+ * table structure directly.
+ */
+export function parseGdotDocumentsV2(texts: string[]): ParsedGdotJobV2 {
+	const v2 = emptyV2();
+
+	// --- Pass 1: existing flat-regex parsers tagged with confidence ---
+	const v1 = emptyResult();
+	let matchedAny = false;
+
+	for (const text of texts) {
+		const docType = detectDocumentType(text);
+		if (docType !== 'unknown' && !v1.detected_documents.includes(docType)) {
+			v1.detected_documents.push(docType);
+		}
+		if (parseContractSummary(text, v1)) matchedAny = true;
+		if (parseJobSetup(text, v1)) matchedAny = true;
+	}
+
+	v1.has_contract_summary = v1.detected_documents.includes('contract_summary');
+	v1.has_job_setup = v1.detected_documents.includes('job_setup');
+
+	if (!matchedAny) {
+		v1.warnings.push('Could not recognize this as a GDOT job-setup or contract-summary document.');
+	}
+	if (matchedAny && !v1.has_contract_summary) {
+		v1.warnings.push(
+			'Missing the Contract Summary PDF — bid items, contract value and project geometry will be incomplete.'
+		);
+	}
+	if (matchedAny && !v1.has_job_setup) {
+		v1.warnings.push(
+			'Missing the Job Setup PDF — production goals, customer/owner and asphalt supplier will be incomplete.'
+		);
+	}
+
+	matchMixUnitPrices(v1);
+	v1.scopes = deriveScopes(v1);
+
+	// Merge flat V1 into V2 with confidence annotations.
+	for (const text of texts) {
+		const docType = detectDocumentType(text);
+		mergeV1IntoV2(v1, v2, docType);
+	}
+
+	// Carry over array results from V1 as the baseline (medium confidence).
+	if (v2.bid_items.length === 0) {
+		v2.bid_items = v1.bid_items.map((it) => ({ ...it, confidence: 'medium' as FieldConfidence }));
+	}
+	if (v2.production_mixes.length === 0) {
+		v2.production_mixes = v1.production_mixes.map((m) => ({
+			...m,
+			confidence: 'medium' as FieldConfidence
+		}));
+	}
+
+	v2.detected_documents = v1.detected_documents;
+	v2.has_contract_summary = v1.has_contract_summary;
+	v2.has_job_setup = v1.has_job_setup;
+	v2.scopes = v1.scopes;
+	v2.warnings = [...v1.warnings];
+
+	// --- Pass 2: zone-based table parsers (upgrade to high confidence) ---
+	for (const text of texts) {
+		const docType = detectDocumentType(text);
+		applyZonePass(text, docType, v2);
+	}
+
+	// Derive name from project_number if missing.
+	if (!v2.name.value && v2.project_number.value) {
+		v2.name = field.low(
+			v2.county.value
+				? `${v2.project_number.value} — ${v2.county.value} County`
+				: v2.project_number.value,
+			'derived_from_project_number'
+		);
+	}
+
+	return v2;
+}
+
+/**
+ * Downgrade a ParsedGdotJobV2 to the original ParsedGdotJob (flat nullable
+ * fields) for backward compatibility with existing callers.
+ *
+ * Use this adapter while callers migrate to V2 incrementally.
+ */
+export function toV1(v2: ParsedGdotJobV2): ParsedGdotJob {
+	return {
+		name: v2.name.value,
+		job_number: v2.job_number.value,
+		project_number: v2.project_number.value,
+		contract_id: v2.contract_id.value,
+		county: v2.county.value,
+		work_type: v2.work_type.value,
+		contract_type: v2.contract_type.value,
+		contract_amount: v2.contract_amount.value,
+		retainage_pct: v2.retainage_pct.value,
+		est_start_date: v2.est_start_date.value,
+		completion_date: v2.completion_date.value,
+		customer_name: v2.customer_name.value,
+		customer_address: v2.customer_address.value,
+		customer_contact: v2.customer_contact.value,
+		customer_phone: v2.customer_phone.value,
+		customer_email: v2.customer_email.value,
+		owner_name: v2.owner_name.value,
+		owner_address: v2.owner_address.value,
+		project_manager: v2.project_manager.value,
+		asphalt_supplier: v2.asphalt_supplier.value,
+		total_length_ft: v2.total_length_ft.value,
+		location_description: v2.location_description.value,
+		scopes: v2.scopes,
+		bid_items: v2.bid_items,
+		production_mixes: v2.production_mixes,
+		detected_documents: v2.detected_documents,
+		has_contract_summary: v2.has_contract_summary,
+		has_job_setup: v2.has_job_setup,
+		warnings: v2.warnings
+	};
 }
