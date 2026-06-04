@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { MapPin } from 'lucide-svelte';
 	import LoadTracker from '$lib/components/LoadTracker.svelte';
 	import TruckQueue from '$lib/components/TruckQueue.svelte';
@@ -381,6 +381,74 @@
 	const remainingLengthFt = $derived(
 		routeLengthFt != null ? Math.max(0, routeLengthFt - completedLengthFt) : null
 	);
+
+	// Persist a begin/end terminus station (snapped to the route) via the config
+	// endpoint. The TerminusPicker already constrains the value to the road.
+	async function saveTerminus(field: 'begin' | 'end', station: number) {
+		const patch =
+			field === 'begin' ? { begin_station: station } : { end_station: station };
+		try {
+			const res = await fetch(`/api/job-sites/${data.jobSite.id}/config`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(patch),
+				credentials: 'include'
+			});
+			if (res.ok) {
+				toastStore.success(`${field === 'begin' ? 'Begin' : 'End'} terminus saved`);
+			} else {
+				toastStore.error('Failed to save terminus');
+			}
+		} catch {
+			toastStore.error('Failed to save terminus');
+		}
+	}
+
+	// When a project has a parsed route designation but no stored centerline yet,
+	// fetch the real GDOT route polyline and save it as the route so the terminus
+	// picker has a road to snap to. Never fabricates geometry — only persists what
+	// the GDOT service actually returns.
+	let loadingRoute = $state(false);
+	async function loadRouteCenterline() {
+		const designation = configForm.route_designation;
+		if (!designation || loadingRoute) return;
+		loadingRoute = true;
+		try {
+			const q = encodeURIComponent(designation);
+			const res = await fetch(`/api/gdot-routes?q=${q}&geometry=true`, { credentials: 'include' });
+			if (!res.ok) {
+				toastStore.error('Could not reach GDOT route service');
+				return;
+			}
+			const body = (await res.json()) as {
+				routes?: Array<{ geometry?: { coordinates?: [number, number][] } | null }>;
+			};
+			const coords = body.routes?.find((r) => r.geometry?.coordinates?.length)?.geometry
+				?.coordinates;
+			if (!coords || coords.length < 2) {
+				toastStore.error(`No GDOT geometry found for ${designation}`);
+				return;
+			}
+			// gdot-routes returns [lng,lat]; route waypoints are stored as {lat,lng}.
+			const waypoints = coords.map(([lng, lat]) => ({ lat, lng }));
+			const save = await fetch(`/api/job-sites/${data.jobSite.id}/route`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ waypoints }),
+				credentials: 'include'
+			});
+			if (save.ok) {
+				toastStore.success(`Loaded ${designation} centerline`);
+				await invalidateAll();
+			} else {
+				toastStore.error('Failed to save route');
+			}
+		} catch {
+			toastStore.error('Could not load route centerline');
+		} finally {
+			loadingRoute = false;
+		}
+	}
 
 	function loadPlantLocation() {
 		if (typeof localStorage === 'undefined') return { name: '', latitude: null, longitude: null };
@@ -1280,7 +1348,45 @@
 			</div>
 		{/if}
 
+		{#if data.routeWaypoints.length < 2 && configForm.route_designation}
+			<div class="progress-map-section">
+				<div class="progress-map-head">
+					<h4>Project Termini</h4>
+					<span class="progress-map-sub">Load the route centerline to set termini on the road</span>
+				</div>
+				<div class="terminus-load">
+					<p>
+						This project is on <strong>{configForm.route_designation}</strong>. Load the GDOT
+						centerline so you can pinpoint the begin and end termini on the actual road.
+					</p>
+					<button class="btn-secondary" onclick={loadRouteCenterline} disabled={loadingRoute}>
+						{loadingRoute ? 'Loading…' : `Load ${configForm.route_designation} centerline`}
+					</button>
+				</div>
+			</div>
+		{/if}
+
 		{#if data.routeWaypoints.length >= 2}
+			<div class="progress-map-section">
+				<div class="progress-map-head">
+					<h4>Project Termini</h4>
+					<span class="progress-map-sub">Tap the road to set the begin/end points</span>
+				</div>
+				{#await import('$lib/components/map-v2/TerminusPicker.svelte')}
+					<div class="map-mini-loading">Loading terminus picker&hellip;</div>
+				{:then { default: TerminusPicker }}
+					<TerminusPicker
+						waypoints={data.routeWaypoints}
+						bind:beginStation={configForm.begin_station}
+						bind:endStation={configForm.end_station}
+						beginLabel={configForm.begin_terminus}
+						endLabel={configForm.end_terminus}
+						height="320px"
+						onPick={(field, station) => saveTerminus(field, station)}
+					/>
+				{/await}
+			</div>
+
 			<div class="progress-map-section">
 				<div class="progress-map-head">
 					<h4>Paving Progress</h4>
@@ -2126,6 +2232,22 @@
 		text-align: center;
 		color: var(--text-muted);
 		font-size: 0.85rem;
+	}
+
+	.terminus-load {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 16px;
+		background: var(--surface);
+		border: 1px dashed var(--border);
+		border-radius: var(--radius);
+	}
+
+	.terminus-load p {
+		margin: 0;
+		font-size: 0.9rem;
+		color: var(--text-muted);
 	}
 
 	@media (max-width: 640px) {

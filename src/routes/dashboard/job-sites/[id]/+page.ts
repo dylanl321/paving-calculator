@@ -49,6 +49,10 @@ export interface JobSiteConfig {
 	route_district: string | null;
 	route_functional_class: string | null;
 	route_system_code: string | null;
+	begin_terminus: string | null;
+	end_terminus: string | null;
+	begin_station: number | null;
+	end_station: number | null;
 	num_lifts: number | null;
 	total_tonnage: number | null;
 	cost_per_ton: number | null;

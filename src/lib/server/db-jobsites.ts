@@ -174,6 +174,12 @@ export interface DbJobSiteConfig {
 	cost_per_sy: number | null;
 	cost_per_mile: number | null;
 	total_contract_value: number | null;
+	/** Human-readable begin/end terminus text parsed from the contract headline. */
+	begin_terminus: string | null;
+	end_terminus: string | null;
+	/** Begin/end terminus as a station offset (ft / 100) along the stored route. */
+	begin_station: number | null;
+	end_station: number | null;
 	created_at: number;
 	updated_at: number;
 }
@@ -718,8 +724,9 @@ export class DbJobSitesHelper {
 						job_site_id, road_type, num_lanes, lane_width_ft, total_length_ft,
 						scope_of_work, mix_type, target_thickness_in, target_spread_rate,
 						tack_type, target_tack_rate, notes, route_designation, route_county,
-						route_district, route_functional_class, route_system_code, created_at, updated_at
-					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+						route_district, route_functional_class, route_system_code,
+						begin_terminus, end_terminus, begin_station, end_station, created_at, updated_at
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 				)
 				.bind(
 					jobSiteId,
@@ -739,6 +746,10 @@ export class DbJobSitesHelper {
 					config.route_district || null,
 					config.route_functional_class || null,
 					config.route_system_code || null,
+					config.begin_terminus ?? null,
+					config.end_terminus ?? null,
+					config.begin_station ?? null,
+					config.end_station ?? null,
 					now,
 					now
 				)
@@ -810,6 +821,22 @@ export class DbJobSitesHelper {
 			if (config.route_system_code !== undefined) {
 				fields.push('route_system_code = ?');
 				values.push(config.route_system_code);
+			}
+			if (config.begin_terminus !== undefined) {
+				fields.push('begin_terminus = ?');
+				values.push(config.begin_terminus);
+			}
+			if (config.end_terminus !== undefined) {
+				fields.push('end_terminus = ?');
+				values.push(config.end_terminus);
+			}
+			if (config.begin_station !== undefined) {
+				fields.push('begin_station = ?');
+				values.push(config.begin_station);
+			}
+			if (config.end_station !== undefined) {
+				fields.push('end_station = ?');
+				values.push(config.end_station);
 			}
 
 			if (fields.length > 0) {

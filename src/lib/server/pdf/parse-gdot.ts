@@ -107,6 +107,49 @@ function normaliseRoute(num: string | null, prefix: 'SR' | 'I' | 'US' | 'CR'): s
 	return prefix === 'I' ? `I-${n}` : `${prefix} ${n}`;
 }
 
+/**
+ * Clean a captured terminus phrase: collapse whitespace, strip a trailing
+ * boilerplate tail, and drop an empty result. Returns null when nothing useful
+ * remains (so we never store junk like "(NOTICE) Total Bid").
+ */
+function cleanTerminus(raw: string | undefined): string | null {
+	if (!raw) return null;
+	let s = raw.replace(/\s+/g, ' ').trim();
+	// Cut at the first boilerplate sentinel if the capture overran.
+	const stop = s.search(/\s*\(|\s+NOTICE\b|\s+Bidders\b/i);
+	if (stop > 0) s = s.slice(0, stop).trim();
+	// Trim a dangling conjunction/preposition left by a lazy capture.
+	s = s.replace(/\s+(?:AND|TO|OF)$/i, '').trim();
+	return s === '' ? null : s;
+}
+
+/**
+ * Extract begin/end termini from a GDOT project headline. Handles the common
+ * phrasings (no invented data — returns null when no pattern matches):
+ *   - "FROM <X> TO <Y>"
+ *   - "BEGINNING AT <X> AND EXTENDING ... <Y>"
+ *   - "BEGINS AT <X> ... END(S|ING) AT <Y>"
+ */
+function extractTermini(text: string): { begin: string; end: string } | null {
+	const patterns: RegExp[] = [
+		// "BEGINNING AT <X> AND EXTENDING <...connector...> <Y>"
+		/\bBEGINNING\s+AT\s+(.+?)\s+AND\s+EXTENDING\s+(?:TO\s+|NORTH\s+OF\s+|SOUTH\s+OF\s+|EAST\s+OF\s+|WEST\s+OF\s+|NORTH\s+TO\s+|SOUTH\s+TO\s+)?(.+?)(?:\s*\(|\s+NOTICE|\s+Bidders|[.;]|\s{2,}|$)/i,
+		// "BEGINS AT <X> ... ENDS/ENDING AT <Y>"
+		/\bBEGIN(?:S|NING)?\s+AT\s+(.+?)\s+(?:AND\s+)?END(?:S|ING)?\s+AT\s+(.+?)(?:\s*\(|\s+NOTICE|\s+Bidders|[.;]|\s{2,}|$)/i,
+		// "FROM <X> TO <Y>"
+		/\bFROM\s+(.+?)\s+TO\s+(.+?)(?:\s*\(|\s+NOTICE|\s+Bidders|[.;]|\s{2,}|$)/i
+	];
+	for (const re of patterns) {
+		const m = text.match(re);
+		if (m) {
+			const begin = cleanTerminus(m[1]);
+			const end = cleanTerminus(m[2]);
+			if (begin && end) return { begin, end };
+		}
+	}
+	return null;
+}
+
 function emptyResult(): ParsedGdotJob {
 	return {
 		name: null,
@@ -380,15 +423,13 @@ function parseContractSummary(text: string, result: ParsedGdotJob): boolean {
 		?? normaliseRoute(firstMatch(routeText, /\bU\.?S\.?\s*(?:ROUTE|HWY|HIGHWAY)?\s*[-#]?\s*(\d+)\b/i), 'US')
 		?? normaliseRoute(firstMatch(routeText, /\b(?:COUNTY ROAD|C\.?R\.?)\s*[-#]?\s*(\d+[A-Z]?)\b/i), 'CR');
 
-	// Begin / end termini ("FROM ... TO ..."), commonly in the project headline.
-	// Stop the end terminus at a paren, NOTICE/Bidders sentinel, punctuation, or
-	// a run of whitespace so trailing boilerplate doesn't leak in.
-	const termini = routeText.match(
-		/\bFROM\s+(.+?)\s+TO\s+(.+?)(?:\s*\(|\s+NOTICE|\s+Bidders|[.;,]|\s{2,}|$)/i
-	);
+	// Begin / end termini. GDOT headlines phrase these several ways; try each
+	// and stop captures at a paren, NOTICE/Bidders sentinel, punctuation, or a
+	// run of whitespace so trailing boilerplate doesn't leak in.
+	const termini = extractTermini(routeText);
 	if (termini) {
-		result.begin_terminus = result.begin_terminus ?? termini[1].replace(/\s+/g, ' ').trim();
-		result.end_terminus = result.end_terminus ?? termini[2].replace(/\s+/g, ' ').trim();
+		result.begin_terminus = result.begin_terminus ?? termini.begin;
+		result.end_terminus = result.end_terminus ?? termini.end;
 	}
 
 	// Net length of project (miles -> feet).
@@ -792,6 +833,13 @@ function mergeV1IntoV2(
 		if (value == null) return;
 		const current = v2[key] as ParsedField<T>;
 		const incoming: ParsedField<T> = { value, confidence, source };
+		// A real value always beats a still-empty field, even at equal confidence
+		// (mergeField's first-wins tie-break would otherwise keep the null
+		// `missing` placeholder and drop low-confidence extractions like termini).
+		if (current.value == null) {
+			(v2 as Record<string, unknown>)[key as string] = incoming;
+			return;
+		}
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		(v2 as any)[key] = mergeField(current, incoming);
 	};

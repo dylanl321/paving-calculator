@@ -364,6 +364,52 @@ describe('route_designation extraction', () => {
 		expect(result.end_terminus).toBe('HALL COUNTY LINE');
 	});
 
+	it('extracts termini from a "BEGINNING AT ... AND EXTENDING ... " headline', () => {
+		const text =
+			'Contract Schedule\nContract ID: T-6\nCounties: Lowndes\nNET LENGTH OF PROJECT 5.505 MILES\n' +
+			'5.505 MILES OF MILLING, PLANT MIX RESURFACING AND SHOULDER REHABILITATION ON SR 11 ' +
+			'BEGINNING AT THE FLORIDA STATE LINE AND EXTENDING SOUTH OF BAY BRANCH RD (NOTICE)\n' +
+			'Total Bid: $1,567,683.83\n';
+		const result = parseGdotDocuments([text]);
+		expect(result.route_designation).toBe('SR 11');
+		expect(result.begin_terminus).toBe('THE FLORIDA STATE LINE');
+		expect(result.end_terminus).toBe('BAY BRANCH RD');
+	});
+
+	it('extracts termini from a "BEGINS AT ... ENDS AT ..." headline', () => {
+		const text =
+			'Contract Schedule\nContract ID: T-7\nCounties: Bibb\nNET LENGTH OF PROJECT 1.000 MILES\n' +
+			'1.000 MILES OF RESURFACING ON SR 22 BEGINS AT MAIN ST ENDS AT OAK AVE (NOTICE)\n' +
+			'Total Bid: $100,000.00\n';
+		const result = parseGdotDocuments([text]);
+		expect(result.begin_terminus).toBe('MAIN ST');
+		expect(result.end_terminus).toBe('OAK AVE');
+	});
+
+	it('strips trailing boilerplate from a BEGINNING/EXTENDING end terminus', () => {
+		const text =
+			'Contract Schedule\nContract ID: T-8\nCounties: Lowndes\nNET LENGTH OF PROJECT 3.000 MILES\n' +
+			'3.000 MILES OF RESURFACING ON SR 7 BEGINNING AT US 84 AND EXTENDING TO CLYATTVILLE RD ' +
+			'(E) Bidders\nTotal Bid: $300,000.00\n';
+		const result = parseGdotDocuments([text]);
+		expect(result.begin_terminus).toBe('US 84');
+		// Must not leak "(E) Bidders ... Total Bid".
+		expect(result.end_terminus).toBe('CLYATTVILLE RD');
+	});
+
+	it('V2 termini are low confidence and survive the V1 round-trip', () => {
+		const text =
+			'Contract Schedule\nContract ID: T-9\nCounties: Lowndes\nNET LENGTH OF PROJECT 5.505 MILES\n' +
+			'5.505 MILES OF RESURFACING ON SR 11 BEGINNING AT THE FLORIDA STATE LINE AND ' +
+			'EXTENDING SOUTH OF BAY BRANCH RD (NOTICE)\nTotal Bid: $1,000,000.00\n';
+		const v2 = parseGdotDocumentsV2([text]);
+		expect(v2.begin_terminus.value).toBe('THE FLORIDA STATE LINE');
+		expect(v2.begin_terminus.confidence).toBe('low');
+		const v1 = toV1(v2);
+		expect(v1.begin_terminus).toBe('THE FLORIDA STATE LINE');
+		expect(v1.end_terminus).toBe('BAY BRANCH RD');
+	});
+
 	it('leaves termini null when there is no FROM/TO phrasing', () => {
 		const result = parseGdotDocuments([loadFixture('fixture-01-contract-summary.txt')]);
 		expect(result.begin_terminus).toBe(null);

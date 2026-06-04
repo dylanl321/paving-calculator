@@ -238,7 +238,10 @@ export async function POST(event: RequestEvent) {
 			cost_per_ton: costPerTon,
 			cost_per_sy: costPerSy,
 			cost_per_mile: costPerMile,
-			total_contract_value: num(parsed.contract_amount)
+			total_contract_value: num(parsed.contract_amount),
+			route_designation: str(parsed.route_designation),
+			begin_terminus: str(parsed.begin_terminus),
+			end_terminus: str(parsed.end_terminus)
 		};
 		if (Object.values(configPatch).some((v) => v !== null && v !== undefined)) {
 			await db.upsertJobSiteConfig(jobSite.id, configPatch);
