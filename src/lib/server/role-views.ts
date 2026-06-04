@@ -1,4 +1,5 @@
 // Role-based view mapping for dashboard routing
+// Server-side module - can be imported from server files and +page.server.ts
 
 export type RoleView = 'full' | 'field' | 'office';
 
@@ -27,6 +28,9 @@ export function getViewForRole(role: string): RoleView {
 	}
 }
 
+// Alias: getDefaultView for compatibility with task spec
+export const getDefaultView = getViewForRole;
+
 /**
  * Returns the redirect path for a given view level.
  * - 'full' -> '/dashboard'
@@ -41,4 +45,15 @@ export function getRedirectForView(view: RoleView): string {
 		case 'full':
 			return '/dashboard';
 	}
+}
+
+// Alias: getRedirectPath for compatibility with task spec
+export const getRedirectPath = getRedirectForView;
+
+/**
+ * Returns the login redirect path based on role and optional preferred_view override.
+ */
+export function getLoginRedirect(role: string, preferredView?: string | null): string {
+	const view = (preferredView as RoleView) || getViewForRole(role);
+	return getRedirectForView(view);
 }

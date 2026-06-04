@@ -22,7 +22,7 @@ export async function GET(event: RequestEvent) {
 			return json({ error: 'Organization not found' }, { status: 404 });
 		}
 
-		const role = await db.getUserRole(user.id, org.id);
+		const member = await db.getUserMember(user.id, org.id);
 
 		return json({
 			user: {
@@ -36,7 +36,8 @@ export async function GET(event: RequestEvent) {
 				id: org.id,
 				name: org.name,
 				slug: org.slug,
-				role
+				role: member?.role ?? null,
+				preferred_view: member?.preferred_view ?? null
 			}
 		});
 	} catch (error) {
