@@ -19,7 +19,7 @@ describe('request helpers integration', () => {
 
 		expect(response.status).toBe(200);
 
-		const body = await response.json();
+		const body = await response.json() as { user: { email: string }, org: { role: string } };
 		expect(body.user.email).toBe('test@example.com');
 		expect(body.org).toBeTruthy();
 		expect(body.org.role).toBe('admin');
@@ -33,7 +33,7 @@ describe('request helpers integration', () => {
 
 		expect(response.status).toBe(200);
 
-		const body = await response.json();
+		const body = await response.json() as { user: null | object };
 		expect(body.user).toBeNull();
 	});
 });

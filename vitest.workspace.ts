@@ -26,8 +26,8 @@ export default defineConfig({
 				},
 				resolve: {
 					alias: {
-						'$lib': '/tmp/worktrees/t_198c9d47/src/lib',
-						'$app/environment': '/tmp/worktrees/t_198c9d47/tests/mocks/app-environment.ts'
+						'$lib': new URL('./src/lib', import.meta.url).pathname,
+						'$app/environment': new URL('./tests/mocks/app-environment.ts', import.meta.url).pathname
 					}
 				},
 				server: {
