@@ -3,10 +3,10 @@
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import { authStore } from '$lib/stores/auth.svelte';
-	import MapContainer from '$lib/components/map/MapContainer.svelte';
+	import { MapView } from '$lib/components/map-v2';
 	import CrewLocationOverlay from '$lib/components/CrewLocationOverlay.svelte';
 
-	const ALABAMA_CENTER = { lat: 32.806671, lng: -86.79113 };
+	const ALABAMA_CENTER: [number, number] = [32.806671, -86.79113];
 	const DEFAULT_ZOOM = 7;
 	const JOB_SITE_ZOOM = 15;
 
@@ -22,7 +22,7 @@
 	const mapCenter = $derived<[number, number]>(
 		jobSiteCoords
 			? [jobSiteCoords.lat, jobSiteCoords.lng]
-			: [ALABAMA_CENTER.lat, ALABAMA_CENTER.lng]
+			: ALABAMA_CENTER
 	);
 	const mapZoom = $derived(jobSiteCoords ? JOB_SITE_ZOOM : DEFAULT_ZOOM);
 
@@ -74,20 +74,22 @@
 	<!-- Map -->
 	<div class="map-container">
 		{#if authStore.user && authStore.org}
-			<MapContainer
+			<MapView
 				center={mapCenter}
 				zoom={mapZoom}
-				class="crew-map"
+				height="100%"
 			>
-				<CrewLocationOverlay
-					orgId={authStore.org.id}
-					{jobSiteId}
-					currentUserId={authStore.user.id}
-					currentUserName={authStore.user.name}
-					currentUserRole={authStore.org.role}
-					{trackMyLocation}
-				/>
-			</MapContainer>
+				{#snippet layers()}
+					<CrewLocationOverlay
+						orgId={authStore.org!.id}
+						{jobSiteId}
+						currentUserId={authStore.user!.id}
+						currentUserName={authStore.user!.name}
+						currentUserRole={authStore.org!.role}
+						{trackMyLocation}
+					/>
+				{/snippet}
+			</MapView>
 		{:else if authStore.loading}
 			<div class="loading">Loading...</div>
 		{/if}
@@ -199,10 +201,5 @@
 	.location-toggle svg {
 		width: 24px;
 		height: 24px;
-	}
-
-	:global(.crew-map) {
-		width: 100%;
-		height: 100%;
 	}
 </style>

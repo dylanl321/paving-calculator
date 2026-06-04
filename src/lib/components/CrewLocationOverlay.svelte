@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
-	import CrewLocationMarker from './map/CrewLocationMarker.svelte';
+	import { MapMarker } from '$lib/components/map-v2';
 	import type { DbCrewLocation } from '$lib/server/db';
 
 	interface Props {
@@ -34,6 +34,35 @@
 		timeout: 10000,
 		maximumAge: 5000
 	};
+
+	const STATUS_COLORS: Record<string, string> = {
+		active: '#22c55e',
+		idle: '#f59e0b',
+		offline: '#64748b'
+	};
+
+	function getInitials(name: string): string {
+		const parts = name.trim().split(/\s+/);
+		if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+		return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+	}
+
+	function formatRelativeTime(timestamp: number): string {
+		const now = Math.floor(Date.now() / 1000);
+		const diff = now - timestamp;
+		if (diff < 60) return 'just now';
+		if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+		if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+		return `${Math.floor(diff / 86400)}d ago`;
+	}
+
+	function markerPopupHtml(loc: DbCrewLocation): string {
+		return `<div style="padding:8px;text-align:center;min-width:130px">
+			<div style="font-weight:600;font-size:14px;margin-bottom:4px;color:#1e293b">${loc.display_name}</div>
+			<div style="font-size:12px;color:#64748b;margin-bottom:4px">${loc.role}</div>
+			<div style="font-size:11px;color:#94a3b8">${formatRelativeTime(loc.updated_at)}</div>
+		</div>`;
+	}
 
 	async function updateMyLocation(position: GeolocationPosition) {
 		if (!browser || !trackMyLocation) return;
@@ -152,23 +181,20 @@
 	const onlineCount = $derived(locations.length);
 </script>
 
-<!-- Status badge -->
+<!-- Status badge (rendered as an overlay on the map container) -->
 <div class="crew-status-badge">
 	<div class="status-dot"></div>
 	<span>{onlineCount} online</span>
 </div>
 
-<!-- Crew markers -->
+<!-- Crew markers (rendered inside MapView layers snippet) -->
 {#each locations as location (location.id)}
-	<CrewLocationMarker
-		name={location.display_name}
-		role={location.role}
+	<MapMarker
 		lat={location.lat}
 		lng={location.lng}
-		heading={location.heading ?? undefined}
-		status={location.status}
-		isMe={location.user_id === currentUserId}
-		updatedAt={location.updated_at}
+		color={STATUS_COLORS[location.status] ?? STATUS_COLORS.active}
+		label={getInitials(location.display_name)}
+		popupHtml={markerPopupHtml(location)}
 	/>
 {/each}
 
@@ -189,6 +215,7 @@
 		font-weight: 600;
 		backdrop-filter: blur(4px);
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+		pointer-events: none;
 	}
 
 	.status-dot {
