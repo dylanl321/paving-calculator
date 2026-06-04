@@ -6,6 +6,7 @@
 
 import { weather } from './weather.svelte';
 import { job } from './job.svelte';
+import { orgSettingsStore } from './orgSettings.svelte';
 
 const STORAGE_KEY = 'paverate.calcContext.manuals.v1';
 
@@ -216,6 +217,10 @@ class CalcContext {
 
 	clearJobSite() {
 		this.#jobSiteDefaults = {};
+	}
+
+	get orgDefaults() {
+		return orgSettingsStore.resolvedDefaults;
 	}
 
 	#save() {

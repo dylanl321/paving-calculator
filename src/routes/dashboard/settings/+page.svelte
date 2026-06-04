@@ -60,6 +60,14 @@
 	let courseType = $state(ov.defaults?.courseType ?? config.defaults.courseType);
 	let liftThicknessIn = $state(ov.defaults?.liftThicknessIn ?? 2);
 	let mixType = $state(ov.defaults?.mixType ?? '');
+	let defaultPlant = $state(ov.defaults?.defaultPlant ?? '');
+	let defaultCrewSize = $state(ov.defaults?.defaultCrewSize ?? 3);
+	let pavingWindowStart = $state(ov.defaults?.pavingWindowStart ?? '06:00');
+	let pavingWindowEnd = $state(ov.defaults?.pavingWindowEnd ?? '18:00');
+	let minPavingTempF = $state(ov.defaults?.minPavingTempF ?? 40);
+	let maxPavingTempF = $state(ov.defaults?.maxPavingTempF ?? 100);
+	let minMatTempF = $state(ov.defaults?.minMatTempF ?? 275);
+	let defaultCompactionPasses = $state(ov.defaults?.defaultCompactionPasses ?? 3);
 
 	// --- Calculation constants ---
 	const constantKeys = Object.keys(OVERRIDABLE_CONSTANTS);
@@ -96,6 +104,14 @@
 		if (courseType !== config.defaults.courseType) dOut.courseType = courseType;
 		if (liftThicknessIn !== 2) dOut.liftThicknessIn = liftThicknessIn;
 		if (mixType.trim()) dOut.mixType = mixType.trim();
+		if (defaultPlant.trim()) dOut.defaultPlant = defaultPlant.trim();
+		if (defaultCrewSize !== 3) dOut.defaultCrewSize = defaultCrewSize;
+		if (pavingWindowStart !== '06:00') dOut.pavingWindowStart = pavingWindowStart;
+		if (pavingWindowEnd !== '18:00') dOut.pavingWindowEnd = pavingWindowEnd;
+		if (minPavingTempF !== 40) dOut.minPavingTempF = minPavingTempF;
+		if (maxPavingTempF !== 100) dOut.maxPavingTempF = maxPavingTempF;
+		if (minMatTempF !== 275) dOut.minMatTempF = minMatTempF;
+		if (defaultCompactionPasses !== 3) dOut.defaultCompactionPasses = defaultCompactionPasses;
 		if (Object.keys(dOut).length) out.defaults = dOut;
 
 		const cOut: Record<string, number> = {};
@@ -247,6 +263,14 @@
 			bind:courseType
 			bind:liftThicknessIn
 			bind:mixType
+			bind:defaultPlant
+			bind:defaultCrewSize
+			bind:pavingWindowStart
+			bind:pavingWindowEnd
+			bind:minPavingTempF
+			bind:maxPavingTempF
+			bind:minMatTempF
+			bind:defaultCompactionPasses
 			bind:constants
 			bind:tackField
 			bind:tackSpec

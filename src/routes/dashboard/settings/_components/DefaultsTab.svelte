@@ -13,6 +13,14 @@
 		courseType = $bindable(),
 		liftThicknessIn = $bindable(),
 		mixType = $bindable(),
+		defaultPlant = $bindable(),
+		defaultCrewSize = $bindable(),
+		pavingWindowStart = $bindable(),
+		pavingWindowEnd = $bindable(),
+		minPavingTempF = $bindable(),
+		maxPavingTempF = $bindable(),
+		minMatTempF = $bindable(),
+		defaultCompactionPasses = $bindable(),
 		constants = $bindable(),
 		tackField = $bindable(),
 		tackSpec = $bindable(),
@@ -27,6 +35,14 @@
 		courseType: string;
 		liftThicknessIn: number;
 		mixType: string;
+		defaultPlant: string;
+		defaultCrewSize: number;
+		pavingWindowStart: string;
+		pavingWindowEnd: string;
+		minPavingTempF: number;
+		maxPavingTempF: number;
+		minMatTempF: number;
+		defaultCompactionPasses: number;
 		constants: Record<string, number>;
 		tackField: RangeEntry[];
 		tackSpec: RangeEntry[];
@@ -105,6 +121,49 @@
 					<option value={c.id}>{c.label} (±{c.toleranceLbsSy} lbs/SY)</option>
 				{/each}
 			</select>
+		</div>
+	</div>
+</section>
+
+<!-- Operations -->
+<section class="card">
+	<h3>Operations</h3>
+	<p class="card-desc">
+		Operational parameters like plant, crew, paving window, and temperature constraints.
+	</p>
+
+	<div class="grid">
+		<div class="field wide">
+			<label for="defaultPlant">Default plant {#if defaultPlant.trim()}<span class="badge">Set</span>{/if}</label>
+			<input id="defaultPlant" type="text" bind:value={defaultPlant} disabled={!canEdit} placeholder="e.g. Atlanta Paving Supply" />
+		</div>
+		<div class="field">
+			<label for="defaultCrewSize">Default crew size {#if isDefaultOverridden('defaultCrewSize', defaultCrewSize)}<span class="badge">Overridden</span>{/if}</label>
+			<input id="defaultCrewSize" type="number" step="1" min="1" max="50" bind:value={defaultCrewSize} disabled={!canEdit} />
+		</div>
+		<div class="field">
+			<label for="pavingWindowStart">Paving window start (24h) {#if pavingWindowStart.trim() && pavingWindowStart !== '06:00'}<span class="badge">Set</span>{/if}</label>
+			<input id="pavingWindowStart" type="time" bind:value={pavingWindowStart} disabled={!canEdit} />
+		</div>
+		<div class="field">
+			<label for="pavingWindowEnd">Paving window end (24h) {#if pavingWindowEnd.trim() && pavingWindowEnd !== '18:00'}<span class="badge">Set</span>{/if}</label>
+			<input id="pavingWindowEnd" type="time" bind:value={pavingWindowEnd} disabled={!canEdit} />
+		</div>
+		<div class="field">
+			<label for="minPavingTempF">Min ambient temp for paving (°F) {#if isDefaultOverridden('minPavingTempF', minPavingTempF)}<span class="badge">Overridden</span>{/if}</label>
+			<input id="minPavingTempF" type="number" step="1" min="20" max="80" bind:value={minPavingTempF} disabled={!canEdit} />
+		</div>
+		<div class="field">
+			<label for="maxPavingTempF">Max ambient temp for paving (°F) {#if isDefaultOverridden('maxPavingTempF', maxPavingTempF)}<span class="badge">Overridden</span>{/if}</label>
+			<input id="maxPavingTempF" type="number" step="1" min="80" max="150" bind:value={maxPavingTempF} disabled={!canEdit} />
+		</div>
+		<div class="field">
+			<label for="minMatTempF">Min material temp at laydown (°F) {#if isDefaultOverridden('minMatTempF', minMatTempF)}<span class="badge">Overridden</span>{/if}</label>
+			<input id="minMatTempF" type="number" step="1" min="200" max="350" bind:value={minMatTempF} disabled={!canEdit} />
+		</div>
+		<div class="field">
+			<label for="defaultCompactionPasses">Default compaction passes {#if isDefaultOverridden('defaultCompactionPasses', defaultCompactionPasses)}<span class="badge">Overridden</span>{/if}</label>
+			<input id="defaultCompactionPasses" type="number" step="1" min="1" max="20" bind:value={defaultCompactionPasses} disabled={!canEdit} />
 		</div>
 	</div>
 </section>
