@@ -54,9 +54,9 @@ export async function GET(event: RequestEvent) {
 			AND (
 				resource_id = ?
 				OR (resource_type = 'daily_log' AND resource_id IN (SELECT id FROM daily_logs WHERE job_site_id = ?))
-				OR (resource_type = 'load' AND resource_id IN (SELECT id FROM load_entries WHERE log_id IN (SELECT id FROM daily_logs WHERE job_site_id = ?)))
-				OR (resource_type = 'equipment' AND resource_id IN (SELECT id FROM equipment WHERE job_site_id = ?))
-				OR (resource_type = 'milestone' AND resource_id IN (SELECT id FROM milestones WHERE job_site_id = ?))
+				OR (resource_type = 'load' AND resource_id IN (SELECT id FROM loads WHERE job_site_id = ?))
+				OR (resource_type = 'equipment' AND resource_id IN (SELECT id FROM job_site_equipment WHERE job_site_id = ?))
+				OR (resource_type = 'milestone' AND resource_id IN (SELECT id FROM job_site_milestones WHERE job_site_id = ?))
 			)
 		`;
 		const params: (string | number)[] = [org.id, jobSiteId, jobSiteId, jobSiteId, jobSiteId, jobSiteId];
