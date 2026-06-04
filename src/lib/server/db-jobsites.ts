@@ -1,4 +1,8 @@
 import type { D1Database } from '../../cloudflare';
+import { DbJobSiteConfigHelper } from './db-jobsite-config';
+import { DbJobSiteSectionsHelper } from './db-jobsite-sections';
+import { DbJobSiteEquipmentHelper } from './db-jobsite-equipment';
+import { DbJobSiteDocumentsHelper } from './db-jobsite-documents';
 
 export interface DbJobSite {
 	id: string;
@@ -243,7 +247,17 @@ export interface DbLoad {
 }
 
 export class DbJobSitesHelper {
-	constructor(private db: D1Database) {}
+	private configHelper: DbJobSiteConfigHelper;
+	private sectionsHelper: DbJobSiteSectionsHelper;
+	private equipmentHelper: DbJobSiteEquipmentHelper;
+	private documentsHelper: DbJobSiteDocumentsHelper;
+
+	constructor(private db: D1Database) {
+		this.configHelper = new DbJobSiteConfigHelper(db);
+		this.sectionsHelper = new DbJobSiteSectionsHelper(db);
+		this.equipmentHelper = new DbJobSiteEquipmentHelper(db);
+		this.documentsHelper = new DbJobSiteDocumentsHelper(db);
+	}
 
 	// ── Job Sites CRUD ────────────────────────────────────────────────────
 
@@ -416,250 +430,94 @@ export class DbJobSitesHelper {
 		return row?.c ?? 0;
 	}
 
-	// ── Bid Items ─────────────────────────────────────────────────────────
+	// ── Bid Items (delegated to documentsHelper) ──────────────────────────
 
 	async getBidItems(jobSiteId: string): Promise<DbBidItem[]> {
-		return await this.db
-			.prepare('SELECT * FROM job_bid_items WHERE job_site_id = ? ORDER BY sort_order ASC, created_at ASC')
-			.bind(jobSiteId)
-			.all<DbBidItem>()
-			.then((r) => r.results);
+		return this.documentsHelper.getBidItems(jobSiteId);
 	}
 
 	async createBidItem(
 		jobSiteId: string,
 		item: Omit<DbBidItem, 'id' | 'job_site_id' | 'created_at'>
 	): Promise<DbBidItem> {
-		const id = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-
-		await this.db
-			.prepare(
-				`INSERT INTO job_bid_items (
-					id, job_site_id, line_number, item_id, description, quantity,
-					unit, unit_price, bid_amount, section, is_alternate, selected,
-					sort_order, created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			)
-			.bind(
-				id,
-				jobSiteId,
-				item.line_number ?? null,
-				item.item_id ?? null,
-				item.description,
-				item.quantity ?? null,
-				item.unit ?? null,
-				item.unit_price ?? null,
-				item.bid_amount ?? null,
-				item.section ?? null,
-				item.is_alternate ?? 0,
-				item.selected ?? 1,
-				item.sort_order ?? 0,
-				now
-			)
-			.run();
-
-		return { id, job_site_id: jobSiteId, created_at: now, ...item };
+		return this.documentsHelper.createBidItem(jobSiteId, item);
 	}
 
 	async deleteBidItems(jobSiteId: string): Promise<void> {
-		await this.db.prepare('DELETE FROM job_bid_items WHERE job_site_id = ?').bind(jobSiteId).run();
+		return this.documentsHelper.deleteBidItems(jobSiteId);
 	}
 
-	// ── Production Mixes ──────────────────────────────────────────────────
+	// ── Production Mixes (delegated to documentsHelper) ───────────────────
 
 	async getProductionMixes(jobSiteId: string): Promise<DbProductionMix[]> {
-		return await this.db
-			.prepare('SELECT * FROM job_production_mixes WHERE job_site_id = ? ORDER BY sort_order ASC, created_at ASC')
-			.bind(jobSiteId)
-			.all<DbProductionMix>()
-			.then((r) => r.results);
+		return this.documentsHelper.getProductionMixes(jobSiteId);
 	}
 
 	async createProductionMix(
 		jobSiteId: string,
 		mix: Omit<DbProductionMix, 'id' | 'job_site_id' | 'created_at'>
 	): Promise<DbProductionMix> {
-		const id = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-
-		await this.db
-			.prepare(
-				`INSERT INTO job_production_mixes (
-					id, job_site_id, mix_name, unit, bid_quantity, takeoff_tonnage,
-					quantity_per_day, est_days, mix_type, target_thickness_in,
-					target_spread_rate, tack_type, target_tack_rate, contract_unit_price,
-					is_active, sort_order, created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			)
-			.bind(
-				id,
-				jobSiteId,
-				mix.mix_name,
-				mix.unit ?? null,
-				mix.bid_quantity ?? null,
-				mix.takeoff_tonnage ?? null,
-				mix.quantity_per_day ?? null,
-				mix.est_days ?? null,
-				mix.mix_type ?? null,
-				mix.target_thickness_in ?? null,
-				mix.target_spread_rate ?? null,
-				mix.tack_type ?? null,
-				mix.target_tack_rate ?? null,
-				mix.contract_unit_price ?? null,
-				mix.is_active ?? 0,
-				mix.sort_order ?? 0,
-				now
-			)
-			.run();
-
-		return { id, job_site_id: jobSiteId, created_at: now, ...mix };
+		return this.documentsHelper.createProductionMix(jobSiteId, mix);
 	}
 
 	async getProductionMix(mixId: string): Promise<DbProductionMix | null> {
-		return await this.db
-			.prepare('SELECT * FROM job_production_mixes WHERE id = ?')
-			.bind(mixId)
-			.first<DbProductionMix>();
+		return this.documentsHelper.getProductionMix(mixId);
 	}
 
 	async updateProductionMix(
 		mixId: string,
 		updates: Partial<Omit<DbProductionMix, 'id' | 'job_site_id' | 'created_at'>>
 	): Promise<void> {
-		const columns: (keyof typeof updates)[] = [
-			'mix_name',
-			'unit',
-			'bid_quantity',
-			'takeoff_tonnage',
-			'quantity_per_day',
-			'est_days',
-			'mix_type',
-			'target_thickness_in',
-			'target_spread_rate',
-			'tack_type',
-			'target_tack_rate',
-			'contract_unit_price',
-			'is_active',
-			'sort_order'
-		];
-		const fields: string[] = [];
-		const values: (string | number | null)[] = [];
-		for (const col of columns) {
-			const value = updates[col];
-			if (value !== undefined) {
-				fields.push(`${col} = ?`);
-				values.push(value as string | number | null);
-			}
-		}
-		if (fields.length === 0) return;
-		values.push(mixId);
-		await this.db
-			.prepare(`UPDATE job_production_mixes SET ${fields.join(', ')} WHERE id = ?`)
-			.bind(...values)
-			.run();
+		return this.documentsHelper.updateProductionMix(mixId, updates);
 	}
 
 	async setActiveMix(jobSiteId: string, mixId: string): Promise<void> {
-		await this.db
-			.prepare('UPDATE job_production_mixes SET is_active = 0 WHERE job_site_id = ?')
-			.bind(jobSiteId)
-			.run();
-		await this.db
-			.prepare('UPDATE job_production_mixes SET is_active = 1 WHERE id = ? AND job_site_id = ?')
-			.bind(mixId, jobSiteId)
-			.run();
+		return this.documentsHelper.setActiveMix(jobSiteId, mixId);
 	}
 
 	async deleteProductionMix(mixId: string): Promise<void> {
-		await this.db.prepare('DELETE FROM job_production_mixes WHERE id = ?').bind(mixId).run();
+		return this.documentsHelper.deleteProductionMix(mixId);
 	}
 
 	async deleteProductionMixes(jobSiteId: string): Promise<void> {
-		await this.db
-			.prepare('DELETE FROM job_production_mixes WHERE job_site_id = ?')
-			.bind(jobSiteId)
-			.run();
+		return this.documentsHelper.deleteProductionMixes(jobSiteId);
 	}
 
-	// ── Schematics ────────────────────────────────────────────────────────
+	// ── Schematics (delegated to documentsHelper) ─────────────────────────
 
 	async getSchematics(jobSiteId: string): Promise<DbSchematic[]> {
-		return await this.db
-			.prepare('SELECT * FROM job_schematics WHERE job_site_id = ? ORDER BY sort_order ASC, page_number ASC, created_at ASC')
-			.bind(jobSiteId)
-			.all<DbSchematic>()
-			.then((r) => r.results);
+		return this.documentsHelper.getSchematics(jobSiteId);
 	}
 
 	async getSchematic(id: string): Promise<DbSchematic | null> {
-		return await this.db.prepare('SELECT * FROM job_schematics WHERE id = ?').bind(id).first<DbSchematic>();
+		return this.documentsHelper.getSchematic(id);
 	}
 
 	async createSchematic(
 		jobSiteId: string,
 		schematic: Omit<DbSchematic, 'id' | 'job_site_id' | 'created_at'>
 	): Promise<DbSchematic> {
-		const id = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-		await this.db
-			.prepare(
-				`INSERT INTO job_schematics (id, job_site_id, r2_key, page_number, label, content_type, sort_order, created_at)
-				 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-			)
-			.bind(
-				id,
-				jobSiteId,
-				schematic.r2_key,
-				schematic.page_number ?? null,
-				schematic.label ?? null,
-				schematic.content_type ?? 'image/png',
-				schematic.sort_order ?? 0,
-				now
-			)
-			.run();
-		return { id, job_site_id: jobSiteId, created_at: now, ...schematic };
+		return this.documentsHelper.createSchematic(jobSiteId, schematic);
 	}
 
-	// ── Job Documents ─────────────────────────────────────────────────────
+	// ── Job Documents (delegated to documentsHelper) ──────────────────────
 
 	async getJobDocuments(jobSiteId: string): Promise<DbJobDocument[]> {
-		return await this.db
-			.prepare('SELECT * FROM job_documents WHERE job_site_id = ? ORDER BY created_at ASC')
-			.bind(jobSiteId)
-			.all<DbJobDocument>()
-			.then((r) => r.results);
+		return this.documentsHelper.getJobDocuments(jobSiteId);
 	}
 
 	async getJobDocument(id: string): Promise<DbJobDocument | null> {
-		return await this.db.prepare('SELECT * FROM job_documents WHERE id = ?').bind(id).first<DbJobDocument>();
+		return this.documentsHelper.getJobDocument(id);
 	}
 
 	async createJobDocument(
 		jobSiteId: string,
 		doc: Omit<DbJobDocument, 'id' | 'job_site_id' | 'created_at'>
 	): Promise<DbJobDocument> {
-		const id = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-		await this.db
-			.prepare(
-				`INSERT INTO job_documents (id, job_site_id, r2_key, filename, doc_type, content_type, created_at)
-				 VALUES (?, ?, ?, ?, ?, ?, ?)`
-			)
-			.bind(
-				id,
-				jobSiteId,
-				doc.r2_key,
-				doc.filename,
-				doc.doc_type ?? null,
-				doc.content_type ?? 'application/pdf',
-				now
-			)
-			.run();
-		return { id, job_site_id: jobSiteId, created_at: now, ...doc };
+		return this.documentsHelper.createJobDocument(jobSiteId, doc);
 	}
 
-	// ── Job Site Assignments ──────────────────────────────────────────────
+	// ── Job Site Assignments (delegated to equipmentHelper) ───────────────
 
 	async getJobSiteAssignments(jobSiteId: string): Promise<
 		Array<
@@ -669,22 +527,7 @@ export class DbJobSitesHelper {
 			}
 		>
 	> {
-		return await this.db
-			.prepare(
-				`SELECT jsa.*, u.name as user_name, u.email as user_email
-				FROM job_site_assignments jsa
-				JOIN users u ON u.id = jsa.user_id
-				WHERE jsa.job_site_id = ?
-				ORDER BY jsa.assigned_at DESC`
-			)
-			.bind(jobSiteId)
-			.all<
-				DbJobSiteAssignment & {
-					user_name: string;
-					user_email: string;
-				}
-			>()
-			.then((r) => r.results);
+		return this.equipmentHelper.getJobSiteAssignments(jobSiteId);
 	}
 
 	async assignUserToJobSite(
@@ -692,164 +535,26 @@ export class DbJobSitesHelper {
 		userId: string,
 		role: 'foreman' | 'operator' | 'inspector'
 	): Promise<void> {
-		const now = Math.floor(Date.now() / 1000);
-		await this.db
-			.prepare(
-				'INSERT OR REPLACE INTO job_site_assignments (job_site_id, user_id, assigned_at, role) VALUES (?, ?, ?, ?)'
-			)
-			.bind(jobSiteId, userId, now, role)
-			.run();
+		return this.equipmentHelper.assignUserToJobSite(jobSiteId, userId, role);
 	}
 
-	// ── Job Site Config ───────────────────────────────────────────────────
+	// ── Job Site Config (delegated to configHelper) ───────────────────────
 
 	async getJobSiteConfig(jobSiteId: string): Promise<DbJobSiteConfig | null> {
-		return await this.db
-			.prepare('SELECT * FROM job_site_config WHERE job_site_id = ?')
-			.bind(jobSiteId)
-			.first<DbJobSiteConfig>();
+		return this.configHelper.getJobSiteConfig(jobSiteId);
 	}
 
 	async upsertJobSiteConfig(
 		jobSiteId: string,
 		config: Partial<Omit<DbJobSiteConfig, 'job_site_id' | 'created_at' | 'updated_at'>>
 	): Promise<void> {
-		const now = Math.floor(Date.now() / 1000);
-		const existing = await this.getJobSiteConfig(jobSiteId);
-
-		// Columns added by a later migration. If the deployed DB hasn't had that
-		// migration applied yet (code-before-migration deploy), writing them throws
-		// "no such column"; we detect that and retry without them so the import
-		// still succeeds rather than 500ing. The data is simply persisted once the
-		// migration lands.
-		const OPTIONAL_COLUMNS = new Set([
-			'begin_terminus',
-			'end_terminus',
-			'begin_station',
-			'end_station'
-		]);
-		const isMissingColumnError = (err: unknown): boolean =>
-			err instanceof Error && /no such column|has no column named/i.test(err.message);
-
-		if (!existing) {
-			// All insertable columns in a stable order, paired with their value.
-			const cols: Array<[string, string | number | null]> = [
-				['road_type', config.road_type || null],
-				['num_lanes', config.num_lanes || null],
-				['lane_width_ft', config.lane_width_ft || null],
-				['total_length_ft', config.total_length_ft || null],
-				['scope_of_work', config.scope_of_work || null],
-				['mix_type', config.mix_type || null],
-				['target_thickness_in', config.target_thickness_in || null],
-				['target_spread_rate', config.target_spread_rate || null],
-				['tack_type', config.tack_type || null],
-				['target_tack_rate', config.target_tack_rate || null],
-				['notes', config.notes || null],
-				['route_designation', config.route_designation || null],
-				['route_county', config.route_county || null],
-				['route_district', config.route_district || null],
-				['route_functional_class', config.route_functional_class || null],
-				['route_system_code', config.route_system_code || null],
-				['begin_terminus', config.begin_terminus ?? null],
-				['end_terminus', config.end_terminus ?? null],
-				['begin_station', config.begin_station ?? null],
-				['end_station', config.end_station ?? null]
-			];
-
-			const runInsert = async (includeOptional: boolean) => {
-				const used = cols.filter(([c]) => includeOptional || !OPTIONAL_COLUMNS.has(c));
-				const colNames = ['job_site_id', ...used.map(([c]) => c), 'created_at', 'updated_at'];
-				const placeholders = colNames.map(() => '?').join(', ');
-				const values = [jobSiteId, ...used.map(([, v]) => v), now, now];
-				await this.db
-					.prepare(
-						`INSERT INTO job_site_config (${colNames.join(', ')}) VALUES (${placeholders})`
-					)
-					.bind(...values)
-					.run();
-			};
-
-			try {
-				await runInsert(true);
-			} catch (err) {
-				if (isMissingColumnError(err)) {
-					console.error('[upsertJobSiteConfig] optional column missing, retrying without it:', err);
-					await runInsert(false);
-				} else {
-					throw err;
-				}
-			}
-			return;
-		}
-
-		await this.updateJobSiteConfigFields(jobSiteId, config, now, OPTIONAL_COLUMNS, isMissingColumnError);
+		return this.configHelper.upsertJobSiteConfig(jobSiteId, config);
 	}
 
-	/** Build + run the dynamic UPDATE for an existing config row, retrying without
-	 *  optional (possibly-unmigrated) columns if the DB rejects them. */
-	private async updateJobSiteConfigFields(
-		jobSiteId: string,
-		config: Partial<Omit<DbJobSiteConfig, 'job_site_id' | 'created_at' | 'updated_at'>>,
-		now: number,
-		optionalColumns: Set<string>,
-		isMissingColumnError: (err: unknown) => boolean
-	): Promise<void> {
-		const allFields: Array<[string, string | number | null]> = [];
-		const push = (col: keyof typeof config, value: string | number | null | undefined) => {
-			if (value !== undefined) allFields.push([col as string, value as string | number | null]);
-		};
-		push('road_type', config.road_type);
-		push('num_lanes', config.num_lanes);
-		push('lane_width_ft', config.lane_width_ft);
-		push('total_length_ft', config.total_length_ft);
-		push('scope_of_work', config.scope_of_work);
-		push('mix_type', config.mix_type);
-		push('target_thickness_in', config.target_thickness_in);
-		push('target_spread_rate', config.target_spread_rate);
-		push('tack_type', config.tack_type);
-		push('target_tack_rate', config.target_tack_rate);
-		push('notes', config.notes);
-		push('route_designation', config.route_designation);
-		push('route_county', config.route_county);
-		push('route_district', config.route_district);
-		push('route_functional_class', config.route_functional_class);
-		push('route_system_code', config.route_system_code);
-		push('begin_terminus', config.begin_terminus);
-		push('end_terminus', config.end_terminus);
-		push('begin_station', config.begin_station);
-		push('end_station', config.end_station);
-
-		const runUpdate = async (includeOptional: boolean) => {
-			const used = allFields.filter(([c]) => includeOptional || !optionalColumns.has(c));
-			if (used.length === 0) return;
-			const setClause = [...used.map(([c]) => `${c} = ?`), 'updated_at = ?'].join(', ');
-			const values = [...used.map(([, v]) => v), now, jobSiteId];
-			await this.db
-				.prepare(`UPDATE job_site_config SET ${setClause} WHERE job_site_id = ?`)
-				.bind(...values)
-				.run();
-		};
-
-		try {
-			await runUpdate(true);
-		} catch (err) {
-			if (isMissingColumnError(err)) {
-				console.error('[upsertJobSiteConfig] optional column missing on update, retrying without it:', err);
-				await runUpdate(false);
-			} else {
-				throw err;
-			}
-		}
-	}
-
-	// ── Job Site Equipment ────────────────────────────────────────────────
+	// ── Job Site Equipment (delegated to equipmentHelper) ─────────────────
 
 	async getJobSiteEquipment(jobSiteId: string): Promise<DbJobSiteEquipment[]> {
-		return await this.db
-			.prepare('SELECT * FROM job_site_equipment WHERE job_site_id = ? ORDER BY created_at ASC')
-			.bind(jobSiteId)
-			.all<DbJobSiteEquipment>()
-			.then((r) => r.results);
+		return this.equipmentHelper.getJobSiteEquipment(jobSiteId);
 	}
 
 	async createJobSiteEquipment(
@@ -859,77 +564,27 @@ export class DbJobSitesHelper {
 		capacity: string | null,
 		notes: string | null
 	): Promise<DbJobSiteEquipment> {
-		const id = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-
-		await this.db
-			.prepare(
-				'INSERT INTO job_site_equipment (id, job_site_id, equipment_type, name, capacity, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-			)
-			.bind(id, jobSiteId, equipmentType, name, capacity, notes, now)
-			.run();
-
-		return {
-			id,
-			job_site_id: jobSiteId,
-			equipment_type: equipmentType,
-			name,
-			capacity,
-			notes,
-			created_at: now
-		};
+		return this.equipmentHelper.createJobSiteEquipment(jobSiteId, equipmentType, name, capacity, notes);
 	}
 
 	async deleteJobSiteEquipment(equipmentId: string): Promise<void> {
-		await this.db
-			.prepare('DELETE FROM job_site_equipment WHERE id = ?')
-			.bind(equipmentId)
-			.run();
+		return this.equipmentHelper.deleteJobSiteEquipment(equipmentId);
 	}
 
-	// ── Job Site Route ────────────────────────────────────────────────────
+	// ── Job Site Route (delegated to configHelper) ────────────────────────
 
 	async getJobSiteRoute(jobSiteId: string): Promise<DbJobSiteRoute | null> {
-		return await this.db
-			.prepare('SELECT * FROM job_site_routes WHERE job_site_id = ?')
-			.bind(jobSiteId)
-			.first<DbJobSiteRoute>();
+		return this.configHelper.getJobSiteRoute(jobSiteId);
 	}
 
 	async upsertJobSiteRoute(
 		jobSiteId: string,
 		waypoints: Array<{ lat: number; lng: number }>
 	): Promise<DbJobSiteRoute> {
-		const now = Math.floor(Date.now() / 1000);
-		const waypointsJson = JSON.stringify(waypoints);
-
-		const existing = await this.getJobSiteRoute(jobSiteId);
-
-		if (existing) {
-			await this.db
-				.prepare(
-					'UPDATE job_site_routes SET waypoints = ?, updated_at = ? WHERE job_site_id = ?'
-				)
-				.bind(waypointsJson, now, jobSiteId)
-				.run();
-		} else {
-			await this.db
-				.prepare(
-					'INSERT INTO job_site_routes (job_site_id, waypoints, created_at, updated_at) VALUES (?, ?, ?, ?)'
-				)
-				.bind(jobSiteId, waypointsJson, now, now)
-				.run();
-		}
-
-		return {
-			job_site_id: jobSiteId,
-			waypoints: waypointsJson,
-			created_at: existing?.created_at ?? now,
-			updated_at: now
-		};
+		return this.configHelper.upsertJobSiteRoute(jobSiteId, waypoints);
 	}
 
-	// ── Calculations ──────────────────────────────────────────────────────
+	// ── Calculations (delegated to sectionsHelper) ────────────────────────
 
 	async createCalculation(
 		jobSiteId: string,
@@ -939,28 +594,7 @@ export class DbJobSitesHelper {
 		result: object,
 		notes: string | null
 	): Promise<DbCalculation> {
-		const id = crypto.randomUUID();
-		const now = Math.floor(Date.now() / 1000);
-		const inputsJson = JSON.stringify(inputs);
-		const resultJson = JSON.stringify(result);
-
-		await this.db
-			.prepare(
-				'INSERT INTO calculations (id, job_site_id, user_id, calc_type, inputs, result, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-			)
-			.bind(id, jobSiteId, userId, calcType, inputsJson, resultJson, notes, now)
-			.run();
-
-		return {
-			id,
-			job_site_id: jobSiteId,
-			user_id: userId,
-			calc_type: calcType,
-			inputs: inputsJson,
-			result: resultJson,
-			notes,
-			created_at: now
-		};
+		return this.sectionsHelper.createCalculation(jobSiteId, userId, calcType, inputs, result, notes);
 	}
 
 	async getCalculations(filters?: {
@@ -968,44 +602,14 @@ export class DbJobSitesHelper {
 		userId?: string;
 		limit?: number;
 	}): Promise<DbCalculation[]> {
-		let query = 'SELECT * FROM calculations WHERE 1=1';
-		const bindings: string[] = [];
-
-		if (filters?.jobSiteId) {
-			query += ' AND job_site_id = ?';
-			bindings.push(filters.jobSiteId);
-		}
-
-		if (filters?.userId) {
-			query += ' AND user_id = ?';
-			bindings.push(filters.userId);
-		}
-
-		query += ' ORDER BY created_at DESC';
-
-		if (filters?.limit) {
-			query += ' LIMIT ?';
-			bindings.push(String(filters.limit));
-		}
-
-		return await this.db
-			.prepare(query)
-			.bind(...bindings)
-			.all<DbCalculation>()
-			.then((r) => r.results);
+		return this.sectionsHelper.getCalculations(filters);
 	}
 
 	async getCalculationById(id: string): Promise<DbCalculation | null> {
-		return await this.db
-			.prepare('SELECT * FROM calculations WHERE id = ?')
-			.bind(id)
-			.first<DbCalculation>();
+		return this.sectionsHelper.getCalculationById(id);
 	}
 
 	async deleteCalculation(id: string): Promise<void> {
-		await this.db
-			.prepare('DELETE FROM calculations WHERE id = ?')
-			.bind(id)
-			.run();
+		return this.sectionsHelper.deleteCalculation(id);
 	}
 }
