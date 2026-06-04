@@ -8,7 +8,15 @@
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { onDestroy } from 'svelte';
 
-	const materials = config.materials ?? [];
+	interface MaterialOption {
+		id: string;
+		label: string;
+		densityTonsPerYd3: number;
+	}
+
+	let { materials: materialsProp }: { materials?: MaterialOption[] } = $props();
+
+	const materials = $derived(materialsProp ?? config.materials ?? []);
 
 	let lengthFt = $state<number | null>(null);
 	let widthFt = $state<number | null>(null);
