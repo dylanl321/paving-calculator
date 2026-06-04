@@ -154,26 +154,26 @@
 <section class="section">
 	<h3>Road Details</h3>
 	<form class="config-form" onchange={saveConfig}>
-		<div class="form-group">
-			<label for="road_type">Road Type</label>
-			<div class="selector-grid">
-				{#each Object.entries(roadTypeLabels) as [value, label]}
-					<button
-						type="button"
-						class="selector-card"
-						class:active={configForm.road_type === value}
-						onclick={() => {
-							configForm.road_type = value as any;
-							saveConfig();
-						}}
-					>
-						{label}
-					</button>
-				{/each}
+		<div class="form-grid">
+			<div class="form-group form-row-full">
+				<label for="road_type">Road Type</label>
+				<div class="selector-grid">
+					{#each Object.entries(roadTypeLabels) as [value, label]}
+						<button
+							type="button"
+							class="selector-card"
+							class:active={configForm.road_type === value}
+							onclick={() => {
+								configForm.road_type = value as any;
+								saveConfig();
+							}}
+						>
+							{label}
+						</button>
+					{/each}
+				</div>
 			</div>
-		</div>
 
-		<div class="form-row">
 			<div class="form-group">
 				<label for="num_lanes">Number of Lanes</label>
 				<input
@@ -196,28 +196,28 @@
 					placeholder="e.g., 12"
 				/>
 			</div>
-		</div>
 
-		<div class="form-group">
-			<label for="total_length_ft">Total Length (ft)</label>
-			<input
-				type="number"
-				id="total_length_ft"
-				bind:value={configForm.total_length_ft}
-				min="1"
-				placeholder="e.g., 5280"
-			/>
-		</div>
+			<div class="form-group">
+				<label for="total_length_ft">Total Length (ft)</label>
+				<input
+					type="number"
+					id="total_length_ft"
+					bind:value={configForm.total_length_ft}
+					min="1"
+					placeholder="e.g., 5280"
+				/>
+			</div>
 
-		<div class="form-group">
-			<label for="num_lifts">Number of Lifts</label>
-			<input
-				type="number"
-				id="num_lifts"
-				bind:value={configForm.num_lifts}
-				min="1"
-				placeholder="e.g., 2"
-			/>
+			<div class="form-group">
+				<label for="num_lifts">Number of Lifts</label>
+				<input
+					type="number"
+					id="num_lifts"
+					bind:value={configForm.num_lifts}
+					min="1"
+					placeholder="e.g., 2"
+				/>
+			</div>
 		</div>
 	</form>
 </section>
@@ -389,56 +389,58 @@
 
 		<h3 class="form-section-title">Contract Costs</h3>
 
-		<div class="form-group">
-			<label for="cost_per_ton">Cost per Ton ($/ton)</label>
-			<input
-				type="number"
-				id="cost_per_ton"
-				bind:value={configForm.cost_per_ton}
-				min="0"
-				step="0.01"
-				placeholder="e.g., 85.00"
-				onchange={() => saveConfig()}
-			/>
-		</div>
+		<div class="form-grid">
+			<div class="form-group">
+				<label for="cost_per_ton">Cost per Ton ($/ton)</label>
+				<input
+					type="number"
+					id="cost_per_ton"
+					bind:value={configForm.cost_per_ton}
+					min="0"
+					step="0.01"
+					placeholder="e.g., 85.00"
+					onchange={() => saveConfig()}
+				/>
+			</div>
 
-		<div class="form-group">
-			<label for="cost_per_sy">Cost per SY ($/yd²)</label>
-			<input
-				type="number"
-				id="cost_per_sy"
-				bind:value={configForm.cost_per_sy}
-				min="0"
-				step="0.01"
-				placeholder="e.g., 12.50"
-				onchange={() => saveConfig()}
-			/>
-		</div>
+			<div class="form-group">
+				<label for="cost_per_sy">Cost per SY ($/yd²)</label>
+				<input
+					type="number"
+					id="cost_per_sy"
+					bind:value={configForm.cost_per_sy}
+					min="0"
+					step="0.01"
+					placeholder="e.g., 12.50"
+					onchange={() => saveConfig()}
+				/>
+			</div>
 
-		<div class="form-group">
-			<label for="cost_per_mile">Cost per Mile ($/mile)</label>
-			<input
-				type="number"
-				id="cost_per_mile"
-				bind:value={configForm.cost_per_mile}
-				min="0"
-				step="0.01"
-				placeholder="e.g., 50000.00"
-				onchange={() => saveConfig()}
-			/>
-		</div>
+			<div class="form-group">
+				<label for="cost_per_mile">Cost per Mile ($/mile)</label>
+				<input
+					type="number"
+					id="cost_per_mile"
+					bind:value={configForm.cost_per_mile}
+					min="0"
+					step="0.01"
+					placeholder="e.g., 50000.00"
+					onchange={() => saveConfig()}
+				/>
+			</div>
 
-		<div class="form-group">
-			<label for="total_contract_value">Total Contract Value ($)</label>
-			<input
-				type="number"
-				id="total_contract_value"
-				bind:value={configForm.total_contract_value}
-				min="0"
-				step="0.01"
-				placeholder="e.g., 250000.00"
-				onchange={() => saveConfig()}
-			/>
+			<div class="form-group">
+				<label for="total_contract_value">Total Contract Value ($)</label>
+				<input
+					type="number"
+					id="total_contract_value"
+					bind:value={configForm.total_contract_value}
+					min="0"
+					step="0.01"
+					placeholder="e.g., 250000.00"
+					onchange={() => saveConfig()}
+				/>
+			</div>
 		</div>
 
 		<div class="form-group">

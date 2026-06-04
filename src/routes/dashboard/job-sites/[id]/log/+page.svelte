@@ -1079,24 +1079,24 @@
 			</div>
 
 			<div class="modal-body">
-				<div class="field-compact">
-					<label for="entry-type">Type</label>
-					<select id="entry-type" bind:value={entryForm.entry_type}>
-						<option value="paving">Paving</option>
-						<option value="milling">Milling</option>
-						<option value="tack">Tack</option>
-						<option value="break">Break</option>
-						<option value="delay">Delay</option>
-						<option value="note">Note</option>
-					</select>
-				</div>
+				<div class="entry-form-grid">
+					<div class="field-compact">
+						<label for="entry-type">Type</label>
+						<select id="entry-type" bind:value={entryForm.entry_type}>
+							<option value="paving">Paving</option>
+							<option value="milling">Milling</option>
+							<option value="tack">Tack</option>
+							<option value="break">Break</option>
+							<option value="delay">Delay</option>
+							<option value="note">Note</option>
+						</select>
+					</div>
 
-				<div class="field-compact">
-					<label for="entry-time">Time</label>
-					<TimeInput bind:value={entryForm.timestamp} id="entry-time" />
-				</div>
+					<div class="field-compact">
+						<label for="entry-time">Time</label>
+						<TimeInput bind:value={entryForm.timestamp} id="entry-time" />
+					</div>
 
-				<div class="field-row">
 					<div class="field-compact">
 						<label for="sta-start">Station Start</label>
 						<div class="input-with-gps">
@@ -1125,14 +1125,12 @@
 							/>
 						</div>
 					</div>
-				</div>
 
-				<div class="field-compact">
-					<label for="distance">Distance (ft)</label>
-					<input type="number" id="distance" bind:value={entryForm.distance_ft} />
-				</div>
+					<div class="field-compact">
+						<label for="distance">Distance (ft)</label>
+						<input type="number" id="distance" bind:value={entryForm.distance_ft} />
+					</div>
 
-				<div class="field-row">
 					<div class="field-compact">
 						<label for="tons">Tons</label>
 						<input type="number" id="tons" bind:value={entryForm.tons_placed} step="0.1" />
@@ -1141,9 +1139,7 @@
 						<label for="loads">Loads</label>
 						<input type="number" id="loads" bind:value={entryForm.loads_count} />
 					</div>
-				</div>
 
-				<div class="field-row">
 					<div class="field-compact">
 						<label for="spread-rate">Spread Rate (lbs/SY)</label>
 						<input type="number" id="spread-rate" bind:value={entryForm.spread_rate_actual} step="0.1" />
@@ -1152,11 +1148,11 @@
 						<label for="tack">Tack (gallons)</label>
 						<input type="number" id="tack" bind:value={entryForm.tack_gallons} step="0.1" />
 					</div>
-				</div>
 
-				<div class="field-compact">
-					<label for="lane">Lane</label>
-					<input type="text" id="lane" bind:value={entryForm.lane} placeholder="e.g., left, right" />
+					<div class="field-compact">
+						<label for="lane">Lane</label>
+						<input type="text" id="lane" bind:value={entryForm.lane} placeholder="e.g., left, right" />
+					</div>
 				</div>
 
 				<div class="field-compact">
@@ -1954,6 +1950,18 @@
 
 	.completeness-bar-wrapper {
 		margin-bottom: 24px;
+	}
+
+	.entry-form-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: var(--spacing-md);
+	}
+
+	@media (min-width: 640px) {
+		.entry-form-grid {
+			grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+		}
 	}
 
 	@media (min-width: 768px) {

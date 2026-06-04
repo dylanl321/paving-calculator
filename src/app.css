@@ -538,6 +538,69 @@ textarea.input-field {
 	font-weight: var(--fw-bold);
 }
 
+/* ---- Multi-column form layout utilities ---- */
+
+/* Responsive grid: 1 col mobile, auto-fill on desktop */
+.form-grid {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: var(--spacing-md);
+}
+
+@media (min-width: 640px) {
+	.form-grid {
+		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+	}
+}
+
+/* Forced 2-column at desktop */
+.form-grid-2 {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: var(--spacing-md);
+}
+
+@media (min-width: 640px) {
+	.form-grid-2 {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
+/* Forced 3-column at large desktop */
+.form-grid-3 {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: var(--spacing-md);
+}
+
+@media (min-width: 1024px) {
+	.form-grid-3 {
+		grid-template-columns: repeat(3, 1fr);
+	}
+}
+
+/* Span all columns (for textareas, notes, wide selects) */
+.form-row-full {
+	grid-column: 1 / -1;
+}
+
+/* Visual grouping for fieldsets/sections */
+.fieldset-group {
+	border: 1px solid var(--border);
+	border-radius: var(--radius-md);
+	padding: var(--spacing-md);
+	margin-bottom: var(--spacing-md);
+}
+
+.fieldset-legend {
+	font-size: var(--fs-xs);
+	font-weight: var(--fw-bold);
+	text-transform: uppercase;
+	letter-spacing: 0.6px;
+	color: var(--text-muted);
+	margin-bottom: var(--spacing-sm);
+}
+
 /* Status banners (good/warn/fail) */
 .status-banner {
 	font-size: var(--fs-sm);
