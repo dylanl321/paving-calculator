@@ -35,3 +35,6 @@ vite.config.ts.timestamp-*
 # Playwright E2E artifacts
 e2e-results/
 e2e-report/
+
+# Vitest coverage output
+coverage/

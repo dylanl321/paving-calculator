@@ -1,5 +1,9 @@
 # Paverate
 
+[![Unit Coverage](https://img.shields.io/badge/unit%20coverage-80%25%20threshold-brightgreen)](coverage/index.html)
+[![Integration Coverage](https://img.shields.io/badge/integration%20coverage-60%25%20threshold-yellow)](coverage/index.html)
+[![Component Coverage](https://img.shields.io/badge/component%20coverage-50%25%20threshold-orange)](coverage/index.html)
+
 **Paverate** is a mobile-first PWA for in-field asphalt paving calculations.
 It is built for paving crews to get answers fast on the job site — spread rate,
 feet left today, tack coat gallons, tonnage to order, and stick-check height —
