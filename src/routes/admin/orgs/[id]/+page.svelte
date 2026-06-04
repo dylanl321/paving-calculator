@@ -52,10 +52,36 @@
 		expires_at: number;
 	}
 
+	interface JobSite {
+		id: string;
+		name: string;
+		status: 'active' | 'completed' | 'archived';
+		created_at: number;
+	}
+
+	interface AuditEvent {
+		id: string;
+		user_id: string | null;
+		org_id: string;
+		event_type: string;
+		ip_address: string | null;
+		user_agent: string | null;
+		metadata: unknown;
+		created_at: number;
+	}
+
+	type Tab = 'overview' | 'members' | 'job-sites' | 'audit';
+
+	let activeTab = $state<Tab>('overview');
 	let org = $state<Org | null>(null);
 	let members = $state<Member[]>([]);
 	let invitations = $state<Invitation[]>([]);
 	let jobSiteCount = $state(0);
+	let jobSites = $state<JobSite[]>([]);
+	let auditEvents = $state<AuditEvent[]>([]);
+	let auditTotal = $state(0);
+	let auditOffset = $state(0);
+	let auditLimit = $state(50);
 	let loading = $state(true);
 	let error = $state('');
 	let editingOrg = $state(false);
@@ -64,6 +90,7 @@
 	let statusMessage = $state('');
 	let editingMember = $state<{ userId: string; role: string } | null>(null);
 	let archiving = $state(false);
+	let loadingAudit = $state(false);
 
 	$effect(() => {
 		if ($page.params.id) {
@@ -86,15 +113,45 @@
 				members: Member[];
 				invitations: Invitation[];
 				jobSiteCount: number;
+				jobSites: JobSite[];
 			};
 			org = data.org;
 			members = data.members;
 			invitations = data.invitations ?? [];
 			jobSiteCount = data.jobSiteCount ?? 0;
+			jobSites = data.jobSites ?? [];
 		} catch (e) {
 			error = 'Failed to load organization';
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function loadAudit() {
+		if (!org) return;
+		loadingAudit = true;
+		try {
+			const res = await fetch(
+				`/api/admin/orgs/${org.id}/audit?limit=${auditLimit}&offset=${auditOffset}`
+			);
+			if (!res.ok) {
+				toastStore.error('Failed to load audit log');
+				return;
+			}
+			const data = (await res.json()) as { events: AuditEvent[]; total: number };
+			auditEvents = data.events;
+			auditTotal = data.total;
+		} catch (e) {
+			toastStore.error('Failed to load audit log');
+		} finally {
+			loadingAudit = false;
+		}
+	}
+
+	function switchTab(tab: Tab) {
+		activeTab = tab;
+		if (tab === 'audit' && auditEvents.length === 0) {
+			loadAudit();
 		}
 	}
 
@@ -241,8 +298,21 @@
 		}
 	}
 
+	function loadMoreAudit() {
+		auditOffset += auditLimit;
+		loadAudit();
+	}
+
 	function formatDate(timestamp: number): string {
 		return new Date(timestamp * 1000).toLocaleDateString();
+	}
+
+	function formatDateTime(timestamp: number): string {
+		return new Date(timestamp * 1000).toLocaleString();
+	}
+
+	function getOwner(): Member | null {
+		return members.find((m) => m.role === 'owner') ?? null;
 	}
 </script>
 
@@ -261,141 +331,277 @@
 	{:else if error}
 		<div class="error">{error}</div>
 	{:else if org}
-		<section class="org-info">
-			<div class="section-header">
-				<h2>Organization Info</h2>
-				{#if !editingOrg}
-					<button onclick={startEditOrg}>Edit</button>
-				{/if}
-			</div>
+		<nav class="tabs">
+			<button class:active={activeTab === 'overview'} onclick={() => switchTab('overview')}>
+				Overview
+			</button>
+			<button class:active={activeTab === 'members'} onclick={() => switchTab('members')}>
+				Members
+			</button>
+			<button class:active={activeTab === 'job-sites'} onclick={() => switchTab('job-sites')}>
+				Job Sites
+			</button>
+			<button class:active={activeTab === 'audit'} onclick={() => switchTab('audit')}>
+				Audit
+			</button>
+		</nav>
 
-			{#if editingOrg}
-				<form onsubmit={(e) => { e.preventDefault(); saveOrgEdit(); }} class="edit-form">
-					<label>
-						Name
-						<input type="text" bind:value={editOrgName} required />
-					</label>
-					<label>
-						Slug
-						<input type="text" bind:value={editOrgSlug} required />
-					</label>
-					<div class="form-actions">
-						<button type="button" onclick={() => { editingOrg = false; statusMessage = ''; }}>Cancel</button>
-						<button type="submit">Save</button>
-					</div>
-				</form>
-			{:else}
-				<dl class="info-list">
-					<dt>Name</dt>
-					<dd>{org.name}</dd>
-					<dt>Slug</dt>
-					<dd>{org.slug}</dd>
-					<dt>Created</dt>
-					<dd>{formatDate(org.created_at)}</dd>
-					<dt>Members</dt>
-					<dd>{members.length}</dd>
-					<dt>Job Sites</dt>
-					<dd>{jobSiteCount}</dd>
-					<dt>Pending Invites</dt>
-					<dd>{invitations.length}</dd>
-					<dt>Status</dt>
-					<dd>
-						<span class="role-badge" class:owner={!org.archived_at}>
-							{org.archived_at ? 'Archived' : 'Active'}
-						</span>
-					</dd>
-				</dl>
-				<div class="org-actions">
-					<button
-						class="action-btn"
-						class:danger={!org.archived_at}
-						onclick={toggleArchive}
-						disabled={archiving}
+		{#if activeTab === 'overview'}
+			<section class="org-info">
+				<div class="section-header">
+					<h2>Organization Info</h2>
+					{#if !editingOrg}
+						<button onclick={startEditOrg}>Edit</button>
+					{/if}
+				</div>
+
+				{#if editingOrg}
+					<form
+						onsubmit={(e) => {
+							e.preventDefault();
+							saveOrgEdit();
+						}}
+						class="edit-form"
 					>
-						{org.archived_at ? 'Unarchive Organization' : 'Archive Organization'}
-					</button>
-				</div>
-			{/if}
-		</section>
-
-		{#if invitations.length > 0}
-			<section class="invitations">
-				<h2>Pending Invitations</h2>
-				<div class="members-table-wrapper">
-					<table class="members-table">
-						<thead>
-							<tr>
-								<th>Email</th>
-								<th>Role</th>
-								<th>Invited By</th>
-								<th>Sent</th>
-								<th>Expires</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each invitations as inv}
+						<label>
+							Name
+							<input type="text" bind:value={editOrgName} required />
+						</label>
+						<label>
+							Slug
+							<input type="text" bind:value={editOrgSlug} required />
+						</label>
+						<div class="form-actions">
+							<button
+								type="button"
+								onclick={() => {
+									editingOrg = false;
+									statusMessage = '';
+								}}>Cancel</button
+							>
+							<button type="submit">Save</button>
+						</div>
+					</form>
+				{:else}
+					<dl class="info-list">
+						<dt>Name</dt>
+						<dd>{org.name}</dd>
+						<dt>Slug</dt>
+						<dd>{org.slug}</dd>
+						<dt>Created</dt>
+						<dd>{formatDate(org.created_at)}</dd>
+						<dt>Status</dt>
+						<dd>
+							<span class="status-badge" class:active={!org.archived_at}>
+								{org.archived_at ? 'Archived' : 'Active'}
+							</span>
+						</dd>
+						<dt>Owner</dt>
+						<dd>
+							{#if getOwner()}
+								{getOwner()?.user_name} ({getOwner()?.user_email})
+							{:else}
+								<span class="text-muted">None</span>
+							{/if}
+						</dd>
+						<dt>Members</dt>
+						<dd>{members.length}</dd>
+						<dt>Job Sites</dt>
+						<dd>{jobSiteCount}</dd>
+					</dl>
+					<div class="org-actions">
+						<button
+							class="action-btn"
+							class:danger={!org.archived_at}
+							onclick={toggleArchive}
+							disabled={archiving}
+						>
+							{org.archived_at ? 'Unarchive Organization' : 'Archive Organization'}
+						</button>
+					</div>
+				{/if}
+			</section>
+		{:else if activeTab === 'members'}
+			<section class="members">
+				<h2>Members</h2>
+				{#if members.length === 0}
+					<p class="empty">No members in this organization</p>
+				{:else}
+					<div class="table-wrapper">
+						<table class="data-table">
+							<thead>
 								<tr>
-									<td data-label="Email">{inv.email}</td>
-									<td data-label="Role">
-										<span class="role-badge">{inv.role}</span>
-									</td>
-									<td data-label="Invited By">{inv.invited_by_name}</td>
-									<td data-label="Sent">{formatDate(inv.created_at)}</td>
-									<td data-label="Expires">{formatDate(inv.expires_at)}</td>
+									<th>Name</th>
+									<th>Email</th>
+									<th>Role</th>
+									<th>Joined</th>
+									<th>Actions</th>
 								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
+							</thead>
+							<tbody>
+								{#each members as member}
+									<tr>
+										<td data-label="Name">
+											<a href="/admin/users/{member.user_id}">{member.user_name}</a>
+										</td>
+										<td data-label="Email">{member.user_email}</td>
+										<td data-label="Role">
+											<span
+												class="role-badge"
+												class:owner={member.role === 'owner'}
+												class:admin={member.role === 'admin'}
+											>
+												{member.role}
+											</span>
+										</td>
+										<td data-label="Joined">{formatDate(member.invited_at)}</td>
+										<td data-label="Actions" class="actions-cell">
+											<button class="action-btn" onclick={() => startEditMember(member)}
+												>Change Role</button
+											>
+											<button class="action-btn danger" onclick={() => removeMember(member.user_id)}
+												>Remove</button
+											>
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+
+				{#if invitations.length > 0}
+					<div class="invitations-section">
+						<h3>Pending Invitations</h3>
+						<div class="table-wrapper">
+							<table class="data-table">
+								<thead>
+									<tr>
+										<th>Email</th>
+										<th>Role</th>
+										<th>Invited By</th>
+										<th>Sent</th>
+										<th>Expires</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each invitations as inv}
+										<tr>
+											<td data-label="Email">{inv.email}</td>
+											<td data-label="Role">
+												<span class="role-badge">{inv.role}</span>
+											</td>
+											<td data-label="Invited By">{inv.invited_by_name}</td>
+											<td data-label="Sent">{formatDate(inv.created_at)}</td>
+											<td data-label="Expires">{formatDate(inv.expires_at)}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				{/if}
+			</section>
+		{:else if activeTab === 'job-sites'}
+			<section class="job-sites">
+				<h2>Job Sites</h2>
+				{#if jobSites.length === 0}
+					<p class="empty">No job sites in this organization</p>
+				{:else}
+					<div class="table-wrapper">
+						<table class="data-table">
+							<thead>
+								<tr>
+									<th>Name</th>
+									<th>Status</th>
+									<th>Created</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each jobSites as site}
+									<tr>
+										<td data-label="Name">{site.name}</td>
+										<td data-label="Status">
+											<span
+												class="status-badge"
+												class:active={site.status === 'active'}
+												class:completed={site.status === 'completed'}
+												class:archived={site.status === 'archived'}
+											>
+												{site.status}
+											</span>
+										</td>
+										<td data-label="Created">{formatDate(site.created_at)}</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+			</section>
+		{:else if activeTab === 'audit'}
+			<section class="audit">
+				<h2>Audit Log</h2>
+				{#if loadingAudit}
+					<p class="loading">Loading audit log...</p>
+				{:else if auditEvents.length === 0}
+					<p class="empty">No audit events found</p>
+				{:else}
+					<div class="table-wrapper">
+						<table class="data-table">
+							<thead>
+								<tr>
+									<th>Date</th>
+									<th>Event Type</th>
+									<th>User ID</th>
+									<th>IP Address</th>
+									<th>Metadata</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each auditEvents as event}
+									<tr>
+										<td data-label="Date">{formatDateTime(event.created_at)}</td>
+										<td data-label="Event Type">{event.event_type}</td>
+										<td data-label="User ID">{event.user_id ?? '-'}</td>
+										<td data-label="IP Address">{event.ip_address ?? '-'}</td>
+										<td data-label="Metadata" class="metadata-cell">
+											{event.metadata ? JSON.stringify(event.metadata) : '-'}
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+					{#if auditOffset + auditLimit < auditTotal}
+						<div class="load-more">
+							<button class="action-btn" onclick={loadMoreAudit}>
+								Load More ({auditTotal - auditOffset - auditLimit} remaining)
+							</button>
+						</div>
+					{/if}
+				{/if}
 			</section>
 		{/if}
-
-		<section class="members">
-			<h2>Members</h2>
-			{#if members.length === 0}
-				<p class="empty">No members in this organization</p>
-			{:else}
-				<div class="members-table-wrapper">
-					<table class="members-table">
-						<thead>
-							<tr>
-								<th>Name</th>
-								<th>Email</th>
-								<th>Role</th>
-								<th>Joined</th>
-								<th>Actions</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each members as member}
-								<tr>
-									<td data-label="Name">{member.user_name}</td>
-									<td data-label="Email">{member.user_email}</td>
-									<td data-label="Role">
-										<span class="role-badge" class:owner={member.role === 'owner'} class:admin={member.role === 'admin'}>
-											{member.role}
-										</span>
-									</td>
-									<td data-label="Joined">{formatDate(member.invited_at)}</td>
-									<td data-label="Actions">
-										<button class="action-btn" onclick={() => startEditMember(member)}>Change Role</button>
-										<button class="action-btn danger" onclick={() => removeMember(member.user_id)}>Remove</button>
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
-			{/if}
-		</section>
 	{/if}
 </div>
 
 {#if editingMember}
-	<div class="modal-overlay" onclick={() => { editingMember = null; statusMessage = ''; }}></div>
+	<div
+		class="modal-overlay"
+		onclick={() => {
+			editingMember = null;
+			statusMessage = '';
+		}}
+	></div>
 	<div class="modal">
 		<h2>Change Member Role</h2>
-		<form onsubmit={(e) => { e.preventDefault(); updateMemberRole(); }}>
+		<form
+			onsubmit={(e) => {
+				e.preventDefault();
+				updateMemberRole();
+			}}
+		>
 			<label>
 				New Role
 				<select bind:value={editingMember.role} required>
@@ -405,7 +611,13 @@
 				</select>
 			</label>
 			<div class="modal-actions">
-				<button type="button" onclick={() => { editingMember = null; statusMessage = ''; }}>Cancel</button>
+				<button
+					type="button"
+					onclick={() => {
+						editingMember = null;
+						statusMessage = '';
+					}}>Cancel</button
+				>
 				<button type="submit">Update</button>
 			</div>
 		</form>
@@ -438,7 +650,13 @@
 
 	h2 {
 		font-size: 1.25rem;
-		margin: 0;
+		margin: 0 0 1.5rem 0;
+		color: var(--text);
+	}
+
+	h3 {
+		font-size: 1.125rem;
+		margin: 0 0 1rem 0;
 		color: var(--text);
 	}
 
@@ -456,6 +674,38 @@
 
 	header a:hover {
 		background: var(--surface-hover);
+	}
+
+	.tabs {
+		display: flex;
+		gap: 0.5rem;
+		margin-bottom: 1.5rem;
+		border-bottom: 2px solid var(--border);
+		padding-bottom: 0;
+		overflow-x: auto;
+	}
+
+	.tabs button {
+		padding: 0.75rem 1.5rem;
+		min-height: var(--touch);
+		background: transparent;
+		color: var(--text-muted);
+		border: none;
+		border-bottom: 3px solid transparent;
+		cursor: pointer;
+		font-size: 1rem;
+		white-space: nowrap;
+		transition: all 0.2s;
+	}
+
+	.tabs button:hover {
+		color: var(--text);
+		background: var(--surface-hover);
+	}
+
+	.tabs button.active {
+		color: var(--accent);
+		border-bottom-color: var(--accent);
 	}
 
 	.status-message {
@@ -502,6 +752,10 @@
 		margin-bottom: 1.5rem;
 	}
 
+	.section-header h2 {
+		margin: 0;
+	}
+
 	.section-header button {
 		padding: 0.5rem 1rem;
 		min-height: var(--touch);
@@ -531,6 +785,10 @@
 	.info-list dd {
 		margin: 0;
 		color: var(--text);
+	}
+
+	.text-muted {
+		color: var(--text-muted);
 	}
 
 	.org-actions {
@@ -591,16 +849,22 @@
 		border-color: var(--accent);
 	}
 
-	.members-table-wrapper {
+	.invitations-section {
+		margin-top: 2rem;
+		padding-top: 2rem;
+		border-top: 1px solid var(--border);
+	}
+
+	.table-wrapper {
 		overflow-x: auto;
 	}
 
-	.members-table {
+	.data-table {
 		width: 100%;
 		border-collapse: collapse;
 	}
 
-	.members-table th {
+	.data-table th {
 		text-align: left;
 		padding: 1rem;
 		font-weight: 600;
@@ -608,17 +872,40 @@
 		border-bottom: 2px solid var(--border);
 	}
 
-	.members-table td {
+	.data-table td {
 		padding: 1rem;
 		border-top: 1px solid var(--border);
 		color: var(--text);
 	}
 
-	.members-table tr:hover {
+	.data-table tr:hover {
 		background: var(--surface-hover);
 	}
 
-	.role-badge {
+	.data-table a {
+		color: var(--accent);
+		text-decoration: none;
+	}
+
+	.data-table a:hover {
+		text-decoration: underline;
+	}
+
+	.actions-cell {
+		white-space: nowrap;
+	}
+
+	.metadata-cell {
+		max-width: 300px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-family: monospace;
+		font-size: 0.875rem;
+	}
+
+	.role-badge,
+	.status-badge {
 		display: inline-block;
 		padding: 0.25rem 0.75rem;
 		border-radius: var(--radius);
@@ -635,6 +922,21 @@
 	.role-badge.admin {
 		background: var(--good);
 		color: var(--bg);
+	}
+
+	.status-badge.active {
+		background: var(--good);
+		color: var(--bg);
+	}
+
+	.status-badge.completed {
+		background: var(--accent);
+		color: var(--accent-text);
+	}
+
+	.status-badge.archived {
+		background: var(--surface-alt);
+		color: var(--text-muted);
 	}
 
 	.action-btn {
@@ -661,6 +963,11 @@
 
 	.action-btn.danger:hover {
 		background: rgba(var(--bad-rgb), 0.2);
+	}
+
+	.load-more {
+		margin-top: 1rem;
+		text-align: center;
 	}
 
 	.modal-overlay {
@@ -742,35 +1049,44 @@
 			gap: 0.5rem;
 		}
 
-		.members-table thead {
+		.data-table thead {
 			display: none;
 		}
 
-		.members-table td {
+		.data-table td {
 			display: block;
 			text-align: right;
 			padding: 0.5rem 1rem;
 		}
 
-		.members-table td:first-child {
+		.data-table td:first-child {
 			padding-top: 1rem;
 		}
 
-		.members-table td:last-child {
+		.data-table td:last-child {
 			padding-bottom: 1rem;
 		}
 
-		.members-table td::before {
+		.data-table td::before {
 			content: attr(data-label);
 			float: left;
 			font-weight: 600;
 		}
 
-		.members-table tr {
+		.data-table tr {
 			display: block;
 			margin-bottom: 1rem;
 			border: 1px solid var(--border);
 			border-radius: var(--radius);
+		}
+
+		.tabs {
+			gap: 0;
+		}
+
+		.tabs button {
+			padding: 0.75rem 1rem;
+			font-size: 0.875rem;
 		}
 	}
 </style>
