@@ -232,6 +232,14 @@
 		gap: 12px;
 	}
 
+	@media (min-width: 1024px) {
+		.calc-list {
+			display: grid;
+			grid-template-columns: repeat(2, 1fr);
+			gap: 16px;
+		}
+	}
+
 	.calc-card {
 		background: var(--surface);
 		border: 1px solid var(--border);
