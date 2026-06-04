@@ -13,6 +13,8 @@
 		disabled: boolean;
 		email_verified: boolean;
 		created_at: number;
+		last_login_at: number | null;
+		last_login_ip: string | null;
 	}
 
 	interface Membership {
@@ -30,11 +32,20 @@
 		expired: boolean;
 	}
 
+	interface LoginEvent {
+		id: string;
+		created_at: number;
+		ip_address: string | null;
+		user_agent: string | null;
+		event_type: string;
+	}
+
 	const userId = $derived($page.params.id ?? '');
 
 	let user = $state<UserDetail | null>(null);
 	let memberships = $state<Membership[]>([]);
 	let sessions = $state<Session[]>([]);
+	let loginHistory = $state<LoginEvent[]>([]);
 	let activeSessionCount = $state(0);
 	let loading = $state(true);
 	let error = $state('');
@@ -46,12 +57,15 @@
 		loading = true;
 		error = '';
 		try {
-			const res = await fetch(`/api/admin/users/${userId}`);
-			if (!res.ok) {
-				error = res.status === 403 ? 'Access denied' : 'Failed to load user';
+			const [userRes, auditRes] = await Promise.all([
+				fetch(`/api/admin/users/${userId}`),
+				fetch(`/api/admin/audit?user_id=${userId}&event_type=login_success&limit=20`)
+			]);
+			if (!userRes.ok) {
+				error = userRes.status === 403 ? 'Access denied' : 'Failed to load user';
 				return;
 			}
-			const data = (await res.json()) as {
+			const data = (await userRes.json()) as {
 				user: UserDetail;
 				memberships: Membership[];
 				sessions: Session[];
@@ -61,6 +75,11 @@
 			memberships = data.memberships;
 			sessions = data.sessions;
 			activeSessionCount = data.activeSessionCount;
+
+			if (auditRes.ok) {
+				const auditData = (await auditRes.json()) as { events: LoginEvent[] };
+				loginHistory = auditData.events ?? [];
+			}
 		} catch {
 			error = 'Failed to load user';
 		} finally {
@@ -133,6 +152,11 @@
 	function formatDate(ts: number): string {
 		return new Date(ts * 1000).toLocaleString();
 	}
+
+	function truncateUA(ua: string | null): string {
+		if (!ua) return '—';
+		return ua.length > 60 ? ua.slice(0, 60) + '…' : ua;
+	}
 </script>
 
 <div class="user-detail">
@@ -174,28 +198,37 @@
 					</dd>
 				</div>
 				<div><dt>Created</dt><dd>{formatDate(user.created_at)}</dd></div>
+				<div>
+					<dt>Last Login</dt>
+					<dd>{user.last_login_at ? formatDate(user.last_login_at) : '—'}</dd>
+				</div>
+				<div>
+					<dt>Last Login IP</dt>
+					<dd class="mono">{user.last_login_ip ?? '—'}</dd>
+				</div>
 			</dl>
 		</section>
 
 		<section class="card">
-			<h2>Email Verification</h2>
-			<div class="actions">
-				{#if user.email_verified}
-					<button onclick={() => verifyAction('unverify')} disabled={busy}>Mark Unverified</button>
-				{:else}
-					<button class="accent" onclick={() => verifyAction('force_verify')} disabled={busy}>
-						Force Verify
-					</button>
-					<button onclick={() => verifyAction('resend')} disabled={busy}>Resend Verification</button>
-				{/if}
-			</div>
-		</section>
-
-		<section class="card">
-			<h2>Password</h2>
-			<div class="actions">
-				<button onclick={sendPasswordReset} disabled={busy}>Send Password Reset Email</button>
-			</div>
+			<h2>Login History <span class="count">(last 20)</span></h2>
+			{#if loginHistory.length === 0}
+				<p class="muted">No login events recorded.</p>
+			{:else}
+				<table>
+					<thead>
+						<tr><th>Time</th><th>IP Address</th><th>User Agent</th></tr>
+					</thead>
+					<tbody>
+						{#each loginHistory as e}
+							<tr>
+								<td class="nowrap">{formatDate(e.created_at)}</td>
+								<td class="mono">{e.ip_address ?? '—'}</td>
+								<td class="ua">{truncateUA(e.user_agent)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			{/if}
 		</section>
 
 		<section class="card">
@@ -210,8 +243,10 @@
 					<tbody>
 						{#each memberships as m}
 							<tr>
-								<td>{m.org_name}</td>
-								<td>{m.role}</td>
+								<td>
+									<a class="org-link" href="/admin/orgs/{m.org_id}">{m.org_name}</a>
+								</td>
+								<td><span class="role-pill">{m.role}</span></td>
 								<td>{m.accepted_at ? formatDate(m.accepted_at) : 'Pending'}</td>
 							</tr>
 						{/each}
@@ -221,11 +256,41 @@
 		</section>
 
 		<section class="card">
+			<h2>Actions</h2>
+			<div class="action-groups">
+				<div class="action-group">
+					<h3>Email Verification</h3>
+					<div class="actions">
+						{#if user.email_verified}
+							<button onclick={() => verifyAction('unverify')} disabled={busy}>Mark Unverified</button>
+						{:else}
+							<button class="accent" onclick={() => verifyAction('force_verify')} disabled={busy}>
+								Force Verify
+							</button>
+							<button onclick={() => verifyAction('resend')} disabled={busy}>Resend Verification</button>
+						{/if}
+					</div>
+				</div>
+				<div class="action-group">
+					<h3>Password</h3>
+					<div class="actions">
+						<button onclick={sendPasswordReset} disabled={busy}>Send Password Reset Email</button>
+					</div>
+				</div>
+				<div class="action-group">
+					<h3>Sessions ({activeSessionCount} active)</h3>
+					<div class="actions">
+						<button class="danger" onclick={logoutEverywhere} disabled={busy || sessions.length === 0}>
+							Log out everywhere
+						</button>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<section class="card">
 			<div class="card-head">
 				<h2>Sessions ({activeSessionCount} active)</h2>
-				<button class="danger" onclick={logoutEverywhere} disabled={busy || sessions.length === 0}>
-					Log out everywhere
-				</button>
 			</div>
 			{#if sessions.length === 0}
 				<p class="muted">No sessions.</p>
@@ -309,6 +374,12 @@
 		margin: 0;
 	}
 
+	.count {
+		font-size: 0.85rem;
+		font-weight: 400;
+		color: var(--text-muted);
+	}
+
 	dl {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -327,6 +398,25 @@
 	dd {
 		margin: 0;
 		color: var(--text);
+	}
+
+	.mono {
+		font-family: monospace;
+		font-size: 0.9em;
+	}
+
+	.action-groups {
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+	}
+
+	.action-group h3 {
+		font-size: 0.85rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-muted);
+		margin: 0 0 0.5rem 0;
 	}
 
 	.actions {
@@ -385,6 +475,17 @@
 		padding: 0.5rem;
 		border-bottom: 1px solid var(--border);
 		color: var(--text);
+		font-size: 0.9rem;
+	}
+
+	.nowrap {
+		white-space: nowrap;
+	}
+
+	.ua {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		word-break: break-all;
 	}
 
 	.pill {
@@ -407,6 +508,25 @@
 	.pill.warn {
 		background: rgba(242, 192, 55, 0.15);
 		color: var(--accent);
+	}
+
+	.role-pill {
+		display: inline-block;
+		padding: 0.15rem 0.5rem;
+		border-radius: var(--radius);
+		font-size: 0.8rem;
+		background: var(--surface-alt);
+		color: var(--text-muted);
+		border: 1px solid var(--border);
+	}
+
+	.org-link {
+		color: var(--accent);
+		text-decoration: none;
+	}
+
+	.org-link:hover {
+		text-decoration: underline;
 	}
 
 	.muted {

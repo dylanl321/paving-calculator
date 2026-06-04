@@ -45,12 +45,13 @@ export async function GET(event: RequestEvent) {
 			return json({ error: 'Organization not found' }, { status: 404 });
 		}
 
-		const [members, invitations, jobSiteCount] = await Promise.all([
+		const [members, invitations, jobSiteCount, jobSites] = await Promise.all([
 			db.getOrgMembersByOrgId(id),
 			db.getInvitationsByOrgId(id),
-			db.getJobSiteCountByOrgId(id)
+			db.getJobSiteCountByOrgId(id),
+			db.getJobSitesByOrgId(id)
 		]);
-		return json({ org, members, invitations, jobSiteCount });
+		return json({ org, members, invitations, jobSiteCount, jobSites });
 	} catch (error) {
 		if (error instanceof Response) return error;
 		console.error('Error fetching org:', error);
