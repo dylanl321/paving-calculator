@@ -171,7 +171,7 @@ describe('GET /api/webhooks', () => {
     const event = makeEvent(db.d1, sessionId);
     const res = await listWebhooks(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(Array.isArray(data.webhooks)).toBe(true);
     expect(data.webhooks.length).toBe(0);
   });
@@ -184,7 +184,7 @@ describe('GET /api/webhooks', () => {
     const event = makeEvent(db.d1, sessionId);
     const res = await listWebhooks(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.webhooks.length).toBe(2);
   });
 
@@ -194,7 +194,7 @@ describe('GET /api/webhooks', () => {
 
     const event = makeEvent(db.d1, sessionId);
     const res = await listWebhooks(event as any);
-    const data = await res.json();
+    const data = await res.json() as any;
     for (const hook of data.webhooks) {
       expect(hook).not.toHaveProperty('secret');
     }
@@ -250,7 +250,7 @@ describe('POST /api/webhooks', () => {
     });
     const res = await createWebhook(event as any);
     expect(res.status).toBe(201);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data).toHaveProperty('id');
     expect(data).toHaveProperty('secret');
     expect(data.url).toBe('https://example.com/hook');
@@ -288,7 +288,7 @@ describe('POST /api/webhooks', () => {
     });
     const res = await createWebhook(event as any);
     expect(res.status).toBe(400);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data).toHaveProperty('valid_events');
   });
 
@@ -300,7 +300,7 @@ describe('POST /api/webhooks', () => {
     });
     const res = await createWebhook(event as any);
     expect(res.status).toBe(201);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.description).toBeNull();
   });
 });
@@ -336,7 +336,7 @@ describe('GET /api/webhooks/[id]', () => {
     const event = makeEvent(db.d1, sessionId, { params: { id: webhookId } });
     const res = await getWebhook(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.id).toBe(webhookId);
     expect(data.url).toBe('https://example.com/hook');
     expect(data).not.toHaveProperty('secret');
@@ -389,7 +389,7 @@ describe('PATCH /api/webhooks/[id]', () => {
     });
     const res = await updateWebhook(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.url).toBe('https://new.example.com/hook');
   });
 
@@ -404,7 +404,7 @@ describe('PATCH /api/webhooks/[id]', () => {
     });
     const res = await updateWebhook(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.events).toContain('daily_log.created');
     expect(data.events).toContain('load.logged');
   });
@@ -420,7 +420,7 @@ describe('PATCH /api/webhooks/[id]', () => {
     });
     const res = await updateWebhook(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.is_active).toBe(false);
   });
 
@@ -481,7 +481,7 @@ describe('DELETE /api/webhooks/[id]', () => {
     });
     const res = await deleteWebhook(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.success).toBe(true);
   });
 
@@ -565,7 +565,7 @@ describe('GET /api/webhooks/[id]/deliveries', () => {
     const event = makeEvent(db.d1, sessionId, { params: { id: webhookId } });
     const res = await getDeliveries(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(Array.isArray(data.deliveries)).toBe(true);
     expect(data.deliveries.length).toBe(0);
   });
@@ -580,7 +580,7 @@ describe('GET /api/webhooks/[id]/deliveries', () => {
     const event = makeEvent(db.d1, sessionId, { params: { id: webhookId } });
     const res = await getDeliveries(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.deliveries.length).toBe(3);
   });
 
@@ -597,7 +597,7 @@ describe('GET /api/webhooks/[id]/deliveries', () => {
     });
     const res = await getDeliveries(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.deliveries.length).toBe(2);
     for (const d of data.deliveries) {
       expect(d.status).toBe('delivered');
@@ -616,7 +616,7 @@ describe('GET /api/webhooks/[id]/deliveries', () => {
     });
     const res = await getDeliveries(event as any);
     expect(res.status).toBe(200);
-    const data = await res.json();
+    const data = await res.json() as any;
     expect(data.deliveries.length).toBe(1);
     expect(data.deliveries[0].status).toBe('failed');
   });
@@ -647,7 +647,7 @@ describe('GET /api/webhooks/[id]/deliveries', () => {
 
     const event = makeEvent(db.d1, sessionId, { params: { id: webhookId } });
     const res = await getDeliveries(event as any);
-    const data = await res.json();
+    const data = await res.json() as any;
     const d = data.deliveries[0];
     expect(d).toHaveProperty('id');
     expect(d).toHaveProperty('event_type');

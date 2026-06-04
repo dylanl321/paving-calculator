@@ -101,7 +101,7 @@ describe('POST /api/calculations', () => {
 
 		const event = authedEvent(db, sessionId, { method: 'POST', body });
 		const res = await createCalculation(event as any);
-		const data = await res.json();
+		const data = await res.json() as any;
 
 		expect(res.status).toBe(200);
 		expect(data.id).toBeTruthy();
@@ -120,7 +120,7 @@ describe('POST /api/calculations', () => {
 
 		const event = authedEvent(db, sessionId, { method: 'POST', body });
 		const res = await createCalculation(event as any);
-		const data = await res.json();
+		const data = await res.json() as any;
 
 		expect(res.status).toBe(200);
 		expect(data.notes).toBe('South lane pass 1');
@@ -229,7 +229,7 @@ describe('GET /api/calculations', () => {
 
 		const event = authedEvent(db, sessionId);
 		const res = await listCalculations(event as any);
-		const data = await res.json();
+		const data = await res.json() as any;
 
 		expect(res.status).toBe(200);
 		expect(data.calculations).toEqual([]);
@@ -251,7 +251,7 @@ describe('GET /api/calculations', () => {
 
 		const event = authedEvent(db, sessionId);
 		const res = await listCalculations(event as any);
-		const data = await res.json();
+		const data = await res.json() as any;
 
 		expect(res.status).toBe(200);
 		expect(data.calculations).toHaveLength(1);
@@ -280,7 +280,7 @@ describe('GET /api/calculations', () => {
 
 		const event = authedEvent(db, sessionId, { searchParams: { job_site_id: site1.id } });
 		const res = await listCalculations(event as any);
-		const data = await res.json();
+		const data = await res.json() as any;
 
 		expect(res.status).toBe(200);
 		expect(data.calculations).toHaveLength(1);
@@ -303,7 +303,7 @@ describe('GET /api/calculations', () => {
 
 		const event = authedEvent(db, sessionId, { searchParams: { limit: '2' } });
 		const res = await listCalculations(event as any);
-		const data = await res.json();
+		const data = await res.json() as any;
 
 		expect(res.status).toBe(200);
 		expect(data.calculations).toHaveLength(2);
@@ -330,7 +330,7 @@ describe('GET /api/calculations', () => {
 
 		const event = authedEvent(db, sessionId);
 		const res = await listCalculations(event as any);
-		const data = await res.json();
+		const data = await res.json() as any;
 
 		expect(res.status).toBe(200);
 		expect(data.calculations).toHaveLength(2);
@@ -385,7 +385,7 @@ describe('GET /api/calculations/[id]', () => {
 
 		const event = authedEvent(db, sessionId, { params: { id: calcId } });
 		const res = await getCalculation(event as any);
-		const data = await res.json();
+		const data = await res.json() as any;
 
 		expect(res.status).toBe(200);
 		expect(data.id).toBe(calcId);
@@ -453,7 +453,7 @@ describe('DELETE /api/calculations/[id]', () => {
 
 		const event = authedEvent(db, sessionId, { method: 'DELETE', params: { id: calcId } });
 		const res = await deleteCalculation(event as any);
-		const data = await res.json();
+		const data = await res.json() as any;
 
 		expect(res.status).toBe(200);
 		expect(data.success).toBe(true);
@@ -541,7 +541,7 @@ describe('Org scoping — cross-org isolation', () => {
 		// Org A admin lists without filter — should only see their own org's data
 		const event = authedEvent(db, sessionA);
 		const res = await listCalculations(event as any);
-		const data = await res.json();
+		const data = await res.json() as any;
 
 		expect(res.status).toBe(200);
 		// Org A has no sites, so calculations array is empty
