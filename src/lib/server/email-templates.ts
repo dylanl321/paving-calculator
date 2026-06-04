@@ -235,3 +235,6 @@ export async function getOrgBranding(
     accent_color: row?.accent_color ?? null
   };
 }
+
+/** Alias for getOrgBranding - returns email wrapper branding (logo, color, name) for an org. */
+export const getEmailWrapper = getOrgBranding;
