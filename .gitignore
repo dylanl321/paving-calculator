@@ -31,3 +31,7 @@ vite.config.ts.timestamp-*
 # Cursor local agent state
 .cursor/hooks/state/
 .dev.vars
+
+# Playwright E2E artifacts
+e2e-results/
+e2e-report/
