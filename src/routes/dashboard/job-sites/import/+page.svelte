@@ -6,10 +6,14 @@
 		PROJECT_FIELDS,
 		LOCATION_FIELDS,
 		CUSTOMER_FIELDS,
-		countLowConfidence,
+		ALL_REVIEW_FIELDS,
+		countNeedsAttention,
 		displayedConfidence,
+		fieldState,
+		isEmptyValue,
 		type FieldConfidence,
-		type FieldConfidenceMap
+		type FieldConfidenceMap,
+		type FieldState
 	} from '$lib/utils/review-confidence';
 
 	interface ParsedBidItem {
@@ -89,6 +93,7 @@
 	} | null>(null);
 	/** Set of fields that were manually corrected by the user. */
 	let correctedFields = $state<Set<string>>(new Set());
+	let confirmedFields = $state<Set<string>>(new Set());
 
 	function handleDrop(e: DragEvent) {
 		e.preventDefault();
@@ -155,6 +160,7 @@
 			fieldConf = data.field_confidence ?? {};
 			llmFallback = data.llm_fallback ?? null;
 			correctedFields = new Set();
+			confirmedFields = new Set();
 			step = 'review';
 		} catch {
 			parseError = 'Network error — check your connection';
@@ -184,12 +190,23 @@
 			field: f,
 			originalConfidence: fieldConf[f] ?? 'unknown'
 		}));
+		// Fields the user reviewed and accepted as-is (value unchanged).
+		const confirmationsMeta = [...confirmedFields].map((f) => ({
+			field: f,
+			originalConfidence: fieldConf[f] ?? 'unknown'
+		}));
 
 		try {
 			const res = await fetch('/api/job-sites/from-import', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ parsed, source_keys: sourceKeys, documents, corrections: correctionsMeta }),
+				body: JSON.stringify({
+					parsed,
+					source_keys: sourceKeys,
+					documents,
+					corrections: correctionsMeta,
+					confirmations: confirmationsMeta
+				}),
 				credentials: 'include'
 			});
 
@@ -323,14 +340,27 @@
 		return map;
 	});
 
+	/** Current parsed value for a field key, for filled-vs-empty decisions. */
+	function fieldValue(key: string): unknown {
+		if (!parsed) return null;
+		return (parsed as unknown as Record<string, unknown>)[key];
+	}
+
+	/** Map of every rendered review field key -> its current parsed value. */
+	const reviewValues = $derived.by<Record<string, unknown>>(() => {
+		const out: Record<string, unknown> = {};
+		for (const f of ALL_REVIEW_FIELDS) out[f.key] = fieldValue(f.key);
+		return out;
+	});
+
 	/**
-	 * How many fields need review. Counts EXACTLY the rendered review fields that
-	 * display a low-confidence "!" badge (and haven't been corrected), so the
-	 * banner number always matches the marked fields the user can see and edit.
+	 * How many fields still need the user's attention: low-confidence-and-empty
+	 * (needs input) plus low-confidence-and-filled-but-unconfirmed (verify).
+	 * Drops to zero once the user fills or confirms them.
 	 */
-	const lowConfCount = $derived.by(() => {
+	const needsAttentionCount = $derived.by(() => {
 		if (!parsed) return 0;
-		return countLowConfidence(fieldConf, correctedFields);
+		return countNeedsAttention(fieldConf, reviewValues, correctedFields, confirmedFields);
 	});
 
 	/**
@@ -339,6 +369,25 @@
 	 */
 	function getConf(fieldName: string): FieldConfidence {
 		return displayedConfidence(fieldName, fieldConf, correctedFields);
+	}
+
+	/** Resolved review state (needs-input | verify | ok) for a rendered field. */
+	function getState(fieldName: string): FieldState {
+		return fieldState(fieldName, fieldValue(fieldName), fieldConf, correctedFields, confirmedFields);
+	}
+
+	/** Confirm a filled low-confidence field WITHOUT changing its value. */
+	function confirmField(fieldName: string) {
+		confirmedFields = new Set([...confirmedFields, fieldName]);
+	}
+
+	/** Confirm every remaining filled-but-unverified field in one action. */
+	function confirmAllRemaining() {
+		const next = new Set(confirmedFields);
+		for (const f of ALL_REVIEW_FIELDS) {
+			if (getState(f.key) === 'verify') next.add(f.key);
+		}
+		confirmedFields = next;
 	}
 </script>
 
@@ -433,7 +482,7 @@
 			{/if}
 		</div>
 
-		{#if lowConfCount > 0}
+		{#if needsAttentionCount > 0}
 			<div class="conf-alert">
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<circle cx="12" cy="12" r="10"></circle>
@@ -441,17 +490,21 @@
 					<line x1="12" y1="16" x2="12.01" y2="16"></line>
 				</svg>
 				<span>
-					<strong>{lowConfCount} field{lowConfCount === 1 ? '' : 's'} need manual review</strong>
-					— low-confidence fields are marked with a <span class="inline-badge conf-low" aria-label="low confidence">!</span>
-					and listed first. Please verify them before creating the project.
+					<strong>{needsAttentionCount} field{needsAttentionCount === 1 ? '' : 's'} need a look</strong>
+					— empty fields are marked <span class="inline-badge conf-low" aria-label="needs input">!</span>
+					(needs input); filled-but-unsure fields are marked
+					<span class="inline-badge conf-verify" aria-label="verify">?</span> — confirm or edit them.
 				</span>
+				<button type="button" class="btn btn-ghost btn-sm confirm-all-btn" onclick={confirmAllRemaining}>
+					Confirm all
+				</button>
 			</div>
 		{:else if Object.keys(fieldConf).length > 0}
 			<div class="conf-ok">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 					<polyline points="20 6 9 17 4 12"></polyline>
 				</svg>
-				All fields extracted with high or medium confidence.
+				All fields reviewed.
 			</div>
 		{/if}
 
@@ -489,14 +542,17 @@
 					<span class="conf-dot conf-medium" aria-hidden="true"></span> Medium — verify
 				</span>
 				<span class="legend-item">
-					<span class="conf-badge conf-low" aria-hidden="true">!</span> Low — needs review
+					<span class="conf-badge conf-verify" aria-hidden="true">?</span> Verify — filled, confirm it
 				</span>
-				{#if correctedFields.size > 0}
+				<span class="legend-item">
+					<span class="conf-badge conf-low" aria-hidden="true">!</span> Needs input — empty
+				</span>
+				{#if correctedFields.size > 0 || confirmedFields.size > 0}
 					<span class="legend-item corrected-count">
 						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 							<polyline points="20 6 9 17 4 12"></polyline>
 						</svg>
-						{correctedFields.size} corrected
+						{correctedFields.size + confirmedFields.size} reviewed
 					</span>
 				{/if}
 			</div>
@@ -505,22 +561,27 @@
 		<section class="review-section">
 			<h3>Project Information</h3>
 			<div class="review-grid">
-				<!-- Low-confidence fields first -->
+				<!-- Fields needing attention first -->
 				{#each PROJECT_FIELDS.slice().sort((a, b) => {
-					const rank = { low: 0, medium: 1, high: 2 } as const;
-					type R = keyof typeof rank;
-					return (rank[getConf(a.key) as R] ?? 1) - (rank[getConf(b.key) as R] ?? 1);
+					const rank = { 'needs-input': 0, verify: 1, ok: 2 } as const;
+					return rank[getState(a.key)] - rank[getState(b.key)];
 				}) as f}
 					{@const conf = getConf(f.key)}
-					<div class="review-field" class:field-low={conf === 'low' && !correctedFields.has(f.key)} class:field-corrected={correctedFields.has(f.key)}>
+					{@const state = getState(f.key)}
+					<div class="review-field" class:field-low={state === 'needs-input'} class:field-verify={state === 'verify'} class:field-corrected={state === 'ok' && (correctedFields.has(f.key) || confirmedFields.has(f.key))}>
 						<div class="field-label-row">
 							<label for="field-{f.key}">{f.label}</label>
-							{#if conf === 'high'}
-								<span class="conf-dot conf-high" title="High confidence — extracted from a labelled form field" aria-label="high confidence"></span>
+							{#if state === 'needs-input'}
+								<span class="conf-badge conf-low" title="Empty — needs input" aria-label="needs input">!</span>
+							{:else if state === 'verify'}
+								<span class="conf-badge conf-verify" title="Filled but unverified — confirm or edit" aria-label="verify">?</span>
 							{:else if conf === 'medium'}
-								<span class="conf-dot conf-medium" title="Medium confidence — inferred from context. Verify this value." aria-label="medium confidence"></span>
+								<span class="conf-dot conf-medium" title="Medium confidence — verify this value" aria-label="medium confidence"></span>
 							{:else}
-								<span class="conf-badge conf-low" title="Low confidence — needs manual review" aria-label="low confidence">!</span>
+								<span class="conf-dot conf-high" title="High confidence" aria-label="high confidence"></span>
+							{/if}
+							{#if state === 'verify'}
+								<button type="button" class="confirm-field-btn" title="Looks right" aria-label="Confirm {f.label}" onclick={() => confirmField(f.key)}>✓</button>
 							{/if}
 						</div>
 						{#if f.type === 'number'}
@@ -533,7 +594,7 @@
 									(parsed as unknown as Record<string, unknown>)[f.key] = parseFloat((e.target as HTMLInputElement).value) || null;
 									markCorrected(f.key);
 								}}
-								class:input-low={conf === 'low' && !correctedFields.has(f.key)}
+								class:input-low={state === 'needs-input'}
 							/>
 						{:else}
 							<input
@@ -544,7 +605,7 @@
 									(parsed as unknown as Record<string, unknown>)[f.key] = (e.target as HTMLInputElement).value || null;
 									markCorrected(f.key);
 								}}
-								class:input-low={conf === 'low' && !correctedFields.has(f.key)}
+								class:input-low={state === 'needs-input'}
 							/>
 						{/if}
 					</div>
@@ -557,20 +618,25 @@
 			<p class="section-hint">Route designation drives automatic map/route lookup. Verify or fill it so Work Zones get coordinates.</p>
 			<div class="review-grid">
 				{#each LOCATION_FIELDS.slice().sort((a, b) => {
-					const rank = { low: 0, medium: 1, high: 2 } as const;
-					type R = keyof typeof rank;
-					return (rank[getConf(a.key) as R] ?? 1) - (rank[getConf(b.key) as R] ?? 1);
+					const rank = { 'needs-input': 0, verify: 1, ok: 2 } as const;
+					return rank[getState(a.key)] - rank[getState(b.key)];
 				}) as f}
 					{@const conf = getConf(f.key)}
-					<div class="review-field" class:field-low={conf === 'low' && !correctedFields.has(f.key)} class:field-corrected={correctedFields.has(f.key)}>
+					{@const state = getState(f.key)}
+					<div class="review-field" class:field-low={state === 'needs-input'} class:field-verify={state === 'verify'} class:field-corrected={state === 'ok' && (correctedFields.has(f.key) || confirmedFields.has(f.key))}>
 						<div class="field-label-row">
 							<label for="field-{f.key}">{f.label}</label>
-							{#if conf === 'high'}
-								<span class="conf-dot conf-high" title="High confidence" aria-label="high confidence"></span>
+							{#if state === 'needs-input'}
+								<span class="conf-badge conf-low" title="Empty — needs input" aria-label="needs input">!</span>
+							{:else if state === 'verify'}
+								<span class="conf-badge conf-verify" title="Filled but unverified — confirm or edit" aria-label="verify">?</span>
 							{:else if conf === 'medium'}
 								<span class="conf-dot conf-medium" title="Medium confidence — verify this value" aria-label="medium confidence"></span>
 							{:else}
-								<span class="conf-badge conf-low" title="Low confidence — needs manual review" aria-label="low confidence">!</span>
+								<span class="conf-dot conf-high" title="High confidence" aria-label="high confidence"></span>
+							{/if}
+							{#if state === 'verify'}
+								<button type="button" class="confirm-field-btn" title="Looks right" aria-label="Confirm {f.label}" onclick={() => confirmField(f.key)}>✓</button>
 							{/if}
 						</div>
 						<input
@@ -581,7 +647,7 @@
 								(parsed as unknown as Record<string, unknown>)[f.key] = (e.target as HTMLInputElement).value || null;
 								markCorrected(f.key);
 							}}
-							class:input-low={conf === 'low' && !correctedFields.has(f.key)}
+							class:input-low={state === 'needs-input'}
 						/>
 					</div>
 				{/each}
@@ -592,20 +658,25 @@
 			<h3>Customer / Owner</h3>
 			<div class="review-grid">
 				{#each CUSTOMER_FIELDS.slice().sort((a, b) => {
-					const rank = { low: 0, medium: 1, high: 2 } as const;
-					type R = keyof typeof rank;
-					return (rank[getConf(a.key) as R] ?? 1) - (rank[getConf(b.key) as R] ?? 1);
+					const rank = { 'needs-input': 0, verify: 1, ok: 2 } as const;
+					return rank[getState(a.key)] - rank[getState(b.key)];
 				}) as f}
 					{@const conf = getConf(f.key)}
-					<div class="review-field" class:field-low={conf === 'low' && !correctedFields.has(f.key)} class:field-corrected={correctedFields.has(f.key)}>
+					{@const state = getState(f.key)}
+					<div class="review-field" class:field-low={state === 'needs-input'} class:field-verify={state === 'verify'} class:field-corrected={state === 'ok' && (correctedFields.has(f.key) || confirmedFields.has(f.key))}>
 						<div class="field-label-row">
 							<label for="field-{f.key}">{f.label}</label>
-							{#if conf === 'high'}
-								<span class="conf-dot conf-high" title="High confidence" aria-label="high confidence"></span>
+							{#if state === 'needs-input'}
+								<span class="conf-badge conf-low" title="Empty — needs input" aria-label="needs input">!</span>
+							{:else if state === 'verify'}
+								<span class="conf-badge conf-verify" title="Filled but unverified — confirm or edit" aria-label="verify">?</span>
 							{:else if conf === 'medium'}
 								<span class="conf-dot conf-medium" title="Medium confidence — verify this value" aria-label="medium confidence"></span>
 							{:else}
-								<span class="conf-badge conf-low" title="Low confidence — needs manual review" aria-label="low confidence">!</span>
+								<span class="conf-dot conf-high" title="High confidence" aria-label="high confidence"></span>
+							{/if}
+							{#if state === 'verify'}
+								<button type="button" class="confirm-field-btn" title="Looks right" aria-label="Confirm {f.label}" onclick={() => confirmField(f.key)}>✓</button>
 							{/if}
 						</div>
 						<input
@@ -616,7 +687,7 @@
 								(parsed as unknown as Record<string, unknown>)[f.key] = (e.target as HTMLInputElement).value || null;
 								markCorrected(f.key);
 							}}
-							class:input-low={conf === 'low' && !correctedFields.has(f.key)}
+							class:input-low={state === 'needs-input'}
 						/>
 					</div>
 				{/each}
@@ -894,6 +965,42 @@
 		flex-shrink: 0;
 	}
 
+	/* Verify badge — filled but unconfirmed (amber, not red) */
+	.conf-badge.conf-verify,
+	.inline-badge.conf-verify {
+		background: #eab308;
+		color: #1a1a1a;
+	}
+
+	/* Per-field confirm ("looks right") button shown for verify-state fields */
+	.confirm-field-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 22px;
+		height: 22px;
+		margin-left: auto;
+		padding: 0 6px;
+		border: 1px solid rgba(234, 179, 8, 0.5);
+		border-radius: 6px;
+		background: rgba(234, 179, 8, 0.12);
+		color: var(--text);
+		font-size: 0.75rem;
+		font-weight: 700;
+		cursor: pointer;
+		line-height: 1;
+	}
+
+	.confirm-field-btn:hover {
+		background: rgba(34, 197, 94, 0.18);
+		border-color: rgba(34, 197, 94, 0.5);
+	}
+
+	.confirm-all-btn {
+		margin-left: auto;
+		flex-shrink: 0;
+	}
+
 	/* Field label row with confidence icon */
 	.field-label-row {
 		display: flex;
@@ -923,6 +1030,14 @@
 	.review-field.field-corrected {
 		background: rgba(34, 197, 94, 0.04);
 		border: 1px solid rgba(34, 197, 94, 0.2);
+		border-radius: var(--radius);
+		padding: 8px 10px;
+	}
+
+	/* Verify field highlight — filled but unconfirmed (amber) */
+	.review-field.field-verify {
+		background: rgba(234, 179, 8, 0.05);
+		border: 1px solid rgba(234, 179, 8, 0.28);
 		border-radius: var(--radius);
 		padding: 8px 10px;
 	}

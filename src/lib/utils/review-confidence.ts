@@ -73,9 +73,69 @@ export function displayedConfidence(
 }
 
 /**
+ * Resolved review state of a field, decoupled from raw confidence:
+ *  - 'needs-input' (red "!")   — low confidence AND no value: the user must type.
+ *  - 'verify'      (amber)     — low confidence but ALREADY has a value: a glance
+ *                                + one-click confirm is enough; never force an
+ *                                edit to a correct value.
+ *  - 'ok'          (green)     — confirmed, corrected, or medium/high confidence.
+ */
+export type FieldState = 'needs-input' | 'verify' | 'ok';
+
+/** True when a parsed value is effectively empty (null/undefined/blank). */
+export function isEmptyValue(value: unknown): boolean {
+	if (value == null) return true;
+	if (typeof value === 'string') return value.trim() === '';
+	return false;
+}
+
+/**
+ * Resolve a field's review state. `confirmedFields` are fields the user reviewed
+ * and accepted WITHOUT changing the value; `correctedFields` are fields the user
+ * edited. Either clears the warning.
+ */
+export function fieldState(
+	key: string,
+	value: unknown,
+	fieldConf: FieldConfidenceMap,
+	correctedFields: ReadonlySet<string>,
+	confirmedFields: ReadonlySet<string> = new Set()
+): FieldState {
+	if (correctedFields.has(key) || confirmedFields.has(key)) return 'ok';
+	const conf = fieldConf[key] ?? 'medium';
+	if (conf !== 'low') return 'ok';
+	// Low confidence: empty -> must input; filled -> just verify.
+	return isEmptyValue(value) ? 'needs-input' : 'verify';
+}
+
+/**
+ * Count of rendered review fields that still need the user's attention — either
+ * low-confidence-and-empty ('needs-input') or low-confidence-and-filled-but-
+ * unconfirmed ('verify'). Drops to zero once the user fills/confirms them, so
+ * the banner never disagrees with what's marked. `values` maps field key to its
+ * current parsed value so filled-vs-empty can be distinguished.
+ */
+export function countNeedsAttention(
+	fieldConf: FieldConfidenceMap,
+	values: Record<string, unknown>,
+	correctedFields: ReadonlySet<string>,
+	confirmedFields: ReadonlySet<string> = new Set(),
+	fields: ReviewField[] = ALL_REVIEW_FIELDS
+): number {
+	return fields.filter((f) => {
+		const state = fieldState(f.key, values[f.key], fieldConf, correctedFields, confirmedFields);
+		return state !== 'ok';
+	}).length;
+}
+
+/**
  * Count of rendered review fields that display a low-confidence "!" badge. This
  * is the single source of truth for the "N fields need manual review" banner so
  * it can never disagree with the marked, editable fields the user sees.
+ *
+ * @deprecated Prefer countNeedsAttention, which distinguishes empty (needs
+ * input) from filled-but-low (verify) and counts both as actionable. Retained
+ * for callers that only have confidence (not values) available.
  */
 export function countLowConfidence(
 	fieldConf: FieldConfidenceMap,

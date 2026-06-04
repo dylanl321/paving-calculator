@@ -5,7 +5,10 @@ import {
 	CUSTOMER_FIELDS,
 	ALL_REVIEW_FIELDS,
 	countLowConfidence,
+	countNeedsAttention,
 	displayedConfidence,
+	fieldState,
+	isEmptyValue,
 	type FieldConfidenceMap
 } from '../review-confidence.js';
 
@@ -78,5 +81,79 @@ describe('countLowConfidence reconciliation', () => {
 	it('drops a field from the count once the user corrects it', () => {
 		const conf: FieldConfidenceMap = { route_designation: 'low', begin_terminus: 'low' };
 		expect(countLowConfidence(conf, new Set(['route_designation']))).toBe(1);
+	});
+});
+
+describe('isEmptyValue', () => {
+	it('treats null/undefined/blank as empty', () => {
+		expect(isEmptyValue(null)).toBe(true);
+		expect(isEmptyValue(undefined)).toBe(true);
+		expect(isEmptyValue('')).toBe(true);
+		expect(isEmptyValue('   ')).toBe(true);
+	});
+
+	it('treats a real value as non-empty', () => {
+		expect(isEmptyValue('SR 11')).toBe(false);
+		expect(isEmptyValue(0)).toBe(false);
+	});
+});
+
+describe('fieldState — filled vs empty low-confidence fields', () => {
+	const conf: FieldConfidenceMap = { route_designation: 'low' };
+
+	it('low + empty => needs-input (red)', () => {
+		expect(fieldState('route_designation', null, conf, new Set(), new Set())).toBe('needs-input');
+		expect(fieldState('route_designation', '', conf, new Set(), new Set())).toBe('needs-input');
+	});
+
+	it('low + filled => verify (amber), NOT needs-input', () => {
+		expect(fieldState('route_designation', 'SR 11', conf, new Set(), new Set())).toBe('verify');
+	});
+
+	it('medium/high => ok regardless of value', () => {
+		expect(fieldState('county', null, { county: 'medium' }, new Set(), new Set())).toBe('ok');
+		expect(fieldState('name', 'X', { name: 'high' }, new Set(), new Set())).toBe('ok');
+	});
+
+	it('a confirmed filled field becomes ok WITHOUT changing its value', () => {
+		// value is unchanged; only the confirmed set flips it to ok.
+		expect(
+			fieldState('route_designation', 'SR 11', conf, new Set(), new Set(['route_designation']))
+		).toBe('ok');
+	});
+
+	it('a corrected field becomes ok', () => {
+		expect(
+			fieldState('route_designation', 'SR 99', conf, new Set(['route_designation']), new Set())
+		).toBe('ok');
+	});
+});
+
+describe('countNeedsAttention', () => {
+	it('counts empty-low (needs-input) AND filled-low (verify) as actionable', () => {
+		const conf: FieldConfidenceMap = { route_designation: 'low', begin_terminus: 'low' };
+		const values = { route_designation: 'SR 11', begin_terminus: null };
+		// route_designation = verify, begin_terminus = needs-input => 2
+		expect(countNeedsAttention(conf, values, new Set(), new Set())).toBe(2);
+	});
+
+	it('drops to zero once filled-low fields are confirmed (value unchanged)', () => {
+		const conf: FieldConfidenceMap = { route_designation: 'low', begin_terminus: 'low' };
+		const values = { route_designation: 'SR 11', begin_terminus: 'FLORIDA STATE LINE' };
+		expect(countNeedsAttention(conf, values, new Set(), new Set())).toBe(2);
+		const confirmed = new Set(['route_designation', 'begin_terminus']);
+		expect(countNeedsAttention(conf, values, new Set(), confirmed)).toBe(0);
+	});
+
+	it('ignores scored-but-unrendered fields (does not inflate the count)', () => {
+		const conf: FieldConfidenceMap = { owner_address: 'low' };
+		expect(countNeedsAttention(conf, { owner_address: null }, new Set(), new Set())).toBe(0);
+	});
+
+	it('a filled medium/high field never needs attention', () => {
+		const conf: FieldConfidenceMap = { county: 'medium', name: 'high' };
+		expect(countNeedsAttention(conf, { county: 'Hall', name: 'Proj' }, new Set(), new Set())).toBe(
+			0
+		);
 	});
 });

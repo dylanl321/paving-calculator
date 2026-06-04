@@ -717,137 +717,127 @@ export class DbJobSitesHelper {
 		const now = Math.floor(Date.now() / 1000);
 		const existing = await this.getJobSiteConfig(jobSiteId);
 
+		// Columns added by a later migration. If the deployed DB hasn't had that
+		// migration applied yet (code-before-migration deploy), writing them throws
+		// "no such column"; we detect that and retry without them so the import
+		// still succeeds rather than 500ing. The data is simply persisted once the
+		// migration lands.
+		const OPTIONAL_COLUMNS = new Set([
+			'begin_terminus',
+			'end_terminus',
+			'begin_station',
+			'end_station'
+		]);
+		const isMissingColumnError = (err: unknown): boolean =>
+			err instanceof Error && /no such column|has no column named/i.test(err.message);
+
 		if (!existing) {
-			await this.db
-				.prepare(
-					`INSERT INTO job_site_config (
-						job_site_id, road_type, num_lanes, lane_width_ft, total_length_ft,
-						scope_of_work, mix_type, target_thickness_in, target_spread_rate,
-						tack_type, target_tack_rate, notes, route_designation, route_county,
-						route_district, route_functional_class, route_system_code,
-						begin_terminus, end_terminus, begin_station, end_station, created_at, updated_at
-					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-				)
-				.bind(
-					jobSiteId,
-					config.road_type || null,
-					config.num_lanes || null,
-					config.lane_width_ft || null,
-					config.total_length_ft || null,
-					config.scope_of_work || null,
-					config.mix_type || null,
-					config.target_thickness_in || null,
-					config.target_spread_rate || null,
-					config.tack_type || null,
-					config.target_tack_rate || null,
-					config.notes || null,
-					config.route_designation || null,
-					config.route_county || null,
-					config.route_district || null,
-					config.route_functional_class || null,
-					config.route_system_code || null,
-					config.begin_terminus ?? null,
-					config.end_terminus ?? null,
-					config.begin_station ?? null,
-					config.end_station ?? null,
-					now,
-					now
-				)
-				.run();
-		} else {
-			const fields: string[] = [];
-			const values: (string | number | null)[] = [];
+			// All insertable columns in a stable order, paired with their value.
+			const cols: Array<[string, string | number | null]> = [
+				['road_type', config.road_type || null],
+				['num_lanes', config.num_lanes || null],
+				['lane_width_ft', config.lane_width_ft || null],
+				['total_length_ft', config.total_length_ft || null],
+				['scope_of_work', config.scope_of_work || null],
+				['mix_type', config.mix_type || null],
+				['target_thickness_in', config.target_thickness_in || null],
+				['target_spread_rate', config.target_spread_rate || null],
+				['tack_type', config.tack_type || null],
+				['target_tack_rate', config.target_tack_rate || null],
+				['notes', config.notes || null],
+				['route_designation', config.route_designation || null],
+				['route_county', config.route_county || null],
+				['route_district', config.route_district || null],
+				['route_functional_class', config.route_functional_class || null],
+				['route_system_code', config.route_system_code || null],
+				['begin_terminus', config.begin_terminus ?? null],
+				['end_terminus', config.end_terminus ?? null],
+				['begin_station', config.begin_station ?? null],
+				['end_station', config.end_station ?? null]
+			];
 
-			if (config.road_type !== undefined) {
-				fields.push('road_type = ?');
-				values.push(config.road_type);
-			}
-			if (config.num_lanes !== undefined) {
-				fields.push('num_lanes = ?');
-				values.push(config.num_lanes);
-			}
-			if (config.lane_width_ft !== undefined) {
-				fields.push('lane_width_ft = ?');
-				values.push(config.lane_width_ft);
-			}
-			if (config.total_length_ft !== undefined) {
-				fields.push('total_length_ft = ?');
-				values.push(config.total_length_ft);
-			}
-			if (config.scope_of_work !== undefined) {
-				fields.push('scope_of_work = ?');
-				values.push(config.scope_of_work);
-			}
-			if (config.mix_type !== undefined) {
-				fields.push('mix_type = ?');
-				values.push(config.mix_type);
-			}
-			if (config.target_thickness_in !== undefined) {
-				fields.push('target_thickness_in = ?');
-				values.push(config.target_thickness_in);
-			}
-			if (config.target_spread_rate !== undefined) {
-				fields.push('target_spread_rate = ?');
-				values.push(config.target_spread_rate);
-			}
-			if (config.tack_type !== undefined) {
-				fields.push('tack_type = ?');
-				values.push(config.tack_type);
-			}
-			if (config.target_tack_rate !== undefined) {
-				fields.push('target_tack_rate = ?');
-				values.push(config.target_tack_rate);
-			}
-			if (config.notes !== undefined) {
-				fields.push('notes = ?');
-				values.push(config.notes);
-			}
-			if (config.route_designation !== undefined) {
-				fields.push('route_designation = ?');
-				values.push(config.route_designation);
-			}
-			if (config.route_county !== undefined) {
-				fields.push('route_county = ?');
-				values.push(config.route_county);
-			}
-			if (config.route_district !== undefined) {
-				fields.push('route_district = ?');
-				values.push(config.route_district);
-			}
-			if (config.route_functional_class !== undefined) {
-				fields.push('route_functional_class = ?');
-				values.push(config.route_functional_class);
-			}
-			if (config.route_system_code !== undefined) {
-				fields.push('route_system_code = ?');
-				values.push(config.route_system_code);
-			}
-			if (config.begin_terminus !== undefined) {
-				fields.push('begin_terminus = ?');
-				values.push(config.begin_terminus);
-			}
-			if (config.end_terminus !== undefined) {
-				fields.push('end_terminus = ?');
-				values.push(config.end_terminus);
-			}
-			if (config.begin_station !== undefined) {
-				fields.push('begin_station = ?');
-				values.push(config.begin_station);
-			}
-			if (config.end_station !== undefined) {
-				fields.push('end_station = ?');
-				values.push(config.end_station);
-			}
-
-			if (fields.length > 0) {
-				fields.push('updated_at = ?');
-				values.push(now);
-				values.push(jobSiteId);
-
+			const runInsert = async (includeOptional: boolean) => {
+				const used = cols.filter(([c]) => includeOptional || !OPTIONAL_COLUMNS.has(c));
+				const colNames = ['job_site_id', ...used.map(([c]) => c), 'created_at', 'updated_at'];
+				const placeholders = colNames.map(() => '?').join(', ');
+				const values = [jobSiteId, ...used.map(([, v]) => v), now, now];
 				await this.db
-					.prepare(`UPDATE job_site_config SET ${fields.join(', ')} WHERE job_site_id = ?`)
+					.prepare(
+						`INSERT INTO job_site_config (${colNames.join(', ')}) VALUES (${placeholders})`
+					)
 					.bind(...values)
 					.run();
+			};
+
+			try {
+				await runInsert(true);
+			} catch (err) {
+				if (isMissingColumnError(err)) {
+					console.error('[upsertJobSiteConfig] optional column missing, retrying without it:', err);
+					await runInsert(false);
+				} else {
+					throw err;
+				}
+			}
+			return;
+		}
+
+		await this.updateJobSiteConfigFields(jobSiteId, config, now, OPTIONAL_COLUMNS, isMissingColumnError);
+	}
+
+	/** Build + run the dynamic UPDATE for an existing config row, retrying without
+	 *  optional (possibly-unmigrated) columns if the DB rejects them. */
+	private async updateJobSiteConfigFields(
+		jobSiteId: string,
+		config: Partial<Omit<DbJobSiteConfig, 'job_site_id' | 'created_at' | 'updated_at'>>,
+		now: number,
+		optionalColumns: Set<string>,
+		isMissingColumnError: (err: unknown) => boolean
+	): Promise<void> {
+		const allFields: Array<[string, string | number | null]> = [];
+		const push = (col: keyof typeof config, value: string | number | null | undefined) => {
+			if (value !== undefined) allFields.push([col as string, value as string | number | null]);
+		};
+		push('road_type', config.road_type);
+		push('num_lanes', config.num_lanes);
+		push('lane_width_ft', config.lane_width_ft);
+		push('total_length_ft', config.total_length_ft);
+		push('scope_of_work', config.scope_of_work);
+		push('mix_type', config.mix_type);
+		push('target_thickness_in', config.target_thickness_in);
+		push('target_spread_rate', config.target_spread_rate);
+		push('tack_type', config.tack_type);
+		push('target_tack_rate', config.target_tack_rate);
+		push('notes', config.notes);
+		push('route_designation', config.route_designation);
+		push('route_county', config.route_county);
+		push('route_district', config.route_district);
+		push('route_functional_class', config.route_functional_class);
+		push('route_system_code', config.route_system_code);
+		push('begin_terminus', config.begin_terminus);
+		push('end_terminus', config.end_terminus);
+		push('begin_station', config.begin_station);
+		push('end_station', config.end_station);
+
+		const runUpdate = async (includeOptional: boolean) => {
+			const used = allFields.filter(([c]) => includeOptional || !optionalColumns.has(c));
+			if (used.length === 0) return;
+			const setClause = [...used.map(([c]) => `${c} = ?`), 'updated_at = ?'].join(', ');
+			const values = [...used.map(([, v]) => v), now, jobSiteId];
+			await this.db
+				.prepare(`UPDATE job_site_config SET ${setClause} WHERE job_site_id = ?`)
+				.bind(...values)
+				.run();
+		};
+
+		try {
+			await runUpdate(true);
+		} catch (err) {
+			if (isMissingColumnError(err)) {
+				console.error('[upsertJobSiteConfig] optional column missing on update, retrying without it:', err);
+				await runUpdate(false);
+			} else {
+				throw err;
 			}
 		}
 	}
