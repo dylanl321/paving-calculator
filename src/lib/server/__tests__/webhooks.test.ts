@@ -74,7 +74,7 @@ describe('generateWebhookSecret', () => {
 describe('deliverWebhook — no active webhooks', () => {
 	it('returns early when no webhooks exist for the org', async () => {
 		const { deliverWebhook } = await import('../webhooks.js');
-		const db = makeMockDb([]) as unknown as import('../../cloudflare').D1Database;
+		const db = makeMockDb([]) as unknown as import('../../../cloudflare').D1Database;
 		const fetchSpy = vi.fn();
 		vi.stubGlobal('fetch', fetchSpy);
 
@@ -105,7 +105,7 @@ describe('deliverWebhook — event type filtering', () => {
 			created_at: 1000,
 			updated_at: 1000
 		};
-		const db = makeMockDb([webhook]) as unknown as import('../../cloudflare').D1Database;
+		const db = makeMockDb([webhook]) as unknown as import('../../../cloudflare').D1Database;
 		const fetchSpy = vi.fn();
 		vi.stubGlobal('fetch', fetchSpy);
 
@@ -136,7 +136,7 @@ describe('deliverWebhook — event type filtering', () => {
 			created_at: 1000,
 			updated_at: 1000
 		};
-		const db = makeMockDb([webhook]) as unknown as import('../../cloudflare').D1Database;
+		const db = makeMockDb([webhook]) as unknown as import('../../../cloudflare').D1Database;
 		const fetchSpy = vi.fn().mockResolvedValue({
 			ok: true,
 			status: 200,
@@ -181,7 +181,7 @@ describe('deliverWebhook — payload structure', () => {
 				created_at: 1000,
 				updated_at: 1000
 			};
-			const db = makeMockDb([webhook]) as unknown as import('../../cloudflare').D1Database;
+			const db = makeMockDb([webhook]) as unknown as import('../../../cloudflare').D1Database;
 
 			let capturedBody: unknown;
 			const fetchSpy = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
@@ -237,7 +237,7 @@ describe('deliverWebhook — HMAC signature', () => {
 			created_at: 1000,
 			updated_at: 1000
 		};
-		const db = makeMockDb([webhook]) as unknown as import('../../cloudflare').D1Database;
+		const db = makeMockDb([webhook]) as unknown as import('../../../cloudflare').D1Database;
 
 		let capturedHeaders: Record<string, string> = {};
 		let capturedBody = '';
@@ -299,7 +299,7 @@ describe('deliverWebhook — HMAC signature', () => {
 				created_at: 1000,
 				updated_at: 1000
 			};
-			const db = makeMockDb([webhook]) as unknown as import('../../cloudflare').D1Database;
+			const db = makeMockDb([webhook]) as unknown as import('../../../cloudflare').D1Database;
 
 			let sig = '';
 			const fetchSpy = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
@@ -341,7 +341,7 @@ describe('deliverWebhook — delivery status tracking', () => {
 			created_at: 1000,
 			updated_at: 1000
 		};
-		const db = makeMockDb([webhook]) as unknown as import('../../cloudflare').D1Database;
+		const db = makeMockDb([webhook]) as unknown as import('../../../cloudflare').D1Database;
 		const rawDb = db as unknown as ReturnType<typeof makeMockDb>;
 
 		const fetchSpy = vi.fn().mockResolvedValue({
@@ -387,7 +387,7 @@ describe('deliverWebhook — delivery status tracking', () => {
 			created_at: 1000,
 			updated_at: 1000
 		};
-		const db = makeMockDb([webhook]) as unknown as import('../../cloudflare').D1Database;
+		const db = makeMockDb([webhook]) as unknown as import('../../../cloudflare').D1Database;
 		const rawDb = db as unknown as ReturnType<typeof makeMockDb>;
 
 		const fetchSpy = vi.fn().mockResolvedValue({
@@ -430,7 +430,7 @@ describe('deliverWebhook — delivery status tracking', () => {
 			created_at: 1000,
 			updated_at: 1000
 		};
-		const db = makeMockDb([webhook]) as unknown as import('../../cloudflare').D1Database;
+		const db = makeMockDb([webhook]) as unknown as import('../../../cloudflare').D1Database;
 		const rawDb = db as unknown as ReturnType<typeof makeMockDb>;
 
 		const fetchSpy = vi.fn().mockResolvedValue({
@@ -473,7 +473,7 @@ describe('deliverWebhook — delivery status tracking', () => {
 			created_at: 1000,
 			updated_at: 1000
 		};
-		const db = makeMockDb([webhook]) as unknown as import('../../cloudflare').D1Database;
+		const db = makeMockDb([webhook]) as unknown as import('../../../cloudflare').D1Database;
 		const rawDb = db as unknown as ReturnType<typeof makeMockDb>;
 
 		const fetchSpy = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'));
@@ -517,7 +517,7 @@ describe('deliverWebhook — request headers', () => {
 			created_at: 1000,
 			updated_at: 1000
 		};
-		const db = makeMockDb([webhook]) as unknown as import('../../cloudflare').D1Database;
+		const db = makeMockDb([webhook]) as unknown as import('../../../cloudflare').D1Database;
 
 		let headers: Record<string, string> = {};
 		const fetchSpy = vi.fn().mockImplementation(async (_url: string, init: RequestInit) => {
@@ -559,7 +559,7 @@ describe('deliverWebhook — multiple subscribers', () => {
 		const db = makeMockDb([
 			makeWebhook('wh-m1', 'https://a.example/hook'),
 			makeWebhook('wh-m2', 'https://b.example/hook')
-		]) as unknown as import('../../cloudflare').D1Database;
+		]) as unknown as import('../../../cloudflare').D1Database;
 
 		const calledUrls: string[] = [];
 		const fetchSpy = vi.fn().mockImplementation(async (url: string) => {
