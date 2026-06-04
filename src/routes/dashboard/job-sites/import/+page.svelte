@@ -168,6 +168,25 @@
 		}
 	}
 
+	// Classifies a plan-sheet page from its extracted text into a human label.
+	function labelForPage(text: string, pageNum: number): string {
+		const t = text.toUpperCase();
+		if (/SCHEDULE OF ITEMS|CONTRACT SCHEDULE|PROPOSAL\s+LINE\s+NUMBER|UNIT PRICE\s+BID AMOUNT/.test(t))
+			return 'Schedule of Items';
+		if (/DETAILED ESTIMATE/.test(t)) return 'Detailed Estimate';
+		if (/ROADWAY\s+LOG|\bLOG\b.*WIDTH/.test(t)) return 'Roadway Log';
+		if (/TYPICAL SECTION/.test(t)) return 'Typical Section';
+		if (/GENERAL NOTES/.test(t)) return 'General Notes';
+		if (/EROSION CONTROL/.test(t)) return 'Erosion Control Plan';
+		if (/LOCATION SKETCH/.test(t)) return 'Location Sketch';
+		if (/SPECIAL PROVISION/.test(t)) return 'Special Provision';
+		if (/PROPOSAL INDEX|^\s*INDEX\b|\bINDEX\b\s+\d/.test(t)) return 'Index';
+		if (/COVER SHEET|PLAN OF PROPOSED|DEPARTMENT OF TRANSPORTATION/.test(t) && pageNum <= 2)
+			return 'Cover Sheet';
+		if (/NOTICE TO|BIDDERS|PROPOSAL/.test(t) && pageNum <= 2) return 'Proposal';
+		return `Sheet ${pageNum}`;
+	}
+
 	// Renders each page of the uploaded Contract Summary PDF to a PNG and uploads
 	// it as a schematic. Uses the browser's canvas via pdfjs-serverless.
 	async function renderAndUploadSchematics(jobSiteId: string) {
@@ -185,6 +204,21 @@
 			for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
 				schematicProgress = `Rendering plan sheet ${pageNum} of ${maxPages}…`;
 				const page = await pdf.getPage(pageNum);
+
+				// Pull the page text so we can give it a meaningful label.
+				let label = `Sheet ${pageNum}`;
+				try {
+					const content = await page.getTextContent();
+					const pageText = content.items
+						.map((it: unknown) =>
+							it && typeof it === 'object' && 'str' in it ? (it as { str: string }).str : ''
+						)
+						.join(' ');
+					label = labelForPage(pageText, pageNum);
+				} catch {
+					// keep default label
+				}
+
 				const viewport = page.getViewport({ scale: 2 });
 				const canvas = document.createElement('canvas');
 				canvas.width = Math.floor(viewport.width);
@@ -201,6 +235,7 @@
 				const fd = new FormData();
 				fd.append('image', blob, `page-${pageNum}.png`);
 				fd.append('page_number', String(pageNum));
+				fd.append('label', label);
 				await fetch(`/api/job-sites/${jobSiteId}/schematics`, {
 					method: 'POST',
 					body: fd,

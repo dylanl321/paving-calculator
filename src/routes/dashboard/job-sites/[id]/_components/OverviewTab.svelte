@@ -7,6 +7,7 @@
 	import WasteYieldAnalysis from '$lib/components/WasteYieldAnalysis.svelte';
 	import ETACalculator from '$lib/components/ETACalculator.svelte';
 	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
+	import SchematicViewer from '$lib/components/SchematicViewer.svelte';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
@@ -178,7 +179,6 @@
 		label: string | null;
 	}
 	let schematics = $state<Schematic[]>([]);
-	let lightboxSchematic = $state<Schematic | null>(null);
 
 	$effect(() => {
 		if (!browser) return;
@@ -749,37 +749,8 @@
 		<div class="panel-head">
 			<h3>Plan Sheets &amp; Schematics <span class="bid-item-count">{schematics.length}</span></h3>
 		</div>
-		<div class="schematic-grid">
-			{#each schematics as sch (sch.id)}
-				<button class="schematic-thumb" onclick={() => (lightboxSchematic = sch)}>
-					<img
-						src={`/api/job-sites/${data.jobSite.id}/schematics/${sch.id}/view`}
-						alt={sch.label ?? `Plan sheet ${sch.page_number ?? ''}`}
-						loading="lazy"
-					/>
-					<span class="schematic-label">{sch.label ?? `Sheet ${sch.page_number ?? ''}`}</span>
-				</button>
-			{/each}
-		</div>
+		<SchematicViewer jobSiteId={data.jobSite.id} {schematics} />
 	</section>
-{/if}
-
-{#if lightboxSchematic}
-	<dialog class="lightbox" open onclick={() => (lightboxSchematic = null)}>
-		<div class="lightbox-content" onclick={(e) => e.stopPropagation()}>
-			<button type="button" class="lightbox-close" onclick={() => (lightboxSchematic = null)} aria-label="Close">
-				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<line x1="18" y1="6" x2="6" y2="18" />
-					<line x1="6" y1="6" x2="18" y2="18" />
-				</svg>
-			</button>
-			<img
-				src={`/api/job-sites/${data.jobSite.id}/schematics/${lightboxSchematic.id}/view`}
-				alt={lightboxSchematic.label ?? `Plan sheet ${lightboxSchematic.page_number ?? ''}`}
-				class="lightbox-img"
-			/>
-		</div>
-	</dialog>
 {/if}
 
 {#if progressData !== null}
@@ -1864,45 +1835,5 @@
 
 	.schematics-panel {
 		margin-bottom: 24px;
-	}
-
-	.schematic-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-		gap: 12px;
-	}
-
-	.schematic-thumb {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-		padding: 0;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		overflow: hidden;
-		cursor: pointer;
-		transition: border-color 0.2s, transform 0.1s;
-	}
-
-	.schematic-thumb:hover {
-		border-color: var(--accent);
-		transform: translateY(-1px);
-	}
-
-	.schematic-thumb img {
-		width: 100%;
-		aspect-ratio: 8.5 / 11;
-		object-fit: cover;
-		object-position: top;
-		background: #fff;
-		display: block;
-	}
-
-	.schematic-label {
-		font-size: 0.75rem;
-		color: var(--text-muted);
-		padding: 0 8px 8px;
-		text-align: left;
 	}
 </style>
