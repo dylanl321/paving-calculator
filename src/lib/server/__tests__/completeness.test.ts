@@ -244,7 +244,7 @@ describe('scoreJobSite — weighting of each required field (+8 pts each)', () =
 	REQUIRED_FIELDS.forEach((field) => {
 		it(`filling only "${field}" adds 8 points to score 0`, () => {
 			const row = emptyRow();
-			(row as Record<string, unknown>)[field] = requiredFieldValues[field];
+			(row as unknown as Record<string, unknown>)[field] = requiredFieldValues[field];
 			const result = scoreJobSite(row);
 			expect(result.score).toBe(8);
 			expect(result.required.filled).toBe(1);
@@ -263,8 +263,8 @@ describe('scoreJobSite — weighting of each optional field (+2 pts each)', () =
 		est_start_date: '2026-06-01',
 		completion_date: '2026-07-01',
 		customer_name: 'GDOT',
-		project_manager: 'Bob',
-		has_daily_log: undefined // handled via daily_log_count
+		project_manager: 'Bob'
+		// has_daily_log is derived from daily_log_count, not a real column
 	};
 
 	// Special case: coordinates needs lat+lon together.
@@ -310,7 +310,7 @@ describe('scoreJobSite — weighting of each optional field (+2 pts each)', () =
 				lane_width_ft: 12, total_length_ft: 500, scope_of_work: 'Repave',
 				mix_type: 'SP-9.5', target_thickness_in: 2, target_spread_rate: 100
 			});
-			(row as Record<string, unknown>)[field] = optionalFieldValues[field];
+			(row as unknown as Record<string, unknown>)[field] = optionalFieldValues[field];
 			const result = scoreJobSite(row);
 			expect(result.score).toBe(82);
 			expect(result.optional.satisfied).toBe(1);

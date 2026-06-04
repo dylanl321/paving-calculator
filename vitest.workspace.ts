@@ -8,12 +8,23 @@ export default defineConfig({
 			// Unit tests: pure logic in src/lib (excluding components)
 			defineProject({
 				plugins: [yaml() as any],
+				resolve: {
+					alias: {
+						'$lib': new URL('./src/lib', import.meta.url).pathname,
+						'$app/environment': new URL('./tests/mocks/app-environment.ts', import.meta.url).pathname
+					}
+				},
 				test: {
 					name: 'unit',
 					include: ['src/lib/**/__tests__/**/*.test.ts'],
 					exclude: ['src/lib/components/__tests__/**/*.test.ts'],
 					environment: 'node',
-					globals: false
+					globals: false,
+					server: {
+						deps: {
+							inline: ['better-sqlite3']
+						}
+					}
 				}
 			}),
 			// Integration tests: server routes with better-sqlite3 D1 shim
