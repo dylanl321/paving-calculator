@@ -10,6 +10,24 @@
 	--bp-md: 768px;
 	--bp-lg: 1100px;
 
+	/* ---- Responsive design tokens (mobile-first defaults) ---- */
+
+	/* Touch target: 48px on mobile, scales down on desktop where pointer is used */
+	--target-size: 48px;
+
+	/* Input height: full-touch on mobile, compact on desktop */
+	--input-height: 48px;
+
+	/* Body font size: 16px mobile baseline */
+	--font-size-body: 16px;
+
+	/* Semantic spacing scale (maps to sp-* but can be overridden per breakpoint) */
+	--spacing-xs: 4px;   /* sp-1 */
+	--spacing-sm: 8px;   /* sp-2 */
+	--spacing-md: 16px;  /* sp-4 */
+	--spacing-lg: 24px;  /* sp-6 */
+	--spacing-xl: 40px;  /* sp-10 */
+
 	/* Radius scale */
 	--radius-sm: 8px;
 	--radius-md: 12px;
@@ -705,6 +723,64 @@ textarea.input-field {
 		animation-duration: 0.01ms !important;
 		animation-iteration-count: 1 !important;
 		transition-duration: 0.01ms !important;
+	}
+}
+
+/* ---- Responsive token overrides ---- */
+
+/* 640px: phablet / small tablet — slightly denser UI */
+@media (min-width: 640px) {
+	:root {
+		/* Touch targets can shrink a little — more room, still finger-friendly */
+		--target-size: 44px;
+		--input-height: 44px;
+
+		/* Spacing loosens to fill available space */
+		--spacing-xs: 4px;
+		--spacing-sm: 8px;
+		--spacing-md: 16px;
+		--spacing-lg: 24px;
+		--spacing-xl: 40px;
+
+		/* Font stays at 16px — comfortable for hybrid touch/pointer */
+		--font-size-body: 16px;
+	}
+}
+
+/* 1024px: tablet landscape / small desktop — pointer-first density */
+@media (min-width: 1024px) {
+	:root {
+		/* Pointer devices need smaller targets */
+		--target-size: 40px;
+		--input-height: 40px;
+
+		/* Slightly tighter spacing at desktop density */
+		--spacing-xs: 4px;
+		--spacing-sm: 8px;
+		--spacing-md: 14px;
+		--spacing-lg: 20px;
+		--spacing-xl: 32px;
+
+		/* Compact body text at larger viewports */
+		--font-size-body: 14px;
+	}
+}
+
+/* 1440px: wide desktop — full desktop density */
+@media (min-width: 1440px) {
+	:root {
+		/* Full desktop compact: mouse pointer, hover states available */
+		--target-size: 36px;
+		--input-height: 40px;
+
+		/* Standard desktop spacing */
+		--spacing-xs: 4px;
+		--spacing-sm: 8px;
+		--spacing-md: 12px;
+		--spacing-lg: 20px;
+		--spacing-xl: 32px;
+
+		--font-size-body: 14px;
 	}
 }
 
