@@ -1,3 +1,7 @@
+// NOTE: For DB-backed email templates with org branding, see email-templates.ts
+// This file contains the legacy inline template functions. New features should
+// use the template system in email-templates.ts for centralized template management.
+
 interface Attachment {
 	filename: string;
 	content: string; // base64
