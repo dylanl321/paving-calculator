@@ -1,7 +1,8 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
-import { parseGdotDocuments, pdfToText, detectDocumentType, type ParsedGdotJob, type GdotDocumentType } from '$lib/server/pdf/parse-gdot';
+import { parseGdotDocumentsV2, toV1, pdfToText, detectDocumentType, type ParsedGdotJob, type ParsedGdotJobV2, type GdotDocumentType } from '$lib/server/pdf/parse-gdot';
+import type { FieldConfidence } from '$lib/server/pdf/confidence';
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB per file
 
@@ -136,10 +137,15 @@ export interface ImportedDocument {
 	type: GdotDocumentType;
 }
 
+/** Flat map of field name -> confidence level, for the review UI. */
+export type FieldConfidenceMap = Record<string, FieldConfidence>;
+
 export interface ImportPdfResponse {
 	parsed: ParsedGdotJob;
 	source_keys: string[];
 	documents: ImportedDocument[];
+	/** Per-field confidence from the V2 parser. Keys match ParsedGdotJob field names. */
+	field_confidence: FieldConfidenceMap;
 }
 
 /**
@@ -203,9 +209,25 @@ export async function POST(event: RequestEvent) {
 			}
 		}
 
-		const parsed = parseGdotDocuments(texts);
+		const v2 = parseGdotDocumentsV2(texts);
+		const parsed = toV1(v2);
 
-		return json({ parsed, source_keys: sourceKeys, documents } satisfies ImportPdfResponse);
+		// Build a flat field_confidence map for the UI (scalar fields only).
+		const scalarFields: (keyof ParsedGdotJobV2)[] = [
+			'name', 'job_number', 'project_number', 'contract_id', 'county',
+			'work_type', 'contract_type', 'contract_amount', 'retainage_pct',
+			'est_start_date', 'completion_date', 'customer_name', 'customer_address',
+			'customer_contact', 'customer_phone', 'customer_email', 'owner_name',
+			'owner_address', 'project_manager', 'asphalt_supplier', 'total_length_ft',
+			'location_description'
+		];
+		const field_confidence: FieldConfidenceMap = {};
+		for (const k of scalarFields) {
+			const f = v2[k] as { confidence: FieldConfidence };
+			if (f && 'confidence' in f) field_confidence[k] = f.confidence;
+		}
+
+		return json({ parsed, source_keys: sourceKeys, documents, field_confidence } satisfies ImportPdfResponse);
 	} catch (error) {
 		if (error instanceof Response) return error;
 		console.error('Import PDF error:', error);

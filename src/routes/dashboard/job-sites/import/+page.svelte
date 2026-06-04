@@ -3,6 +3,8 @@
 	import { config } from '$lib/config';
 	import { toastStore } from '$lib/stores/toast.svelte';
 
+	type FieldConfidence = 'high' | 'medium' | 'low';
+
 	interface ParsedBidItem {
 		line_number: string | null;
 		item_id: string | null;
@@ -59,6 +61,8 @@
 		warnings: string[];
 	}
 
+	type FieldConfidenceMap = Record<string, FieldConfidence>;
+
 	let step = $state<'upload' | 'parsing' | 'review' | 'creating'>('upload');
 	let files = $state<File[]>([]);
 	let dragOver = $state(false);
@@ -67,6 +71,9 @@
 	let sourceKeys = $state<string[]>([]);
 	let documents = $state<Array<{ filename: string; source_key: string; type: string }>>([]);
 	let schematicProgress = $state('');
+	let fieldConf = $state<FieldConfidenceMap>({});
+	/** Set of fields that were manually corrected by the user. */
+	let correctedFields = $state<Set<string>>(new Set());
 
 	function handleDrop(e: DragEvent) {
 		e.preventDefault();
@@ -112,7 +119,13 @@
 				credentials: 'include'
 			});
 
-			const data = await res.json() as { parsed?: ParsedJob; source_keys?: string[]; documents?: Array<{ filename: string; source_key: string; type: string }>; error?: string };
+			const data = await res.json() as {
+				parsed?: ParsedJob;
+				source_keys?: string[];
+				documents?: Array<{ filename: string; source_key: string; type: string }>;
+				field_confidence?: FieldConfidenceMap;
+				error?: string;
+			};
 
 			if (!res.ok) {
 				parseError = data.error || 'Failed to parse PDF';
@@ -123,6 +136,8 @@
 			parsed = data.parsed ?? null;
 			sourceKeys = data.source_keys ?? [];
 			documents = data.documents ?? [];
+			fieldConf = data.field_confidence ?? {};
+			correctedFields = new Set();
 			step = 'review';
 		} catch {
 			parseError = 'Network error — check your connection';
@@ -135,15 +150,29 @@
 		parsed.bid_items[idx].selected = !parsed.bid_items[idx].selected;
 	}
 
+	/**
+	 * Mark a field as manually corrected. Called on input events for review fields.
+	 * Tracks which fields the user changed for future model improvement.
+	 */
+	function markCorrected(fieldName: string) {
+		correctedFields = new Set([...correctedFields, fieldName]);
+	}
+
 	async function createProject() {
 		if (!parsed) return;
 		step = 'creating';
+
+		// Include correction metadata so the server can log it for future improvement.
+		const correctionsMeta = [...correctedFields].map((f) => ({
+			field: f,
+			originalConfidence: fieldConf[f] ?? 'unknown'
+		}));
 
 		try {
 			const res = await fetch('/api/job-sites/from-import', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ parsed, source_keys: sourceKeys, documents }),
+				body: JSON.stringify({ parsed, source_keys: sourceKeys, documents, corrections: correctionsMeta }),
 				credentials: 'include'
 			});
 
@@ -276,6 +305,26 @@
 		}
 		return map;
 	});
+
+	/** How many fields need review (low confidence or missing). */
+	const lowConfCount = $derived.by(() => {
+		if (!parsed) return 0;
+		let n = 0;
+		for (const [k, conf] of Object.entries(fieldConf)) {
+			const val = (parsed as unknown as Record<string, unknown>)[k];
+			if (conf === 'low' && (val == null || val === '')) n++;
+		}
+		return n;
+	});
+
+	/**
+	 * Get confidence for a field. If user has corrected it, treat as high
+	 * so the indicator reflects their manual override.
+	 */
+	function getConf(fieldName: string): FieldConfidence {
+		if (correctedFields.has(fieldName)) return 'high';
+		return fieldConf[fieldName] ?? 'medium';
+	}
 </script>
 
 <svelte:head>
@@ -358,6 +407,28 @@
 			</span>
 		</div>
 
+		{#if lowConfCount > 0}
+			<div class="conf-alert">
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<circle cx="12" cy="12" r="10"></circle>
+					<line x1="12" y1="8" x2="12" y2="12"></line>
+					<line x1="12" y1="16" x2="12.01" y2="16"></line>
+				</svg>
+				<span>
+					<strong>{lowConfCount} field{lowConfCount === 1 ? '' : 's'} need manual review</strong>
+					— low-confidence fields are marked with a <span class="inline-badge conf-low" aria-label="low confidence">!</span>
+					and listed first. Please verify them before creating the project.
+				</span>
+			</div>
+		{:else if Object.keys(fieldConf).length > 0}
+			<div class="conf-ok">
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+					<polyline points="20 6 9 17 4 12"></polyline>
+				</svg>
+				All fields extracted with high or medium confidence.
+			</div>
+		{/if}
+
 		{#if !parsed.has_contract_summary || !parsed.has_job_setup}
 			<div class="missing-doc-banner">
 				<strong>Heads up — you're missing a document.</strong>
@@ -382,83 +453,130 @@
 			</div>
 		{/if}
 
+		<!-- Confidence legend -->
+		{#if Object.keys(fieldConf).length > 0}
+			<div class="conf-legend">
+				<span class="legend-item">
+					<span class="conf-dot conf-high" aria-hidden="true"></span> High confidence
+				</span>
+				<span class="legend-item">
+					<span class="conf-dot conf-medium" aria-hidden="true"></span> Medium — verify
+				</span>
+				<span class="legend-item">
+					<span class="conf-badge conf-low" aria-hidden="true">!</span> Low — needs review
+				</span>
+				{#if correctedFields.size > 0}
+					<span class="legend-item corrected-count">
+						<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<polyline points="20 6 9 17 4 12"></polyline>
+						</svg>
+						{correctedFields.size} corrected
+					</span>
+				{/if}
+			</div>
+		{/if}
+
 		<section class="review-section">
 			<h3>Project Information</h3>
 			<div class="review-grid">
-				<div class="review-field">
-					<label>Name</label>
-					<input type="text" bind:value={parsed.name} />
-				</div>
-				<div class="review-field">
-					<label>Job #</label>
-					<input type="text" bind:value={parsed.job_number} />
-				</div>
-				<div class="review-field">
-					<label>Project #</label>
-					<input type="text" bind:value={parsed.project_number} />
-				</div>
-				<div class="review-field">
-					<label>Contract ID</label>
-					<input type="text" bind:value={parsed.contract_id} />
-				</div>
-				<div class="review-field">
-					<label>County</label>
-					<input type="text" bind:value={parsed.county} />
-				</div>
-				<div class="review-field">
-					<label>Work Type</label>
-					<input type="text" bind:value={parsed.work_type} />
-				</div>
-				<div class="review-field">
-					<label>Contract Type</label>
-					<input type="text" bind:value={parsed.contract_type} />
-				</div>
-				<div class="review-field">
-					<label>Contract Amount</label>
-					<input type="number" bind:value={parsed.contract_amount} step="0.01" />
-				</div>
-				<div class="review-field">
-					<label>Start Date</label>
-					<input type="text" bind:value={parsed.est_start_date} />
-				</div>
-				<div class="review-field">
-					<label>Completion Date</label>
-					<input type="text" bind:value={parsed.completion_date} />
-				</div>
+				<!-- Low-confidence fields first -->
+				{#each [
+					{ key: 'name', label: 'Name', type: 'text' },
+					{ key: 'job_number', label: 'Job #', type: 'text' },
+					{ key: 'project_number', label: 'Project #', type: 'text' },
+					{ key: 'contract_id', label: 'Contract ID', type: 'text' },
+					{ key: 'county', label: 'County', type: 'text' },
+					{ key: 'work_type', label: 'Work Type', type: 'text' },
+					{ key: 'contract_type', label: 'Contract Type', type: 'text' },
+					{ key: 'contract_amount', label: 'Contract Amount', type: 'number' },
+					{ key: 'est_start_date', label: 'Start Date', type: 'text' },
+					{ key: 'completion_date', label: 'Completion Date', type: 'text' },
+				].sort((a, b) => {
+					const rank = { low: 0, medium: 1, high: 2 } as const;
+					type R = keyof typeof rank;
+					return (rank[getConf(a.key) as R] ?? 1) - (rank[getConf(b.key) as R] ?? 1);
+				}) as f}
+					{@const conf = getConf(f.key)}
+					<div class="review-field" class:field-low={conf === 'low' && !correctedFields.has(f.key)} class:field-corrected={correctedFields.has(f.key)}>
+						<div class="field-label-row">
+							<label for="field-{f.key}">{f.label}</label>
+							{#if conf === 'high'}
+								<span class="conf-dot conf-high" title="High confidence — extracted from a labelled form field" aria-label="high confidence"></span>
+							{:else if conf === 'medium'}
+								<span class="conf-dot conf-medium" title="Medium confidence — inferred from context. Verify this value." aria-label="medium confidence"></span>
+							{:else}
+								<span class="conf-badge conf-low" title="Low confidence — needs manual review" aria-label="low confidence">!</span>
+							{/if}
+						</div>
+						{#if f.type === 'number'}
+							<input
+								id="field-{f.key}"
+								type="number"
+								step="0.01"
+								value={(parsed as unknown as Record<string, unknown>)[f.key] as number | null}
+								oninput={(e) => {
+									(parsed as unknown as Record<string, unknown>)[f.key] = parseFloat((e.target as HTMLInputElement).value) || null;
+									markCorrected(f.key);
+								}}
+								class:input-low={conf === 'low' && !correctedFields.has(f.key)}
+							/>
+						{:else}
+							<input
+								id="field-{f.key}"
+								type="text"
+								value={(parsed as unknown as Record<string, unknown>)[f.key] as string | null ?? ''}
+								oninput={(e) => {
+									(parsed as unknown as Record<string, unknown>)[f.key] = (e.target as HTMLInputElement).value || null;
+									markCorrected(f.key);
+								}}
+								class:input-low={conf === 'low' && !correctedFields.has(f.key)}
+							/>
+						{/if}
+					</div>
+				{/each}
 			</div>
 		</section>
 
 		<section class="review-section">
 			<h3>Customer / Owner</h3>
 			<div class="review-grid">
-				<div class="review-field">
-					<label>Customer</label>
-					<input type="text" bind:value={parsed.customer_name} />
-				</div>
-				<div class="review-field">
-					<label>Contact</label>
-					<input type="text" bind:value={parsed.customer_contact} />
-				</div>
-				<div class="review-field">
-					<label>Phone</label>
-					<input type="text" bind:value={parsed.customer_phone} />
-				</div>
-				<div class="review-field">
-					<label>Email</label>
-					<input type="text" bind:value={parsed.customer_email} />
-				</div>
-				<div class="review-field">
-					<label>Owner</label>
-					<input type="text" bind:value={parsed.owner_name} />
-				</div>
-				<div class="review-field">
-					<label>Project Manager</label>
-					<input type="text" bind:value={parsed.project_manager} />
-				</div>
-				<div class="review-field">
-					<label>Asphalt Supplier</label>
-					<input type="text" bind:value={parsed.asphalt_supplier} />
-				</div>
+				{#each [
+					{ key: 'customer_name', label: 'Customer', type: 'text' },
+					{ key: 'customer_contact', label: 'Contact', type: 'text' },
+					{ key: 'customer_phone', label: 'Phone', type: 'text' },
+					{ key: 'customer_email', label: 'Email', type: 'text' },
+					{ key: 'owner_name', label: 'Owner', type: 'text' },
+					{ key: 'project_manager', label: 'Project Manager', type: 'text' },
+					{ key: 'asphalt_supplier', label: 'Asphalt Supplier', type: 'text' },
+				].sort((a, b) => {
+					const rank = { low: 0, medium: 1, high: 2 } as const;
+					type R = keyof typeof rank;
+					return (rank[getConf(a.key) as R] ?? 1) - (rank[getConf(b.key) as R] ?? 1);
+				}) as f}
+					{@const conf = getConf(f.key)}
+					<div class="review-field" class:field-low={conf === 'low' && !correctedFields.has(f.key)} class:field-corrected={correctedFields.has(f.key)}>
+						<div class="field-label-row">
+							<label for="field-{f.key}">{f.label}</label>
+							{#if conf === 'high'}
+								<span class="conf-dot conf-high" title="High confidence" aria-label="high confidence"></span>
+							{:else if conf === 'medium'}
+								<span class="conf-dot conf-medium" title="Medium confidence — verify this value" aria-label="medium confidence"></span>
+							{:else}
+								<span class="conf-badge conf-low" title="Low confidence — needs manual review" aria-label="low confidence">!</span>
+							{/if}
+						</div>
+						<input
+							id="field-{f.key}"
+							type="text"
+							value={(parsed as unknown as Record<string, unknown>)[f.key] as string | null ?? ''}
+							oninput={(e) => {
+								(parsed as unknown as Record<string, unknown>)[f.key] = (e.target as HTMLInputElement).value || null;
+								markCorrected(f.key);
+							}}
+							class:input-low={conf === 'low' && !correctedFields.has(f.key)}
+						/>
+					</div>
+				{/each}
 			</div>
 		</section>
 
@@ -535,7 +653,7 @@
 								</tr>
 							</thead>
 							<tbody>
-								{#each items as it, idx}
+								{#each items as it}
 									{@const globalIdx = parsed.bid_items.indexOf(it)}
 									<tr class:alternate={it.is_alternate} class:unselected={!it.selected}>
 										<td class="col-sel">
@@ -627,6 +745,157 @@
 		font-size: 0.9rem;
 	}
 
+	/* Confidence alert banner */
+	.conf-alert {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		background: rgba(239, 68, 68, 0.07);
+		border: 1px solid rgba(239, 68, 68, 0.3);
+		border-left-width: 4px;
+		border-radius: var(--radius);
+		padding: 12px 16px;
+		margin-bottom: 16px;
+		font-size: 0.88rem;
+		color: var(--text);
+	}
+
+	.conf-alert svg {
+		flex-shrink: 0;
+		color: #ef4444;
+		margin-top: 1px;
+	}
+
+	.conf-ok {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		background: rgba(34, 197, 94, 0.07);
+		border: 1px solid rgba(34, 197, 94, 0.3);
+		border-radius: var(--radius);
+		padding: 10px 14px;
+		margin-bottom: 16px;
+		font-size: 0.85rem;
+		color: #22c55e;
+	}
+
+	/* Inline badge in text */
+	.inline-badge {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		font-size: 0.65rem;
+		font-weight: 800;
+		line-height: 1;
+		vertical-align: middle;
+	}
+
+	/* Confidence legend */
+	.conf-legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 12px;
+		align-items: center;
+		margin-bottom: 12px;
+		font-size: 0.78rem;
+		color: var(--text-muted);
+	}
+
+	.legend-item {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+	}
+
+	.corrected-count {
+		color: #22c55e;
+		font-weight: 600;
+	}
+
+	/* Confidence indicators */
+	.conf-dot {
+		display: inline-block;
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.conf-dot.conf-high {
+		background: #22c55e;
+		box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+	}
+
+	.conf-dot.conf-medium {
+		background: #eab308;
+		box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.2);
+	}
+
+	.conf-badge,
+	.conf-badge.conf-low,
+	.inline-badge.conf-low {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		background: #ef4444;
+		color: #fff;
+		font-size: 0.65rem;
+		font-weight: 800;
+		line-height: 1;
+		flex-shrink: 0;
+	}
+
+	/* Field label row with confidence icon */
+	.field-label-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-bottom: 4px;
+	}
+
+	.field-label-row label {
+		font-size: 0.75rem;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--text-muted);
+		font-weight: 600;
+		margin: 0;
+	}
+
+	/* Low-confidence field highlight */
+	.review-field.field-low {
+		background: rgba(239, 68, 68, 0.05);
+		border: 1px solid rgba(239, 68, 68, 0.25);
+		border-radius: var(--radius);
+		padding: 8px 10px;
+	}
+
+	/* Corrected field highlight */
+	.review-field.field-corrected {
+		background: rgba(34, 197, 94, 0.04);
+		border: 1px solid rgba(34, 197, 94, 0.2);
+		border-radius: var(--radius);
+		padding: 8px 10px;
+	}
+
+	/* Input with low-confidence border */
+	.review-field input.input-low {
+		border-color: rgba(239, 68, 68, 0.5);
+	}
+
+	.review-field input.input-low:focus {
+		border-color: #ef4444;
+		outline: none;
+		box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+	}
+
+	/* Drop zone */
 	.drop-zone {
 		display: flex;
 		flex-direction: column;
@@ -825,15 +1094,7 @@
 	.review-field {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
-	}
-
-	.review-field label {
-		font-size: 0.75rem;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-		color: var(--text-muted);
-		font-weight: 600;
+		gap: 0;
 	}
 
 	.review-field input {
@@ -988,6 +1249,10 @@
 
 		.bid-table .desc {
 			max-width: 150px;
+		}
+
+		.conf-legend {
+			gap: 8px;
 		}
 	}
 </style>
