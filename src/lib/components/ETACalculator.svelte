@@ -5,6 +5,7 @@
 	import { toMetricTonnes, UNIT_LABELS } from '$lib/utils/unitConvert';
 	import { fetchWeather, type WeatherSnapshot } from '$lib/services/weather';
 	import { weatherConfig } from '$lib/config';
+	import { calcETAStats, calcWeatherAdjustedETA } from '$lib/calc';
 
 	interface Props {
 		jobSiteId: string;
@@ -71,51 +72,7 @@
 
 	// Group loads by calendar day and calculate stats
 	const stats = $derived.by(() => {
-		const acceptedLoads = loads.filter((l) => !l.rejected);
-
-		// Calculate total tons
-		const totalTons = acceptedLoads.reduce((sum, l) => sum + l.tons, 0);
-
-		// Group by calendar day to count distinct days worked
-		const daySet = new Set<string>();
-		for (const load of acceptedLoads) {
-			const date = new Date(load.timestamp * 1000);
-			const dateKey = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
-			daySet.add(dateKey);
-		}
-		const daysWorked = daySet.size;
-
-		// Calculate average tons per day
-		const avgTonsPerDay = daysWorked > 0 ? totalTons / daysWorked : 0;
-
-		// Calculate remaining tonnage
-		const remainingTons = targetTonnage && targetTonnage > 0 ? Math.max(0, targetTonnage - totalTons) : null;
-
-		// Calculate days remaining
-		const daysRemaining =
-			remainingTons != null && avgTonsPerDay > 0
-				? Math.ceil(remainingTons / avgTonsPerDay)
-				: null;
-
-		// Calculate projected completion date
-		let projectedDate: Date | null = null;
-		if (daysRemaining != null && daysRemaining > 0) {
-			projectedDate = new Date();
-			projectedDate.setDate(projectedDate.getDate() + daysRemaining);
-		}
-
-		// Check if job is complete
-		const isComplete = remainingTons != null && remainingTons <= 0;
-
-		return {
-			totalTons,
-			daysWorked,
-			avgTonsPerDay,
-			remainingTons,
-			daysRemaining,
-			projectedDate,
-			isComplete
-		};
+		return calcETAStats(loads, targetTonnage);
 	});
 
 	// Convert values to display units
@@ -147,48 +104,11 @@
 			return null;
 		}
 
-		const rainThresholdIn = weatherConfig.rainBlockIn;
-		const rainProbThreshold = 60;
-		const maxForecastDays = 10;
-
-		// Start from tomorrow
-		let currentDate = new Date();
-		currentDate.setDate(currentDate.getDate() + 1);
-		currentDate.setHours(0, 0, 0, 0);
-
-		let workDaysRemaining = stats.daysRemaining;
-		let rainDaysExcluded = 0;
-		let forecastDaysUsed = 0;
-
-		while (workDaysRemaining > 0 && forecastDaysUsed < maxForecastDays) {
-			const dateKey = currentDate.toISOString().split('T')[0];
-			const forecast = weather.dailyForecast.find((f) => f.date === dateKey);
-
-			forecastDaysUsed++;
-
-			if (forecast) {
-				const isRainDay = forecast.precipIn >= rainThresholdIn || forecast.precipProbabilityMax >= rainProbThreshold;
-				if (isRainDay) {
-					rainDaysExcluded++;
-				} else {
-					workDaysRemaining--;
-				}
-			} else {
-				// No forecast data for this day, assume it's a working day
-				workDaysRemaining--;
-			}
-
-			currentDate.setDate(currentDate.getDate() + 1);
-		}
-
-		const adjustedDate = workDaysRemaining <= 0 ? currentDate : null;
-		const forecastExceeded = workDaysRemaining > 0;
-
-		return {
-			adjustedDate,
-			rainDaysExcluded,
-			forecastExceeded
-		};
+		return calcWeatherAdjustedETA(
+			stats.daysRemaining,
+			weather.dailyForecast,
+			weatherConfig.rainBlockIn
+		);
 	});
 </script>
 
