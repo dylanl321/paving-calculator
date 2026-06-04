@@ -411,6 +411,18 @@
 		margin: 0;
 	}
 
+	/* Desktop density polish */
+	@media (min-width: 1024px) {
+		th,
+		td {
+			padding: 0.4rem 0.75rem;
+		}
+
+		tbody tr {
+			border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+		}
+	}
+
 	@media (max-width: 600px) {
 		.ref-screen {
 			max-width: 100%;

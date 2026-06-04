@@ -4,7 +4,7 @@ import yaml from '@rollup/plugin-yaml';
 export default defineConfig({
 	plugins: [yaml() as any],
 	test: {
-		include: ['src/lib/calc/__tests__/**/*.test.ts'],
+		include: ['src/**/__tests__/**/*.test.ts'],
 		environment: 'node',
 		globals: false
 	}

@@ -147,6 +147,20 @@
 	color: var(--text);
 }
 
+.btn-secondary {
+	background: transparent;
+	color: var(--text-muted);
+	border: 1px solid var(--border);
+	font-size: var(--fs-sm);
+	font-weight: var(--fw-medium);
+}
+
+.btn-secondary:hover:not(:disabled) {
+	background: var(--surface-hover);
+	color: var(--text);
+	border-color: var(--text-muted);
+}
+
 .btn:disabled {
 	opacity: 0.55;
 	cursor: not-allowed;
@@ -468,6 +482,13 @@ input[type='time'] {
 .screen h2 {
 	margin: var(--sp-1) 0 var(--sp-5);
 	font-size: 1.5rem;
+}
+
+/* Desktop typography polish for screen headings */
+@media (min-width: 1024px) {
+	.screen h2 {
+		font-size: 1.25rem;
+	}
 }
 
 .result {
@@ -860,6 +881,38 @@ textarea.input-field {
 
 		/* Compact body text at larger viewports */
 		--font-size-body: 14px;
+	}
+
+	/* Desktop typography polish: reduce h1/h2 sizes */
+	h1 {
+		font-size: 1.5rem;
+	}
+
+	h2 {
+		font-size: 1.25rem;
+	}
+
+	/* Card density: reduce border-radius and padding */
+	.calc-card,
+	.card {
+		border-radius: 6px;
+		padding: 1rem;
+	}
+
+	/* Tighter table rows on desktop */
+	table th,
+	table td {
+		padding: 0.4rem 0.75rem;
+	}
+
+	/* Add subtle row dividers */
+	table tbody tr {
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	}
+
+	/* Reduce section gaps on desktop */
+	.app {
+		padding: var(--sp-3) var(--sp-4) var(--sp-6);
 	}
 }
 

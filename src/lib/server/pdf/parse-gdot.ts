@@ -431,7 +431,7 @@ function parseScheduleOfItems(text: string): ParsedBidItem[] {
 	// either a tail (UNIT PRICE AMOUNT), a LUMP SUM AMOUNT, or before the next
 	// line number / end of schedule.
 	const itemRe =
-		/(\d{4})\s+(\d{3}-\d{3,4})\s+(.*?)\s+(?:(LUMP SUM)\s+([\d,]+\.\d{2})|([A-Z]{1,5})\s+([\d,]+\.\d{4,5})\s+([\d,]+\.\d{2}))(?=\s+\d{4}\s+\d{3}-\d{3,4}|\s+Contract Schedule|\s+Total Bid|\s*$)/g;
+		/(\d{4})\s+(\d{3}-\d{3,4})\s+(.*?)\s+(?:(LUMP SUM)\s+([\d,]+\.\d{2})|([A-Z]{1,5})\s+([\d,]+\.\d{4,5})\s+([\d,]+\.\d{2}))(?=\s+\d{4}\s+(?:\d{3}-\d{3,4}|(?:ROADWAY|ALT\s*\d+))|\s+Contract Schedule|\s+Total Bid|\s*$)/g;
 
 	const items: ParsedBidItem[] = [];
 	for (let m = itemRe.exec(flat); m; m = itemRe.exec(flat)) {

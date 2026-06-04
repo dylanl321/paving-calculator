@@ -1,0 +1,10 @@
+{
+  "job_number": "J24-0847",
+  "contract_amount": 2847550.00,
+  "customer_phone": "(404) 555-1234",
+  "project_manager": "Mike Johnson",
+  "asphalt_supplier": "Atlanta Asphalt Co",
+  "has_job_setup": true,
+  "has_contract_summary": false,
+  "production_mixes_count": 2
+}
