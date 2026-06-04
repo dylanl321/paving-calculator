@@ -1,5 +1,6 @@
 import { defineConfig, defineProject } from 'vitest/config';
 import yaml from '@rollup/plugin-yaml';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 
 export default defineConfig({
 	test: {
@@ -38,13 +39,21 @@ export default defineConfig({
 			}),
 			// Component tests: Svelte components with jsdom
 			defineProject({
-				plugins: [yaml() as any],
+				plugins: [yaml() as any, svelte()],
 				test: {
 					name: 'components',
 					include: ['src/lib/components/__tests__/**/*.test.ts'],
 					environment: 'jsdom',
 					globals: false,
 					setupFiles: ['tests/setup-dom.ts']
+				},
+				resolve: {
+					alias: {
+						'$app/navigation': new URL('./src/lib/components/__tests__/mocks/app-navigation.ts', import.meta.url).pathname,
+						'$app/stores': new URL('./src/lib/components/__tests__/mocks/app-stores.ts', import.meta.url).pathname,
+						'$lib': new URL('./src/lib', import.meta.url).pathname
+					},
+					conditions: ['browser']
 				}
 			})
 		]
