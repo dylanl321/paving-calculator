@@ -11,7 +11,7 @@
 		type ConfigForm
 	} from './_components/shared';
 	import OverviewTab from './_components/OverviewTab.svelte';
-	import LocationTab from './_components/LocationTab.svelte';
+	import LocationRoutePanel from './_components/LocationRoutePanel.svelte';
 	import ConfigurationTab from './_components/ConfigurationTab.svelte';
 	import VerificationTab from './_components/VerificationTab.svelte';
 	import EquipmentTab from './_components/EquipmentTab.svelte';
@@ -325,7 +325,21 @@
 			onGoToTab={(tab) => (activeTab = tab)}
 		/>
 	{:else if activeTab === 'location'}
-		<LocationTab {data} {configForm} onGoToTab={(tab) => (activeTab = tab)} />
+		<section class="section">
+			<LocationRoutePanel
+				jobSite={jobSiteState}
+				routeWaypoints={routeWaypointsState}
+				{configForm}
+				numLanes={configForm.num_lanes}
+				laneWidthFt={configForm.lane_width_ft}
+				onLocationSaved={(coords) => {
+					jobSiteState = { ...jobSiteState, ...coords };
+				}}
+				onRouteSaved={(waypoints) => {
+					routeWaypointsState = [...waypoints];
+				}}
+			/>
+		</section>
 	{:else if activeTab === 'configuration'}
 		<ConfigurationTab jobSiteId={jobSiteState.id} bind:configForm {estTonnage} lat={jobSiteState.latitude} lng={jobSiteState.longitude} />
 	{:else if activeTab === 'verification'}

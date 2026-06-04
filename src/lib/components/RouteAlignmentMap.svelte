@@ -170,6 +170,7 @@
 			return;
 		}
 
+		const activeMap = map;
 		let cancelled = false;
 		async function renderMarkers() {
 			clearControlMarkers();
@@ -182,7 +183,7 @@
 				el.textContent = String(i + 1);
 				const marker = new Marker({ element: el, draggable: true, anchor: 'center' })
 					.setLngLat([cp.lng, cp.lat])
-					.addTo(map);
+					.addTo(activeMap);
 				marker.on('dragend', async () => {
 					const pos = marker.getLngLat();
 					snapError = '';
