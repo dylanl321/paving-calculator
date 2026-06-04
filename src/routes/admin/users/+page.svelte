@@ -291,12 +291,12 @@
 </script>
 
 <div class="admin-users">
-	<header>
-		<h1>Users</h1>
-		<div class="header-actions">
-			<button class="primary-btn" onclick={openCreate}>New User</button>
-			<a href="/admin">Back to Admin</a>
+	<header class="admin-page-header">
+		<div>
+			<h1 class="admin-page-title">Users</h1>
+			<p class="admin-page-subtitle">All user accounts across organizations.</p>
 		</div>
+		<button class="header-action primary" onclick={openCreate}>New User</button>
 	</header>
 
 	{#if statusMessage}
@@ -466,65 +466,7 @@
 
 <style>
 	.admin-users {
-		padding: 1rem;
-		max-width: 1400px;
-		margin: 0 auto;
-	}
-
-	header {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 1rem;
-		margin-bottom: 1.5rem;
-		border-bottom: 2px solid var(--border);
-		padding-bottom: 1rem;
-	}
-
-	h1 {
-		font-size: 1.75rem;
-		margin: 0;
-		color: var(--text);
-	}
-
-	header a {
-		padding: 0.5rem 1rem;
-		min-height: var(--touch);
-		display: flex;
-		align-items: center;
-		background: var(--surface);
-		color: var(--text);
-		text-decoration: none;
-		border-radius: var(--radius);
-		border: 1px solid var(--border);
-	}
-
-	header a:hover {
-		background: var(--surface-hover);
-	}
-
-	.header-actions {
-		display: flex;
-		gap: 0.75rem;
-		align-items: center;
-		flex-wrap: wrap;
-	}
-
-	.primary-btn {
-		padding: 0.5rem 1rem;
-		min-height: var(--touch);
-		background: var(--accent);
-		color: var(--accent-text);
-		border: 1px solid var(--accent);
-		border-radius: var(--radius);
-		font-size: 1rem;
-		font-weight: 600;
-		cursor: pointer;
-	}
-
-	.primary-btn:hover {
-		filter: brightness(1.05);
+		width: 100%;
 	}
 
 	.status-message {

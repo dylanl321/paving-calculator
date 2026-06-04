@@ -21,7 +21,12 @@
 </script>
 
 <div class="admin-overview">
-	<h1>Overview</h1>
+	<header class="admin-page-header">
+		<div>
+			<h1 class="admin-page-title">Overview</h1>
+			<p class="admin-page-subtitle">Platform health across organizations, users, and email.</p>
+		</div>
+	</header>
 
 	<div class="kpi-grid">
 		<a href="/admin/orgs" class="kpi">
@@ -143,14 +148,7 @@
 
 <style>
 	.admin-overview {
-		max-width: 1200px;
-		margin: 0 auto;
-	}
-
-	h1 {
-		font-size: 1.75rem;
-		margin: 0 0 1.5rem;
-		color: var(--text);
+		width: 100%;
 	}
 
 	.kpi-grid {

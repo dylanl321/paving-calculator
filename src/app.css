@@ -994,3 +994,60 @@ textarea.input-field {
 		page-break-inside: avoid;
 	}
 }
+
+/* ---- Shared admin console page header ----
+   Used by pages under /admin so the unified console has one consistent header
+   pattern (the AdminShell owns the surrounding chrome; pages own their title). */
+.admin-page-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+	flex-wrap: wrap;
+	margin-bottom: 24px;
+}
+
+.admin-page-title {
+	font-size: 1.75rem;
+	font-weight: 700;
+	margin: 0 0 4px;
+	color: var(--text);
+}
+
+.admin-page-subtitle {
+	margin: 0;
+	font-size: 0.9rem;
+	color: var(--text-muted);
+}
+
+.admin-page-header .header-action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	min-height: 44px;
+	padding: 0 16px;
+	background: var(--surface);
+	color: var(--text);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	font-size: 0.9rem;
+	font-weight: 600;
+	text-decoration: none;
+	transition: background var(--dur-normal, 0.15s) var(--ease, ease);
+}
+
+.admin-page-header .header-action:hover {
+	background: var(--surface-hover);
+}
+
+.admin-page-header .header-action.primary {
+	background: var(--accent);
+	color: var(--accent-text);
+	border-color: var(--accent);
+}
+
+.admin-page-header .header-action.primary:hover {
+	opacity: 0.9;
+	background: var(--accent);
+}

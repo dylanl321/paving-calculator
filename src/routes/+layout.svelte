@@ -18,14 +18,19 @@
 
 	let { children } = $props();
 
-	// Auth pages (login/register/forgot-password/reset-password) render full-bleed without the app shell chrome.
+	// Auth pages (login/register/forgot-password/reset-password) and the admin
+	// console render full-bleed without the field-app shell chrome. The admin
+	// console owns its own dedicated shell (AdminShell), so it must NOT be wrapped
+	// in AppShell/NavSidebar — otherwise it renders as a "site within a site".
 	const isStandalone = $derived(
 		$page.url.pathname === '/' ||
 			$page.url.pathname === '/login' ||
 			$page.url.pathname === '/register' ||
 			$page.url.pathname === '/forgot-password' ||
 			$page.url.pathname === '/reset-password' ||
-			$page.url.pathname === '/dashboard/onboarding'
+			$page.url.pathname === '/dashboard/onboarding' ||
+			$page.url.pathname === '/admin' ||
+			$page.url.pathname.startsWith('/admin/')
 	);
 
 	const themeTokens = $derived(config.theme[themeStore.mode]);

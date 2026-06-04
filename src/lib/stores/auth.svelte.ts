@@ -5,6 +5,7 @@ interface UserData {
 	id: string;
 	email: string;
 	name: string;
+	isGlobalAdmin?: boolean;
 }
 
 interface OrgData {
@@ -38,6 +39,13 @@ class AuthStore {
 
 	get isAuthenticated() {
 		return !!this.#state.user;
+	}
+
+	/** Can the current user reach the admin console (global admin or org owner/admin)? */
+	get canAccessAdmin() {
+		if (this.#state.user?.isGlobalAdmin) return true;
+		const role = this.#state.org?.role;
+		return role === 'owner' || role === 'admin';
 	}
 
 	async fetch() {
