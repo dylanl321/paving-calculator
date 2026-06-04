@@ -2,6 +2,7 @@
 	import { equipmentTypeLabels } from './shared';
 	import type { Equipment } from '../+page';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 
 	interface EquipmentItem {
 		id: string;
@@ -36,19 +37,7 @@
 
 		saving = true;
 		try {
-			const res = await fetch(`/api/job-sites/${jobSiteId}/equipment`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify(newEquipment)
-			});
-
-			if (!res.ok) {
-				toastStore.error('Failed to add equipment');
-				throw new Error('Failed to add equipment');
-			}
-
-			const { equipment } = (await res.json()) as EquipmentResponse;
+			const { equipment } = await api.post(`/api/job-sites/${jobSiteId}/equipment`, newEquipment) as EquipmentResponse;
 			equipmentList = [...equipmentList, equipment];
 
 			newEquipment = {
@@ -60,7 +49,6 @@
 			toastStore.success('Equipment added');
 		} catch (err) {
 			console.error(err);
-			toastStore.error('Failed to add equipment');
 		} finally {
 			saving = false;
 		}
@@ -69,21 +57,11 @@
 	async function removeEquipment(equipId: string) {
 		saving = true;
 		try {
-			const res = await fetch(`/api/job-sites/${jobSiteId}/equipment/${equipId}`, {
-				method: 'DELETE',
-				credentials: 'include'
-			});
-
-			if (!res.ok) {
-				toastStore.error('Failed to remove equipment');
-				throw new Error('Failed to remove equipment');
-			}
-
+			await api.delete(`/api/job-sites/${jobSiteId}/equipment/${equipId}`);
 			equipmentList = equipmentList.filter((e) => e.id !== equipId);
 			toastStore.success('Equipment removed');
 		} catch (err) {
 			console.error(err);
-			toastStore.error('Failed to remove equipment');
 		} finally {
 			saving = false;
 		}

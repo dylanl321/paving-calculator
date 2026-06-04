@@ -16,6 +16,7 @@
 	import ReportsTab from './_components/ReportsTab.svelte';
 	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 
 	let { data } = $props();
 
@@ -125,41 +126,30 @@
 		message = '';
 		try {
 			const overrides = buildOverrides();
-			const res = await fetch('/api/org/settings', {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify({
-					name: orgName.trim(),
-					address: orgAddress.trim() || null,
-					superintendentEmail: superintendentEmail.trim() || null,
-					superintendentPhone: superintendentPhone.trim() || null,
-					accentColor: useCustomAccent ? accentColor : null,
-					emailFromName: emailFromName.trim() || null,
-					emailReplyTo: emailReplyTo.trim() || null,
-					overrides
-				})
+			const result = await api.put<SettingsSaveResult>('/api/org/settings', {
+				name: orgName.trim(),
+				address: orgAddress.trim() || null,
+				superintendentEmail: superintendentEmail.trim() || null,
+				superintendentPhone: superintendentPhone.trim() || null,
+				accentColor: useCustomAccent ? accentColor : null,
+				emailFromName: emailFromName.trim() || null,
+				emailReplyTo: emailReplyTo.trim() || null,
+				overrides
 			});
-			const result = (await res.json()) as SettingsSaveResult;
-			if (!res.ok) {
-				message = result.error || 'Failed to save settings';
-				messageType = 'error';
-				toastStore.error(message);
-				return;
-			}
 
 			// Upload logo if a new file was selected.
 			if (logoFile) {
 				const form = new FormData();
 				form.append('logo', logoFile);
-				const logoRes = await fetch('/api/org/logo', {
-					method: 'POST',
-					credentials: 'include',
-					body: form
-				});
-				if (!logoRes.ok) {
-					const lr = (await logoRes.json()) as LogoUploadResult;
-					message = lr.error || 'Settings saved, but logo upload failed';
+				try {
+					await api.post('/api/org/logo', form);
+					hasLogo = true;
+					logoFile = null;
+					if (logoPreview) URL.revokeObjectURL(logoPreview);
+					logoPreview = null;
+					toastStore.success('Logo uploaded successfully');
+				} catch {
+					message = 'Settings saved, but logo upload failed';
 					messageType = 'error';
 					toastStore.error(message);
 					hasLogo = result.hasLogo ?? hasLogo;
@@ -170,11 +160,6 @@
 					});
 					return;
 				}
-				hasLogo = true;
-				logoFile = null;
-				if (logoPreview) URL.revokeObjectURL(logoPreview);
-				logoPreview = null;
-				toastStore.success('Logo uploaded successfully');
 			}
 
 			orgSettingsStore.apply({
@@ -189,7 +174,6 @@
 		} catch (e) {
 			message = 'Network error while saving';
 			messageType = 'error';
-			toastStore.error('Network error while saving');
 		} finally {
 			saving = false;
 		}

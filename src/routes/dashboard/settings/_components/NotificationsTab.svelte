@@ -2,6 +2,7 @@
 	import type { NotificationPrefsResult } from './shared';
 	import { onMount } from 'svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 
 	let { initialPrefs }: { initialPrefs: Record<string, boolean> } = $props();
 
@@ -21,13 +22,8 @@
 	onMount(async () => {
 		// Fetch current report recipients
 		try {
-			const res = await fetch('/api/org/settings', { credentials: 'include' });
-			if (res.ok) {
-				const data = (await res.json()) as { reportRecipients?: string[] };
-				reportRecipients = data.reportRecipients || [];
-				// Check if user can edit (owner/admin only)
-				// For simplicity, we'll allow editing for now and rely on API to enforce
-			}
+			const data = await api.get<{ reportRecipients?: string[] }>('/api/org/settings');
+			reportRecipients = data.reportRecipients || [];
 		} catch (e) {
 			console.error('Failed to load report recipients:', e);
 		}
@@ -37,19 +33,7 @@
 		savingNotifications = true;
 		notificationMessage = '';
 		try {
-			const res = await fetch('/api/user/notification-prefs', {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify({ prefs: notificationPrefs })
-			});
-			const result = (await res.json()) as NotificationPrefsResult;
-			if (!res.ok) {
-				notificationMessage = result.error || 'Failed to save preferences';
-				notificationMessageType = 'error';
-				toastStore.error(notificationMessage);
-				return;
-			}
+			const result = await api.put<NotificationPrefsResult>('/api/user/notification-prefs', { prefs: notificationPrefs });
 			notificationPrefs = result.prefs ?? notificationPrefs;
 			notificationMessage = 'Notification preferences saved';
 			notificationMessageType = 'ok';
@@ -57,7 +41,6 @@
 		} catch (e) {
 			notificationMessage = 'Network error while saving';
 			notificationMessageType = 'error';
-			toastStore.error('Failed to save preferences');
 		} finally {
 			savingNotifications = false;
 		}
@@ -106,19 +89,7 @@
 		savingRecipients = true;
 		recipientsMessage = '';
 		try {
-			const res = await fetch('/api/org/settings', {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify({ reportRecipients })
-			});
-			const result = (await res.json()) as { error?: string; reportRecipients?: string[] };
-			if (!res.ok) {
-				recipientsMessage = result.error || 'Failed to save recipients';
-				recipientsMessageType = 'error';
-				toastStore.error(recipientsMessage);
-				return;
-			}
+			const result = await api.put<{ reportRecipients?: string[] }>('/api/org/settings', { reportRecipients });
 			reportRecipients = result.reportRecipients || reportRecipients;
 			recipientsMessage = 'Recipients saved successfully';
 			recipientsMessageType = 'ok';
@@ -133,7 +104,6 @@
 		} catch (e) {
 			recipientsMessage = 'Network error while saving';
 			recipientsMessageType = 'error';
-			toastStore.error('Failed to save recipients');
 		} finally {
 			savingRecipients = false;
 		}

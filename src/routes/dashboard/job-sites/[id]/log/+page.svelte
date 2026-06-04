@@ -22,6 +22,7 @@
 	import { confirmStore } from '$lib/stores/confirm.svelte';
 	import SignatureModal from '$lib/components/SignatureModal.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 
 	let { data }: { data: PageData } = $props();
 
@@ -79,11 +80,8 @@
 
 	async function loadRoute() {
 		try {
-			const res = await fetch(`/api/job-sites/${data.jobSite.id}/route`);
-			if (res.ok) {
-				const { waypoints } = (await res.json()) as RouteResponse;
-				routeWaypoints = Array.isArray(waypoints) ? waypoints : [];
-			}
+			const { waypoints } = await api.get<RouteResponse>(`/api/job-sites/${data.jobSite.id}/route`);
+			routeWaypoints = Array.isArray(waypoints) ? waypoints : [];
 		} catch {
 			// Route loading is best-effort; failure is non-fatal
 		}
@@ -117,23 +115,23 @@
 
 	async function loadLogDetails() {
 		if (!viewedLog) return;
-		const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs/${viewedLog.id}`);
-		if (res.ok) {
-			const result = (await res.json()) as LogDetailsResponse;
+		try {
+			const result = await api.get<LogDetailsResponse>(`/api/job-sites/${data.jobSite.id}/logs/${viewedLog.id}`);
 			entries = result.entries;
 			entrySummary = result.summary;
+		} catch (e) {
+			console.error('Failed to load log details:', e);
 		}
 	}
 
 	async function startLog() {
-		const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs`, { method: 'POST' });
-		if (res.ok) {
-			const { log } = (await res.json()) as LogResponse;
+		try {
+			const { log } = await api.post<LogResponse>(`/api/job-sites/${data.jobSite.id}/logs`, {});
 			currentLog = log;
 			await invalidateAll();
 			toastStore.success('Log started successfully');
-		} else {
-			toastStore.error('Failed to start log');
+		} catch (e) {
+			// api.post already shows toast on error
 		}
 	}
 
@@ -148,18 +146,14 @@
 			end_time: currentLog.end_time,
 			notes: currentLog.notes
 		};
-		const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}`, {
-			method: 'PATCH',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(updates)
-		});
-		if (res.ok) {
+		try {
+			await api.put(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}`, updates);
 			await loadLogDetails();
 			toastStore.success('Log updated');
-		} else if (res.status === 423) {
-			toastStore.error('This day is locked after close-out. Ask an admin to unlock it.');
-		} else {
-			toastStore.error('Failed to update log');
+		} catch (err: any) {
+			if (err.status === 423) {
+				toastStore.error('This day is locked after close-out. Ask an admin to unlock it.');
+			}
 		}
 	}
 
@@ -229,38 +223,24 @@
 	async function saveEntry() {
 		if (!currentLog) return;
 
-		if (editingEntry) {
-			const res = await fetch(
-				`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries/${editingEntry.id}`,
-				{
-					method: 'PATCH',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(entryForm)
-				}
-			);
-			if (res.ok) {
+		try {
+			if (editingEntry) {
+				await api.put(
+					`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries/${editingEntry.id}`,
+					entryForm
+				);
 				showEntryForm = false;
 				await loadLogDetails();
 				toastStore.success('Entry updated');
-			} else if (res.status === 423) {
-				toastStore.error('This day is locked after close-out. Ask an admin to unlock it.');
 			} else {
-				toastStore.error('Failed to update entry');
-			}
-		} else {
-			const res = await fetch(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(entryForm)
-			});
-			if (res.ok) {
+				await api.post(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries`, entryForm);
 				showEntryForm = false;
 				await loadLogDetails();
 				toastStore.success('Entry added');
-			} else if (res.status === 423) {
+			}
+		} catch (err: any) {
+			if (err.status === 423) {
 				toastStore.error('This day is locked after close-out. Ask an admin to unlock it.');
-			} else {
-				toastStore.error('Failed to add entry');
 			}
 		}
 	}
@@ -273,17 +253,14 @@
 			destructive: true
 		});
 		if (!confirmed) return;
-		const res = await fetch(
-			`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries/${entryId}`,
-			{ method: 'DELETE' }
-		);
-		if (res.ok) {
+		try {
+			await api.delete(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries/${entryId}`);
 			await loadLogDetails();
 			toastStore.success('Entry deleted');
-		} else if (res.status === 423) {
-			toastStore.error('This day is locked after close-out. Ask an admin to unlock it.');
-		} else {
-			toastStore.error('Failed to delete entry');
+		} catch (err: any) {
+			if (err.status === 423) {
+				toastStore.error('This day is locked after close-out. Ask an admin to unlock it.');
+			}
 		}
 	}
 
@@ -411,11 +388,8 @@
 			let loads: any[] = [];
 			try {
 				const currentDate = currentLog.log_date;
-				const res = await fetch(`/api/job-sites/${data.jobSite.id}/loads?start_date=${currentDate}`);
-				if (res.ok) {
-					const loadData = (await res.json()) as LoadsResponse;
-					loads = loadData.loads || [];
-				}
+				const loadData = await api.get<LoadsResponse>(`/api/job-sites/${data.jobSite.id}/loads?start_date=${currentDate}`);
+				loads = loadData.loads || [];
 			} catch {
 				// Non-fatal - continue without loads
 			}
@@ -552,21 +526,12 @@
 		if (!currentLog) return;
 		unlocking = true;
 		try {
-			const res = await fetch(
-				`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/unlock`,
-				{ method: 'POST' }
-			);
-			if (res.ok) {
-				const { log } = (await res.json()) as LogResponse;
-				currentLog = log;
-				await invalidateAll();
-				toastStore.success('Log unlocked successfully');
-			} else {
-				const err = (await res.json()) as UnlockErrorResponse;
-				toastStore.error(err.message || 'Failed to unlock log');
-			}
+			const { log } = await api.post<LogResponse>(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/unlock`, {});
+			currentLog = log;
+			await invalidateAll();
+			toastStore.success('Log unlocked successfully');
 		} catch (err) {
-			toastStore.error('Failed to unlock log');
+			// api.post already shows toast on error
 		} finally {
 			unlocking = false;
 		}

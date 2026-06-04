@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { api } from '$lib/utils/api-error';
+
 	let { jobSiteId }: { jobSiteId: string } = $props();
 
 	interface AuditEntry {
@@ -151,11 +153,7 @@
 			if (filterUser !== 'all') params.set('actor_user_id', filterUser);
 			if (!reset && nextCursor) params.set('before', String(nextCursor));
 
-			const res = await fetch(`/api/job-sites/${jobSiteId}/activity?${params}`, {
-				credentials: 'include'
-			});
-			if (!res.ok) throw new Error('Failed to load activity');
-			const data = await res.json() as { entries: AuditEntry[]; next_cursor: number | null; members: Member[] };
+			const data = await api.get(`/api/job-sites/${jobSiteId}/activity?${params}`) as { entries: AuditEntry[]; next_cursor: number | null; members: Member[] };
 
 			entries = reset ? data.entries : [...entries, ...data.entries];
 			nextCursor = data.next_cursor;

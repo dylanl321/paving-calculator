@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { config } from '$lib/config';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	let email = $state('');
@@ -14,25 +15,11 @@
 		loading = true;
 
 		try {
-			const response = await fetch('/api/auth/forgot-password', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email })
-			});
-
-			if (!response.ok) {
-				const data = (await response.json()) as { error?: string };
-				error = data.error || 'Something went wrong';
-				toastStore.error(error);
-				loading = false;
-				return;
-			}
-
+			await api.post('/api/auth/forgot-password', { email });
 			success = true;
 			toastStore.success('Password reset link sent to your email');
-		} catch (err) {
-			error = 'Network error. Please try again.';
-			toastStore.error(error);
+		} catch (err: any) {
+			error = err.message || 'Something went wrong';
 			loading = false;
 		}
 	}

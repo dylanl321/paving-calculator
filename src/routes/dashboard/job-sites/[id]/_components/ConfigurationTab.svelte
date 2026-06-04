@@ -4,6 +4,7 @@
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import GdotPanel from '$lib/components/GdotPanel.svelte';
 	import { browser } from '$app/environment';
+	import { api } from '$lib/utils/api-error';
 
 	let {
 		jobSiteId,
@@ -63,11 +64,8 @@
 	async function loadMixes() {
 		mixesLoading = true;
 		try {
-			const res = await fetch(`/api/job-sites/${jobSiteId}/mixes`, { credentials: 'include' });
-			if (res.ok) {
-				const d = (await res.json()) as { mixes?: Mix[] };
-				mixes = d.mixes ?? [];
-			}
+			const d = await api.get(`/api/job-sites/${jobSiteId}/mixes`) as { mixes?: Mix[] };
+			mixes = d.mixes ?? [];
 		} catch {
 			// ignore
 		} finally {
@@ -77,20 +75,10 @@
 
 	async function addMix() {
 		try {
-			const res = await fetch(`/api/job-sites/${jobSiteId}/mixes`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify({ mix_name: 'New Mix', unit: 'TN' })
-			});
-			if (res.ok) {
-				const d = (await res.json()) as { mix?: Mix };
-				if (d.mix) mixes = [...mixes, d.mix];
-			} else {
-				toastStore.error('Failed to add mix');
-			}
+			const d = await api.post(`/api/job-sites/${jobSiteId}/mixes`, { mix_name: 'New Mix', unit: 'TN' }) as { mix?: Mix };
+			if (d.mix) mixes = [...mixes, d.mix];
 		} catch {
-			toastStore.error('Failed to add mix');
+			// api.post shows error toast automatically
 		}
 	}
 
@@ -103,27 +91,22 @@
 			mix.id,
 			setTimeout(async () => {
 				try {
-					await fetch(`/api/job-sites/${jobSiteId}/mixes/${mix.id}`, {
-						method: 'PATCH',
-						headers: { 'Content-Type': 'application/json' },
-						credentials: 'include',
-						body: JSON.stringify({
-							mix_name: mix.mix_name,
-							unit: mix.unit,
-							bid_quantity: mix.bid_quantity,
-							takeoff_tonnage: mix.takeoff_tonnage,
-							quantity_per_day: mix.quantity_per_day,
-							est_days: mix.est_days,
-							mix_type: mix.mix_type,
-							target_thickness_in: mix.target_thickness_in,
-							target_spread_rate: mix.target_spread_rate,
-							tack_type: mix.tack_type,
-							target_tack_rate: mix.target_tack_rate,
-							contract_unit_price: mix.contract_unit_price
-						})
+					await api.put(`/api/job-sites/${jobSiteId}/mixes/${mix.id}`, {
+						mix_name: mix.mix_name,
+						unit: mix.unit,
+						bid_quantity: mix.bid_quantity,
+						takeoff_tonnage: mix.takeoff_tonnage,
+						quantity_per_day: mix.quantity_per_day,
+						est_days: mix.est_days,
+						mix_type: mix.mix_type,
+						target_thickness_in: mix.target_thickness_in,
+						target_spread_rate: mix.target_spread_rate,
+						tack_type: mix.tack_type,
+						target_tack_rate: mix.target_tack_rate,
+						contract_unit_price: mix.contract_unit_price
 					});
 				} catch {
-					toastStore.error('Failed to save mix');
+					// api.put shows error toast automatically
 				}
 			}, 600)
 		);
@@ -131,33 +114,20 @@
 
 	async function setActiveMix(mix: Mix) {
 		try {
-			const res = await fetch(`/api/job-sites/${jobSiteId}/mixes/${mix.id}`, {
-				method: 'PUT',
-				credentials: 'include'
-			});
-			if (res.ok) {
-				const d = (await res.json()) as { mixes?: Mix[] };
-				mixes = d.mixes ?? mixes;
-				toastStore.success(`${mix.mix_name} is now the active mix`);
-			}
+			const d = await api.put(`/api/job-sites/${jobSiteId}/mixes/${mix.id}`, {}) as { mixes?: Mix[] };
+			mixes = d.mixes ?? mixes;
+			toastStore.success(`${mix.mix_name} is now the active mix`);
 		} catch {
-			toastStore.error('Failed to set active mix');
+			// api.put shows error toast automatically
 		}
 	}
 
 	async function removeMix(mix: Mix) {
 		try {
-			const res = await fetch(`/api/job-sites/${jobSiteId}/mixes/${mix.id}`, {
-				method: 'DELETE',
-				credentials: 'include'
-			});
-			if (res.ok) {
-				await loadMixes();
-			} else {
-				toastStore.error('Failed to remove mix');
-			}
+			await api.delete(`/api/job-sites/${jobSiteId}/mixes/${mix.id}`);
+			await loadMixes();
 		} catch {
-			toastStore.error('Failed to remove mix');
+			// api.delete shows error toast automatically
 		}
 	}
 
@@ -168,18 +138,7 @@
 	async function saveConfig() {
 		saveStatus = 'saving';
 		try {
-			const res = await fetch(`/api/job-sites/${jobSiteId}/config`, {
-				method: 'PUT',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'include',
-				body: JSON.stringify(configForm)
-			});
-
-			if (!res.ok) {
-				toastStore.error('Failed to save configuration');
-				saveStatus = 'error';
-				throw new Error('Failed to save');
-			}
+			await api.put(`/api/job-sites/${jobSiteId}/config`, configForm);
 			toastStore.success('Configuration saved');
 			saveStatus = 'saved';
 			setTimeout(() => {
@@ -187,7 +146,6 @@
 			}, 2300);
 		} catch (err) {
 			console.error(err);
-			toastStore.error('Failed to save configuration');
 			saveStatus = 'error';
 		}
 	}

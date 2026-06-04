@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { config } from '$lib/config';
+	import { api } from '$lib/utils/api-error';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -27,15 +28,9 @@
 				params.set('resource_type', selectedCategory);
 			}
 
-			const res = await fetch(`/api/audit?${params.toString()}`, {
-				credentials: 'include'
-			});
-
-			if (res.ok) {
-				const result = (await res.json()) as { entries?: typeof entries; next_cursor?: number | null };
-				entries = result.entries ?? [];
-				nextCursor = result.next_cursor ?? null;
-			}
+			const result = await api.get<{ entries?: typeof entries; next_cursor?: number | null }>(`/api/audit?${params.toString()}`);
+			entries = result.entries ?? [];
+			nextCursor = result.next_cursor ?? null;
 		} catch (err) {
 			console.error('Failed to filter by category', err);
 		} finally {
@@ -55,15 +50,9 @@
 				params.set('resource_type', selectedCategory);
 			}
 
-			const res = await fetch(`/api/audit?${params.toString()}`, {
-				credentials: 'include'
-			});
-
-			if (res.ok) {
-				const result = (await res.json()) as { entries?: typeof entries; next_cursor?: number | null };
-				entries = [...entries, ...(result.entries ?? [])];
-				nextCursor = result.next_cursor ?? null;
-			}
+			const result = await api.get<{ entries?: typeof entries; next_cursor?: number | null }>(`/api/audit?${params.toString()}`);
+			entries = [...entries, ...(result.entries ?? [])];
+			nextCursor = result.next_cursor ?? null;
 		} catch (err) {
 			console.error('Failed to load more entries', err);
 		} finally {

@@ -3,6 +3,7 @@
 	import { config } from '$lib/config';
 	import { Upload, Check, AlertCircle, ChevronRight } from 'lucide-svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 
 	interface JobSite {
 		id: string;
@@ -24,17 +25,7 @@
 	// Load job sites
 	async function loadJobSites() {
 		try {
-			const res = await fetch('/api/job-sites', {
-				credentials: 'include'
-			});
-
-			if (!res.ok) {
-				error = 'Failed to load job sites';
-				loadingJobSites = false;
-				return;
-			}
-
-			const data = (await res.json()) as { job_sites: JobSite[] };
+			const data = await api.get<{ job_sites: JobSite[] }>('/api/job-sites');
 			jobSites = data.job_sites.filter((s: JobSite) => s.status === 'active');
 			loadingJobSites = false;
 		} catch (err) {
@@ -162,21 +153,7 @@
 			const formData = new FormData();
 			formData.append('csv', selectedFile);
 
-			const res = await fetch(`/api/import/csv?job_site_id=${selectedJobSiteId}`, {
-				method: 'POST',
-				body: formData,
-				credentials: 'include'
-			});
-
-			const result = (await res.json()) as { imported: number; dates: number; errors?: string[]; error?: string };
-
-			if (!res.ok) {
-				error = result.error || 'Import failed';
-				toastStore.error(error);
-				step = 'review';
-				importing = false;
-				return;
-			}
+			const result = await api.post<{ imported: number; dates: number; errors?: string[] }>(`/api/import/csv?job_site_id=${selectedJobSiteId}`, formData);
 
 			importResult = result;
 			step = 'complete';
@@ -184,7 +161,6 @@
 			toastStore.success(`Import complete: ${result.imported} entries imported`);
 		} catch (err) {
 			error = 'Network error during import';
-			toastStore.error(error);
 			step = 'review';
 			importing = false;
 		}

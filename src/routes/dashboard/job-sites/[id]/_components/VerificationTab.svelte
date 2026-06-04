@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { fmt, fmtDollars, type ConfigForm } from './shared';
+	import { api } from '$lib/utils/api-error';
 
 	let {
 		jobSiteId,
@@ -55,18 +56,14 @@
 		if (!browser) return;
 		loading = true;
 		Promise.all([
-			fetch(`/api/job-sites/${jobSiteId}/bid-items`, { credentials: 'include' }).then((r) =>
-				r.ok ? r.json() : {}
-			),
-			fetch(`/api/job-sites/${jobSiteId}/mixes`, { credentials: 'include' }).then((r) =>
-				r.ok ? r.json() : {}
-			)
+			api.get(`/api/job-sites/${jobSiteId}/bid-items`).catch(() => ({})),
+			api.get(`/api/job-sites/${jobSiteId}/mixes`).catch(() => ({}))
 		])
 			.then(([bi, mx]) => {
-				contract = bi.contract ?? null;
-				scopes = bi.scopes ?? [];
-				bidItemCount = (bi.bid_items ?? []).length;
-				mixes = mx.mixes ?? [];
+				contract = (bi as any).contract ?? null;
+				scopes = (bi as any).scopes ?? [];
+				bidItemCount = ((bi as any).bid_items ?? []).length;
+				mixes = (mx as any).mixes ?? [];
 				loading = false;
 			})
 			.catch(() => {

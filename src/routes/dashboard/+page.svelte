@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import { config } from '$lib/config';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 	import GeofenceMonitor from '$lib/components/GeofenceMonitor.svelte';
 	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
 	import Skeleton from '$lib/components/Skeleton.svelte';
@@ -55,21 +56,13 @@
 	async function resendVerification() {
 		resendingVerification = true;
 		try {
-			const res = await fetch('/api/auth/resend-verification', {
-				method: 'POST',
-				credentials: 'include'
-			});
-			const result = (await res.json()) as { error?: string; alreadyVerified?: boolean };
-			if (res.ok) {
-				toastStore.success('Verification email sent. Check your inbox.');
-			} else if (result.alreadyVerified) {
+			const result = await api.post<{ error?: string; alreadyVerified?: boolean }>('/api/auth/resend-verification');
+			toastStore.success('Verification email sent. Check your inbox.');
+		} catch (err: any) {
+			if (err.body?.alreadyVerified) {
 				emailVerified = true;
 				toastStore.info('Your email is already verified.');
-			} else {
-				toastStore.error(result.error || 'Could not send verification email.');
 			}
-		} catch {
-			toastStore.error('Network error — check your connection and try again.');
 		} finally {
 			resendingVerification = false;
 		}
@@ -104,33 +97,17 @@
 		creating = true;
 
 		try {
-			const res = await fetch('/api/job-sites', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					name: newSiteName,
-					location_description: newSiteLocation || undefined,
-					latitude: newSiteLat ?? undefined,
-					longitude: newSiteLng ?? undefined
-				}),
-				credentials: 'include'
+			const result = await api.post<{ id?: string }>('/api/job-sites', {
+				name: newSiteName,
+				location_description: newSiteLocation || undefined,
+				latitude: newSiteLat ?? undefined,
+				longitude: newSiteLng ?? undefined
 			});
 
-			const result = (await res.json()) as { error?: string; id?: string };
-
-			if (!res.ok) {
-				createError = result.error || 'Failed to create job site';
-				toastStore.error(createError);
-				creating = false;
-				return;
-			}
-
 			toastStore.success('Job site created successfully');
-			// Navigate to the new job site
 			await goto(`/dashboard/job-sites/${result.id}`);
-		} catch (err) {
-			createError = 'Network error — check your connection and try again';
-			toastStore.error(createError);
+		} catch (err: any) {
+			createError = err.message || 'Failed to create job site';
 			creating = false;
 		}
 	}
