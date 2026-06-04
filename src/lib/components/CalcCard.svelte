@@ -26,6 +26,15 @@
 		padding: var(--sp-5);
 		margin-bottom: var(--sp-4);
 	}
+
+	/* Desktop density polish */
+	@media (min-width: 1024px) {
+		.calc-card {
+			border-radius: 6px;
+			padding: 1rem;
+		}
+	}
+
 	.calc-head {
 		margin-bottom: var(--sp-5);
 	}
