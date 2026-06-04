@@ -44,6 +44,18 @@ export const load: PageLoad = async ({ fetch, url }) => {
 		}
 		const liveById = new Map(liveSites.map((s) => [s.id, s]));
 
+		// Best-effort completeness fetch
+		let completenessData: { sites?: Array<{ id: string; score: number; status: string }> } = {};
+		try {
+			const completenessRes = await fetch('/api/org/completeness', { credentials: 'include' });
+			if (completenessRes.ok) {
+				completenessData = await completenessRes.json();
+			}
+		} catch {
+			// Graceful degradation
+		}
+		const completenessById = new Map((completenessData.sites ?? []).map((s) => [s.id, s]));
+
 		// Get calculation counts for each job site
 		const jobSitesWithCounts = await Promise.all(
 			jobSitesData.job_sites.map(async (site) => {
@@ -52,6 +64,7 @@ export const load: PageLoad = async ({ fetch, url }) => {
 				});
 				const calcData = (await calcRes.json()) as { calculations?: unknown[] };
 				const live = liveById.get(site.id);
+				const completeness = completenessById.get(site.id);
 				return {
 					...site,
 					calculation_count: calcData.calculations?.length || 0,
@@ -59,7 +72,9 @@ export const load: PageLoad = async ({ fetch, url }) => {
 					today_loads: live?.today_loads ?? null,
 					today_log_open: live?.today_log_open ?? false,
 					crew_name: live?.crew_name ?? null,
-					crew_color: live?.crew_color ?? null
+					crew_color: live?.crew_color ?? null,
+					completeness_score: completeness?.score ?? null,
+					completeness_status: completeness?.status ?? null
 				};
 			})
 		);

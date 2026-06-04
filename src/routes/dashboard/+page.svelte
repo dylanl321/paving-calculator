@@ -26,6 +26,7 @@
 
 	let emailVerified = $state((data.user as DashboardUser)?.email_verified ?? true);
 	let resendingVerification = $state(false);
+	let sortBy = $state<'name' | 'status' | 'completeness'>('name');
 
 	const VERIFY_ERROR_MESSAGES: Record<string, string> = {
 		missing_token: 'That verification link was missing its token. Try resending the email.',
@@ -90,6 +91,31 @@
 	const mapSites = $derived(
 		data.jobSites.filter((s: any) => s.latitude != null && s.longitude != null)
 	);
+
+	const sortedJobSites = $derived.by(() => {
+		const sites = [...data.jobSites];
+		if (sortBy === 'name') {
+			return sites.sort((a: any, b: any) => a.name.localeCompare(b.name));
+		} else if (sortBy === 'status') {
+			return sites.sort((a: any, b: any) => {
+				const statusOrder: Record<string, number> = { active: 0, completed: 1, archived: 2, inactive: 3 };
+				return (statusOrder[a.status?.toLowerCase()] ?? 99) - (statusOrder[b.status?.toLowerCase()] ?? 99);
+			});
+		} else if (sortBy === 'completeness') {
+			return sites.sort((a: any, b: any) => {
+				const scoreA = a.completeness_score ?? 999;
+				const scoreB = b.completeness_score ?? 999;
+				return scoreA - scoreB;
+			});
+		}
+		return sites;
+	});
+
+	function completenessColor(status: string | null): string {
+		if (status === 'complete') return 'var(--good, #22c55e)';
+		if (status === 'needs-attention') return '#f59e0b';
+		return '#ef4444';
+	}
 
 	async function handleCreateJobSite(e: Event) {
 		e.preventDefault();
@@ -287,15 +313,25 @@
 		<section class="main-section">
 		<div class="section-header mobile-header">
 			<h3>All Projects</h3>
-			{#if !showCreateForm}
-				<button class="btn-primary" onclick={() => (showCreateForm = true)}>
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<line x1="12" y1="5" x2="12" y2="19"></line>
-						<line x1="5" y1="12" x2="19" y2="12"></line>
-					</svg>
-					Create Project
-				</button>
-			{/if}
+			<div class="header-controls">
+				<div class="sort-select-wrapper">
+					<label for="sort-by" class="sort-label">Sort:</label>
+					<select id="sort-by" class="sort-select" bind:value={sortBy}>
+						<option value="name">Name</option>
+						<option value="status">Status</option>
+						<option value="completeness">Completeness</option>
+					</select>
+				</div>
+				{#if !showCreateForm}
+					<button class="btn-primary" onclick={() => (showCreateForm = true)}>
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<line x1="12" y1="5" x2="12" y2="19"></line>
+							<line x1="5" y1="12" x2="19" y2="12"></line>
+						</svg>
+						Create Project
+					</button>
+				{/if}
+			</div>
 		</div>
 
 		{#if showCreateForm}
@@ -405,7 +441,7 @@
 		{:else}
 			<!-- Card grid for mobile/tablet -->
 			<div class="job-sites-grid">
-				{#each data.jobSites as site}
+				{#each sortedJobSites as site}
 					<a href="/dashboard/job-sites/{site.id}" class="job-site-card">
 						<div class="site-header">
 							<h4 class="site-name">{site.name}</h4>
@@ -438,9 +474,11 @@
 									{site.calculation_count} calculation{site.calculation_count === 1 ? '' : 's'}
 								</div>
 							{/if}
-							<div class="site-date">
-								{formatDate(site.created_at)}
-							</div>
+							{#if site.completeness_score != null}
+								<div class="completeness-badge" style="color: {completenessColor(site.completeness_status)}">
+									{site.completeness_score}%
+								</div>
+							{/if}
 						</div>
 					</a>
 				{/each}
@@ -455,9 +493,10 @@
 					<div class="table-cell th-crew">Crew</div>
 					<div class="table-cell th-tons">Tons Today</div>
 					<div class="table-cell th-calcs">Calcs</div>
+					<div class="table-cell th-setup">Setup</div>
 					<div class="table-cell th-date">Created</div>
 				</div>
-				{#each data.jobSites as site}
+				{#each sortedJobSites as site}
 					<a href="/dashboard/job-sites/{site.id}" class="sites-table-row">
 						<div class="table-cell td-name">{site.name}</div>
 						<div class="table-cell td-status">
@@ -482,6 +521,15 @@
 							{/if}
 						</div>
 						<div class="table-cell td-calcs">{site.calculation_count}</div>
+						<div class="table-cell td-setup">
+							{#if site.completeness_score != null}
+								<span class="completeness-badge" style="color: {completenessColor(site.completeness_status)}; font-weight: 600;">
+									{site.completeness_score}%
+								</span>
+							{:else}
+								—
+							{/if}
+						</div>
 						<div class="table-cell td-date">{formatDate(site.created_at)}</div>
 					</a>
 				{/each}
@@ -1062,6 +1110,47 @@
 		color: var(--text-muted);
 	}
 
+	.completeness-badge {
+		font-size: 0.8rem;
+		font-weight: 600;
+		white-space: nowrap;
+	}
+
+	.header-controls {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		flex-wrap: wrap;
+	}
+
+	.sort-select-wrapper {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.sort-label {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+		font-weight: 600;
+	}
+
+	.sort-select {
+		padding: 6px 10px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text);
+		font-size: 0.85rem;
+		min-height: 40px;
+		cursor: pointer;
+	}
+
+	.sort-select:focus {
+		outline: none;
+		border-color: var(--accent);
+	}
+
 	.map-skeleton,
 	.crew-skeleton {
 		padding: 0;
@@ -1143,7 +1232,7 @@
 
 		.sites-table-header {
 			display: grid;
-			grid-template-columns: 2fr 1fr 2fr 1.5fr 1.5fr 0.8fr 1fr;
+			grid-template-columns: 2fr 1fr 2fr 1.5fr 1.5fr 0.8fr 0.8fr 1fr;
 			gap: 12px;
 			padding: 10px 16px;
 			background: var(--bg);
@@ -1157,7 +1246,7 @@
 
 		.sites-table-row {
 			display: grid;
-			grid-template-columns: 2fr 1fr 2fr 1.5fr 1.5fr 0.8fr 1fr;
+			grid-template-columns: 2fr 1fr 2fr 1.5fr 1.5fr 0.8fr 0.8fr 1fr;
 			gap: 12px;
 			padding: 10px 16px;
 			border-bottom: 1px solid var(--border);

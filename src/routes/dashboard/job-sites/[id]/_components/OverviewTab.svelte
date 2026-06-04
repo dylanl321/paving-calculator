@@ -68,6 +68,65 @@
 	let pickerLat = $state<number | null>(data.jobSite.latitude ?? null);
 	let pickerLng = $state<number | null>(data.jobSite.longitude ?? null);
 
+	const REQUIRED_CONFIG_FIELDS = [
+		'road_type',
+		'num_lanes',
+		'lane_width_ft',
+		'total_length_ft',
+		'scope_of_work',
+		'mix_type',
+		'target_thickness_in',
+		'target_spread_rate'
+	];
+	const REQUIRED_SITE_FIELDS = ['name', 'status'];
+	const OPTIONAL_CONFIG_FIELDS = ['tack_type', 'target_tack_rate', 'num_lifts', 'total_tonnage'];
+	const OPTIONAL_SITE_FIELDS = ['est_start_date', 'completion_date', 'customer_name', 'project_manager', 'latitude', 'longitude'];
+
+	const FIELD_LABELS: Record<string, string> = {
+		road_type: 'Road Type',
+		num_lanes: 'Number of Lanes',
+		lane_width_ft: 'Lane Width',
+		total_length_ft: 'Total Length',
+		scope_of_work: 'Scope of Work',
+		mix_type: 'Mix Type',
+		target_thickness_in: 'Target Thickness',
+		target_spread_rate: 'Target Spread Rate',
+		name: 'Job Name',
+		status: 'Status'
+	};
+
+	function isEmpty(value: any): boolean {
+		return value === null || value === undefined || value === '' || value === 0;
+	}
+
+	const completeness = $derived.by(() => {
+		const missingRequired: string[] = [];
+		let filledRequired = 0;
+		const totalRequired = REQUIRED_CONFIG_FIELDS.length + REQUIRED_SITE_FIELDS.length;
+
+		for (const field of REQUIRED_CONFIG_FIELDS) {
+			if (isEmpty((configForm as any)[field])) {
+				missingRequired.push(field);
+			} else {
+				filledRequired++;
+			}
+		}
+
+		for (const field of REQUIRED_SITE_FIELDS) {
+			if (isEmpty((data.jobSite as any)[field])) {
+				missingRequired.push(field);
+			} else {
+				filledRequired++;
+			}
+		}
+
+		const score = Math.round((filledRequired / totalRequired) * 100);
+		const status = score >= 90 ? 'complete' : score >= 60 ? 'needs-attention' : 'incomplete';
+		const color = status === 'complete' ? 'var(--good, #22c55e)' : status === 'needs-attention' ? '#f59e0b' : '#ef4444';
+
+		return { score, status, color, missingRequired, filledRequired, totalRequired };
+	});
+
 	interface OverviewSection {
 		id: string;
 		name: string;
@@ -513,16 +572,60 @@
 	</div>
 </section>
 
-{#if !configComplete}
-	<div class="setup-banner">
-		<div class="setup-banner-text">
-			<strong>Finish setting up this project</strong>
-			<span>Add road geometry and paving targets so the project's tonnage, area, and cost calculate automatically and daily logs can check yield against spec.</span>
+{#if completeness.score < 90}
+	<section class="setup-progress-panel">
+		<div class="panel-head">
+			<h3>Setup Progress</h3>
 		</div>
-		<button class="btn-primary" onclick={() => onGoToTab('configuration')}>
-			Complete Configuration
-		</button>
-	</div>
+		<div class="setup-progress-content">
+			<div class="progress-ring-wrapper">
+				<svg class="progress-ring" width="80" height="80" viewBox="0 0 80 80">
+					<circle class="progress-ring-bg" cx="40" cy="40" r="34" fill="none" stroke="var(--border)" stroke-width="8"></circle>
+					<circle
+						class="progress-ring-fill"
+						cx="40"
+						cy="40"
+						r="34"
+						fill="none"
+						stroke={completeness.color}
+						stroke-width="8"
+						stroke-linecap="round"
+						stroke-dasharray="213.6"
+						stroke-dashoffset={213.6 * (1 - completeness.score / 100)}
+						transform="rotate(-90 40 40)"
+					></circle>
+				</svg>
+				<div class="progress-ring-label" style="color: {completeness.color}">
+					{completeness.score}%
+				</div>
+			</div>
+			<div class="setup-progress-info">
+				<p class="setup-progress-summary">
+					<strong>{completeness.filledRequired} of {completeness.totalRequired} required fields filled</strong>
+				</p>
+				{#if completeness.missingRequired.length > 0}
+					<div class="missing-fields">
+						<p class="missing-fields-title">Missing required fields:</p>
+						<ul class="missing-fields-list">
+							{#each completeness.missingRequired as field}
+								<li>{FIELD_LABELS[field] || field}</li>
+							{/each}
+						</ul>
+						<button class="btn-primary btn-sm" onclick={() => onGoToTab('configuration')}>
+							Fill in Configuration
+						</button>
+					</div>
+				{:else}
+					<div class="setup-complete">
+						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+							<polyline points="20 6 9 17 4 12"></polyline>
+						</svg>
+						<span>Required fields complete</span>
+					</div>
+				{/if}
+			</div>
+		</div>
+	</section>
 {/if}
 
 <div class="overview-grid">
@@ -2193,5 +2296,83 @@
 	.doc-dl {
 		color: var(--accent);
 		flex-shrink: 0;
+	}
+
+	.setup-progress-panel {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 20px;
+		margin-bottom: 24px;
+	}
+
+	.setup-progress-content {
+		display: flex;
+		align-items: flex-start;
+		gap: 24px;
+	}
+
+	.progress-ring-wrapper {
+		position: relative;
+		width: 80px;
+		height: 80px;
+		flex-shrink: 0;
+	}
+
+	.progress-ring {
+		transform: rotate(-90deg);
+	}
+
+	.progress-ring-label {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		font-size: 1.4rem;
+		font-weight: 700;
+	}
+
+	.setup-progress-info {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.setup-progress-summary {
+		margin: 0 0 12px;
+		font-size: 0.95rem;
+		color: var(--text);
+	}
+
+	.missing-fields-title {
+		margin: 0 0 8px;
+		font-size: 0.85rem;
+		color: var(--text-muted);
+		font-weight: 600;
+	}
+
+	.missing-fields-list {
+		margin: 0 0 12px;
+		padding-left: 20px;
+		font-size: 0.85rem;
+		color: var(--text);
+	}
+
+	.missing-fields-list li {
+		margin-bottom: 4px;
+	}
+
+	.btn-sm {
+		padding: 8px 16px;
+		min-height: 38px;
+		font-size: 0.85rem;
+	}
+
+	.setup-complete {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		color: var(--good, #22c55e);
+		font-weight: 600;
+		font-size: 0.9rem;
 	}
 </style>
