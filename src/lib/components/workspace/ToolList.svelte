@@ -37,7 +37,7 @@
 				onclick={onselecthome}
 				use:scrollIntoView={homeActive}
 			>
-				<span class="tool-label">Home</span>
+				<span class="tool-label">Quick Calc</span>
 				<span class="tool-blurb">Spread rate &amp; tons to reach</span>
 			</button>
 		</div>

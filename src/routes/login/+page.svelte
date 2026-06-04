@@ -149,7 +149,7 @@
 			<div class="auth-logo">
 				<img class="logo-badge" src="/logo-wordmark.png" alt="{config.app.name}" />
 				<h1>Welcome back</h1>
-				<p>Sign in to manage your job sites and daily logs.</p>
+				<p>Sign in for saved projects, daily logs, imports, and team tools.</p>
 			</div>
 
 			{#if resetSuccess}
@@ -233,11 +233,11 @@
 			</div>
 		</div>
 
-		<a href="/" class="back-link">
+		<a href="/app" class="back-link">
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 				<path d="M19 12H5M12 19l-7-7 7-7" />
 			</svg>
-			Continue without signing in
+			Open free calculator
 		</a>
 	</main>
 </div>
@@ -291,7 +291,7 @@
 		color: var(--text);
 		font-weight: 700;
 		font-size: 1.05rem;
-		letter-spacing: 0.2px;
+		letter-spacing: 0;
 		text-decoration: none;
 	}
 	.brand-mark {
@@ -372,7 +372,7 @@
 		margin: 0 0 8px;
 		font-size: 1.85rem;
 		font-weight: 800;
-		letter-spacing: 0.2px;
+		letter-spacing: 0;
 		color: var(--text);
 	}
 

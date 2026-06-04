@@ -4,22 +4,35 @@
 
 <svelte:head>
 	<title>{config.app.name} — Run paving projects from the field</title>
-	<meta name="description" content="Plan, track, and close out asphalt paving projects in the field. Schedule, crews, daily logs, live tonnage, and GDOT-spec calculators — offline-first, built for the job site." />
+	<meta name="description" content="Use the free paving calculator without an account, or sign in to manage paving projects, crews, daily logs, route setup, and GDOT imports." />
 </svelte:head>
+
+<header class="site-header">
+	<a href="/" class="site-brand" aria-label="{config.app.name} home">
+		<img class="site-brand-mark" src="/logo-mark.png" alt="" />
+		<span>{config.app.name}</span>
+	</a>
+	<nav class="site-nav" aria-label="Public navigation">
+		<a href="/app">Free Calculator</a>
+		<a href="/login">Log In</a>
+		<a href="/register" class="site-nav-primary">Create Account</a>
+	</nav>
+</header>
 
 <!-- ─── Hero ─────────────────────────────────────────────────────────────── -->
 <section class="hero">
 	<div class="hero-inner">
-		<div class="hero-badge">Offline-first · GDOT-spec accurate · Free to start</div>
-		<h1 class="hero-heading">Run the whole paving job from the field</h1>
+		<div class="hero-badge">Free calculator · No login required · Project tools when you need them</div>
+		<h1 class="hero-heading">Paving calculators first. Full project control when you sign in.</h1>
 		<p class="hero-sub">
-			Plan the project, track the crew, log every load, and close out the day — with all your
-			paving numbers calculated automatically. No office. No signal required.
+			Open the field calculator for spread rate, yield, tack, tonnage, and quick what-if checks.
+			Create an account when you want saved projects, crews, daily logs, route setup, and GDOT imports.
 		</p>
 		<div class="hero-ctas">
-			<a href="/register" class="btn btn-primary">Get Started Free</a>
-			<a href="/login" class="btn btn-ghost">Sign In</a>
+			<a href="/app" class="btn btn-primary">Open Free Calculator</a>
+			<a href="/register" class="btn btn-ghost">Create Project Account</a>
 		</div>
+		<p class="hero-note">Already managing projects? <a href="/login">Log in here</a>.</p>
 	</div>
 
 	<!-- Project card mockup (pure CSS) -->
@@ -33,26 +46,26 @@
 		<div class="mockup-screen">
 			<div class="mockup-project-head">
 				<div>
-					<div class="mockup-label">Project</div>
-					<div class="mockup-project-name">SR-141 Resurfacing</div>
+					<div class="mockup-label">Free Calculator</div>
+					<div class="mockup-project-name">Spread Rate Check</div>
 				</div>
-				<span class="mockup-pill good">Active</span>
+				<span class="mockup-pill good">No login</span>
 			</div>
 			<div class="mockup-meta">
-				<span class="mockup-crew"><span class="mockup-crew-dot"></span>Crew B</span>
+				<span class="mockup-crew"><span class="mockup-crew-dot"></span>2.0 in lift</span>
 				<span class="mockup-meta-sep">·</span>
-				<span>62% complete</span>
+				<span>Road width 12 ft</span>
 			</div>
 			<div class="mockup-progress"><span style="width:62%"></span></div>
 			<div class="mockup-divider"></div>
 			<div class="mockup-stats">
 				<div class="mockup-card">
-					<div class="mockup-label">Today's Tons</div>
-					<div class="mockup-value accent">312 <span class="mockup-unit">/ 380</span></div>
+					<div class="mockup-label">Target Spread</div>
+					<div class="mockup-value accent">220 <span class="mockup-unit">lbs/SY</span></div>
 				</div>
 				<div class="mockup-card">
-					<div class="mockup-label">Loads</div>
-					<div class="mockup-value">17</div>
+					<div class="mockup-label">Yield</div>
+					<div class="mockup-value">82 <span class="mockup-unit">ft</span></div>
 				</div>
 			</div>
 		</div>
@@ -62,8 +75,25 @@
 <!-- ─── Features ─────────────────────────────────────────────────────────── -->
 <section class="features">
 	<div class="container">
-		<h2 class="section-heading">Everything a paving job needs, in one place</h2>
+		<h2 class="section-heading">Start with the calculator. Grow into the job platform.</h2>
 		<div class="features-grid">
+			<div class="feature-card">
+				<div class="feature-icon">
+					<!-- Calculator icon -->
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="4" y="2" width="16" height="20" rx="2"></rect>
+						<line x1="8" y1="6" x2="16" y2="6"></line>
+						<line x1="8" y1="11" x2="8" y2="11"></line>
+						<line x1="12" y1="11" x2="12" y2="11"></line>
+						<line x1="16" y1="11" x2="16" y2="11"></line>
+						<line x1="8" y1="15" x2="8" y2="15"></line>
+						<line x1="12" y1="15" x2="12" y2="15"></line>
+						<line x1="16" y1="15" x2="16" y2="18"></line>
+					</svg>
+				</div>
+				<h3>Free Field Calculator</h3>
+				<p>Use spread rate, feet left, tack, tonnage, and yield tools without logging in. It is the fastest path for one-off field math.</p>
+			</div>
 			<div class="feature-card">
 				<div class="feature-icon">
 					<!-- Project / schedule icon -->
@@ -75,20 +105,8 @@
 						<path d="M8 14l2 2 4-4"></path>
 					</svg>
 				</div>
-				<h3>Projects &amp; Schedule</h3>
-				<p>Every job is a project with its own config, milestones, and progress. See what's active, what's behind, and what's done at a glance.</p>
-			</div>
-			<div class="feature-card">
-				<div class="feature-icon">
-					<!-- Live field / map icon -->
-					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M1 6v15l7-3 8 3 7-3V3l-7 3-8-3-7 3z"></path>
-						<line x1="8" y1="3" x2="8" y2="18"></line>
-						<line x1="16" y1="6" x2="16" y2="21"></line>
-					</svg>
-				</div>
-				<h3>Live Field Tracking</h3>
-				<p>Crew locations, GPS stationing, truck loads, and ETAs on a live map. Know where the crew is and how the day is pacing in real time.</p>
+				<h3>Saved Projects</h3>
+				<p>When the job needs more than a quick calculation, sign in to save config, contract values, milestones, and production targets.</p>
 			</div>
 			<div class="feature-card">
 				<div class="feature-icon">
@@ -105,20 +123,36 @@
 			</div>
 			<div class="feature-card">
 				<div class="feature-icon">
-					<!-- Calculator icon -->
+					<!-- Live field / map icon -->
 					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<rect x="4" y="2" width="16" height="20" rx="2"></rect>
-						<line x1="8" y1="6" x2="16" y2="6"></line>
-						<line x1="8" y1="11" x2="8" y2="11"></line>
-						<line x1="12" y1="11" x2="12" y2="11"></line>
-						<line x1="16" y1="11" x2="16" y2="11"></line>
-						<line x1="8" y1="15" x2="8" y2="15"></line>
-						<line x1="12" y1="15" x2="12" y2="15"></line>
-						<line x1="16" y1="15" x2="16" y2="18"></line>
+						<path d="M1 6v15l7-3 8 3 7-3V3l-7 3-8-3-7 3z"></path>
+						<line x1="8" y1="3" x2="8" y2="18"></line>
+						<line x1="16" y1="6" x2="16" y2="21"></line>
 					</svg>
 				</div>
-				<h3>Calculators Built In</h3>
-				<p>Area, tonnage, spread rate, and tack are calculated automatically from each project. Need a one-off? The full GDOT-spec calculator is a tap away.</p>
+				<h3>Road-First Route Setup</h3>
+				<p>Project accounts add route alignment, stationing, work zones, crew context, and GDOT import tools around the same calculator core.</p>
+			</div>
+		</div>
+	</div>
+</section>
+
+<!-- ─── Paths ────────────────────────────────────────────────────────────── -->
+<section class="paths">
+	<div class="container paths-inner">
+		<div class="path-panel path-primary">
+			<div class="path-eyebrow">No account needed</div>
+			<h2>Need a number right now?</h2>
+			<p>Open the free calculator and run field math immediately. It keeps the calculator separate from project-management features so a quick check stays quick.</p>
+			<a href="/app" class="btn btn-primary">Use Free Calculator</a>
+		</div>
+		<div class="path-panel">
+			<div class="path-eyebrow">Account required</div>
+			<h2>Need the job record?</h2>
+			<p>Create an account for saved projects, imports, route setup, team roles, daily logs, loads, photos, and close-out history.</p>
+			<div class="path-actions">
+				<a href="/register" class="btn btn-ghost">Create Account</a>
+				<a href="/login" class="path-link">Log in</a>
 			</div>
 		</div>
 	</div>
@@ -133,13 +167,13 @@
 		</div>
 		<div class="stat-divider"></div>
 		<div class="stat">
-			<div class="stat-value">100%</div>
-			<div class="stat-label">client-side — no data leaves your phone</div>
+			<div class="stat-value">No login</div>
+			<div class="stat-label">required for the standalone calculator</div>
 		</div>
 		<div class="stat-divider"></div>
 		<div class="stat">
-			<div class="stat-value">Free</div>
-			<div class="stat-label">forever for solo crews</div>
+			<div class="stat-value">Saved</div>
+			<div class="stat-label">projects, logs, and imports after sign-in</div>
 		</div>
 	</div>
 </section>
@@ -177,11 +211,11 @@
 <!-- ─── CTA ──────────────────────────────────────────────────────────────── -->
 <section class="cta-section">
 	<div class="container cta-inner">
-		<h2>Ready to run tighter jobs?</h2>
-		<p>Free for solo use. Team and project features available when you need them.</p>
+		<h2>Use the calculator now. Save the job when it matters.</h2>
+		<p>The calculator is open. Accounts add project history, crews, route setup, and daily-log records.</p>
 		<div class="hero-ctas">
-			<a href="/register" class="btn btn-primary">Get Started Free</a>
-			<a href="/app" class="btn btn-ghost">Try the calculator</a>
+			<a href="/app" class="btn btn-primary">Open Free Calculator</a>
+			<a href="/register" class="btn btn-ghost">Create Account</a>
 		</div>
 	</div>
 </section>
@@ -199,11 +233,12 @@
 			<span class="footer-name">{config.app.name}</span>
 		</div>
 		<nav class="footer-nav" aria-label="Footer">
-			<a href="/app">Calculator</a>
-			<a href="/login">Sign In</a>
+			<a href="/app">Free Calculator</a>
+			<a href="/login">Log In</a>
 			<a href="/register">Register</a>
 		</nav>
-		<p class="footer-copy">&copy; {new Date().getFullYear()} Paverate. Built for paving crews.</p>	</div>
+		<p class="footer-copy">&copy; {new Date().getFullYear()} Paverate. Built for paving crews.</p>
+	</div>
 </footer>
 
 <style>
@@ -221,6 +256,69 @@
 		padding-inline: 1.25rem;
 	}
 
+	/* ── Public header ────────────────────────────────────────────────────── */
+	.site-header {
+		background: var(--bg, #1b2228);
+		border-bottom: 1px solid var(--border, #37444f);
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 1rem 1.25rem;
+	}
+	.site-brand {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.625rem;
+		color: var(--text, #f4f6f7);
+		font-weight: 800;
+		text-decoration: none;
+		min-height: 48px;
+	}
+	.site-brand-mark {
+		width: 32px;
+		height: 32px;
+		display: block;
+		object-fit: contain;
+	}
+	.site-nav {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.site-nav a {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 44px;
+		padding: 0 0.875rem;
+		border-radius: 8px;
+		color: var(--text-muted, #9fb0bd);
+		font-size: 0.875rem;
+		font-weight: 600;
+		text-decoration: none;
+	}
+	.site-nav a:hover {
+		color: var(--text, #f4f6f7);
+		background: var(--surface, #232c34);
+	}
+	.site-nav-primary {
+		border: 1px solid var(--border, #37444f);
+		color: var(--text, #f4f6f7) !important;
+	}
+	@media (max-width: 560px) {
+		.site-header {
+			align-items: flex-start;
+			flex-direction: column;
+		}
+		.site-nav {
+			width: 100%;
+			justify-content: flex-start;
+		}
+	}
+
 	/* ── Buttons ──────────────────────────────────────────────────────────── */
 	.btn {
 		display: inline-flex;
@@ -233,7 +331,7 @@
 		font-weight: 600;
 		text-decoration: none;
 		transition: opacity 0.15s, background 0.15s;
-		white-space: nowrap;
+		text-align: center;
 	}
 	.btn-primary {
 		background: var(--accent, #f2c037);
@@ -269,7 +367,7 @@
 		display: inline-block;
 		font-size: 0.75rem;
 		font-weight: 600;
-		letter-spacing: 0.04em;
+		letter-spacing: 0;
 		text-transform: uppercase;
 		color: var(--accent, #f2c037);
 		background: color-mix(in srgb, var(--accent, #f2c037) 12%, transparent);
@@ -278,12 +376,17 @@
 		margin-bottom: 1.25rem;
 	}
 	.hero-heading {
-		font-size: clamp(2rem, 5vw, 3.25rem);
+		font-size: 2.15rem;
 		font-weight: 800;
 		line-height: 1.15;
 		color: var(--text, #f4f6f7);
 		margin: 0 0 1.1rem;
-		letter-spacing: -0.02em;
+		letter-spacing: 0;
+	}
+	@media (min-width: 800px) {
+		.hero-heading {
+			font-size: 3.15rem;
+		}
 	}
 	.hero-sub {
 		font-size: 1.0625rem;
@@ -296,6 +399,24 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.75rem;
+	}
+	.hero-note {
+		margin: 1rem 0 0;
+		color: var(--text-muted, #9fb0bd);
+		font-size: 0.9375rem;
+	}
+	.hero-note a {
+		color: var(--accent, #f2c037);
+		font-weight: 700;
+		text-decoration: none;
+	}
+	.hero-note a:hover {
+		text-decoration: underline;
+	}
+	@media (max-width: 460px) {
+		.hero-ctas .btn {
+			width: 100%;
+		}
 	}
 
 	/* ── App mockup (pure CSS) ────────────────────────────────────────────── */
@@ -340,7 +461,7 @@
 	.mockup-label {
 		font-size: 0.6875rem;
 		text-transform: uppercase;
-		letter-spacing: 0.06em;
+		letter-spacing: 0;
 		color: var(--text-muted, #9fb0bd);
 		margin-bottom: 0.25rem;
 	}
@@ -432,12 +553,17 @@
 		padding: 4.5rem 0;
 	}
 	.section-heading {
-		font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+		font-size: 1.85rem;
 		font-weight: 700;
 		color: var(--text, #f4f6f7);
 		text-align: center;
 		margin: 0 0 2.75rem;
-		letter-spacing: -0.02em;
+		letter-spacing: 0;
+	}
+	@media (min-width: 760px) {
+		.section-heading {
+			font-size: 2.1rem;
+		}
 	}
 	.features-grid {
 		display: grid;
@@ -478,6 +604,65 @@
 		line-height: 1.6;
 		color: var(--text-muted, #9fb0bd);
 		margin: 0;
+	}
+
+	/* ── Product paths ────────────────────────────────────────────────────── */
+	.paths {
+		background: var(--bg, #1b2228);
+		padding: 3.75rem 0;
+	}
+	.paths-inner {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 1rem;
+	}
+	@media (min-width: 760px) {
+		.paths-inner {
+			grid-template-columns: 1fr 1fr;
+		}
+	}
+	.path-panel {
+		border: 1px solid var(--border, #37444f);
+		border-radius: 8px;
+		padding: 1.5rem;
+		background: var(--surface, #232c34);
+	}
+	.path-primary {
+		border-color: color-mix(in srgb, var(--accent, #f2c037) 45%, var(--border, #37444f));
+	}
+	.path-eyebrow {
+		margin-bottom: 0.65rem;
+		color: var(--accent, #f2c037);
+		font-size: 0.75rem;
+		font-weight: 800;
+		letter-spacing: 0;
+		text-transform: uppercase;
+	}
+	.path-panel h2 {
+		margin: 0 0 0.65rem;
+		color: var(--text, #f4f6f7);
+		font-size: 1.35rem;
+		line-height: 1.2;
+	}
+	.path-panel p {
+		margin: 0 0 1.25rem;
+		color: var(--text-muted, #9fb0bd);
+		font-size: 0.9375rem;
+		line-height: 1.6;
+	}
+	.path-actions {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 1rem;
+	}
+	.path-link {
+		color: var(--accent, #f2c037);
+		font-weight: 700;
+		text-decoration: none;
+	}
+	.path-link:hover {
+		text-decoration: underline;
 	}
 
 	/* ── Stats bar ────────────────────────────────────────────────────────── */
@@ -574,10 +759,15 @@
 		text-align: center;
 	}
 	.cta-inner h2 {
-		font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+		font-size: 1.85rem;
 		font-weight: 700;
 		color: var(--text, #f4f6f7);
 		margin: 0 0 0.75rem;
+	}
+	@media (min-width: 760px) {
+		.cta-inner h2 {
+			font-size: 2.1rem;
+		}
 	}
 	.cta-inner p {
 		font-size: 1.0625rem;

@@ -154,7 +154,7 @@
 
 	<div class="width-note">
 		<SourceTag source={calcContext.road_width.source} updatedAt={calcContext.road_width.updatedAt} label="Width" />
-		Using job width: <strong>{calcContext.road_width.value} ft</strong>
+		Using shared width: <strong>{calcContext.road_width.value} ft</strong>
 	</div>
 
 	{#if tempCheck?.status === 'fail'}
@@ -200,7 +200,7 @@
 	{#if calcContext.road_width.value}
 		<div class="width-confirm">Using <strong>{calcContext.road_width.value} ft</strong> width</div>
 	{:else}
-		<div class="width-warn">Set road width in job settings to calculate tack gallons.</div>
+		<div class="width-warn">Set road width in Quick Calculator Settings to calculate tack gallons.</div>
 	{/if}
 
 	<ResultStat

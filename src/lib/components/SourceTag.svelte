@@ -12,8 +12,8 @@
 	const SOURCE_LABELS: Record<CalcValueSource, string> = {
 		weather_api: 'Weather API',
 		gps: 'GPS',
-		config: 'Job Setup',
-		job_site: 'Job Setup',
+		config: 'Defaults',
+		job_site: 'Settings',
 		manual: 'Manual',
 		derived: 'Auto'
 	};

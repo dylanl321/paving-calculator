@@ -131,7 +131,7 @@
 				</span>
 			</div>
 		{:else}
-			<div class="setup-hint">Set thickness in Job Setup to see target rate</div>
+			<div class="setup-hint">Set lift thickness in Quick Calculator Settings to see target rate</div>
 		{/if}
 
 		<div class="fields-row">

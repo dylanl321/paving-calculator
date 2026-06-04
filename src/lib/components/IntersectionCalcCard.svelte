@@ -10,7 +10,7 @@
 	import { unitsStore } from '$lib/stores/units.svelte';
 	import { UNIT_LABELS, fromMeters, toMetricTonnes } from '$lib/utils/unitConvert';
 
-	// Road 1 — uses the current job width as a default
+	// Road 1 uses the current shared width as a default.
 	let road1LengthInput = $state<number | null>(null);
 	let road1WidthInput = $state<number | null>(null);
 	// Road 2
@@ -101,7 +101,7 @@
 				label="Width"
 				unit={UNIT_LABELS.ft[unitsStore.system]}
 				bind:value={road1WidthInput}
-				hint="Leave blank to use job width ({widthFt} ft)"
+				hint="Leave blank to use shared width ({widthFt} ft)"
 				step={0.5}
 			/>
 		</div>
@@ -120,7 +120,7 @@
 				label="Width"
 				unit={UNIT_LABELS.ft[unitsStore.system]}
 				bind:value={road2WidthInput}
-				hint="Leave blank to use job width ({widthFt} ft)"
+				hint="Leave blank to use shared width ({widthFt} ft)"
 				step={0.5}
 			/>
 		</div>

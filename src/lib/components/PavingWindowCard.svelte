@@ -79,7 +79,7 @@
 >
 	{#if weather.effectiveTempF == null}
 		<div class="note-box">
-			<p>Set location or enter manual temp in Job Setup to see paving window guidance.</p>
+			<p>Set location or enter manual temp in Quick Calculator Settings to see paving window guidance.</p>
 		</div>
 	{:else}
 		<div class="temp-display">

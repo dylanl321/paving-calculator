@@ -271,12 +271,12 @@
 <CalcCard
 	title="Spread Rate"
 	hideTitle
-	purpose="Two numbers side by side: your target rate from the job thickness, and the actual rate from a real load. The badge tells you if you are on spec."
+	purpose="Two numbers side by side: the target rate from shared lift thickness, and the actual rate from a real load. The badge tells you if you are on spec."
 >
 	<div class="two-up">
 		<div class="col">
 			<div class="col-head label-row">
-				Target (from job thickness)
+				Target (from lift thickness)
 				<SourceTag source={calcContext.lift_thickness.source} updatedAt={calcContext.lift_thickness.updatedAt} label="Thickness" />
 				<Tooltip term="lbs/SY" definition="Pounds per Square Yard. Standard unit for spread rate (how much asphalt per area). Controls thickness and density of the asphalt mat." />
 			</div>
@@ -344,7 +344,7 @@
 				</div>
 			{:else}
 				<p class="col-note">
-					Set thickness in Job Setup. Weather bar sets air temp for Table 4.
+					Set lift thickness in Quick Calculator Settings. Weather can refine Table 4 guidance.
 				</p>
 			{/if}
 		</div>
@@ -372,7 +372,7 @@
 			/>
 			<p class="col-note">
 				<SourceTag source={calcContext.road_width.source} updatedAt={calcContext.road_width.updatedAt} label="Width" />
-				Using job width: {calcContext.road_width.value} ft
+				Using shared width: {calcContext.road_width.value} ft
 			</p>
 		</div>
 	</div>
@@ -406,7 +406,7 @@
 						<ul class="guidance-list">
 							<li>Notify foreman immediately</li>
 							<li>Check screed settings and verify proper float</li>
-							<li>Verify mix ticket matches job specs</li>
+							<li>Verify mix ticket matches the mix being placed</li>
 							<li>Adjust paver speed if laying too thick or thin</li>
 						</ul>
 					</div>

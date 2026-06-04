@@ -160,7 +160,7 @@
 		<code>feet = (plant silo + trucks) × 2000 × 9 ÷ (width × rate)</code>
 		<p>Tonnage needed reverses it:</p>
 		<code>tons = desired feet × width × rate ÷ (2000 × 9)</code>
-		<p>Uses job width ({widthFt} ft) and target rate ({Math.round(rate)} lbs/SY).</p>
+		<p>Uses shared width ({widthFt} ft) and target rate ({Math.round(rate)} lbs/SY).</p>
 		<p>Spread rate derived from GDOT §400 Table 12 tolerance bands. See Table 12 for course-type tolerances.</p>
 		<DotTable tableId="table-12" />
 	</ShowWork>

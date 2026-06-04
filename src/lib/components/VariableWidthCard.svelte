@@ -87,14 +87,14 @@
 			label="Start width (narrow end)"
 			unit={UNIT_LABELS.ft[unitsStore.system]}
 			bind:value={startWidthInput}
-			hint="Blank = job width ({widthFt} ft)"
+			hint="Blank = shared width ({widthFt} ft)"
 			step={0.5}
 		/>
 		<NumberField
 			label="End width (wide end)"
 			unit={UNIT_LABELS.ft[unitsStore.system]}
 			bind:value={endWidthInput}
-			hint="Blank = job width ({widthFt} ft)"
+			hint="Blank = shared width ({widthFt} ft)"
 			step={0.5}
 		/>
 	</div>

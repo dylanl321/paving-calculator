@@ -191,10 +191,10 @@
 <CalcCard
 	title="Tonnage to Order"
 	hideTitle
-	purpose="How much asphalt to order for a job at the job width and target thickness."
+	purpose="How much asphalt to order using the shared road width, lift thickness, and waste allowance."
 >
 	<NumberField
-		label="Length of the job"
+		label="Length to pave"
 		unit={UNIT_LABELS.ft[unitsStore.system]}
 		bind:value={lengthInput}
 	/>

@@ -183,7 +183,7 @@
 </script>
 
 <svelte:head>
-	<title>{config.app.name} — Workspace</title>
+	<title>{config.app.name} — Quick Calculator</title>
 </svelte:head>
 
 {#if isScreedMan}
@@ -221,8 +221,8 @@
 				<header class="stage-head">
 					<div class="stage-head-row">
 						<div>
-							<div class="eyebrow">Workspace</div>
-							<h1 class="stage-title">Home</h1>
+							<div class="eyebrow">Calculators</div>
+							<h1 class="stage-title">Quick Calculator</h1>
 						</div>
 						<UnitToggle />
 					</div>
@@ -263,13 +263,13 @@
 
 			<aside class="rates" aria-label="Live rates">
 				<div class="rates-header">
-					<div class="eyebrow">Live Rates</div>
+					<div class="eyebrow">Shared Targets</div>
 				</div>
 				<div class="rate-stats">
 					<div class="rate-stat">
 						<span class="rv">{targetRate}</span>
 						<span class="ru">lbs/SY</span>
-						<span class="rl">Target spread</span>
+						<span class="rl">Target rate</span>
 					</div>
 					<div class="rate-stat">
 						<span class="rv">{looseHeight.toFixed(2)}</span>
@@ -279,7 +279,7 @@
 				</div>
 
 				<div class="chart-block">
-					<div class="eyebrow">Spread Rate vs Target</div>
+					<div class="eyebrow">Target Rate Preview</div>
 					<SpreadRateChart {targetRate} />
 				</div>
 			</aside>
@@ -294,7 +294,7 @@
 				<header class="stage-head">
 					<!-- Desktop/tablet breadcrumb -->
 					<nav class="breadcrumb" aria-label="Breadcrumb">
-						<button type="button" class="breadcrumb-link" onclick={selectHome}>Home</button>
+						<button type="button" class="breadcrumb-link" onclick={selectHome}>Quick Calculator</button>
 						<span class="breadcrumb-sep">/</span>
 						{#if activeToolGroup}
 							<span class="breadcrumb-group">{activeToolGroup.label}</span>
@@ -304,7 +304,7 @@
 					</nav>
 
 					<!-- Mobile back button -->
-					<button type="button" class="back-btn" onclick={selectHome} aria-label="Back to home">
+					<button type="button" class="back-btn" onclick={selectHome} aria-label="Back to quick calculator">
 						<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
 							<path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 						</svg>
@@ -331,13 +331,13 @@
 
 			<aside class="rates" aria-label="Live rates">
 				<div class="rates-header">
-					<div class="eyebrow">Live Rates</div>
+					<div class="eyebrow">Shared Targets</div>
 				</div>
 				<div class="rate-stats">
 					<div class="rate-stat">
 						<span class="rv">{targetRate}</span>
 						<span class="ru">lbs/SY</span>
-						<span class="rl">Target spread</span>
+						<span class="rl">Target rate</span>
 					</div>
 					<div class="rate-stat">
 						<span class="rv">{looseHeight.toFixed(2)}</span>
@@ -347,7 +347,7 @@
 				</div>
 
 				<div class="chart-block">
-					<div class="eyebrow">Spread Rate vs Target</div>
+					<div class="eyebrow">Target Rate Preview</div>
 					<SpreadRateChart {targetRate} />
 				</div>
 			</aside>

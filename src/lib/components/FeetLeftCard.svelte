@@ -171,7 +171,7 @@
 <CalcCard
 	title="Feet Left Today"
 	hideTitle
-	purpose="How many more feet you can pave with what is left, at the job width and target rate set above."
+	purpose="How many more feet you can pave with what is left, using the shared width and target rate."
 >
 	<NumberField
 		label="Tons ordered today"
@@ -186,7 +186,7 @@
 	/>
 
 	<NumberField
-		label="Total job length (optional)"
+		label="Total length (optional)"
 		unit={UNIT_LABELS.ft[unitsStore.system]}
 		bind:value={totalJobInput}
 		hint="For progress tracking"
