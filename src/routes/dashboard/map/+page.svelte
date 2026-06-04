@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
-	import OrgMapView from '$lib/components/OrgMapView.svelte';
+	import { MapView, MapMarker } from '$lib/components/map-v2';
+	import type { Map as MapLibreMap } from 'maplibre-gl';
 	import type { PageData } from './$types';
 
 	interface MapSite {
@@ -21,7 +22,7 @@
 
 	let { data }: { data: PageData } = $props();
 
-	let orgMap: any = $state(null);
+	let mapInstance = $state<MapLibreMap | null>(null);
 	let sites = $state<MapSite[]>([]);
 	let loading = $state(true);
 	let error = $state<string | null>(null);
@@ -70,6 +71,14 @@
 		return counts;
 	});
 
+	// Default center — Georgia/Alabama region
+	const mapCenter = $derived<[number, number]>(() => {
+		if (pinnedSites.length === 1) {
+			return [pinnedSites[0].latitude, pinnedSites[0].longitude];
+		}
+		return [33.749, -84.388];
+	});
+
 	async function fetchSites() {
 		try {
 			error = null;
@@ -88,8 +97,9 @@
 	}
 
 	function handleSiteClick(siteId: string) {
-		if (orgMap && typeof orgMap.flyToSite === 'function') {
-			orgMap.flyToSite(siteId);
+		const site = pinnedSites.find((s) => s.id === siteId);
+		if (site && mapInstance) {
+			mapInstance.flyTo({ center: [site.longitude, site.latitude], zoom: 16 });
 		}
 		// Close mobile drawer after selection
 		if (window.innerWidth < 768) {
@@ -99,6 +109,19 @@
 
 	function toggleSidebar() {
 		sidebarOpen = !sidebarOpen;
+	}
+
+	function popupHtml(site: MapSite): string {
+		const statusLabel = STATUS_LABELS[site.status] || site.status;
+		const color = STATUS_COLORS[site.status] || '#94a3b8';
+		return `<div style="min-width:160px;font-family:system-ui,sans-serif">
+			<strong style="font-size:0.95rem">${site.name}</strong><br>
+			<span style="display:inline-block;margin:4px 0;padding:2px 8px;border-radius:999px;background:${color};color:${site.status === 'archived' ? '#fff' : '#000'};font-size:0.7rem;font-weight:700;text-transform:uppercase">${statusLabel}</span>
+			${site.today_log_open && site.today_tons > 0 ? `<br><span style="font-size:0.85rem;font-weight:600">${site.today_tons.toFixed(1)} T &bull; ${site.today_loads} loads</span>` : ''}
+			${site.crew_name ? `<br><span style="font-size:0.8rem;color:#94a3b8">${site.crew_name}</span>` : ''}
+			${site.location_description ? `<br><span style="font-size:0.8rem;color:#666">${site.location_description}</span>` : ''}
+			<br><a href="/dashboard/job-sites/${site.id}" style="display:inline-block;margin-top:8px;font-size:0.82rem;color:#3b82f6;text-decoration:underline">Open site &rarr;</a>
+		</div>`;
 	}
 
 	onMount(() => {
@@ -254,7 +277,24 @@
 
 	<!-- Map container -->
 	<div class="map-container">
-		<OrgMapView bind:this={orgMap} height="100%" />
+		<MapView
+			center={mapCenter()}
+			zoom={pinnedSites.length === 1 ? 15 : 9}
+			height="100%"
+			bind:map={mapInstance}
+		>
+			{#snippet layers()}
+				{#each pinnedSites as site (site.id)}
+					<MapMarker
+						lat={site.latitude}
+						lng={site.longitude}
+						color={STATUS_COLORS[site.status]}
+						label={site.name.charAt(0)}
+						popupHtml={popupHtml(site)}
+					/>
+				{/each}
+			{/snippet}
+		</MapView>
 	</div>
 
 	<!-- Mobile overlay -->
