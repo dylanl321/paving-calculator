@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import type L from 'leaflet';
-	import { MapContainer, MapMarker, MapPolyline, MapPolygon, MapCircleMarker } from '$lib/components/map';
+	import { browser } from '$app/environment';
+	import { MapView, MapMarker, MapPolyline, MapPolygon } from '$lib/components/map-v2';
 	import { haversineFeet } from '$lib/services/mapUtils';
+	import type { Map as MapLibreMap } from 'maplibre-gl';
 
 	interface Waypoint {
 		lat: number;
@@ -36,13 +37,13 @@
 		onRouteSave
 	}: Props = $props();
 
-	let mapInstance: L.Map | null = null;
+	let mapInstance = $state<MapLibreMap | null>(null);
 	let waypoints = $state<Waypoint[]>([...initialWaypoints]);
 	let drawMode = $state(false);
 	let saving = $state(false);
 
 	const isMobile = $derived(
-		typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+		browser && typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
 	);
 
 	const STATUS_COLORS: Record<string, string> = {
@@ -112,13 +113,6 @@
 
 	const color = $derived(STATUS_COLORS[site.status] ?? STATUS_COLORS.active);
 
-	const sitePinSvg = $derived(
-		`<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
-				<path d="M14 0C6.268 0 0 6.268 0 14c0 9.333 14 22 14 22S28 23.333 28 14C28 6.268 21.732 0 14 0z" fill="${color}" stroke="#fff" stroke-width="2"/>
-				<circle cx="14" cy="14" r="5" fill="#fff"/>
-			</svg>`
-	);
-
 	const sitePopupHtml = $derived.by(() => {
 		const statusLabel = site.status.charAt(0).toUpperCase() + site.status.slice(1);
 		return `<div style="min-width:160px;font-family:system-ui,sans-serif">
@@ -137,12 +131,11 @@
 		return computeBufferPolygon(waypoints, totalWidthMeters);
 	});
 
-	function handleMapReady(map: L.Map) {
+	function handleMapReady(map: MapLibreMap) {
 		mapInstance = map;
-		map.setView([site.latitude as number, site.longitude as number], 15);
-		map.on('click', (e: L.LeafletMouseEvent) => {
+		map.on('click', (e) => {
 			if (drawMode && !isMobile) {
-				waypoints = [...waypoints, { lat: e.latlng.lat, lng: e.latlng.lng }];
+				waypoints = [...waypoints, { lat: e.lngLat.lat, lng: e.lngLat.lng }];
 			}
 		});
 	}
@@ -150,7 +143,7 @@
 	function toggleDrawMode() {
 		drawMode = !drawMode;
 		if (mapInstance) {
-			mapInstance.getContainer().style.cursor = drawMode ? 'crosshair' : '';
+			mapInstance.getCanvas().style.cursor = drawMode ? 'crosshair' : '';
 		}
 	}
 
@@ -201,49 +194,51 @@
 	</div>
 {:else}
 	<div class="map-wrap" style="height:{height}">
-		<MapContainer
-			class="route-map"
-			{height}
+		<MapView
 			center={[site.latitude as number, site.longitude as number]}
 			zoom={15}
+			{height}
 			onready={handleMapReady}
 		>
-			<MapMarker
-				lat={site.latitude as number}
-				lng={site.longitude as number}
-				title={site.name}
-				{color}
-				popupHtml={sitePopupHtml}
-				popupMinWidth={160}
-			/>
+			{#snippet layers()}
+				<MapMarker
+					lat={site.latitude as number}
+					lng={site.longitude as number}
+					color={color}
+					label={site.name.charAt(0)}
+					popupHtml={sitePopupHtml}
+				/>
 
-			{#if waypoints.length >= 2}
-				<MapPolyline points={routePoints} color="#f2c037" weight={3} />
-				{#if bufferCoords.length > 0}
-					<MapPolygon
-						points={bufferCoords}
-						color="rgba(242, 192, 55, 0.4)"
-						fillColor="rgba(242, 192, 55, 0.15)"
-						fillOpacity={1}
-						weight={1}
-					/>
-				{/if}
-			{/if}
-
-			{#if drawMode}
-				{#each waypoints as wp, i (i)}
-					<MapCircleMarker
-						lat={wp.lat}
-						lng={wp.lng}
-						radius={5}
+				{#if waypoints.length >= 2}
+					<MapPolyline
+						id="route-alignment"
+						coordinates={routePoints}
 						color="#f2c037"
-						fillColor="#f2c037"
-						fillOpacity={1}
-						weight={2}
+						width={3}
 					/>
-				{/each}
-			{/if}
-		</MapContainer>
+					{#if bufferCoords.length > 0}
+						<MapPolygon
+							id="route-buffer"
+							coordinates={bufferCoords}
+							fillColor="rgba(242, 192, 55, 0.15)"
+							strokeColor="rgba(242, 192, 55, 0.5)"
+							strokeWidth={1}
+						/>
+					{/if}
+				{/if}
+
+				{#if drawMode}
+					{#each waypoints as wp, i (i)}
+						<MapMarker
+							lat={wp.lat}
+							lng={wp.lng}
+							color="#f2c037"
+							label={String(i + 1)}
+						/>
+					{/each}
+				{/if}
+			{/snippet}
+		</MapView>
 
 		<div class="map-controls">
 			<button
@@ -362,11 +357,6 @@
 		border-radius: var(--radius-md, 12px);
 		overflow: hidden;
 		border: 1px solid var(--border);
-	}
-
-	.map-wrap :global(.route-map) {
-		height: 100%;
-		border-radius: 0;
 	}
 
 	.empty-map {
