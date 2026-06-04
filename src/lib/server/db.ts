@@ -176,18 +176,6 @@ export interface DbCalculation {
 	created_at: number;
 }
 
-export interface DbLoad {
-	id: string;
-	job_site_id: string;
-	user_id: string;
-	ticket_number: string | null;
-	tons: number;
-	timestamp: number;
-	spread_rate: number | null;
-	notes: string | null;
-	created_at: number;
-}
-
 export interface DbSession {
 	id: string;
 	user_id: string;

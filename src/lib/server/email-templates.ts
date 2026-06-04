@@ -741,9 +741,6 @@ https://paverate.com`
   }
 };
 
-/** @deprecated Use SYSTEM_DEFAULTS instead */
-export const DEFAULT_TEMPLATES = SYSTEM_DEFAULTS;
-
 // ---------------------------------------------------------------------------
 // getTemplate — looks up DB row first, falls back to SYSTEM_DEFAULTS
 // ---------------------------------------------------------------------------
