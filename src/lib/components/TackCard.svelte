@@ -90,7 +90,18 @@
 			toolId: 'tack',
 			toolLabel: 'Tack Rate',
 			result: resultStr,
-			summary: `${lengthFt ?? '?'}ft \u00d7 ${job.widthFt}ft wide`
+			summary: `${lengthFt ?? '?'}ft \u00d7 ${job.widthFt}ft wide`,
+			inputs: {
+				length_ft: lengthFt,
+				width_ft: job.widthFt,
+				tack_application: job.tackApplication
+			},
+			outputs: {
+				gallons_mid: Math.round(gallons.mid),
+				gallons_min: Math.round(gallons.min),
+				gallons_max: Math.round(gallons.max),
+				result: resultStr
+			}
 		});
 	});
 

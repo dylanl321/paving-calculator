@@ -193,7 +193,17 @@
 			toolId: 'spread-rate',
 			toolLabel: 'Spread Rate',
 			result: resultStr,
-			summary: `${tonsInput ?? '?'} tons \u00b7 ${distanceInput ?? '?'}ft \u00b7 ${w}ft wide`
+			summary: `${tonsInput ?? '?'} tons \u00b7 ${distanceInput ?? '?'}ft \u00b7 ${w}ft wide`,
+			inputs: {
+				tons: tonsInput,
+				distance_ft: distanceInput,
+				width_ft: w,
+				thickness_in: calcContext.lift_thickness.value
+			},
+			outputs: {
+				spread_rate_lbs_sy: Math.round(placedRate),
+				result: resultStr
+			}
 		});
 	});
 

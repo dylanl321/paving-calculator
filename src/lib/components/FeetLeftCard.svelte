@@ -102,7 +102,17 @@
 			toolId: 'feet-left',
 			toolLabel: 'Feet Left',
 			result: resultStr,
-			summary: `${orderedInput ?? '?'} tons ordered, ${placedInput ?? '?'} placed`
+			summary: `${orderedInput ?? '?'} tons ordered, ${placedInput ?? '?'} placed`,
+			inputs: {
+				tons_ordered: ordered,
+				tons_placed: placed,
+				width_ft: widthFt,
+				thickness_in: thicknessIn
+			},
+			outputs: {
+				feet_remaining: Math.round(feet),
+				result: resultStr
+			}
 		});
 	});
 

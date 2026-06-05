@@ -86,7 +86,16 @@
 			toolId: 'tonnage',
 			toolLabel: 'Tonnage',
 			result: resultStr,
-			summary: `${lengthInput ?? '?'}ft \u00d7 ${widthFt}ft wide \u00d7 ${thicknessIn}in`
+			summary: `${lengthInput ?? '?'}ft \u00d7 ${widthFt}ft wide \u00d7 ${thicknessIn}in`,
+			inputs: {
+				length_ft: lengthFt,
+				width_ft: widthFt,
+				thickness_in: thicknessIn
+			},
+			outputs: {
+				tons: parseFloat(tons.toFixed(1)),
+				result: resultStr
+			}
 		});
 	});
 
