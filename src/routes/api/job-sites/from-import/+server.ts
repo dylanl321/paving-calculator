@@ -65,6 +65,15 @@ function validNum(v: unknown): v is number {
 	return typeof v === 'number' && Number.isFinite(v);
 }
 
+function validWaypoint(wp: unknown): wp is { lat: number; lng: number } {
+	return (
+		wp != null &&
+		typeof wp === 'object' &&
+		validNum((wp as { lat?: unknown }).lat) &&
+		validNum((wp as { lng?: unknown }).lng)
+	);
+}
+
 interface LineGeom {
 	type: 'LineString';
 	coordinates: [number, number][];
@@ -304,21 +313,12 @@ export async function POST(event: RequestEvent) {
 		let roadwayLogAnchored = false;
 		try {
 			const override = body.route_override?.accepted ? body.route_override : null;
-			const resolved = override
-				? {
-						latitude: validNum(override.latitude) ? override.latitude : null,
-						longitude: validNum(override.longitude) ? override.longitude : null,
-						routeGeometry:
-							override.waypoints?.length >= 2
-								? {
-										type: 'LineString' as const,
-										coordinates: override.waypoints
-											.filter((wp) => validNum(wp.lat) && validNum(wp.lng))
-											.map((wp) => [wp.lng, wp.lat] as [number, number])
-									}
-								: null,
-						source: override.source || 'manual'
-					}
+			const overrideWaypoints = Array.isArray(override?.waypoints)
+				? override.waypoints.filter(validWaypoint)
+				: [];
+			const hasOverrideRoute = overrideWaypoints.length >= 2;
+			const autoResolved = hasOverrideRoute
+				? null
 				: await resolveImportLocation({
 						routeDesignation: str(parsed.route_designation),
 						county: str(parsed.county),
@@ -326,6 +326,27 @@ export async function POST(event: RequestEvent) {
 						beginTerminus: str(parsed.begin_terminus),
 						endTerminus: str(parsed.end_terminus)
 					});
+			const resolved = hasOverrideRoute
+				? {
+						latitude: validNum(override.latitude) ? override.latitude : null,
+						longitude: validNum(override.longitude) ? override.longitude : null,
+						routeGeometry: {
+							type: 'LineString' as const,
+							coordinates: overrideWaypoints.map((wp) => [wp.lng, wp.lat] as [number, number])
+						},
+						source: override.source || 'manual'
+					}
+				: autoResolved &&
+					  (autoResolved.routeGeometry ||
+							autoResolved.latitude != null ||
+							autoResolved.longitude != null)
+					? autoResolved
+					: {
+							latitude: validNum(override?.latitude) ? override.latitude : null,
+							longitude: validNum(override?.longitude) ? override.longitude : null,
+							routeGeometry: null,
+							source: override?.source || 'none'
+						};
 			locationSource = resolved.source;
 
 			if (resolved.latitude != null && resolved.longitude != null) {

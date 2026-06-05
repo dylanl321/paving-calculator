@@ -296,6 +296,12 @@
 		}));
 
 		try {
+			const reviewedRoute =
+				routePreview &&
+				(routePreview.waypoints.length >= 2 ||
+					(routePreview.latitude != null && routePreview.longitude != null))
+					? routePreview
+					: null;
 			const res = await fetch('/api/job-sites/from-import', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
@@ -303,14 +309,14 @@
 					parsed,
 					source_keys: sourceKeys,
 					documents,
-					route_override: routePreview
+					route_override: reviewedRoute
 						? {
 								accepted: true,
-								latitude: routePreview.latitude,
-								longitude: routePreview.longitude,
-								waypoints: routePreview.waypoints,
-								source: routePreview.source,
-								events_anchored: routePreview.events_anchored
+								latitude: reviewedRoute.latitude,
+								longitude: reviewedRoute.longitude,
+								waypoints: reviewedRoute.waypoints,
+								source: reviewedRoute.source,
+								events_anchored: reviewedRoute.events_anchored
 							}
 						: undefined,
 					corrections: correctionsMeta,
