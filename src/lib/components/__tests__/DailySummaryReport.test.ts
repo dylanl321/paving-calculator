@@ -94,6 +94,8 @@ function makeLog(overrides: Partial<DbDailyLog> = {}): DbDailyLog {
     weather_temp_f: 72,
     weather_conditions: 'clear',
     wind_speed_mph: 8,
+    is_raining: null,
+    weather_fetched_at: null,
     crew_count: 5,
     start_time: '07:00',
     end_time: '15:30',

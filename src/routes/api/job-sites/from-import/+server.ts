@@ -328,13 +328,13 @@ export async function POST(event: RequestEvent) {
 					});
 			const resolved = hasOverrideRoute
 				? {
-						latitude: validNum(override.latitude) ? override.latitude : null,
-						longitude: validNum(override.longitude) ? override.longitude : null,
+						latitude: validNum(override!.latitude) ? override!.latitude : null,
+						longitude: validNum(override!.longitude) ? override!.longitude : null,
 						routeGeometry: {
 							type: 'LineString' as const,
 							coordinates: overrideWaypoints.map((wp) => [wp.lng, wp.lat] as [number, number])
 						},
-						source: override.source || 'manual'
+						source: override!.source || 'manual'
 					}
 				: autoResolved &&
 					  (autoResolved.routeGeometry ||
