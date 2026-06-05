@@ -37,12 +37,21 @@
 		sort_order: number;
 	}
 
+	interface RoadwayLogEvent {
+		id: string;
+		station: number;
+		event_type: string;
+		roadway_width_ft: number | null;
+		description: string;
+	}
+
 	interface Props {
 		siteId: string;
 		waypoints?: Waypoint[];
 		numLanes?: number | null;
 		totalLengthFt?: number | null;
 		height?: string;
+		roadwayLogEvents?: RoadwayLogEvent[];
 	}
 
 	let {
@@ -50,7 +59,8 @@
 		waypoints = [],
 		numLanes = null,
 		totalLengthFt = null,
-		height = '50vh'
+		height = '50vh',
+		roadwayLogEvents = []
 	}: Props = $props();
 
 	let sections = $state<RoadSection[]>([]);
@@ -65,6 +75,10 @@
 	let plannedLengthFt = $state<number | null>(null);
 	let plannedLayerLabel = $state('');
 	let plannedMixId = $state('');
+	let cursorStation = $state<number | null>(null);
+	let cursorPosition = $state<{ x: number; y: number } | null>(null);
+	let showAutoSplitModal = $state(false);
+	let autoSplitPreview = $state<Array<{ start: number; end: number; name: string; width: number | null }>>([]);
 
 	const hasRoute = $derived(waypoints.length >= 2);
 
@@ -73,6 +87,67 @@
 		completed: '#22c55e',
 		skipped: '#6b7280'
 	};
+
+	// Relevant log events for auto-split (width_change or operation_change)
+	const relevantLogEvents = $derived(
+		roadwayLogEvents
+			.filter((e) => e.event_type === 'width_change' || e.event_type === 'operation_change')
+			.sort((a, b) => a.station - b.station)
+	);
+
+	const canAutoSplit = $derived(relevantLogEvents.length > 0);
+
+	// Compute overlaps and gaps
+	const overlaps = $derived(() => {
+		const result: Array<{ a: RoadSection; b: RoadSection; start: number; end: number }> = [];
+		for (let i = 0; i < sections.length; i++) {
+			for (let j = i + 1; j < sections.length; j++) {
+				const a = sections[i];
+				const b = sections[j];
+				if (
+					a.station_start == null ||
+					a.station_end == null ||
+					b.station_start == null ||
+					b.station_end == null
+				)
+					continue;
+				const overlapStart = Math.max(a.station_start, b.station_start);
+				const overlapEnd = Math.min(a.station_end, b.station_end);
+				if (overlapStart < overlapEnd) {
+					result.push({ a, b, start: overlapStart, end: overlapEnd });
+				}
+			}
+		}
+		return result;
+	});
+
+	const gaps = $derived(() => {
+		const routeFt = totalLengthFt ?? polylineLengthFt(waypoints);
+		if (routeFt === 0 || sections.length === 0) return [];
+		const sorted = sections
+			.filter((s) => s.station_start != null && s.station_end != null)
+			.slice()
+			.sort((a, b) => a.station_start! - b.station_start!);
+		const result: Array<{ start: number; end: number }> = [];
+		// Gap before first section
+		if (sorted[0].station_start! > 0) {
+			result.push({ start: 0, end: sorted[0].station_start! });
+		}
+		// Gaps between sections
+		for (let i = 0; i < sorted.length - 1; i++) {
+			const gapStart = sorted[i].station_end!;
+			const gapEnd = sorted[i + 1].station_start!;
+			if (gapStart < gapEnd) {
+				result.push({ start: gapStart, end: gapEnd });
+			}
+		}
+		// Gap after last section
+		const lastEnd = sorted[sorted.length - 1].station_end!;
+		if (lastEnd < routeFt) {
+			result.push({ start: lastEnd, end: routeFt });
+		}
+		return result;
+	});
 
 	$effect(() => {
 		if (browser && siteId) {
@@ -102,6 +177,7 @@
 				drawMode = 'idle';
 			} else if (drawMode === 'pick-start') {
 				tempStartStation = station;
+				flash(`Start set at station ${Math.round(station)} ft (${(station / 5280).toFixed(2)} mi)`);
 				drawMode = 'pick-end';
 			} else if (drawMode === 'pick-end' && tempStartStation !== null) {
 				createSection(tempStartStation, station);
@@ -109,11 +185,33 @@
 				drawMode = 'idle';
 			}
 		}
+		function onMouseMove(e: MouseEvent & { lngLat: { lat: number; lng: number } }) {
+			if (drawMode !== 'pick-start' && drawMode !== 'pick-end') {
+				cursorStation = null;
+				cursorPosition = null;
+				return;
+			}
+			const station = coordinateToStation(
+				{ lat: e.lngLat.lat, lng: e.lngLat.lng },
+				waypoints
+			);
+			if (station !== null) {
+				cursorStation = station;
+				cursorPosition = { x: e.clientX, y: e.clientY };
+			} else {
+				cursorStation = null;
+				cursorPosition = null;
+			}
+		}
 		// @ts-ignore — MapLibre event typing
 		m.on('click', onMapClick);
+		// @ts-ignore
+		m.on('mousemove', onMouseMove);
 		return () => {
 			// @ts-ignore
 			m.off('click', onMapClick);
+			// @ts-ignore
+			m.off('mousemove', onMouseMove);
 		};
 	});
 
@@ -166,6 +264,74 @@
 		drawMode = 'plan-start';
 		tempStartStation = null;
 		editingSectionId = null;
+	}
+
+	function openAutoSplitModal() {
+		const events = relevantLogEvents;
+		if (events.length === 0) {
+			toastStore.error('No width_change or operation_change events found');
+			return;
+		}
+		// Build section previews between consecutive event stations
+		const preview: Array<{ start: number; end: number; name: string; width: number | null }> = [];
+		for (let i = 0; i < events.length - 1; i++) {
+			const start = events[i].station;
+			const end = events[i + 1].station;
+			const name = events[i].description || `Section ${i + 1}`;
+			const width = events[i].roadway_width_ft;
+			preview.push({ start, end, name, width });
+		}
+		// Last event to end of route
+		const routeFt = totalLengthFt ?? polylineLengthFt(waypoints);
+		if (events[events.length - 1].station < routeFt) {
+			preview.push({
+				start: events[events.length - 1].station,
+				end: routeFt,
+				name: events[events.length - 1].description || `Section ${events.length}`,
+				width: events[events.length - 1].roadway_width_ft
+			});
+		}
+		autoSplitPreview = preview;
+		showAutoSplitModal = true;
+	}
+
+	async function confirmAutoSplit() {
+		showAutoSplitModal = false;
+		let created = 0;
+		for (const seg of autoSplitPreview) {
+			const geometry = sliceRouteByStations(waypoints, seg.start, seg.end);
+			if (!geometry) continue;
+			const newSection = {
+				name: seg.name,
+				lane: '1',
+				station_start: seg.start,
+				station_end: seg.end,
+				status: 'active' as const,
+				geometry_geojson: JSON.stringify(geometry),
+				notes: seg.width ? `Width: ${seg.width} ft` : null,
+				sort_order: sections.length + created
+			};
+			try {
+				const res = await fetch(`/api/job-sites/${siteId}/sections`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(newSection)
+				});
+				if (res.ok) {
+					const createdSection = (await res.json()) as RoadSection;
+					sections = [...sections, createdSection];
+					created++;
+				}
+			} catch (err) {
+				console.error('Failed to create section:', err);
+			}
+		}
+		if (created > 0) {
+			nextSectionNumber = sections.length + 1;
+			toastStore.success(`Created ${created} section(s) from log events`);
+		} else {
+			toastStore.error('Failed to create sections');
+		}
 	}
 
 	/**
@@ -370,9 +536,9 @@
 		flashMessage
 			? flashMessage
 			: drawMode === 'pick-start'
-				? 'Tap the road to set section START'
+				? 'Tap on the route to set section start — station will snap to road centerline'
 				: drawMode === 'pick-end'
-					? 'Tap the road to set section END'
+					? 'Tap on the route to set section end'
 					: drawMode === 'plan-start'
 						? 'Tap the road to set planned segment START'
 						: ''
@@ -431,11 +597,34 @@
 						status="active"
 					/>
 				{/if}
+
+				{#each gaps() as gap (gap.start + '-' + gap.end)}
+					{@const gapGeometry = sliceRouteByStations(waypoints, gap.start, gap.end)}
+					{#if gapGeometry}
+						<MapPolyline
+							id="gap-{gap.start}-{gap.end}"
+							coordinates={gapGeometry.coordinates.map((c) => [c[1], c[0]])}
+							color="#6b7280"
+							width={3}
+							opacity={0.5}
+							dashArray={[4, 4]}
+						/>
+					{/if}
+				{/each}
 			{/snippet}
 		</MapView>
 
 		{#if instructionText}
 			<div class="instruction-banner">{instructionText}</div>
+		{/if}
+
+		{#if cursorStation !== null && cursorPosition !== null}
+			<div
+				class="station-tooltip"
+				style="left: {cursorPosition.x + 15}px; top: {cursorPosition.y + 15}px;"
+			>
+				Station: {Math.round(cursorStation)} ft ({(cursorStation / 5280).toFixed(2)} mi)
+			</div>
 		{/if}
 	</div>
 
@@ -479,6 +668,15 @@
 				</button>
 			</div>
 
+			{#if canAutoSplit}
+				<button type="button" class="btn-add btn-add-auto-split" onclick={openAutoSplitModal} disabled={drawMode !== 'idle' || !hasRoute}>
+					<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M3 12h18M3 6h18M3 18h18" />
+					</svg>
+					Auto-create from log events
+				</button>
+			{/if}
+
 			<button type="button" class="btn-add" onclick={startAddSection} disabled={drawMode !== 'idle' || !hasRoute}>
 				<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
 					<path d="M10 5v10M5 10h10" />
@@ -486,6 +684,22 @@
 				Add Section
 			</button>
 		</div>
+
+		{#if overlaps().length > 0}
+			<div class="overlap-warning">
+				<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M10 7v6M10 17h.01" />
+					<circle cx="10" cy="10" r="8" />
+				</svg>
+				<div class="overlap-text">
+					{#each overlaps() as overlap}
+						<div>
+							Sections "{overlap.a.name}" and "{overlap.b.name}" overlap at stations {Math.round(overlap.start)}–{Math.round(overlap.end)} ft
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
 
 		<div class="section-list">
 			{#if sections.length === 0}
@@ -559,6 +773,38 @@
 		</div>
 	</div>
 </div>
+
+{#if showAutoSplitModal}
+	<div class="modal-backdrop" onclick={() => (showAutoSplitModal = false)}>
+		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
+			<h3>Auto-create sections from log events</h3>
+			<p class="modal-hint">
+				This will create {autoSplitPreview.length} section(s) based on width_change and operation_change events:
+			</p>
+			<div class="auto-split-preview">
+				{#each autoSplitPreview as seg, i}
+					<div class="preview-row">
+						<div class="preview-name">{seg.name}</div>
+						<div class="preview-range">
+							{Math.round(seg.start)} ft → {Math.round(seg.end)} ft
+							{#if seg.width}
+								<span class="preview-width">({seg.width} ft wide)</span>
+							{/if}
+						</div>
+					</div>
+				{/each}
+			</div>
+			<div class="modal-actions">
+				<button type="button" class="btn-modal btn-cancel" onclick={() => (showAutoSplitModal = false)}>
+					Cancel
+				</button>
+				<button type="button" class="btn-modal btn-confirm" onclick={confirmAutoSplit}>
+					Create Sections
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <style>
 	.road-section-editor {
@@ -857,6 +1103,164 @@
 
 	.btn-delete:hover {
 		background: rgba(239, 68, 68, 0.1);
+	}
+
+	.station-tooltip {
+		position: fixed;
+		background: rgba(0, 0, 0, 0.9);
+		color: var(--text, #fff);
+		padding: 6px 12px;
+		border-radius: 6px;
+		font-size: 13px;
+		font-weight: 600;
+		font-family: 'SF Mono', 'Consolas', monospace;
+		pointer-events: none;
+		z-index: 2000;
+		white-space: nowrap;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+	}
+
+	.btn-add-auto-split {
+		background: var(--surface-alt, #2a2a2a);
+		color: var(--accent, #f59e0b);
+		border: 1px solid var(--accent, #f59e0b);
+		margin-bottom: 8px;
+	}
+
+	.btn-add-auto-split:hover:not(:disabled) {
+		background: var(--accent, #f59e0b);
+		color: var(--bg, #000);
+	}
+
+	.overlap-warning {
+		display: flex;
+		gap: 12px;
+		padding: 12px;
+		background: rgba(245, 158, 11, 0.1);
+		border: 1px solid rgba(245, 158, 11, 0.3);
+		border-radius: 8px;
+		color: #fbbf24;
+		font-size: 14px;
+		margin-bottom: 12px;
+	}
+
+	.overlap-warning svg {
+		flex-shrink: 0;
+		margin-top: 2px;
+	}
+
+	.overlap-text {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.modal-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.7);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 3000;
+		padding: 24px;
+	}
+
+	.modal-content {
+		background: var(--surface, #1e1e1e);
+		border: 1px solid var(--border, #333);
+		border-radius: 12px;
+		padding: 24px;
+		max-width: 600px;
+		width: 100%;
+		max-height: 80vh;
+		overflow-y: auto;
+	}
+
+	.modal-content h3 {
+		margin: 0 0 8px 0;
+		font-size: 20px;
+		font-weight: 700;
+		color: var(--text, #fff);
+	}
+
+	.modal-hint {
+		margin: 0 0 16px 0;
+		font-size: 14px;
+		color: var(--text-muted, #999);
+	}
+
+	.auto-split-preview {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin-bottom: 24px;
+		max-height: 400px;
+		overflow-y: auto;
+	}
+
+	.preview-row {
+		padding: 12px;
+		background: var(--surface-alt, #2a2a2a);
+		border: 1px solid var(--border, #333);
+		border-radius: 8px;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.preview-name {
+		font-weight: 600;
+		color: var(--text, #fff);
+	}
+
+	.preview-range {
+		font-size: 13px;
+		color: var(--text-muted, #999);
+		font-family: 'SF Mono', 'Consolas', monospace;
+	}
+
+	.preview-width {
+		color: var(--accent, #f59e0b);
+		margin-left: 8px;
+	}
+
+	.modal-actions {
+		display: flex;
+		gap: 12px;
+	}
+
+	.btn-modal {
+		flex: 1;
+		min-height: 48px;
+		padding: 12px 16px;
+		border: none;
+		border-radius: 8px;
+		font-weight: 600;
+		font-size: 16px;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.btn-cancel {
+		background: var(--surface-alt, #2a2a2a);
+		color: var(--text, #fff);
+		border: 1px solid var(--border, #333);
+	}
+
+	.btn-cancel:hover {
+		background: var(--surface-hover, #333);
+	}
+
+	.btn-confirm {
+		background: var(--accent, #f59e0b);
+		color: var(--bg, #000);
+	}
+
+	.btn-confirm:hover {
+		transform: translateY(-1px);
+		box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
 	}
 
 	@media (min-width: 768px) {
