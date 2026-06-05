@@ -1,14 +1,29 @@
 <script lang="ts">
 	import { Cloud, CloudFog, CloudRain, CloudSnow, CloudSun, MapPin } from 'lucide-svelte';
-	import { weather } from '$lib/stores/weather.svelte';
 	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { placementCheck } from '$lib/config';
+	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
+	import { fetchWeather, type WeatherSnapshot } from '$lib/services/weather';
+
+	let snapshot = $state<WeatherSnapshot | null>(null);
+	let loading = $state(false);
+	let fetchError = $state(false);
+	let fetchKey = $state<string | null>(null);
+
+	const plantLat = $derived(orgSettingsStore.plantLat);
+	const plantLng = $derived(orgSettingsStore.plantLng);
+	const hasPlantLocation = $derived(plantLat != null && plantLng != null);
+	const locationLabel = $derived(orgSettingsStore.plantName || 'Org plant');
+	const effectiveTempF = $derived(snapshot?.airTempF ?? null);
+	const conditions = $derived(snapshot?.conditions ?? '');
+	const isRaining = $derived(snapshot?.isRaining ?? false);
+	const lastFetchedAt = $derived(snapshot?.fetchedAt ?? null);
 
 	const tempStatus = $derived.by(() => {
-		const temp = weather.effectiveTempF;
+		const temp = effectiveTempF;
 		const thickness = calcContext.lift_thickness.value;
 
-		if (temp == null || thickness <= 0 || !weather.hasLocation) {
+		if (temp == null || thickness <= 0 || !hasPlantLocation) {
 			return 'neutral';
 		}
 
@@ -21,15 +36,18 @@
 	});
 
 	const statusLabel = $derived.by(() => {
-		if (!weather.hasLocation || weather.effectiveTempF == null) return 'Weather';
-		if (tempStatus === 'good') return 'Paving window OK';
-		if (tempStatus === 'warn') return 'Check conditions';
-		if (tempStatus === 'bad') return 'Weather hold';
-		return 'Weather';
+		if (!hasPlantLocation) return 'Plant weather';
+		if (loading) return 'Loading plant weather';
+		if (fetchError) return 'Plant weather unavailable';
+		if (effectiveTempF == null) return 'Plant weather';
+		if (tempStatus === 'good') return 'Plant temp OK';
+		if (tempStatus === 'warn') return 'Plant temp close';
+		if (tempStatus === 'bad') return 'Plant temp low';
+		return 'Plant weather';
 	});
 
 	const conditionIcon = $derived.by(() => {
-		const cond = weather.conditions.toLowerCase();
+		const cond = conditions.toLowerCase();
 		if (cond.includes('rain')) return CloudRain;
 		if (cond.includes('snow')) return CloudSnow;
 		if (cond.includes('fog')) return CloudFog;
@@ -38,14 +56,52 @@
 	});
 
 	const lastUpdatedText = $derived.by(() => {
-		if (!weather.lastFetchedAt) return null;
-		const minutes = Math.floor((Date.now() - weather.lastFetchedAt) / 60000);
+		if (!lastFetchedAt) return null;
+		const minutes = Math.floor((Date.now() - lastFetchedAt) / 60000);
 		if (minutes < 1) return 'Updated just now';
 		if (minutes === 1) return 'Updated 1 min ago';
 		if (minutes < 60) return `Updated ${minutes} min ago`;
 		const hours = Math.floor(minutes / 60);
 		if (hours === 1) return 'Updated 1 hour ago';
 		return `Updated ${hours} hours ago`;
+	});
+
+	async function loadPlantWeather(lat: number, lng: number, key: string) {
+		loading = true;
+		fetchError = false;
+		try {
+			const next = await fetchWeather(lat, lng);
+			if (fetchKey === key) {
+				snapshot = next;
+			}
+		} catch {
+			if (fetchKey === key) {
+				fetchError = true;
+				snapshot = null;
+			}
+		} finally {
+			if (fetchKey === key) {
+				loading = false;
+			}
+		}
+	}
+
+	$effect(() => {
+		const lat = plantLat;
+		const lng = plantLng;
+		if (lat == null || lng == null) {
+			fetchKey = null;
+			snapshot = null;
+			fetchError = false;
+			loading = false;
+			return;
+		}
+
+		const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+		if (key === fetchKey) return;
+		fetchKey = key;
+		snapshot = null;
+		void loadPlantWeather(lat, lng, key);
 	});
 </script>
 
@@ -57,13 +113,13 @@
 	class:weather-bar--neutral={tempStatus === 'neutral'}
 	aria-label="Weather status"
 >
-	{#if !weather.hasLocation}
+	{#if !hasPlantLocation}
 		<div class="weather-bar__icon" aria-hidden="true">
 			<CloudSun size={18} />
 		</div>
 		<div class="weather-bar__body">
-			<span class="weather-bar__label">Weather</span>
-			<span class="weather-bar__meta">Set location</span>
+			<span class="weather-bar__label">Plant weather</span>
+			<span class="weather-bar__meta">Set plant location</span>
 		</div>
 	{:else}
 		{@const ConditionIcon = conditionIcon}
@@ -73,23 +129,23 @@
 		<div class="weather-bar__body">
 			<div class="weather-bar__topline">
 				<span class="weather-bar__temp">
-					{weather.effectiveTempF != null ? `${Math.round(weather.effectiveTempF)}°F` : '--°F'}
+					{effectiveTempF != null ? `${Math.round(effectiveTempF)}°F` : '--°F'}
 				</span>
 				<span class="weather-bar__label">{statusLabel}</span>
 			</div>
 			<div class="weather-bar__details">
-				<span class="weather-bar__conditions">{weather.conditions || 'Loading'}</span>
+				<span class="weather-bar__conditions">{conditions || (fetchError ? 'Unavailable' : 'Loading')}</span>
 				<span class="weather-bar__dot"></span>
 				<span class="weather-bar__location">
 					<MapPin size={12} aria-hidden="true" />
-					{weather.locationLabel}
+					{locationLabel}
 				</span>
 			</div>
 			{#if lastUpdatedText}
 				<span class="weather-bar__updated">{lastUpdatedText}</span>
 			{/if}
 		</div>
-		{#if weather.isRaining}
+		{#if isRaining}
 			<div class="weather-bar__rain" title="Currently raining" aria-label="Currently raining">
 				<CloudRain size={16} />
 			</div>

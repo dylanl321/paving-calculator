@@ -2,6 +2,8 @@
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
+	import { toastStore } from '$lib/stores/toast.svelte';
+	import { api } from '$lib/utils/api-error';
 	import type { PageData } from './$types';
 	import './_components/job-site.css';
 	import {
@@ -29,6 +31,7 @@
 
 	let activeTab = $state('overview');
 	let jobSiteState = $state({ ...data.jobSite });
+	let statusSaving = $state(false);
 	let routeWaypointsState = $state([...data.routeWaypoints]);
 	let lengthSource = $state<'route' | 'manual'>(
 		data.routeWaypoints?.length >= 2 && !data.config?.total_length_ft ? 'route' : 'manual'
@@ -103,6 +106,26 @@
 
 	function handleNewCalculation() {
 		goto(`/?job_site_id=${jobSiteState.id}`);
+	}
+
+	async function updateProjectStatus(status: 'active' | 'completed' | 'archived') {
+		if (statusSaving || jobSiteState.status === status) return;
+		statusSaving = true;
+		try {
+			const updated = await api.patch<typeof jobSiteState>(`/api/job-sites/${jobSiteState.id}`, {
+				status
+			});
+			jobSiteState = { ...jobSiteState, status: updated.status };
+			toastStore.success(
+				status === 'archived'
+					? 'Project archived'
+					: status === 'completed'
+						? 'Project marked complete'
+						: 'Project reactivated'
+			);
+		} finally {
+			statusSaving = false;
+		}
 	}
 
 	const roadTypeLabel = $derived(
@@ -230,6 +253,30 @@
 			</div>
 		</div>
 		<div class="page-actions">
+			{#if jobSiteState.status === 'active'}
+				<button
+					class="btn-ghost-action"
+					onclick={() => updateProjectStatus('completed')}
+					disabled={statusSaving}
+				>
+					Mark Complete
+				</button>
+				<button
+					class="btn-ghost-action btn-archive"
+					onclick={() => updateProjectStatus('archived')}
+					disabled={statusSaving}
+				>
+					Archive
+				</button>
+			{:else}
+				<button
+					class="btn-ghost-action"
+					onclick={() => updateProjectStatus('active')}
+					disabled={statusSaving}
+				>
+					Reactivate
+				</button>
+			{/if}
 			<a class="btn-ghost-action" href="/dashboard/job-sites/{jobSiteState.id}/log">
 				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 					<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -460,6 +507,30 @@
 			</section>
 
 			<section class="sidebar-panel sidebar-actions">
+				{#if jobSiteState.status === 'active'}
+					<button
+						class="sidebar-btn sidebar-btn-secondary"
+						onclick={() => updateProjectStatus('completed')}
+						disabled={statusSaving}
+					>
+						Mark Complete
+					</button>
+					<button
+						class="sidebar-btn sidebar-btn-archive"
+						onclick={() => updateProjectStatus('archived')}
+						disabled={statusSaving}
+					>
+						Archive Project
+					</button>
+				{:else}
+					<button
+						class="sidebar-btn sidebar-btn-secondary"
+						onclick={() => updateProjectStatus('active')}
+						disabled={statusSaving}
+					>
+						Reactivate Project
+					</button>
+				{/if}
 				<a class="sidebar-btn sidebar-btn-secondary" href="/dashboard/job-sites/{jobSiteState.id}/log">
 					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 						<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -612,6 +683,17 @@
 		color: var(--accent);
 	}
 
+	.sidebar-btn-archive {
+		background: var(--surface-alt);
+		color: var(--text-muted);
+		border: 1px solid var(--border);
+	}
+
+	.sidebar-btn-archive:hover {
+		border-color: var(--warn);
+		color: var(--warn);
+	}
+
 	.sidebar-btn-primary {
 		background: var(--accent);
 		color: var(--accent-text);
@@ -620,6 +702,12 @@
 
 	.sidebar-btn-primary:hover {
 		opacity: 0.9;
+	}
+
+	.sidebar-btn:disabled,
+	.btn-ghost-action:disabled {
+		opacity: 0.55;
+		cursor: not-allowed;
 	}
 
 	.breadcrumb {
@@ -710,6 +798,15 @@
 	.btn-ghost-action:hover {
 		border-color: var(--accent);
 		color: var(--accent);
+	}
+
+	.btn-archive {
+		color: var(--text-muted);
+	}
+
+	.btn-archive:hover {
+		border-color: var(--warn);
+		color: var(--warn);
 	}
 
 	.status-badge {
