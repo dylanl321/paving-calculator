@@ -22,6 +22,8 @@ export default defineConfig({
 		sveltekit(),
 		SvelteKitPWA({
 			registerType: 'autoUpdate',
+			buildBase: '/',
+			scope: '/',
 			manifest: {
 				name: 'Paverate',
 				short_name: 'Paverate',
