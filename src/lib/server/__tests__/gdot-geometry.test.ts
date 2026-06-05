@@ -272,6 +272,116 @@ describe('resolveImportLocation', () => {
 describe('buildImportRoutePreview', () => {
 	afterEach(() => vi.unstubAllGlobals());
 
+	it('creates a route preview from GDOT geometry', async () => {
+		mockFetchOnce(() => arcgisLineResponse());
+		const preview = await buildImportRoutePreview({
+			routeDesignation: 'SR 13',
+			county: 'Hall',
+			locationDescription: 'resurfacing',
+			totalLengthFt: null,
+			roadwayLogEvents: []
+		});
+		expect(preview.source).toBe('gdot_route');
+		expect(preview.waypoints.length).toBe(3);
+	});
+
+	it('falls back to OSM termini routing when GDOT has no geometry', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: unknown): Promise<FetchResponse> => {
+				const url = String(input);
+				if (url.includes('GDOT_GPAS')) {
+					return { ok: true, json: async () => ({ features: [], exceededTransferLimit: false }) };
+				}
+				if (url.includes('nominatim')) {
+					const decoded = decodeURIComponent(url);
+					const isEnd = decoded.includes('Bay Branch');
+					return {
+						ok: true,
+						json: async () => [{ lat: isEnd ? '30.72' : '30.64', lon: '-83.10' }]
+					};
+				}
+				if (url.includes('router.project-osrm.org')) {
+					return {
+						ok: true,
+						json: async () => ({
+							code: 'Ok',
+							routes: [
+								{
+									distance: 9000,
+									geometry: { coordinates: [[-83.1, 30.64], [-83.1, 30.72]] }
+								}
+							]
+						})
+					};
+				}
+				return { ok: true, json: async () => ({ result: { addressMatches: [] } }) };
+			})
+		);
+
+		const preview = await buildImportRoutePreview({
+			routeDesignation: 'SR 11',
+			county: 'Echols',
+			locationDescription: '5.505 miles on SR 11',
+			beginTerminus: 'THE FLORIDA STATE LINE',
+			endTerminus: 'BAY BRANCH RD',
+			totalLengthFt: 5280,
+			roadwayLogEvents: [{ milepost: 1, station: 52.8, event_type: 'project_end' }]
+		});
+
+		expect(preview.source).toBe('osm_termini_route');
+		expect(preview.waypoints.length).toBe(2);
+	});
+
+	it('keeps OSM route markers unanchored when route length mismatches the project log', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: unknown): Promise<FetchResponse> => {
+				const url = String(input);
+				if (url.includes('GDOT_GPAS')) {
+					return { ok: true, json: async () => ({ features: [], exceededTransferLimit: false }) };
+				}
+				if (url.includes('nominatim')) {
+					const decoded = decodeURIComponent(url);
+					const isEnd = decoded.includes('Bay Branch');
+					return {
+						ok: true,
+						json: async () => [{ lat: isEnd ? '31.64' : '30.64', lon: '-83.10' }]
+					};
+				}
+				if (url.includes('router.project-osrm.org')) {
+					return {
+						ok: true,
+						json: async () => ({
+							code: 'Ok',
+							routes: [
+								{
+									distance: 160000,
+									geometry: { coordinates: [[-83.1, 30.64], [-83.1, 31.64]] }
+								}
+							]
+						})
+					};
+				}
+				return { ok: true, json: async () => ({ result: { addressMatches: [] } }) };
+			})
+		);
+
+		const preview = await buildImportRoutePreview({
+			routeDesignation: 'SR 11',
+			county: 'Echols',
+			locationDescription: '5.505 miles on SR 11',
+			beginTerminus: 'THE FLORIDA STATE LINE',
+			endTerminus: 'BAY BRANCH RD',
+			totalLengthFt: 5280,
+			roadwayLogEvents: [{ milepost: 1, station: 52.8, event_type: 'project_end' }]
+		});
+
+		expect(preview.source).toBe('osm_termini_route');
+		expect(preview.events_anchored).toBe(false);
+		expect(preview.projected_log_events).toEqual([]);
+	});
+
 	it('returns no fabricated route when every resolver misses', async () => {
 		mockFetchOnce(() => ({ features: [], result: { addressMatches: [] } }));
 		const preview = await buildImportRoutePreview({

@@ -57,6 +57,34 @@
 		sort_order: number;
 	}
 
+	interface PreviewRoadwayLogEvent {
+		id: string;
+		milepost: number;
+		event_type: string;
+		description: string;
+		roadway_width_ft: number | null;
+		is_reference: number;
+		confidence: string;
+		coordinate_geojson: string | null;
+	}
+
+	interface DocumentInventory {
+		filename: string;
+		source_key: string;
+		type: string;
+		page_count: number;
+		pages: Array<{ page_number: number; label: string }>;
+		evidence: {
+			contract_summary: boolean;
+			job_setup: boolean;
+			cover_sheet: boolean;
+			index: boolean;
+			location_sketch: boolean;
+			roadway_log: boolean;
+			detailed_estimate: boolean;
+		};
+	}
+
 	interface ParsedJob {
 		name: string | null;
 		job_number: string | null;
@@ -94,15 +122,17 @@
 	}
 
 	interface RoutePreview {
-		source: 'gdot_route' | 'geocode' | 'county_centroid' | 'manual' | 'none';
+		source: 'gdot_route' | 'osm_termini_route' | 'geocode' | 'county_centroid' | 'manual' | 'none';
 		latitude: number | null;
 		longitude: number | null;
 		waypoints: Array<{ lat: number; lng: number }>;
 		message?: string;
+		lookup_warnings?: string[];
 		events_anchored?: boolean;
 		anchor_message?: string;
 		route_length_ft?: number | null;
 		expected_length_ft?: number | null;
+		projected_log_events?: PreviewRoadwayLogEvent[];
 	}
 
 	let step = $state<'upload' | 'parsing' | 'review' | 'creating'>('upload');
@@ -112,6 +142,7 @@
 	let parsed = $state<ParsedJob | null>(null);
 	let sourceKeys = $state<string[]>([]);
 	let documents = $state<Array<{ filename: string; source_key: string; type: string }>>([]);
+	let documentInventory = $state<DocumentInventory[]>([]);
 	let schematicProgress = $state('');
 	let fieldConf = $state<FieldConfidenceMap>({});
 	let routePreview = $state<RoutePreview | null>(null);
@@ -176,6 +207,7 @@
 				parsed?: ParsedJob;
 				source_keys?: string[];
 				documents?: Array<{ filename: string; source_key: string; type: string }>;
+				document_inventory?: DocumentInventory[];
 				field_confidence?: FieldConfidenceMap;
 				route_preview?: RoutePreview;
 				llm_fallback?: { attempted: boolean; applied: boolean; reason: string; binding_available: boolean; outcome: 'applied' | 'not-needed' | 'binding-unavailable' | 'failed' };
@@ -191,6 +223,7 @@
 			parsed = data.parsed ?? null;
 			sourceKeys = data.source_keys ?? [];
 			documents = data.documents ?? [];
+			documentInventory = data.document_inventory ?? [];
 			fieldConf = data.field_confidence ?? {};
 			routePreview = data.route_preview ?? null;
 			llmFallback = data.llm_fallback ?? null;
@@ -325,6 +358,47 @@
 		if (preview.anchor_message === 'missing-route') return 'No route available for roadway log markers';
 		return 'Roadway log markers will stay list-only until the route is confirmed';
 	}
+
+	function routeSourceLabel(source: RoutePreview['source'] | undefined): string {
+		if (source === 'gdot_route') return 'GDOT route geometry';
+		if (source === 'osm_termini_route') return 'OSM road route fallback';
+		if (source === 'geocode') return 'Geocoded location only';
+		if (source === 'county_centroid') return 'County-level location only';
+		if (source === 'manual') return 'Manually reviewed route';
+		return 'No route geometry';
+	}
+
+	const evidenceSummary = $derived.by(() => {
+		const evidence = documentInventory.reduce(
+			(acc, doc) => {
+				for (const key of Object.keys(acc) as Array<keyof DocumentInventory['evidence']>) {
+					acc[key] ||= doc.evidence[key];
+				}
+				return acc;
+			},
+			{
+				contract_summary: false,
+				job_setup: false,
+				cover_sheet: false,
+				index: false,
+				location_sketch: false,
+				roadway_log: false,
+				detailed_estimate: false
+			}
+		);
+		return evidence;
+	});
+
+	const evidenceMissing = $derived.by(() => {
+		const evidence = evidenceSummary;
+		const missing: string[] = [];
+		if (!evidence.contract_summary) missing.push('Contract Summary');
+		if (!evidence.job_setup) missing.push('Job Setup');
+		if (!evidence.location_sketch) missing.push('Location Sketch');
+		if (!evidence.roadway_log) missing.push('Roadway Log');
+		if (!evidence.detailed_estimate) missing.push('Detailed Estimate');
+		return missing;
+	});
 
 	// Classifies a plan-sheet page from its extracted text into a human label.
 	function labelForPage(text: string, pageNum: number): string {
@@ -633,6 +707,52 @@
 			</div>
 		{/if}
 
+		{#if documentInventory.length > 0}
+			<section class="review-section document-inventory">
+				<div class="route-preview-head">
+					<div>
+						<h3>Import Evidence</h3>
+						<p>PDFs and plan sheets detected during import review.</p>
+					</div>
+					{#if evidenceMissing.length > 0}
+						<span class="evidence-warn">{evidenceMissing.length} missing</span>
+					{:else}
+						<span class="evidence-ok">Complete</span>
+					{/if}
+				</div>
+				<div class="evidence-chips">
+					<span class:present={evidenceSummary.contract_summary}>Contract Summary</span>
+					<span class:present={evidenceSummary.job_setup}>Job Setup</span>
+					<span class:present={evidenceSummary.location_sketch}>Location Sketch</span>
+					<span class:present={evidenceSummary.roadway_log}>Roadway Log</span>
+					<span class:present={evidenceSummary.detailed_estimate}>Detailed Estimate</span>
+				</div>
+				{#if evidenceMissing.length > 0}
+					<p class="section-hint">
+						Missing evidence will not block creation, but route/log markers stay review-only until the route is confirmed.
+					</p>
+				{/if}
+				<div class="document-list">
+					{#each documentInventory as doc}
+						<div class="document-card">
+							<div>
+								<strong>{doc.filename}</strong>
+								<span>{doc.type.replace(/_/g, ' ')} · {doc.page_count} page{doc.page_count === 1 ? '' : 's'}</span>
+							</div>
+							<div class="page-labels">
+								{#each doc.pages.slice(0, 8) as page}
+									<span>{page.page_number}: {page.label}</span>
+								{/each}
+								{#if doc.pages.length > 8}
+									<span>+{doc.pages.length - 8} more</span>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+			</section>
+		{/if}
+
 		{#if parsed.warnings.length > 0}
 			<div class="warnings">
 				{#each parsed.warnings as w}
@@ -791,10 +911,28 @@
 					<div>
 						<h4>Route Preview</h4>
 						<p>{routePreview?.message ?? 'No route preview has been resolved yet.'}</p>
+						<div class="route-status-row">
+							<span class="route-source">{routeSourceLabel(routePreview?.source)}</span>
+							{#if parsed.route_designation}
+								<span>Parsed route: {parsed.route_designation}</span>
+							{/if}
+							{#if routePreview?.route_length_ft}
+								<span>{fmtNum(routePreview.route_length_ft, 0)} ft route</span>
+							{/if}
+						</div>
 						{#if parsed.roadway_log_events?.length}
 							<p class="anchor-status" class:anchored={routePreview?.events_anchored}>
 								{anchorLabel(routePreview)}
 							</p>
+						{:else}
+							<p class="anchor-status">No roadway-log mileposts were parsed from these PDFs.</p>
+						{/if}
+						{#if routePreview?.lookup_warnings?.length}
+							<div class="route-warnings">
+								{#each routePreview.lookup_warnings as warning}
+									<span>{warning}</span>
+								{/each}
+							</div>
 						{/if}
 					</div>
 					<div class="route-preview-actions">
@@ -822,6 +960,7 @@
 								location_description: parsed.location_description
 							}}
 							initialWaypoints={routePreview.waypoints}
+							roadwayLogEvents={routePreview.projected_log_events ?? []}
 							height="360px"
 							onRouteSave={async (waypoints) => {
 								const center = waypoints[Math.floor(waypoints.length / 2)];
@@ -833,7 +972,8 @@
 									longitude: center?.lng ?? routePreview!.longitude,
 									message: 'Edited route preview will be used when the project is created.',
 									events_anchored: waypoints.length >= 2 && (parsed.roadway_log_events?.length ?? 0) > 0,
-									anchor_message: 'anchored-manual-route'
+									anchor_message: 'anchored-manual-route',
+									projected_log_events: []
 								};
 								toastStore.success('Route preview updated');
 							}}
@@ -1388,6 +1528,92 @@
 		margin-top: 4px;
 	}
 
+	.document-inventory {
+		margin-bottom: 16px;
+	}
+
+	.evidence-ok,
+	.evidence-warn {
+		display: inline-flex;
+		align-items: center;
+		min-height: 28px;
+		padding: 4px 10px;
+		border-radius: 999px;
+		font-size: 0.78rem;
+		font-weight: 800;
+	}
+
+	.evidence-ok {
+		color: var(--accent);
+		background: rgba(242, 192, 55, 0.1);
+		border: 1px solid rgba(242, 192, 55, 0.35);
+	}
+
+	.evidence-warn {
+		color: #f59e0b;
+		background: rgba(245, 158, 11, 0.1);
+		border: 1px solid rgba(245, 158, 11, 0.35);
+	}
+
+	.evidence-chips,
+	.route-status-row,
+	.page-labels {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.evidence-chips span,
+	.route-status-row span,
+	.page-labels span {
+		display: inline-flex;
+		align-items: center;
+		min-height: 26px;
+		padding: 4px 8px;
+		border-radius: 999px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		color: var(--text-muted);
+		font-size: 0.76rem;
+		font-weight: 700;
+	}
+
+	.evidence-chips span.present,
+	.route-status-row .route-source {
+		color: var(--accent);
+		border-color: rgba(242, 192, 55, 0.35);
+		background: rgba(242, 192, 55, 0.08);
+	}
+
+	.document-list {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin-top: 12px;
+	}
+
+	.document-card {
+		display: grid;
+		grid-template-columns: minmax(170px, 0.6fr) minmax(0, 1fr);
+		gap: 12px;
+		padding: 10px 12px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+	}
+
+	.document-card strong,
+	.document-card span {
+		display: block;
+	}
+
+	.document-card > div:first-child span {
+		margin-top: 3px;
+		color: var(--text-muted);
+		font-size: 0.78rem;
+		text-transform: capitalize;
+	}
+
 	.table-note {
 		margin: 8px 0 0;
 		font-size: 0.78rem;
@@ -1453,6 +1679,19 @@
 
 	.anchor-status.anchored {
 		color: var(--accent);
+	}
+
+	.route-warnings {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		margin-top: 8px;
+	}
+
+	.route-warnings span {
+		color: #f59e0b;
+		font-size: 0.78rem;
+		font-weight: 700;
 	}
 
 	.route-preview-empty {

@@ -1,7 +1,16 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
-import { parseGdotDocumentsV2, toV1, pdfToText, detectDocumentType, type ParsedGdotJob, type ParsedGdotJobV2, type GdotDocumentType } from '$lib/server/pdf/parse-gdot';
+import {
+	parseGdotDocumentsV2,
+	toV1,
+	pdfToPositionedText,
+	detectDocumentType,
+	type ParsedGdotJob,
+	type ParsedGdotJobV2,
+	type GdotDocumentType,
+	type PdfPositionedTextPage
+} from '$lib/server/pdf/parse-gdot';
 import type { FieldConfidence } from '$lib/server/pdf/confidence';
 import { runLlmFallback, needsLlmFallback, buildLlmDiagnostic, appendLlmFallbackWarning, type WorkersAi, type LlmFallbackDiagnostic } from '$lib/server/pdf/llm-fallback';
 import { buildImportRoutePreview, type ImportRoutePreview } from '$lib/server/gdot-geometry';
@@ -139,6 +148,23 @@ export interface ImportedDocument {
 	type: GdotDocumentType;
 }
 
+export interface DocumentInventory {
+	filename: string;
+	source_key: string;
+	type: GdotDocumentType;
+	page_count: number;
+	pages: Array<{ page_number: number; label: string }>;
+	evidence: {
+		contract_summary: boolean;
+		job_setup: boolean;
+		cover_sheet: boolean;
+		index: boolean;
+		location_sketch: boolean;
+		roadway_log: boolean;
+		detailed_estimate: boolean;
+	};
+}
+
 /** Flat map of field name -> confidence level, for the review UI. */
 export type FieldConfidenceMap = Record<string, FieldConfidence>;
 
@@ -146,11 +172,44 @@ export interface ImportPdfResponse {
 	parsed: ParsedGdotJob;
 	source_keys: string[];
 	documents: ImportedDocument[];
+	document_inventory: DocumentInventory[];
 	route_preview: ImportRoutePreview;
 	/** Per-field confidence from the V2 parser. Keys match ParsedGdotJob field names. */
 	field_confidence: FieldConfidenceMap;
 	/** Diagnostic describing whether/why the Workers AI fallback ran. */
 	llm_fallback: LlmFallbackDiagnostic;
+}
+
+function labelForPage(text: string, pageNumber: number): string {
+	const t = text.toUpperCase();
+	if (/SCHEDULE OF ITEMS|CONTRACT SCHEDULE|PROPOSAL\s+LINE\s+NUMBER|UNIT PRICE\s+BID AMOUNT/.test(t))
+		return 'Schedule of Items';
+	if (/DETAILED ESTIMATE/.test(t)) return 'Detailed Estimate';
+	if (/ROADWAY\s+LOG|\bLOG\b.*WIDTH|ROADWAY\s+[\s\S]{0,80}\bLOG\s+WIDTH/.test(t))
+		return 'Roadway Log';
+	if (/TYPICAL SECTION/.test(t)) return 'Typical Section';
+	if (/GENERAL NOTES/.test(t)) return 'General Notes';
+	if (/EROSION CONTROL/.test(t)) return 'Erosion Control Plan';
+	if (/LOCATION SKETCH/.test(t)) return 'Location Sketch';
+	if (/SPECIAL PROVISION/.test(t)) return 'Special Provision';
+	if (/PROPOSAL INDEX|^\s*INDEX\b|\bINDEX\b\s+\d/.test(t)) return 'Index';
+	if (/COVER SHEET|PLAN OF PROPOSED|DEPARTMENT OF TRANSPORTATION/.test(t) && pageNumber <= 2)
+		return 'Cover Sheet';
+	if (/NOTICE TO|BIDDERS|PROPOSAL/.test(t) && pageNumber <= 2) return 'Proposal';
+	return `Sheet ${pageNumber}`;
+}
+
+function evidenceFromPages(type: GdotDocumentType, pages: PdfPositionedTextPage[]): DocumentInventory['evidence'] {
+	const pageLabels = pages.map((page) => labelForPage(page.text, page.page_number));
+	return {
+		contract_summary: type === 'contract_summary',
+		job_setup: type === 'job_setup',
+		cover_sheet: pageLabels.includes('Cover Sheet'),
+		index: pageLabels.includes('Index'),
+		location_sketch: pageLabels.includes('Location Sketch'),
+		roadway_log: pageLabels.includes('Roadway Log'),
+		detailed_estimate: pageLabels.includes('Detailed Estimate')
+	};
 }
 
 /**
@@ -181,6 +240,7 @@ export async function POST(event: RequestEvent) {
 		const texts: string[] = [];
 		const sourceKeys: string[] = [];
 		const documents: ImportedDocument[] = [];
+		const documentInventory: DocumentInventory[] = [];
 
 		for (const file of files) {
 			const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
@@ -198,9 +258,22 @@ export async function POST(event: RequestEvent) {
 			sourceKeys.push(key);
 
 			try {
-				const text = await pdfToText(file.bytes);
+				const pages = await pdfToPositionedText(file.bytes);
+				const text = pages.map((page) => page.text).join('\n\f\n');
+				const type = detectDocumentType(text);
 				texts.push(text);
-				documents.push({ filename: file.name, source_key: key, type: detectDocumentType(text) });
+				documents.push({ filename: file.name, source_key: key, type });
+				documentInventory.push({
+					filename: file.name,
+					source_key: key,
+					type,
+					page_count: pages.length,
+					pages: pages.map((page) => ({
+						page_number: page.page_number,
+						label: labelForPage(page.text, page.page_number)
+					})),
+					evidence: evidenceFromPages(type, pages)
+				});
 			} catch (err) {
 				console.error('PDF text extraction failed for', file.name, err);
 				const detail = err instanceof Error ? err.message : String(err);
@@ -237,6 +310,8 @@ export async function POST(event: RequestEvent) {
 			county: parsed.county ?? null,
 			locationDescription: parsed.location_description ?? null,
 			totalLengthFt: parsed.total_length_ft ?? null,
+			beginTerminus: parsed.begin_terminus ?? null,
+			endTerminus: parsed.end_terminus ?? null,
 			roadwayLogEvents: parsed.roadway_log_events ?? []
 		});
 
@@ -255,7 +330,15 @@ export async function POST(event: RequestEvent) {
 			if (f && 'confidence' in f) field_confidence[k] = f.confidence;
 		}
 
-		return json({ parsed, source_keys: sourceKeys, documents, route_preview, field_confidence, llm_fallback } satisfies ImportPdfResponse);
+		return json({
+			parsed,
+			source_keys: sourceKeys,
+			documents,
+			document_inventory: documentInventory,
+			route_preview,
+			field_confidence,
+			llm_fallback
+		} satisfies ImportPdfResponse);
 	} catch (error) {
 		if (error instanceof Response) return error;
 		console.error('Import PDF error:', error);

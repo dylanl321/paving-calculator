@@ -16,11 +16,14 @@
 import { fetchArcgisFeatures } from './dot/arcgis-fetch.js';
 import type { GeoJsonLineString } from '$lib/types/dot';
 import { assessRoadwayLogAnchoring } from './roadway-log-anchoring.js';
+import { feetToCoordinate, polylineLengthFt, stationToFeet } from '$lib/services/mapUtils';
+import { routeAlongRoads } from '$lib/services/roadSnap';
 
 const GDOT_GPAS_LAYER5 =
 	'https://maps.georgia.gov/arcgis/rest/services/GDOT/GDOT_GPAS/MapServer/5/query';
 const CENSUS_ONELINE =
 	'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress';
+const NOMINATIM_SEARCH = 'https://nominatim.openstreetmap.org/search';
 // GDOT county boundary polygons (same MapServer used by gdot-boundaries.ts for
 // point lookup). Querying by county NAME with geometry returned gives us an
 // authoritative county polygon we can reduce to an approximate centroid — a
@@ -207,7 +210,29 @@ export interface ResolvedLocation {
 	/** GDOT route LineString when a named route was matched. */
 	routeGeometry: GeoJsonLineString | null;
 	/** How the coordinates were obtained, for diagnostics. */
-	source: 'gdot_route' | 'geocode' | 'county_centroid' | 'none';
+	source: 'gdot_route' | 'osm_termini_route' | 'geocode' | 'county_centroid' | 'none';
+	lookupWarnings: string[];
+}
+
+interface RoadwayLogEventPreview {
+	id: string;
+	milepost: number;
+	event_type: string;
+	description: string;
+	roadway_width_ft: number | null;
+	is_reference: number;
+	confidence: string;
+	coordinate_geojson: string | null;
+}
+
+interface RoadwayLogEventForPreview {
+	milepost: number;
+	station: number;
+	event_type?: string;
+	description?: string;
+	roadway_width_ft?: number | null;
+	is_reference?: boolean;
+	confidence?: string;
 }
 
 export interface ImportRoutePreview {
@@ -216,10 +241,12 @@ export interface ImportRoutePreview {
 	longitude: number | null;
 	waypoints: Array<{ lat: number; lng: number }>;
 	message?: string;
+	lookup_warnings?: string[];
 	events_anchored?: boolean;
 	anchor_message?: string;
 	route_length_ft?: number | null;
 	expected_length_ft?: number | null;
+	projected_log_events?: RoadwayLogEventPreview[];
 }
 
 export async function buildImportRoutePreview(opts: {
@@ -227,7 +254,9 @@ export async function buildImportRoutePreview(opts: {
 	county: string | null;
 	locationDescription: string | null;
 	totalLengthFt?: number | null;
-	roadwayLogEvents?: Array<{ milepost: number; station: number; event_type?: string; is_reference?: boolean }>;
+	beginTerminus?: string | null;
+	endTerminus?: string | null;
+	roadwayLogEvents?: RoadwayLogEventForPreview[];
 }): Promise<ImportRoutePreview> {
 	const resolved = await resolveImportLocation(opts);
 	const waypoints = resolved.routeGeometry
@@ -239,12 +268,19 @@ export async function buildImportRoutePreview(opts: {
 		totalLengthFt: opts.totalLengthFt,
 		routeSource: resolved.source
 	});
+	const projectedLogEvents = anchoring.anchored
+		? projectRoadwayLogEvents(opts.roadwayLogEvents ?? [], waypoints)
+		: [];
 
 	let message: string;
 	if (resolved.source === 'gdot_route') {
 		message = anchoring.anchored
 			? 'GDOT route geometry matches the project length. Confirm the alignment or flip/edit it on the map.'
 			: 'GDOT route geometry found, but it must be trimmed or redrawn to the actual project limits before log markers are plotted.';
+	} else if (resolved.source === 'osm_termini_route') {
+		message = anchoring.anchored
+			? 'OSM road route was found from the parsed termini. Review it before creating the project.'
+			: 'OSM road route was found from the parsed termini, but it needs review before log markers are plotted.';
 	} else if (resolved.source === 'geocode') {
 		message = 'Location was geocoded, but no route centerline was found.';
 	} else if (resolved.source === 'county_centroid') {
@@ -259,10 +295,12 @@ export async function buildImportRoutePreview(opts: {
 		longitude: resolved.longitude,
 		waypoints,
 		message,
+		lookup_warnings: resolved.lookupWarnings,
 		events_anchored: anchoring.anchored,
 		anchor_message: anchoring.reason,
 		route_length_ft: anchoring.routeLengthFt,
-		expected_length_ft: anchoring.expectedLengthFt
+		expected_length_ft: anchoring.expectedLengthFt,
+		projected_log_events: projectedLogEvents
 	};
 }
 
@@ -283,7 +321,10 @@ export async function resolveImportLocation(opts: {
 	routeDesignation: string | null;
 	county: string | null;
 	locationDescription: string | null;
+	beginTerminus?: string | null;
+	endTerminus?: string | null;
 }): Promise<ResolvedLocation> {
+	const lookupWarnings: string[] = [];
 	const routeGeometry = await fetchGdotRouteGeometry(opts.routeDesignation, opts.county);
 
 	if (routeGeometry) {
@@ -293,7 +334,31 @@ export async function resolveImportLocation(opts: {
 				latitude: centroid[0],
 				longitude: centroid[1],
 				routeGeometry,
-				source: 'gdot_route'
+				source: 'gdot_route',
+				lookupWarnings
+			};
+		}
+	}
+	if (opts.routeDesignation) {
+		lookupWarnings.push(`No GDOT route geometry found for ${opts.routeDesignation}${opts.county ? ` in ${opts.county}` : ''}.`);
+	}
+
+	const osmRoute = await fetchOsmTerminiRoute({
+		routeDesignation: opts.routeDesignation,
+		county: opts.county,
+		beginTerminus: opts.beginTerminus,
+		endTerminus: opts.endTerminus
+	});
+	lookupWarnings.push(...osmRoute.lookupWarnings);
+	if (osmRoute.routeGeometry) {
+		const centroid = lineStringCentroid(osmRoute.routeGeometry);
+		if (centroid) {
+			return {
+				latitude: centroid[0],
+				longitude: centroid[1],
+				routeGeometry: osmRoute.routeGeometry,
+				source: 'osm_termini_route',
+				lookupWarnings
 			};
 		}
 	}
@@ -313,7 +378,8 @@ export async function resolveImportLocation(opts: {
 			latitude: coords[0],
 			longitude: coords[1],
 			routeGeometry: null,
-			source: 'geocode'
+			source: 'geocode',
+			lookupWarnings
 		};
 	}
 
@@ -326,9 +392,132 @@ export async function resolveImportLocation(opts: {
 			latitude: centroid[0],
 			longitude: centroid[1],
 			routeGeometry: null,
-			source: 'county_centroid'
+			source: 'county_centroid',
+			lookupWarnings
 		};
 	}
 
-	return { latitude: null, longitude: null, routeGeometry: null, source: 'none' };
+	return { latitude: null, longitude: null, routeGeometry: null, source: 'none', lookupWarnings };
+}
+
+async function geocodeOsm(query: string): Promise<{ lat: number; lng: number } | null> {
+	const params = new URLSearchParams({
+		q: query,
+		format: 'jsonv2',
+		limit: '1',
+		countrycodes: 'us'
+	});
+	try {
+		const res = await fetch(`${NOMINATIM_SEARCH}?${params.toString()}`, {
+			headers: {
+				'accept-language': 'en',
+				'user-agent': 'PaveRate import route preview'
+			},
+			signal: AbortSignal.timeout(7000)
+		});
+		if (!res.ok) return null;
+		const data = (await res.json()) as Array<{ lat?: string; lon?: string }>;
+		const match = data[0];
+		if (!match?.lat || !match.lon) return null;
+		const lat = Number(match.lat);
+		const lng = Number(match.lon);
+		return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+	} catch {
+		return null;
+	}
+}
+
+function terminusQueries(opts: {
+	terminus: string;
+	routeDesignation: string | null;
+	county: string | null;
+}): string[] {
+	const countyPart = opts.county ? `${normaliseCounty(opts.county)} County, Georgia` : 'Georgia';
+	const routePart = opts.routeDesignation ? `${opts.routeDesignation}, ` : '';
+	return [
+		`${routePart}${opts.terminus}, ${countyPart}`,
+		`${opts.terminus}, ${countyPart}`,
+		`${routePart}${opts.terminus}, Georgia`
+	];
+}
+
+async function geocodeTerminus(opts: {
+	terminus: string | null | undefined;
+	routeDesignation: string | null;
+	county: string | null;
+}): Promise<{ lat: number; lng: number } | null> {
+	const terminus = opts.terminus?.trim();
+	if (!terminus) return null;
+	for (const query of terminusQueries({ terminus, routeDesignation: opts.routeDesignation, county: opts.county })) {
+		const result = await geocodeOsm(query);
+		if (result) return result;
+	}
+	return null;
+}
+
+async function fetchOsmTerminiRoute(opts: {
+	routeDesignation: string | null;
+	county: string | null;
+	beginTerminus?: string | null;
+	endTerminus?: string | null;
+}): Promise<{ routeGeometry: GeoJsonLineString | null; lookupWarnings: string[] }> {
+	const lookupWarnings: string[] = [];
+	if (!opts.beginTerminus || !opts.endTerminus) {
+		return { routeGeometry: null, lookupWarnings };
+	}
+
+	const begin = await geocodeTerminus({
+		terminus: opts.beginTerminus,
+		routeDesignation: opts.routeDesignation,
+		county: opts.county
+	});
+	const end = await geocodeTerminus({
+		terminus: opts.endTerminus,
+		routeDesignation: opts.routeDesignation,
+		county: opts.county
+	});
+	if (!begin || !end) {
+		lookupWarnings.push('OSM fallback could not geocode both parsed termini.');
+		return { routeGeometry: null, lookupWarnings };
+	}
+
+	const routed = await routeAlongRoads(begin, end);
+	if (!routed || routed.coordinates.length < 2) {
+		lookupWarnings.push('OSM fallback could not route between parsed termini.');
+		return { routeGeometry: null, lookupWarnings };
+	}
+
+	return {
+		routeGeometry: {
+			type: 'LineString',
+			coordinates: routed.coordinates.map(([lat, lng]) => [lng, lat] as [number, number])
+		},
+		lookupWarnings
+	};
+}
+
+function projectRoadwayLogEvents(
+	events: RoadwayLogEventForPreview[],
+	waypoints: Array<{ lat: number; lng: number }>
+): RoadwayLogEventPreview[] {
+	if (waypoints.length < 2) return [];
+	const routeLengthFt = polylineLengthFt(waypoints);
+	return events.flatMap((event, index) => {
+		const stationFeet = stationToFeet(event.station);
+		if (!Number.isFinite(stationFeet) || stationFeet > routeLengthFt) return [];
+		const coord = feetToCoordinate(stationFeet, waypoints);
+		if (!coord) return [];
+		return [
+			{
+				id: `preview-log-${index}`,
+				milepost: event.milepost,
+				event_type: event.event_type ?? 'note',
+				description: event.description ?? '',
+				roadway_width_ft: event.roadway_width_ft ?? null,
+				is_reference: event.is_reference ? 1 : 0,
+				confidence: event.confidence ?? 'low',
+				coordinate_geojson: JSON.stringify({ type: 'Point', coordinates: [coord[1], coord[0]] })
+			}
+		];
+	});
 }

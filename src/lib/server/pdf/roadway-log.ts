@@ -42,7 +42,8 @@ function normalizeWhitespace(text: string): string {
 }
 
 function parseMilepost(raw: string): number | null {
-	const normalized = raw.startsWith('.') ? `0${raw}` : raw;
+	const cleaned = raw.trim().replace(/^\.(?=\d+\.\d{3}$)/, '');
+	const normalized = cleaned.startsWith('.') ? `0${cleaned}` : cleaned;
 	const n = Number(normalized);
 	return Number.isFinite(n) ? n : null;
 }
@@ -59,7 +60,9 @@ function parsePageNumber(block: string): number | null {
 
 function extractRoadwayLogBlock(text: string): string | null {
 	const flat = normalizeWhitespace(text);
-	const header = /\b(?:\(\s*MILES\s*\)\s*)?LOG\s+ROADWAY\s+WIDTH\b/i.exec(flat);
+	const header =
+		/\b(?:\(\s*MILES\s*\)\s*)?(?:LOG\s+ROADWAY|ROADWAY\s+LOG|LOG)\s+WIDTH\b/i.exec(flat) ??
+		/\bROADWAY\s+LOG\s+WIDTH\b/i.exec(flat);
 	if (!header) return null;
 
 	const tail = flat.slice(Math.max(0, header.index - 120), header.index + 12000);
@@ -69,6 +72,23 @@ function extractRoadwayLogBlock(text: string): string | null {
 		/\bSCHEDULE OF ITEMS\b/i.exec(tail)?.index ??
 		tail.length;
 	return tail.slice(0, end);
+}
+
+function hasRoadwayLogHeader(text: string): boolean {
+	const flat = normalizeWhitespace(text);
+	if (/\b(?:LOG\s+ROADWAY|ROADWAY\s+LOG|LOG)\s+WIDTH\b/i.test(flat)) return true;
+
+	const lines = text
+		.split(/\n+/)
+		.map((line) => normalizeWhitespace(line).toUpperCase())
+		.filter(Boolean);
+	for (let i = 0; i < lines.length; i++) {
+		const windowText = lines.slice(i, i + 4).join(' ');
+		if (/\bROADWAY\b/.test(windowText) && /\bLOG\b/.test(windowText) && /\bWIDTH\b/.test(windowText)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 function extractTrailingWidth(description: string): { description: string; width: number | null } {
@@ -98,15 +118,15 @@ function classify(description: string): {
 	if (/\bWIDTH CHANGE\b/.test(d)) {
 		return { event_type: 'width_change', confidence: 'high', is_reference: isReference };
 	}
+	if (/\b(?:BEGIN|END|CONTINUE|MILLING|RESURFACING|INTERLAYER|SHOULDER|TIE-IN)\b/.test(d)) {
+		return { event_type: 'operation_change', confidence: 'medium', is_reference: isReference };
+	}
 	if (/\b[A-Z0-9 .'-]+(?:ROAD|RD|STREET|ST|DRIVE|DR|LANE|LN|AVENUE|AVE|HIGHWAY|HWY)\b/.test(d)) {
 		return {
 			event_type: isReference ? 'reference' : 'side_road',
 			confidence: 'high',
 			is_reference: isReference
 		};
-	}
-	if (/\b(?:BEGIN|END|CONTINUE|MILLING|RESURFACING|INTERLAYER|SHOULDER|TIE-IN)\b/.test(d)) {
-		return { event_type: 'operation_change', confidence: 'medium', is_reference: isReference };
 	}
 	return {
 		event_type: isReference ? 'reference' : 'note',
@@ -151,6 +171,9 @@ function parseRoadwayLogBlock(
 	sourceIndex: number | null,
 	fallbackPageNumber: number | null
 ): ParsedRoadwayLogEvent[] {
+	const rowEvents = parseRoadwayLogRows(text, sourceIndex, fallbackPageNumber);
+	if (rowEvents.length > 0) return rowEvents;
+
 	const block = extractRoadwayLogBlock(text);
 	if (!block) return [];
 
@@ -196,6 +219,77 @@ function parseRoadwayLogBlock(
 			is_reference: classified.is_reference,
 			confidence: classified.confidence,
 			raw_text: normalizeWhitespace(rawSegment),
+			sort_order: events.length
+		});
+	}
+
+	return events;
+}
+
+function parseMilepostRow(line: string): { milepost: number; rest: string } | null {
+	const m = /^\s*((?:\.\d{1,2}\.\d{3})|(?:\.\d{3})|(?:\d{1,2}\.\d{3}))\b\s*(.*)$/.exec(line);
+	if (!m) return null;
+	const milepost = parseMilepost(m[1]);
+	if (milepost == null) return null;
+	return { milepost, rest: m[2]?.trim() ?? '' };
+}
+
+function isRoadwayLogBoilerplate(line: string): boolean {
+	const normalized = normalizeWhitespace(line);
+	if (!normalized) return true;
+	if (/^\d{1,4}$/.test(normalized)) return true;
+	if (/^\(?MILES\)?$/i.test(normalized)) return true;
+	if (/^ROADWAY$/i.test(normalized)) return true;
+	if (/^LOG(?:\s+WIDTH)?$/i.test(normalized)) return true;
+	if (/^WIDTH$/i.test(normalized)) return true;
+	if (/^P\.\s*I\.\s*NO\b/i.test(normalized)) return true;
+	if (/^[A-Z ]+\s+COUNTY$/i.test(normalized)) return true;
+	return false;
+}
+
+function parseRoadwayLogRows(
+	text: string,
+	sourceIndex: number | null,
+	fallbackPageNumber: number | null
+): ParsedRoadwayLogEvent[] {
+	if (!text.includes('\n') || !hasRoadwayLogHeader(text)) return [];
+
+	const lines = text
+		.split(/\n+/)
+		.map((line) => normalizeWhitespace(line))
+		.filter(Boolean);
+
+	const pageNumber = parsePageNumber(text) ?? fallbackPageNumber;
+	const events: ParsedRoadwayLogEvent[] = [];
+	let pending: string[] = [];
+
+	for (const line of lines) {
+		if (/\b(?:DETAILED ESTIMATE|GENERAL NOTES|SCHEDULE OF ITEMS)\b/i.test(line)) break;
+
+		const milepostRow = parseMilepostRow(line);
+		if (!milepostRow) {
+			if (!isRoadwayLogBoilerplate(line)) pending.push(line);
+			continue;
+		}
+
+		const combined = [...pending, milepostRow.rest].filter(Boolean).join(' ');
+		pending = [];
+		const { description, width } = extractTrailingWidth(normalizeWhitespace(combined));
+		if (!description) continue;
+		const classified = classify(description);
+		events.push({
+			source_index: sourceIndex,
+			page_number: pageNumber,
+			milepost: milepostRow.milepost,
+			station: stationFromMilepost(milepostRow.milepost),
+			event_type: classified.event_type,
+			description,
+			roadway_width_ft: width,
+			side: parseSide(description),
+			surface: parseSurface(description),
+			is_reference: classified.is_reference,
+			confidence: classified.confidence,
+			raw_text: normalizeWhitespace([description, width ?? ''].join(' ')),
 			sort_order: events.length
 		});
 	}

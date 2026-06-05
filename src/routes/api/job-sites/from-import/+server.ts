@@ -322,7 +322,9 @@ export async function POST(event: RequestEvent) {
 				: await resolveImportLocation({
 						routeDesignation: str(parsed.route_designation),
 						county: str(parsed.county),
-						locationDescription: str(parsed.location_description)
+						locationDescription: str(parsed.location_description),
+						beginTerminus: str(parsed.begin_terminus),
+						endTerminus: str(parsed.end_terminus)
 					});
 			locationSource = resolved.source;
 

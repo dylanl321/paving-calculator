@@ -39,6 +39,8 @@ export async function POST(event: RequestEvent) {
 			county: str(body.county),
 			locationDescription: str(body.location_description),
 			totalLengthFt: typeof body.total_length_ft === 'number' ? body.total_length_ft : null,
+			beginTerminus: str(body.begin_terminus),
+			endTerminus: str(body.end_terminus),
 			roadwayLogEvents: Array.isArray(body.roadway_log_events) ? body.roadway_log_events : []
 		});
 

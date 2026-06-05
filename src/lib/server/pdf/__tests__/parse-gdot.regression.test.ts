@@ -7,6 +7,7 @@ import {
 	parseGdotDocumentsV2,
 	mapMixType,
 	detectDocumentType,
+	pdfToText,
 	toV1
 } from '../parse-gdot.js';
 
@@ -495,6 +496,31 @@ describe('Roadway-Log spec extraction', () => {
 			event_type: 'reference',
 			is_reference: true,
 			surface: 'paved'
+		});
+	});
+
+	it('extracts route and roadway-log mileposts from the real 25185 contract PDF', async () => {
+		const contractPdf = readFileSync(join(__dirname, '../../../../../docs/25185 CONTRACT SUMMARY.pdf'));
+		const setupPdf = readFileSync(join(__dirname, '../../../../../docs/25185 JOB SETUP.pdf'));
+		const texts = [
+			await pdfToText(contractPdf.buffer.slice(contractPdf.byteOffset, contractPdf.byteOffset + contractPdf.byteLength)),
+			await pdfToText(setupPdf.buffer.slice(setupPdf.byteOffset, setupPdf.byteOffset + setupPdf.byteLength))
+		];
+
+		const result = parseGdotDocuments(texts);
+		expect(result.route_designation).toBe('SR 11');
+		expect(result.county).toBe('Echols');
+		expect(result.begin_terminus).toBe('THE FLORIDA STATE LINE');
+		expect(result.end_terminus).toBe('BAY BRANCH RD');
+		expect(result.roadway_log_events.map((event) => event.milepost)).toEqual([
+			0, 0.019, 0.047, 0.68, 1.27, 2.19, 3.94, 4.44, 5.362, 5.458, 5.505, 5.54
+		]);
+		expect(result.roadway_log_events[0].event_type).toBe('project_start');
+		expect(result.roadway_log_events[1].event_type).toBe('width_change');
+		expect(result.roadway_log_events[10].event_type).toBe('project_end');
+		expect(result.roadway_log_events[11]).toMatchObject({
+			event_type: 'reference',
+			is_reference: true
 		});
 	});
 });
