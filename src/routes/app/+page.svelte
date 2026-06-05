@@ -13,7 +13,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import ScreedManView from '$lib/components/ScreedManView.svelte';
 	import CalcHistoryLog from '$lib/components/CalcHistoryLog.svelte';
-	import { recentTools } from '$lib/stores/recentTools';
+	import { recentTools } from '$lib/stores/recentTools.svelte';
 
 	const isScreedMan = $derived(authStore.org?.role === 'screed_man');
 	const isLaborer = $derived(authStore.org?.role === 'laborer');

@@ -1,5 +1,5 @@
 /**
- * recentTools — tracks the last 3 used calculator tool IDs in localStorage.
+ * recentTools - tracks the last 3 used calculator tool IDs in localStorage.
  * Key: paverate_recent_tools  (JSON array of strings, most-recent first)
  */
 
@@ -24,7 +24,7 @@ function saveToStorage(ids: string[]): void {
 	try {
 		localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
 	} catch {
-		// storage full or private mode — fail silently
+		// storage full or private mode - fail silently
 	}
 }
 
