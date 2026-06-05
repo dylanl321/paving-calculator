@@ -13,6 +13,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import ScreedManView from '$lib/components/ScreedManView.svelte';
 	import CalcHistoryLog from '$lib/components/CalcHistoryLog.svelte';
+	import { recentTools } from '$lib/stores/recentTools';
 
 	const isScreedMan = $derived(authStore.org?.role === 'screed_man');
 	const isLaborer = $derived(authStore.org?.role === 'laborer');
@@ -23,6 +24,7 @@
 	const activeToolGroup = $derived(toolGroups.find(g => g.tools.some(t => t.id === activeTool?.id)) ?? null);
 
 	function selectTool(id: string) {
+		recentTools.addTool(id);
 		const url = new URL($page.url);
 		url.searchParams.set('tool', id);
 		goto(url, { replaceState: false, keepFocus: true, noScroll: true });
@@ -180,6 +182,18 @@
 			goto('/app/field');
 		}
 	});
+
+	// Init recent tools from localStorage (browser-only)
+	$effect(() => {
+		recentTools.init();
+	});
+
+	// Resolve recent tool IDs to full Tool objects for rendering
+	const recentToolList = $derived(
+		recentTools.ids
+			.map((id) => allTools.find((t) => t.id === id))
+			.filter((t): t is NonNullable<typeof t> => t != null)
+	);
 </script>
 
 <svelte:head>
@@ -229,6 +243,23 @@
 				</header>
 
 				<div class="stage-body">
+					{#if recentToolList.length > 0}
+						<section class="recent-tools-section" aria-label="Your recent tools">
+							<div class="eyebrow">Your Recent Tools</div>
+							<div class="recent-chips">
+								{#each recentToolList as tool (tool.id)}
+									<button
+										type="button"
+										class="recent-chip"
+										onclick={() => selectTool(tool.id)}
+									>
+										{tool.label}
+									</button>
+								{/each}
+							</div>
+						</section>
+					{/if}
+
 					<HomePrimaryCalcs />
 
 					<section class="history-section">
@@ -366,6 +397,44 @@
 	/* ── Calc History Section ───────────────────────────────────────────── */
 	.history-section {
 		margin-top: 1.5rem;
+	}
+
+	/* ── Recent Tools Chips ─────────────────────────────────────────────── */
+	.recent-tools-section {
+		margin-bottom: 1.25rem;
+	}
+
+	.recent-tools-section .eyebrow {
+		margin-bottom: 0.5rem;
+	}
+
+	.recent-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+
+	.recent-chip {
+		display: inline-flex;
+		align-items: center;
+		min-height: 48px;
+		padding: 0 1.1rem;
+		background: var(--surface-2, #1a1a1a);
+		border: 1px solid var(--brand, #f59e0b);
+		border-radius: 999px;
+		color: var(--brand, #f59e0b);
+		font-size: 0.875rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: background 0.15s, border-color 0.15s, color 0.15s;
+		white-space: nowrap;
+	}
+
+	.recent-chip:hover,
+	.recent-chip:focus-visible {
+		background: var(--brand, #f59e0b);
+		color: var(--surface-1, #111);
+		outline: none;
 	}
 
 	.history-toggle {
