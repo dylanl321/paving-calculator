@@ -178,6 +178,22 @@ export interface DocumentInventory {
 /** Flat map of field name -> confidence level, for the review UI. */
 export type FieldConfidenceMap = Record<string, FieldConfidence>;
 
+/** Actionable parsing report returned for every uploaded document. */
+export interface ParsingReport {
+	/** Document type detected (null when completely unrecognized). */
+	detected_type: string | null;
+	/** Classifier confidence 0–1. */
+	confidence: number;
+	/** Fields we successfully extracted from the document. */
+	extractable_fields: string[];
+	/** Fields we expected to find but could not locate. */
+	missing_fields: string[];
+	/** User-facing suggestions for improving the import. */
+	suggestions: string[];
+	/** Whether we have full parsing support for this document type. */
+	is_supported: boolean;
+}
+
 export interface ImportPdfResponse {
 	parsed: ParsedGdotJob;
 	source_keys: string[];
@@ -213,6 +229,8 @@ export interface ImportPdfResponse {
 	inspection_report?: ParsedInspectionReport;
 	/** Parsed change order data (populated when a change order is detected). */
 	change_order?: ParsedChangeOrder;
+	/** Structured parsing report with extracted/missing fields and suggestions. */
+	parsing_report: ParsingReport;
 }
 
 function labelForPage(text: string, pageNumber: number): string {
@@ -248,8 +266,87 @@ function evidenceFromPages(type: GdotDocumentType, pages: PdfPositionedTextPage[
 }
 
 /**
+ * Build a structured parsing report summarising what we extracted vs what's
+ * missing, plus actionable suggestions for the user.
+ */
+function buildParsingReport(
+	classification: DocumentClassification | null,
+	v2: ParsedGdotJobV2,
+	field_confidence: FieldConfidenceMap
+): ParsingReport {
+	const type = classification?.type ?? 'unknown';
+	const confidence = classification?.confidence ?? 0;
+	const is_supported =
+		type === 'gdot_contract_summary' ||
+		type === 'gdot_job_setup' ||
+		type === 'gdot_roadway_log';
+
+	// Which fields did we successfully extract (non-null value, any confidence)?
+	const ALL_FIELDS = [
+		'name', 'job_number', 'project_number', 'contract_id', 'county',
+		'work_type', 'contract_type', 'contract_amount', 'retainage_pct',
+		'est_start_date', 'completion_date', 'customer_name',
+		'customer_contact', 'customer_phone', 'total_length_ft',
+		'location_description', 'route_designation', 'begin_terminus', 'end_terminus'
+	];
+
+	const FRIENDLY: Record<string, string> = {
+		name: 'Project Name', job_number: 'Job Number', project_number: 'Project Number',
+		contract_id: 'Contract ID', county: 'County', work_type: 'Work Type',
+		contract_type: 'Contract Type', contract_amount: 'Contract Amount',
+		retainage_pct: 'Retainage %', est_start_date: 'Start Date',
+		completion_date: 'Completion Date', customer_name: 'Customer Name',
+		customer_contact: 'Customer Contact', customer_phone: 'Customer Phone',
+		total_length_ft: 'Total Length', location_description: 'Location',
+		route_designation: 'Route', begin_terminus: 'Begin Terminus',
+		end_terminus: 'End Terminus'
+	};
+
+	const extractable_fields: string[] = [];
+	const missing_fields: string[] = [];
+
+	for (const key of ALL_FIELDS) {
+		const raw = v2[key as keyof ParsedGdotJobV2] as { value?: unknown } | null | undefined;
+		if (raw && typeof raw === 'object' && 'value' in raw && raw.value !== null && raw.value !== undefined && raw.value !== '') {
+			extractable_fields.push(FRIENDLY[key] ?? key);
+		} else if (is_supported) {
+			missing_fields.push(FRIENDLY[key] ?? key);
+		}
+	}
+
+	// Build actionable suggestions.
+	const suggestions: string[] = [];
+
+	if (type === 'unknown') {
+		suggestions.push('Try uploading the Contract Summary page from your GDOT bid package.');
+		suggestions.push('Ensure the PDF contains selectable text (not a scanned image).');
+	} else if (!is_supported) {
+		const supportSoon: Partial<Record<string, string>> = {
+			weight_ticket: 'Weight ticket import is coming soon — check back next release.',
+			material_certification: 'Material cert import is planned — upload alongside a contract summary for now.',
+			inspection_report: 'Inspection reports are not yet supported for import.',
+			change_order: 'Change order import is coming soon.',
+			daily_report: 'Daily report import is not yet supported.'
+		};
+		suggestions.push(supportSoon[type] ?? `${classification?.description ?? 'This document type'} is not yet supported.`);
+	} else {
+		// Supported type — suggest based on missing fields.
+		if (missing_fields.includes('Project Name') || missing_fields.includes('Job Number')) {
+			suggestions.push('Upload the Job Setup document alongside the Contract Summary for best results.');
+		}
+		if (missing_fields.includes('Route') || missing_fields.includes('Begin Terminus')) {
+			suggestions.push('Include the Roadway Log page to improve location data extraction.');
+		}
+		if (missing_fields.length > 5) {
+			suggestions.push('Make sure you uploaded the full GDOT bid package, not just a single page.');
+		}
+	}
+
+	return { detected_type: type === 'unknown' ? null : type, confidence, extractable_fields, missing_fields, suggestions, is_supported };
+}
+
+/**
  * POST /api/job-sites/import-pdf
- * Accepts one or more PDF documents (multipart field `files`), stores the
  * originals in R2, extracts and parses the GDOT job-setup / contract-summary
  * data, and returns a prefill object plus the R2 keys of the stored source PDFs.
  * Does NOT create a job site — the client reviews the prefill then commits via
@@ -417,6 +514,9 @@ export async function POST(event: RequestEvent) {
 				? getUnrecognizedMessage(primaryClassification)
 				: undefined;
 
+		// Build parsing report: enumerate extracted vs missing fields and suggestions.
+		const parsing_report = buildParsingReport(primaryClassification, v2, field_confidence);
+
 		return json({
 			parsed,
 			source_keys: sourceKeys,
@@ -433,7 +533,8 @@ export async function POST(event: RequestEvent) {
 			field_source,
 			parser_duration_ms,
 			...(inspection_report !== undefined ? { inspection_report } : {}),
-			...(change_order !== undefined ? { change_order } : {})
+			...(change_order !== undefined ? { change_order } : {}),
+			parsing_report
 		} satisfies ImportPdfResponse);
 	} catch (error) {
 		if (error instanceof Response) return error;
