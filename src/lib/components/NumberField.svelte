@@ -64,7 +64,7 @@
 			{id}
 			type="number"
 			inputmode="decimal"
-			step={step !== undefined ? step : undefined}
+			step={stepSize}
 			{min}
 			{max}
 			{disabled}
