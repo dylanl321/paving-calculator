@@ -393,7 +393,12 @@
 			}}
 		/>
 	{:else if activeTab === 'milestones'}
-		<ScheduleTab jobSiteId={jobSiteState.id} bind:milestones />
+		<ScheduleTab
+			jobSiteId={jobSiteState.id}
+			bind:milestones
+			totalTonnage={data.config?.total_tonnage ?? null}
+			estStartDate={jobSiteState.est_start_date ?? null}
+		/>
 	{:else if activeTab === 'activity'}
 		<ActivityTab jobSiteId={jobSiteState.id} />
 	{/if}
