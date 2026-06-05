@@ -14,6 +14,9 @@ interface OrgSettingsState {
 	hasLogo: boolean;
 	overrides: OrgOverrides;
 	loaded: boolean;
+	plantLat: number | null;
+	plantLng: number | null;
+	plantName: string | null;
 }
 
 class OrgSettingsStore {
@@ -25,7 +28,10 @@ class OrgSettingsStore {
 		accentColor: null,
 		hasLogo: false,
 		overrides: {},
-		loaded: false
+		loaded: false,
+		plantLat: null,
+		plantLng: null,
+		plantName: null
 	});
 
 	#resolver = $derived<ConfigResolver>(makeResolver(this.#state.overrides));
@@ -52,6 +58,18 @@ class OrgSettingsStore {
 
 	get loaded() {
 		return this.#state.loaded;
+	}
+
+	get plantLat() {
+		return this.#state.plantLat;
+	}
+
+	get plantLng() {
+		return this.#state.plantLng;
+	}
+
+	get plantName() {
+		return this.#state.plantName;
 	}
 
 	/** Logo URL for the current org, or null when no custom logo is set. */
@@ -93,6 +111,9 @@ class OrgSettingsStore {
 				accentColor?: string | null;
 				hasLogo?: boolean;
 				overrides?: OrgOverrides;
+				plantLat?: number | null;
+				plantLng?: number | null;
+				plantName?: string | null;
 			};
 			this.#state.orgId = data.org?.id ?? null;
 			this.#state.orgName = data.org?.name ?? null;
@@ -101,6 +122,9 @@ class OrgSettingsStore {
 			this.#state.accentColor = data.accentColor ?? null;
 			this.#state.hasLogo = !!data.hasLogo;
 			this.#state.overrides = data.overrides ?? {};
+			this.#state.plantLat = data.plantLat ?? null;
+			this.#state.plantLng = data.plantLng ?? null;
+			this.#state.plantName = data.plantName ?? null;
 			this.#state.loaded = true;
 		} catch (err) {
 			console.error('Org settings fetch error:', err);
@@ -114,11 +138,17 @@ class OrgSettingsStore {
 		hasLogo?: boolean;
 		overrides?: OrgOverrides;
 		orgName?: string | null;
+		plantLat?: number | null;
+		plantLng?: number | null;
+		plantName?: string | null;
 	}): void {
 		if (data.accentColor !== undefined) this.#state.accentColor = data.accentColor;
 		if (data.hasLogo !== undefined) this.#state.hasLogo = data.hasLogo;
 		if (data.overrides !== undefined) this.#state.overrides = data.overrides;
 		if (data.orgName !== undefined) this.#state.orgName = data.orgName;
+		if (data.plantLat !== undefined) this.#state.plantLat = data.plantLat;
+		if (data.plantLng !== undefined) this.#state.plantLng = data.plantLng;
+		if (data.plantName !== undefined) this.#state.plantName = data.plantName;
 	}
 
 	clear(): void {
@@ -129,6 +159,9 @@ class OrgSettingsStore {
 		this.#state.accentColor = null;
 		this.#state.hasLogo = false;
 		this.#state.overrides = {};
+		this.#state.plantLat = null;
+		this.#state.plantLng = null;
+		this.#state.plantName = null;
 		this.#state.loaded = true;
 	}
 }

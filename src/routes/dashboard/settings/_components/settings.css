@@ -258,3 +258,10 @@
 		grid-template-columns: 1fr;
 	}
 }
+
+.settings-page .plant-hint {
+	margin: 8px 0 0;
+	font-size: 0.8rem;
+	color: var(--text-muted);
+	font-style: italic;
+}

@@ -11,6 +11,9 @@ export interface OrgSettings {
 	hasLogo: boolean;
 	emailFromName: string | null;
 	emailReplyTo: string | null;
+	plantLat: number | null;
+	plantLng: number | null;
+	plantName: string | null;
 }
 
 interface NotificationPrefsResponse {

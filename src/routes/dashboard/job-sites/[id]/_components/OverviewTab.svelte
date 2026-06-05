@@ -7,8 +7,10 @@
 	import SchematicViewer from '$lib/components/SchematicViewer.svelte';
 	import DataSourceBadge from '$lib/components/DataSourceBadge.svelte';
 	import NearbyGdotProjects from '$lib/components/NearbyGdotProjects.svelte';
+	import HaulRouteMap from '$lib/components/HaulRouteMap.svelte';
 	import { spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
+	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import { fmt, fmtDollars, type ConfigForm } from './shared';
 	import type { PageData } from '../$types';
 	import { browser } from '$app/environment';
@@ -314,6 +316,21 @@
 
 	const remainingLengthFt = $derived(
 		routeLengthFt != null ? Math.max(0, routeLengthFt - completedLengthFt) : null
+	);
+
+	// Plant location from org settings (for haul distance calculation)
+	const plantLocation = $derived.by(() => ({
+		name: orgSettingsStore.plantName ?? 'Asphalt Plant',
+		latitude: orgSettingsStore.plantLat,
+		longitude: orgSettingsStore.plantLng
+	}));
+
+	const hasPlantLocation = $derived(
+		orgSettingsStore.plantLat != null && orgSettingsStore.plantLng != null
+	);
+
+	const hasSiteLocation = $derived(
+		data.jobSite.latitude != null && data.jobSite.longitude != null
 	);
 </script>
 
@@ -884,6 +901,34 @@
 	longitude={data.jobSite.longitude}
 />
 
+{#if hasPlantLocation || hasSiteLocation}
+	<section class="panel haul-panel">
+		<div class="panel-head">
+			<h3>Haul Route</h3>
+			{#if !hasPlantLocation}
+				<a href="/dashboard/settings" class="link-btn-sm">Set plant location</a>
+			{/if}
+		</div>
+		{#if browser}
+			<HaulRouteMap
+				site={{
+					id: data.jobSite.id,
+					name: data.jobSite.name,
+					latitude: data.jobSite.latitude,
+					longitude: data.jobSite.longitude
+				}}
+				plant={plantLocation}
+				height="220px"
+			/>
+		{/if}
+		{#if !hasSiteLocation}
+			<p class="haul-hint">Set the job site location (Location &amp; Route tab) to calculate haul distance.</p>
+		{:else if !hasPlantLocation}
+			<p class="haul-hint">Configure your plant location in Settings to see haul distance.</p>
+		{/if}
+	</section>
+{/if}
+
 <TruckQueue jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} />
 
 <SpreadRateHistogram
@@ -916,6 +961,37 @@
 </section>
 
 <style>
+	.haul-panel {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg, 12px);
+		padding: var(--sp-5);
+		margin-bottom: var(--sp-4);
+	}
+
+	.haul-hint {
+		margin: 10px 0 0;
+		font-size: 0.82rem;
+		color: var(--text-muted);
+		font-style: italic;
+		text-align: center;
+	}
+
+	.link-btn-sm {
+		font-size: 0.82rem;
+		color: var(--accent);
+		text-decoration: none;
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding: 0;
+		line-height: 1;
+	}
+
+	.link-btn-sm:hover {
+		text-decoration: underline;
+	}
+
 	.project-status-bar {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));

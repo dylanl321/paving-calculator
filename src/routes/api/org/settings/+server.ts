@@ -59,7 +59,10 @@ export async function GET(event: RequestEvent) {
 			emailReplyTo: settings?.email_reply_to ?? null,
 			reportRecipients,
 			overrides: parseOverrides(settings?.overrides ?? null),
-			updatedAt: settings?.updated_at ?? null
+			updatedAt: settings?.updated_at ?? null,
+			plantLat: settings?.plant_lat ?? null,
+			plantLng: settings?.plant_lng ?? null,
+			plantName: settings?.plant_name ?? null
 		});
 	} catch (error) {
 		if (error instanceof Response) return error;
@@ -93,6 +96,9 @@ export async function PUT(event: RequestEvent) {
 			reportRecipients?: string | null;
 			overrides?: string | null;
 			updatedBy: string;
+			plantLat?: number | null;
+			plantLng?: number | null;
+			plantName?: string | null;
 		} = {
 			updatedBy: user.id
 		};
@@ -167,6 +173,37 @@ export async function PUT(event: RequestEvent) {
 				return json({ error: result.error }, { status: 400 });
 			}
 			update.overrides = JSON.stringify(result.cleaned ?? {});
+		}
+
+		if ('plantLat' in body) {
+			const v = body.plantLat;
+			if (v === null) {
+				update.plantLat = null;
+			} else if (typeof v === 'number' && isFinite(v) && v >= -90 && v <= 90) {
+				update.plantLat = v;
+			} else {
+				return json({ error: 'plantLat must be a valid latitude (-90 to 90)' }, { status: 400 });
+			}
+		}
+		if ('plantLng' in body) {
+			const v = body.plantLng;
+			if (v === null) {
+				update.plantLng = null;
+			} else if (typeof v === 'number' && isFinite(v) && v >= -180 && v <= 180) {
+				update.plantLng = v;
+			} else {
+				return json({ error: 'plantLng must be a valid longitude (-180 to 180)' }, { status: 400 });
+			}
+		}
+		if ('plantName' in body) {
+			const v = body.plantName;
+			if (v === null || v === '') {
+				update.plantName = null;
+			} else if (typeof v === 'string') {
+				update.plantName = v.trim().slice(0, 200) || null;
+			} else {
+				return json({ error: 'plantName must be a string' }, { status: 400 });
+			}
 		}
 
 		// Optional org changes (owner/admin)
@@ -248,7 +285,10 @@ export async function PUT(event: RequestEvent) {
 			emailReplyTo: settings?.email_reply_to ?? null,
 			reportRecipients,
 			overrides: parseOverrides(settings?.overrides ?? null),
-			updatedAt: settings?.updated_at ?? null
+			updatedAt: settings?.updated_at ?? null,
+			plantLat: settings?.plant_lat ?? null,
+			plantLng: settings?.plant_lng ?? null,
+			plantName: settings?.plant_name ?? null
 		});
 	} catch (error) {
 		if (error instanceof Response) return error;
