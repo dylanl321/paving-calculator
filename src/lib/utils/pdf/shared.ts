@@ -114,6 +114,11 @@ export interface DailyReportData {
 	date: string; // YYYY-MM-DD
 	siteName: string;
 	orgName?: string;
+	/** GDOT header block fields — leave null/undefined to render blank */
+	gdotProjectNumber?: string | null;
+	gdotCounty?: string | null;
+	gdotRoute?: string | null;
+	gdotContractor?: string | null;
 	weatherTempF: number | null;
 	weatherConditions: string | null;
 	windSpeedMph: number | null;
@@ -165,6 +170,83 @@ export interface WeeklyMonthlyReportData {
 		days_worked: number;
 		avg_tons_per_day: number;
 	};
+}
+
+/**
+ * Render the GDOT Construction Manual-style header block onto a jsPDF document.
+ * Returns the new yPos after the block.
+ */
+export function addGdotHeaderBlock(
+	doc: JsPDFInstance,
+	yPos: number,
+	pageWidth: number,
+	margin: number,
+	fields: {
+		projectNumber?: string | null;
+		county?: string | null;
+		route?: string | null;
+		contractor?: string | null;
+		weather?: string | null;
+		date?: string | null;
+	}
+): number {
+	const blockPadding = 8;
+	const rowHeight = 16;
+	const numRows = 3;
+	const blockHeight = blockPadding * 2 + numRows * rowHeight;
+	const blockWidth = pageWidth - margin * 2;
+	const colMid = margin + blockWidth / 2;
+
+	// Outer border
+	doc.setDrawColor(0);
+	doc.setLineWidth(0.5);
+	doc.rect(margin, yPos, blockWidth, blockHeight);
+
+	// Vertical divider
+	doc.line(colMid, yPos, colMid, yPos + blockHeight);
+
+	// Horizontal row dividers
+	for (let i = 1; i < numRows; i++) {
+		const lineY = yPos + blockPadding + i * rowHeight;
+		doc.line(margin, lineY, margin + blockWidth, lineY);
+	}
+
+	doc.setFontSize(8.5);
+
+	const rows = [
+		['Project Number', fields.projectNumber ?? '', 'County', fields.county ?? ''],
+		['Route', fields.route ?? '', 'Contractor', fields.contractor ?? ''],
+		['Weather', fields.weather ?? '', 'Date', fields.date ?? '']
+	];
+
+	rows.forEach((row, i) => {
+		const textY = yPos + blockPadding + i * rowHeight + 10;
+		const leftLabel = row[0];
+		const leftVal = row[1];
+		const rightLabel = row[2];
+		const rightVal = row[3];
+
+		// Left cell
+		doc.setFont('helvetica', 'bold');
+		doc.setTextColor(0);
+		doc.text(leftLabel + ': ', margin + 4, textY);
+		const leftLabelWidth = doc.getTextWidth(leftLabel + ': ');
+		doc.setFont('helvetica', 'normal');
+		if (leftVal) {
+			doc.text(leftVal, margin + 4 + leftLabelWidth, textY);
+		}
+
+		// Right cell
+		doc.setFont('helvetica', 'bold');
+		doc.text(rightLabel + ': ', colMid + 4, textY);
+		const rightLabelWidth = doc.getTextWidth(rightLabel + ': ');
+		doc.setFont('helvetica', 'normal');
+		if (rightVal) {
+			doc.text(rightVal, colMid + 4 + rightLabelWidth, textY);
+		}
+	});
+
+	return yPos + blockHeight + 8;
 }
 
 // Re-export for convenience

@@ -30,6 +30,8 @@
 		entrySummary: any;
 		siteConfig: any;
 		siteName: string;
+		orgName?: string | null;
+		jobSite?: any;
 		onClose: () => void;
 		onComplete: () => void;
 	}
@@ -42,6 +44,8 @@
 		entrySummary,
 		siteConfig,
 		siteName,
+		orgName = null,
+		jobSite = null,
 		onClose,
 		onComplete
 	}: Props = $props();
@@ -185,6 +189,12 @@
 					{
 						date: currentLog.log_date,
 						siteName: siteName,
+						orgName: orgName ?? undefined,
+						gdotProjectNumber: jobSite?.project_number ?? null,
+						gdotCounty:
+							jobSite?.gdot_county || siteConfig?.config?.route_county || null,
+						gdotRoute: siteConfig?.config?.route_designation ?? null,
+						gdotContractor: orgName ?? null,
 						weatherTempF: currentLog.weather_temp_f,
 						weatherConditions: currentLog.weather_conditions,
 						windSpeedMph: currentLog.wind_speed_mph,

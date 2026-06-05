@@ -1,6 +1,6 @@
 // Daily production report PDF generators
 import type { JobState, DailyReportData } from './shared';
-import { getJsPDF, getMachineLabel, formatFeet, spreadSpecCheck } from './shared';
+import { getJsPDF, getMachineLabel, formatFeet, spreadSpecCheck, addGdotHeaderBlock } from './shared';
 
 export async function generateDailyReportPDF(
 	jobState: JobState,
@@ -82,6 +82,28 @@ export async function generateDailyReportPDF(
 		doc.text(day.orgName, pageWidth - margin, yPos, { align: 'right' });
 	}
 	yPos += 20;
+	// GDOT-format header block
+	const weatherStr1 = [
+		day.weatherTempF != null ? `${day.weatherTempF}\u00b0F` : '',
+		day.weatherConditions
+			? day.weatherConditions.charAt(0).toUpperCase() + day.weatherConditions.slice(1)
+			: ''
+	]
+		.filter(Boolean)
+		.join(', ');
+	const dateStr1 = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', {
+		month: '2-digit',
+		day: '2-digit',
+		year: 'numeric'
+	});
+	yPos = addGdotHeaderBlock(doc, yPos, pageWidth, margin, {
+		projectNumber: day.gdotProjectNumber ?? null,
+		county: day.gdotCounty ?? null,
+		route: day.gdotRoute ?? null,
+		contractor: day.gdotContractor ?? day.orgName ?? null,
+		weather: weatherStr1 || null,
+		date: dateStr1
+	});
 
 	// Yellow accent line
 	doc.setDrawColor(242, 192, 55);
@@ -540,6 +562,28 @@ export async function generateDailyReportPDFBlob(
 		doc.text(day.orgName, pageWidth - margin, yPos, { align: 'right' });
 	}
 	yPos += 20;
+	// GDOT-format header block
+	const weatherStr2 = [
+		day.weatherTempF != null ? `${day.weatherTempF}\u00b0F` : '',
+		day.weatherConditions
+			? day.weatherConditions.charAt(0).toUpperCase() + day.weatherConditions.slice(1)
+			: ''
+	]
+		.filter(Boolean)
+		.join(', ');
+	const dateStr2 = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', {
+		month: '2-digit',
+		day: '2-digit',
+		year: 'numeric'
+	});
+	yPos = addGdotHeaderBlock(doc, yPos, pageWidth, margin, {
+		projectNumber: day.gdotProjectNumber ?? null,
+		county: day.gdotCounty ?? null,
+		route: day.gdotRoute ?? null,
+		contractor: day.gdotContractor ?? day.orgName ?? null,
+		weather: weatherStr2 || null,
+		date: dateStr2
+	});
 
 	// Yellow accent line
 	doc.setDrawColor(242, 192, 55);
@@ -905,6 +949,28 @@ export async function getDailyReportPDFBlob(
 	doc.setLineWidth(2);
 	doc.line(margin, yPos, pageWidth - margin, yPos);
 	yPos += 20;
+	// GDOT-format header block
+	const weatherStr3 = [
+		day.weatherTempF != null ? `${day.weatherTempF}\u00b0F` : '',
+		day.weatherConditions
+			? day.weatherConditions.charAt(0).toUpperCase() + day.weatherConditions.slice(1)
+			: ''
+	]
+		.filter(Boolean)
+		.join(', ');
+	const dateStr3 = new Date(day.date + 'T00:00:00').toLocaleDateString('en-US', {
+		month: '2-digit',
+		day: '2-digit',
+		year: 'numeric'
+	});
+	yPos = addGdotHeaderBlock(doc, yPos, pageWidth, margin, {
+		projectNumber: day.gdotProjectNumber ?? null,
+		county: day.gdotCounty ?? null,
+		route: day.gdotRoute ?? null,
+		contractor: day.gdotContractor ?? day.orgName ?? null,
+		weather: weatherStr3 || null,
+		date: dateStr3
+	});
 
 	// Simple summary for email attachment
 	doc.setTextColor(0);
