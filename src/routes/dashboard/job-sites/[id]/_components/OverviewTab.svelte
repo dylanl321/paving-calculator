@@ -5,6 +5,7 @@
 	import WasteYieldAnalysis from '$lib/components/WasteYieldAnalysis.svelte';
 	import ETACalculator from '$lib/components/ETACalculator.svelte';
 	import SchematicViewer from '$lib/components/SchematicViewer.svelte';
+	import DataSourceBadge from '$lib/components/DataSourceBadge.svelte';
 	import { spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { fmt, fmtDollars, type ConfigForm } from './shared';
@@ -29,6 +30,7 @@
 		roadTypeLabel,
 		scopeLabel,
 		tackLabel,
+		lengthSource,
 		onGoToTab
 	}: {
 		data: PageData;
@@ -45,6 +47,7 @@
 		roadTypeLabel: string | null;
 		scopeLabel: string | null;
 		tackLabel: string | null;
+		lengthSource: 'route' | 'manual';
 		onGoToTab: (tab: string) => void;
 	} = $props();
 
@@ -446,7 +449,16 @@
 				</div>
 				<div class="spec-item">
 					<dt>Length</dt>
-					<dd>{configForm.total_length_ft ? `${fmt(configForm.total_length_ft)} ft` : '—'}</dd>
+					<dd>
+						{#if routeLengthFt != null}
+							{fmt(routeLengthFt)} ft
+							{#if data.routeWaypoints.length >= 2}
+								<DataSourceBadge source={lengthSource} />
+							{/if}
+						{:else}
+							—
+						{/if}
+					</dd>
 				</div>
 				<div class="spec-item">
 					<dt>Lanes × Width</dt>

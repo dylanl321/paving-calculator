@@ -11,13 +11,15 @@
 		configForm = $bindable(),
 		estTonnage,
 		lat,
-		lng
+		lng,
+		onLengthManualEdit
 	}: {
 		jobSiteId: string;
 		configForm: ConfigForm;
 		estTonnage: number | null;
 		lat: number | null;
 		lng: number | null;
+		onLengthManualEdit?: () => void;
 	} = $props();
 
 	// --- GDOT county/district auto-fill ---
@@ -319,6 +321,7 @@
 					min="1"
 					placeholder="e.g., 5280"
 					class:required-empty={totalLengthEmpty}
+					oninput={() => onLengthManualEdit?.()}
 				/>
 			</div>
 
