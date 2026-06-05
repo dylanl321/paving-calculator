@@ -145,6 +145,8 @@
 	let documentInventory = $state<DocumentInventory[]>([]);
 	let schematicProgress = $state('');
 	let fieldConf = $state<FieldConfidenceMap>({});
+	let fieldSource = $state<Record<string, string>>({});
+	let parserDurationMs = $state<number | null>(null);
 	let routePreview = $state<RoutePreview | null>(null);
 	let routePreviewLoading = $state(false);
 	/** Diagnostic for whether the Workers AI fallback ran (observability). */
@@ -252,6 +254,8 @@
 			documents = data.documents ?? [];
 			documentInventory = data.document_inventory ?? [];
 			fieldConf = data.field_confidence ?? {};
+			fieldSource = (data as Record<string, unknown>).field_source as Record<string, string> ?? {};
+			parserDurationMs = typeof (data as Record<string, unknown>).parser_duration_ms === 'number' ? (data as Record<string, unknown>).parser_duration_ms as number : null;
 			routePreview = data.route_preview ?? null;
 			llmFallback = data.llm_fallback ?? null;
 			documentsFound = data.documents_found ?? [];
@@ -528,6 +532,16 @@
 		}
 	}
 
+	function sourceLabel(fieldName: string): string {
+		const src = fieldSource[fieldName];
+		if (!src) return '';
+		if (src.includes('llm')) return 'AI fallback';
+		if (src.includes('table')) return 'Table parser';
+		if (src.includes('regex')) return 'Regex parser';
+		if (src.includes('zone')) return 'Zone extractor';
+		return src;
+	}
+
 	function fmtDollars(v: number | null): string {
 		if (v == null) return '—';
 		return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
@@ -694,6 +708,61 @@
 					</span>
 				{/if}
 			</div>
+		{/if}
+
+		{#if parsed}
+		<details class="extraction-report">
+			<summary>Extraction Report</summary>
+			<div class="extraction-report-body">
+				{#snippet reportContent()}
+					{@const totalFields = ALL_REVIEW_FIELDS.length}
+					{@const extractedCount = ALL_REVIEW_FIELDS.filter(f => !isEmptyValue((parsed as unknown as Record<string, unknown>)[f.key])).length}
+					{@const highCount = ALL_REVIEW_FIELDS.filter(f => (fieldConf[f.key] ?? 'medium') === 'high').length}
+					{@const medCount = ALL_REVIEW_FIELDS.filter(f => (fieldConf[f.key] ?? 'medium') === 'medium').length}
+					{@const lowCount = ALL_REVIEW_FIELDS.filter(f => (fieldConf[f.key] ?? 'medium') === 'low').length}
+					{@const totalPages = documentInventory.reduce((sum, d) => sum + d.page_count, 0)}
+					{@const llmStatus = llmFallback?.outcome ?? 'not-needed'}
+					<div class="report-grid">
+					<div class="report-stat">
+						<span class="stat-label">Fields extracted</span>
+						<span class="stat-value">{extractedCount}/{totalFields}</span>
+					</div>
+					<div class="report-stat">
+						<span class="stat-label">High confidence</span>
+						<span class="stat-value stat-high">{highCount}</span>
+					</div>
+					<div class="report-stat">
+						<span class="stat-label">Medium confidence</span>
+						<span class="stat-value stat-medium">{medCount}</span>
+					</div>
+					<div class="report-stat">
+						<span class="stat-label">Low confidence</span>
+						<span class="stat-value stat-low">{lowCount}</span>
+					</div>
+					<div class="report-stat">
+						<span class="stat-label">Pages analyzed</span>
+						<span class="stat-value">{totalPages}</span>
+					</div>
+					{#if parserDurationMs != null}
+					<div class="report-stat">
+						<span class="stat-label">Parse time</span>
+						<span class="stat-value">{parserDurationMs}ms</span>
+					</div>
+					{/if}
+					<div class="report-stat">
+						<span class="stat-label">AI fallback</span>
+						<span class="stat-value"
+							class:stat-high={llmStatus === 'not-needed'}
+							class:stat-medium={llmStatus === 'applied'}
+							class:stat-low={llmStatus === 'failed'}>
+							{llmStatus === 'applied' ? 'Applied' : llmStatus === 'not-needed' ? 'Not needed' : llmStatus === 'binding-unavailable' ? 'Unavailable' : 'Failed'}
+						</span>
+					</div>
+					</div>
+				{/snippet}
+				{@render reportContent()}
+			</div>
+		</details>
 		{/if}
 
 		<div class="doc-status">
@@ -888,11 +957,14 @@
 							{#if state === 'needs-input'}
 								<span class="conf-badge conf-low" title="Empty — needs input" aria-label="needs input">!</span>
 							{:else if state === 'verify'}
-								<span class="conf-badge conf-verify" title="Filled but unverified — confirm or edit" aria-label="verify">?</span>
+								<span class="conf-badge conf-verify" title={sourceLabel(f.key) ? 'Filled but unverified — confirm or edit • Source: ' + sourceLabel(f.key) : 'Filled but unverified — confirm or edit'} aria-label="verify">?</span>
 							{:else if conf === 'medium'}
-								<span class="conf-dot conf-medium" title="Medium confidence — verify this value" aria-label="medium confidence"></span>
+								<span class="conf-dot conf-medium" title={sourceLabel(f.key) ? 'Medium confidence — verify this value • Source: ' + sourceLabel(f.key) : 'Medium confidence — verify this value'} aria-label="medium confidence"></span>
 							{:else}
-								<span class="conf-dot conf-high" title="High confidence" aria-label="high confidence"></span>
+								<span class="conf-dot conf-high" title={sourceLabel(f.key) ? 'High confidence • Source: ' + sourceLabel(f.key) : 'High confidence'} aria-label="high confidence"></span>
+							{/if}
+							{#if fieldSource[f.key]?.includes('llm')}
+								<span class="ai-field-icon" title="Value filled by AI fallback" aria-label="AI filled">&#x2736;</span>
 							{/if}
 							{#if state === 'verify'}
 								<button type="button" class="confirm-field-btn" title="Looks right" aria-label="Confirm {f.label}" onclick={() => confirmField(f.key)}>✓</button>
@@ -967,11 +1039,14 @@
 							{#if state === 'needs-input'}
 								<span class="conf-badge conf-low" title="Empty — needs input" aria-label="needs input">!</span>
 							{:else if state === 'verify'}
-								<span class="conf-badge conf-verify" title="Filled but unverified — confirm or edit" aria-label="verify">?</span>
+								<span class="conf-badge conf-verify" title={sourceLabel(f.key) ? 'Filled but unverified — confirm or edit • Source: ' + sourceLabel(f.key) : 'Filled but unverified — confirm or edit'} aria-label="verify">?</span>
 							{:else if conf === 'medium'}
-								<span class="conf-dot conf-medium" title="Medium confidence — verify this value" aria-label="medium confidence"></span>
+								<span class="conf-dot conf-medium" title={sourceLabel(f.key) ? 'Medium confidence — verify this value • Source: ' + sourceLabel(f.key) : 'Medium confidence — verify this value'} aria-label="medium confidence"></span>
 							{:else}
-								<span class="conf-dot conf-high" title="High confidence" aria-label="high confidence"></span>
+								<span class="conf-dot conf-high" title={sourceLabel(f.key) ? 'High confidence • Source: ' + sourceLabel(f.key) : 'High confidence'} aria-label="high confidence"></span>
+							{/if}
+							{#if fieldSource[f.key]?.includes('llm')}
+								<span class="ai-field-icon" title="Value filled by AI fallback" aria-label="AI filled">&#x2736;</span>
 							{/if}
 							{#if state === 'verify'}
 								<button type="button" class="confirm-field-btn" title="Looks right" aria-label="Confirm {f.label}" onclick={() => confirmField(f.key)}>✓</button>
@@ -1094,11 +1169,14 @@
 							{#if state === 'needs-input'}
 								<span class="conf-badge conf-low" title="Empty — needs input" aria-label="needs input">!</span>
 							{:else if state === 'verify'}
-								<span class="conf-badge conf-verify" title="Filled but unverified — confirm or edit" aria-label="verify">?</span>
+								<span class="conf-badge conf-verify" title={sourceLabel(f.key) ? 'Filled but unverified — confirm or edit • Source: ' + sourceLabel(f.key) : 'Filled but unverified — confirm or edit'} aria-label="verify">?</span>
 							{:else if conf === 'medium'}
-								<span class="conf-dot conf-medium" title="Medium confidence — verify this value" aria-label="medium confidence"></span>
+								<span class="conf-dot conf-medium" title={sourceLabel(f.key) ? 'Medium confidence — verify this value • Source: ' + sourceLabel(f.key) : 'Medium confidence — verify this value'} aria-label="medium confidence"></span>
 							{:else}
-								<span class="conf-dot conf-high" title="High confidence" aria-label="high confidence"></span>
+								<span class="conf-dot conf-high" title={sourceLabel(f.key) ? 'High confidence • Source: ' + sourceLabel(f.key) : 'High confidence'} aria-label="high confidence"></span>
+							{/if}
+							{#if fieldSource[f.key]?.includes('llm')}
+								<span class="ai-field-icon" title="Value filled by AI fallback" aria-label="AI filled">&#x2736;</span>
 							{/if}
 							{#if state === 'verify'}
 								<button type="button" class="confirm-field-btn" title="Looks right" aria-label="Confirm {f.label}" onclick={() => confirmField(f.key)}>✓</button>
@@ -2078,6 +2156,84 @@
 	@keyframes spin {
 		to { transform: rotate(360deg); }
 	}
+
+	.ai-field-icon {
+		color: #a78bfa;
+		font-size: 0.7rem;
+		line-height: 1;
+		flex-shrink: 0;
+	}
+
+	.extraction-report {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		margin-bottom: 16px;
+		overflow: hidden;
+	}
+
+	.extraction-report summary {
+		padding: 12px 16px;
+		font-size: 0.85rem;
+		font-weight: 600;
+		cursor: pointer;
+		color: var(--text-muted);
+		user-select: none;
+		list-style: none;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.extraction-report summary::-webkit-details-marker { display: none; }
+
+	.extraction-report summary::before {
+		content: '\25B6';
+		font-size: 0.6rem;
+		transition: transform 0.15s;
+	}
+
+	.extraction-report[open] summary::before {
+		transform: rotate(90deg);
+	}
+
+	.extraction-report-body {
+		padding: 0 16px 16px;
+	}
+
+	.report-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+		gap: 10px;
+	}
+
+	.report-stat {
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		padding: 10px 12px;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.stat-label {
+		font-size: 0.7rem;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: var(--text-muted);
+		font-weight: 600;
+	}
+
+	.stat-value {
+		font-size: 1rem;
+		font-weight: 700;
+		color: var(--text);
+	}
+
+	.stat-high { color: #22c55e; }
+	.stat-medium { color: #eab308; }
+	.stat-low { color: #ef4444; }
 
 	@media (max-width: 640px) {
 		.review-grid {
