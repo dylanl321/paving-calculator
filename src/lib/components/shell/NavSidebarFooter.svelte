@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Search, PanelLeftClose, PanelLeftOpen } from 'lucide-svelte';
+	import { CircleHelp, Search, PanelLeftClose, PanelLeftOpen } from 'lucide-svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import UserMenu from '$lib/components/UserMenu.svelte';
 	import { navCollapsedStore } from '$lib/stores/navCollapsed.svelte';
@@ -24,19 +24,6 @@
 		<ThemeToggle />
 		<UserMenu direction="up" align="left" />
 	</div>
-	{#if isAuthenticated}
-		<button
-			class="tutorial-btn"
-			onclick={triggerOnboarding}
-			title="Replay tutorial"
-		>
-			<svg width="18" height="18" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-				<circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5" />
-				<path d="M8 5V8L10 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-			</svg>
-			<span class="tutorial-label">Replay Tutorial</span>
-		</button>
-	{/if}
 	<div class="footer-tools">
 		<button
 			class="cmd-trigger-btn"
@@ -48,8 +35,18 @@
 			<span class="cmd-trigger-label">Search</span>
 			<kbd class="cmd-kbd">⌘K</kbd>
 		</button>
+		{#if isAuthenticated}
+			<button
+				class="icon-tool-btn"
+				onclick={triggerOnboarding}
+				aria-label="Replay tutorial"
+				title="Replay tutorial"
+			>
+				<CircleHelp size={18} aria-hidden="true" />
+			</button>
+		{/if}
 		<button
-			class="collapse-btn"
+			class="icon-tool-btn"
 			onclick={() => navCollapsedStore.toggle()}
 			aria-label={navCollapsedStore.collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
 			title={navCollapsedStore.collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -73,7 +70,8 @@
 	.sidebar-footer {
 		margin-top: auto;
 		border-top: 1px solid var(--border);
-		padding: 12px;
+		padding: 10px 12px;
+		flex-shrink: 0;
 	}
 
 	.footer-actions {
@@ -104,34 +102,6 @@
 		width: 16px;
 		height: 16px;
 		border-radius: 4px;
-		flex-shrink: 0;
-	}
-
-	.tutorial-btn {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		width: 100%;
-		min-height: 40px;
-		padding: 0 12px;
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: 8px;
-		color: var(--text-muted);
-		font-size: 0.875rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.15s ease;
-		margin-top: 8px;
-	}
-
-	.tutorial-btn:hover {
-		background: var(--surface-hover);
-		color: var(--text);
-		border-color: var(--accent);
-	}
-
-	.tutorial-btn svg {
 		flex-shrink: 0;
 	}
 
@@ -169,15 +139,6 @@
 
 		.powered-by span {
 			display: inline;
-		}
-
-		.tutorial-label {
-			display: inline;
-		}
-
-		.tutorial-btn {
-			justify-content: flex-start;
-			padding: 0 12px;
 		}
 
 		.footer-tools {
@@ -224,7 +185,7 @@
 			font-family: inherit;
 		}
 
-		.collapse-btn {
+		.icon-tool-btn {
 			display: flex;
 			align-items: center;
 			justify-content: center;
@@ -238,7 +199,7 @@
 			transition: background var(--dur-normal) var(--ease), color var(--dur-normal) var(--ease);
 		}
 
-		.collapse-btn:hover {
+		.icon-tool-btn:hover {
 			background: var(--surface-hover);
 			color: var(--text);
 		}
@@ -276,14 +237,28 @@
 			display: none;
 		}
 
-		.sidebar-footer.nav-collapsed .tutorial-label {
+		.sidebar-footer.nav-collapsed .footer-tools {
+			margin-top: 10px;
+		}
+	}
+
+	@media (max-height: 760px) and (min-width: 900px) {
+		.sidebar-footer {
+			padding: 8px;
+		}
+
+		.powered-by {
+			display: none;
+		}
+	}
+
+	@media (max-height: 640px) and (min-width: 900px) {
+		.footer-actions {
 			display: none;
 		}
 
-		.sidebar-footer.nav-collapsed .tutorial-btn {
-			justify-content: center;
-			min-width: 40px;
-			padding: 0;
+		.footer-tools {
+			margin-top: 0;
 		}
 	}
 </style>

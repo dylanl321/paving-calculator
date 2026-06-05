@@ -110,6 +110,7 @@
 		border-radius: 8px;
 		color: var(--text);
 		font-size: 0.8125rem;
+		flex-shrink: 0;
 	}
 
 	.weather-bar--good {
@@ -236,6 +237,38 @@
 
 		.weather-bar__body,
 		.weather-bar__rain {
+			display: none;
+		}
+	}
+
+	@media (max-height: 760px) and (min-width: 900px) {
+		.weather-bar {
+			align-items: center;
+			margin: 6px 8px 0;
+			padding: 8px;
+		}
+
+		.weather-bar__details,
+		.weather-bar__updated {
+			display: none;
+		}
+	}
+
+	@media (max-height: 640px) and (min-width: 900px) {
+		.weather-bar {
+			justify-content: center;
+			padding: 8px 0;
+			border-left-width: 1px;
+		}
+
+		.weather-bar__body,
+		.weather-bar__rain {
+			display: none;
+		}
+	}
+
+	@media (max-height: 560px) and (min-width: 900px) {
+		.weather-bar {
 			display: none;
 		}
 	}

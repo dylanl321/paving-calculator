@@ -269,4 +269,31 @@
 		.sidebar.nav-collapsed .brand { justify-content: center; padding: 18px 8px; }
 		.sidebar.nav-collapsed .brand-text { display: none; }
 	}
+
+	@media (max-height: 760px) and (min-width: 900px) {
+		.brand {
+			padding: 12px 14px;
+		}
+
+		.brand img {
+			width: 34px;
+			height: 34px;
+			border-radius: 8px;
+		}
+
+		.brand-tag {
+			display: none;
+		}
+	}
+
+	@media (max-height: 640px) and (min-width: 900px) {
+		.brand {
+			padding: 8px;
+		}
+
+		.brand img {
+			width: 30px;
+			height: 30px;
+		}
+	}
 </style>

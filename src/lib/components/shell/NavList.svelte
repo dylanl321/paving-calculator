@@ -107,6 +107,8 @@
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
+		flex: 1 1 auto;
+		min-height: 0;
 		overflow-y: auto;
 	}
 	.nav-link {
@@ -179,5 +181,26 @@
 		:global(.sidebar.nav-collapsed) .nav-expand { display: none; }
 		:global(.sidebar.nav-collapsed) .nav-sublist { margin: 4px 0; padding: 0; border-left: 0; gap: 4px; }
 		:global(.sidebar.nav-collapsed) .nav-sublink { min-height: 48px; }
+	}
+
+	@media (max-height: 720px) and (min-width: 900px) {
+		.nav-list {
+			padding: 8px;
+			gap: 2px;
+		}
+
+		.nav-link,
+		.nav-expand {
+			min-height: 42px;
+		}
+
+		.nav-sublink {
+			min-height: 38px;
+		}
+
+		.nav-icon :global(svg) {
+			width: 20px;
+			height: 20px;
+		}
 	}
 </style>
