@@ -185,17 +185,58 @@ function parseJsonString(text: string): AiProjectExtraction | null {
 			try {
 				return JSON.parse(fenced[1]) as AiProjectExtraction;
 			} catch {
-				// fall through to object match
+				const parsed = parseBalancedJsonObject(fenced[1]);
+				if (parsed) return parsed;
 			}
 		}
-		const match = /\{[\s\S]*\}/.exec(text);
-		if (!match) return null;
-		try {
-			return JSON.parse(match[0]) as AiProjectExtraction;
-		} catch {
-			return null;
+		return parseBalancedJsonObject(text);
+	}
+}
+
+function parseBalancedJsonObject(text: string): AiProjectExtraction | null {
+	for (let start = text.indexOf('{'); start >= 0; start = text.indexOf('{', start + 1)) {
+		let depth = 0;
+		let inString = false;
+		let escaped = false;
+
+		for (let i = start; i < text.length; i++) {
+			const ch = text[i];
+			if (inString) {
+				if (escaped) {
+					escaped = false;
+				} else if (ch === '\\') {
+					escaped = true;
+				} else if (ch === '"') {
+					inString = false;
+				}
+				continue;
+			}
+
+			if (ch === '"') {
+				inString = true;
+			} else if (ch === '{') {
+				depth += 1;
+			} else if (ch === '}') {
+				depth -= 1;
+				if (depth === 0) {
+					const candidate = text.slice(start, i + 1);
+					try {
+						const parsed = JSON.parse(candidate) as AiProjectExtraction;
+						if (
+							parsed &&
+							typeof parsed === 'object' &&
+							('fields' in parsed || 'bid_items' in parsed || 'production_mixes' in parsed)
+						) {
+							return parsed;
+						}
+					} catch {
+						break;
+					}
+				}
+			}
 		}
 	}
+	return null;
 }
 
 function extractJson(raw: unknown): AiProjectExtraction | null {
