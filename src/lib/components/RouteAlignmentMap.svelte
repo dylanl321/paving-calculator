@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
-	import { MapView, MapMarker, MapPolyline, MapPolygon } from '$lib/components/map-v2';
+	import { MapView, MapMarker, MapPolyline, MapPolygon, RoadwayLogLayer } from '$lib/components/map-v2';
 	import { polylineLengthFt, laneCorridorPolygon, feetToMeters } from '$lib/services/mapUtils';
 	import { buildRoadAlignment, snapToNearestRoad } from '$lib/services/roadSnap';
 	import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
@@ -65,6 +65,7 @@
 	let saving = $state(false);
 	let snapping = $state(false);
 	let snapError = $state('');
+	let showRoadwayLog = $state(true);
 	let controlMarkers: MapLibreMarker[] = [];
 	let previousInitialWaypoints = initialWaypoints;
 
@@ -79,6 +80,7 @@
 	};
 
 	const pinned = $derived(site.latitude != null && site.longitude != null);
+	const hasRoadwayLog = $derived(roadwayLogEvents.length > 0);
 
 	const totalLengthFt = $derived(polylineLengthFt(waypoints));
 
@@ -94,23 +96,6 @@
 	});
 
 	const routePoints = $derived<[number, number][]>(waypoints.map((wp) => [wp.lat, wp.lng]));
-	const plottedRoadwayLogEvents = $derived.by(() => {
-		return roadwayLogEvents.flatMap((event) => {
-			if (!event.coordinate_geojson) return [];
-			try {
-				const geo = JSON.parse(event.coordinate_geojson) as {
-					type?: string;
-					coordinates?: [number, number];
-				};
-				if (geo.type !== 'Point' || !Array.isArray(geo.coordinates)) return [];
-				const [lng, lat] = geo.coordinates;
-				if (!Number.isFinite(lat) || !Number.isFinite(lng)) return [];
-				return [{ ...event, lat, lng }];
-			} catch {
-				return [];
-			}
-		});
-	});
 	const firstWaypoint = $derived(waypoints.length >= 2 ? waypoints[0] : null);
 	const lastWaypoint = $derived(waypoints.length >= 2 ? waypoints[waypoints.length - 1] : null);
 	const guideText = $derived.by(() => {
@@ -125,42 +110,6 @@
 		const totalWidthMeters = feetToMeters(numLanes * laneWidthFt);
 		return laneCorridorPolygon(waypoints, totalWidthMeters);
 	});
-
-	function eventColor(type: string): string {
-		if (type === 'project_start' || type === 'project_end') return '#f2c037';
-		if (type === 'width_change') return '#60a5fa';
-		if (type === 'operation_change') return '#34d399';
-		if (type === 'side_road' || type === 'reference') return '#cbd5e1';
-		return '#94a3b8';
-	}
-
-	function eventLabel(type: string): string {
-		if (type === 'project_start') return 'S';
-		if (type === 'project_end') return 'E';
-		if (type === 'width_change') return 'W';
-		if (type === 'operation_change') return 'O';
-		if (type === 'side_road' || type === 'reference') return 'R';
-		return '•';
-	}
-
-	function escapeHtml(value: string): string {
-		return value.replace(/[&<>"']/g, (ch) => {
-			const map: Record<string, string> = {
-				'&': '&amp;',
-				'<': '&lt;',
-				'>': '&gt;',
-				'"': '&quot;',
-				"'": '&#39;'
-			};
-			return map[ch];
-		});
-	}
-
-	function eventPopup(event: RoadwayLogEvent): string {
-		const width = event.roadway_width_ft ? `<br>Width: ${event.roadway_width_ft} ft` : '';
-		const ref = event.is_reference ? '<br><em>Reference only</em>' : '';
-		return `<b>Log ${event.milepost.toFixed(3)}</b><br>${escapeHtml(event.description)}${width}${ref}`;
-	}
 
 	function handleMapReady(map: MapLibreMap) {
 		mapInstance = map;
@@ -393,16 +342,13 @@
 							popupHtml="<b>Route end edge</b><br>Set project start/end below for the actual project limits."
 						/>
 					{/if}
-					{#each plottedRoadwayLogEvents as event (event.id)}
-						<MapMarker
-							lat={event.lat}
-							lng={event.lng}
-							color={eventColor(event.event_type)}
-							label={eventLabel(event.event_type)}
-							popupHtml={eventPopup(event)}
-						/>
-					{/each}
 				{/if}
+
+				<RoadwayLogLayer
+					{waypoints}
+					events={roadwayLogEvents}
+					visible={showRoadwayLog && hasRoadwayLog}
+				/>
 
 			{/snippet}
 		</MapView>
@@ -431,6 +377,35 @@
 				</svg>
 				{drawMode ? 'Stop Editing' : 'Edit Route'}
 			</button>
+
+			{#if hasRoadwayLog}
+				<button
+					type="button"
+					class="map-btn"
+					class:active={showRoadwayLog}
+					onclick={() => (showRoadwayLog = !showRoadwayLog)}
+					title={showRoadwayLog ? 'Hide roadway log' : 'Show roadway log'}
+				>
+					<svg
+						width="18"
+						height="18"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<line x1="8" y1="6" x2="21" y2="6"></line>
+						<line x1="8" y1="12" x2="21" y2="12"></line>
+						<line x1="8" y1="18" x2="21" y2="18"></line>
+						<line x1="3" y1="6" x2="3.01" y2="6"></line>
+						<line x1="3" y1="12" x2="3.01" y2="12"></line>
+						<line x1="3" y1="18" x2="3.01" y2="18"></line>
+					</svg>
+					Log
+				</button>
+			{/if}
 
 			{#if drawMode}
 				<button type="button" class="map-btn" onclick={addPointAtCenter} title="Add point at center" disabled={snapping}>

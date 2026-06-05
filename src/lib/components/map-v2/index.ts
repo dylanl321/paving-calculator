@@ -24,6 +24,7 @@ export { default as MapStationPicker } from './MapStationPicker.svelte';
 export { default as TerminusPicker } from './TerminusPicker.svelte';
 export { default as PlanSheetOverlay }  from './PlanSheetOverlay.svelte';
 export { default as RoadProgressLayer }    from './RoadProgressLayer.svelte';
+export { default as RoadwayLogLayer }      from './RoadwayLogLayer.svelte';
 export { default as TodayProgressOverlay } from './TodayProgressOverlay.svelte';
 
 export {
