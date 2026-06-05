@@ -105,7 +105,7 @@
 	}
 
 	function handleNewCalculation() {
-		goto(`/?job_site_id=${jobSiteState.id}`);
+		goto(`/app?job_site_id=${jobSiteState.id}`);
 	}
 
 	async function updateProjectStatus(status: 'active' | 'completed' | 'archived') {
