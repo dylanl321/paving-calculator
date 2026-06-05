@@ -20,6 +20,7 @@
 	let fileInputEl: HTMLInputElement;
 	let imageUrl = $state<string | null>(null);
 	let imageFile = $state<File | null>(null);
+	let photoId = $state<string | null>(null);
 
 	// OCR state
 	let ocrResult = $state<TicketExtraction | null>(null);
@@ -89,6 +90,8 @@
 					ocr_fields: TicketExtraction | null;
 				};
 
+				photoId = data.photo_id;
+
 				if (data.ocr_fields) {
 					ocrResult = data.ocr_fields;
 
@@ -146,6 +149,7 @@
 		passNumber = null;
 		notes = '';
 		imageFile = null;
+		photoId = null;
 		ocrResult = null;
 		ocrAttempted = false;
 		if (imageUrl) {
@@ -218,7 +222,8 @@
 				ticket_number: ticketNumber.trim() || null,
 				notes: combinedNotes || null,
 				lane_number: laneNumber,
-				pass_number: passNumber
+				pass_number: passNumber,
+				ticket_photo_id: photoId
 			};
 
 			const res = await fetch(`/api/job-sites/${jobSiteId}/loads`, {
@@ -237,31 +242,11 @@
 			stage = 'done';
 			onLogged?.(data.load);
 
-			// If there's an image, upload it as a photo attachment linked to this load
-			if (imageFile) {
-				uploadTicketPhoto(data.load.id).catch((err) =>
-					console.warn('Ticket photo upload failed (non-blocking):', err)
-				);
-			}
-
 			setTimeout(reset, 1400);
 		} catch (err: unknown) {
 			stage = 'error';
 			errorMsg = err instanceof Error ? err.message : 'Failed to log load';
 		}
-	}
-
-	async function uploadTicketPhoto(loadId: string) {
-		if (!imageFile) return;
-		const formData = new FormData();
-		formData.append('photo', imageFile);
-		formData.append('caption', `Truck ticket #${ticketNumber || loadId}`);
-		// Use load id as log_entry_id link (best-effort)
-		await fetch(`/api/job-sites/${jobSiteId}/photos`, {
-			method: 'POST',
-			credentials: 'include',
-			body: formData
-		});
 	}
 </script>
 
