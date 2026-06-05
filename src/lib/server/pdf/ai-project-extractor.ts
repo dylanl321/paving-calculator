@@ -270,6 +270,8 @@ async function runProjectModel(
 			{ role: 'system', content: SYSTEM_PROMPT },
 			{ role: 'user', content: extractionPrompt(pages) }
 		],
+		temperature: 0.1,
+		max_tokens: 4096,
 		response_format: responseFormat
 	});
 }

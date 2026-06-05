@@ -233,4 +233,28 @@ describe('runAiProjectExtraction', () => {
 		expect(diag.outcome).toBe('applied');
 		expect(v2.contract_id.source).toBe('ai:contract.pdf:p2');
 	});
+
+	it('requests enough model output for a project JSON response', async () => {
+		const v2 = parseGdotDocumentsV2(['Contract Schedule\nTotal Bid: $1,000.00']);
+		const inputs: Array<Record<string, unknown>> = [];
+		const ai: WorkersAi = {
+			async run(_model, input) {
+				inputs.push(input);
+				return {
+					response: {
+						fields: {},
+						bid_items: [],
+						production_mixes: [],
+						roadway_log_events: [],
+						warnings: []
+					}
+				};
+			}
+		};
+
+		await runAiProjectExtraction(ai, evidence(), v2);
+
+		expect(inputs[0].max_tokens).toBe(4096);
+		expect(inputs[0].temperature).toBe(0.1);
+	});
 });
