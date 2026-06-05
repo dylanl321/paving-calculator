@@ -613,6 +613,25 @@ https://paverate.com`
               </table>
             </td>
           </tr>
+          <!-- Spread rate compliance -->
+          <tr>
+            <td style="padding:0 40px 24px 40px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td>
+                    <h3 style="margin:0 0 12px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:15px;font-weight:700;color:#1a1a2e;">Spread Rate Compliance</h3>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="background-color:#fef3f2;border-left:3px solid #dc2626;border-radius:0 4px 4px 0;padding:14px 16px;" class="spread-rate-flags-{{spread_rate_compliance_count}}">
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                      {{spread_rate_compliance_html}}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
           <!-- Crew notes -->
           <tr>
             <td style="padding:0 40px 24px 40px;">
@@ -667,6 +686,10 @@ Loads:    {{total_loads}} truck loads
 MIX BREAKDOWN
 -------------
 {{mix_breakdown}}
+
+SPREAD RATE COMPLIANCE
+----------------------
+{{spread_rate_compliance_text}}
 
 CREW NOTES
 ----------

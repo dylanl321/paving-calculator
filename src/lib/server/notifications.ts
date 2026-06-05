@@ -8,6 +8,15 @@
 import type { D1Database } from '../../cloudflare';
 import { DbLogHelper, type LogSummary } from './db-logs';
 import { DbHelper } from './db';
+import { DbJobSiteConfigHelper } from './db-jobsite-config';
+
+/** A site whose actual spread rate deviated >5% from the target. */
+export interface SpreadRateFlag {
+	site_name: string;
+	actual_lbs_sy: number; // lbs/SY actual
+	target_lbs_sy: number; // lbs/SY target from job_site_config
+	deviation_pct: number; // signed percentage, e.g. +7.3 or -6.1
+}
 
 export interface SiteSummary {
 	site_id: string;
@@ -19,6 +28,8 @@ export interface SiteSummary {
 	hours_worked: number;
 	mix_type: string | null;
 	spec_violations: number;
+	/** Non-null when this site's spread rate deviated >5% from target. */
+	spread_rate_flag: SpreadRateFlag | null;
 }
 
 export interface EodSummaryData {
@@ -33,6 +44,8 @@ export interface EodSummaryData {
 	sites: SiteSummary[];
 	mix_breakdown: string;
 	crew_notes: string;
+	/** Sites whose spread rate deviated >5% from configured target. */
+	spread_rate_flags: SpreadRateFlag[];
 }
 
 function toSqYd(distanceFt: number, widthFt = 12): number {
@@ -48,6 +61,23 @@ function fmtTons(n: number): string {
  * "Today" is determined by the caller passing in the date string (YYYY-MM-DD)
  * so the cron handler can convert from the schedule timezone.
  */
+/**
+ * Compute actual spread rate (lbs/SY) for a daily log using its paving entries.
+ *
+ * Formula: (total_tons * 2000 lbs) / (total_distance_ft * lane_width_ft / 9 sq-yd)
+ * Returns null when inputs are insufficient (no tonnage, no distance).
+ */
+function computeActualSpreadRate(
+	totalTons: number,
+	totalDistanceFt: number,
+	laneWidthFt: number
+): number | null {
+	if (totalTons <= 0 || totalDistanceFt <= 0 || laneWidthFt <= 0) return null;
+	const totalLbs = totalTons * 2000;
+	const areaSqYd = (totalDistanceFt * laneWidthFt) / 9;
+	return totalLbs / areaSqYd;
+}
+
 export async function generateEodSummary(
 	db: D1Database,
 	orgId: string,
@@ -55,6 +85,7 @@ export async function generateEodSummary(
 ): Promise<EodSummaryData> {
 	const dbHelper = new DbHelper(db);
 	const logHelper = new DbLogHelper(db);
+	const configHelper = new DbJobSiteConfigHelper(db);
 
 	// Fetch org name
 	const org = await dbHelper.getOrganizationById(orgId);
@@ -70,6 +101,7 @@ export async function generateEodSummary(
 	let grandSpecViolations = 0;
 	const mixCounts: Record<string, number> = {};
 	const crewNotesList: string[] = [];
+	const spreadRateFlags: SpreadRateFlag[] = [];
 
 	for (const site of jobSites) {
 		// Get the daily log for this site on the given date
@@ -89,6 +121,33 @@ export async function generateEodSummary(
 			(r) => r.compaction_pct !== null && r.compaction_pct < 92
 		).length;
 
+		// ── Spread rate compliance check ──────────────────────────────────────
+		// Fetch job site config for target_spread_rate and lane_width_ft.
+		// If target is set, compute actual vs target; flag if deviation > 5%.
+		let spreadRateFlag: SpreadRateFlag | null = null;
+		const siteConfig = await configHelper.getJobSiteConfig(site.id);
+		if (siteConfig?.target_spread_rate && siteConfig.target_spread_rate > 0) {
+			const laneWidth = siteConfig.lane_width_ft ?? 12;
+			const actualRate = computeActualSpreadRate(
+				summary.total_tons,
+				summary.total_distance_ft,
+				laneWidth
+			);
+			if (actualRate !== null) {
+				const deviationPct =
+					((actualRate - siteConfig.target_spread_rate) / siteConfig.target_spread_rate) * 100;
+				if (Math.abs(deviationPct) > 5) {
+					spreadRateFlag = {
+						site_name: site.name,
+						actual_lbs_sy: Math.round(actualRate * 10) / 10,
+						target_lbs_sy: siteConfig.target_spread_rate,
+						deviation_pct: Math.round(deviationPct * 10) / 10
+					};
+					spreadRateFlags.push(spreadRateFlag);
+				}
+			}
+		}
+
 		sites.push({
 			site_id: site.id,
 			site_name: site.name,
@@ -98,7 +157,8 @@ export async function generateEodSummary(
 			total_distance_ft: summary.total_distance_ft,
 			hours_worked: summary.hours_worked,
 			mix_type: log.mix_type,
-			spec_violations: specViolations
+			spec_violations: specViolations,
+			spread_rate_flag: spreadRateFlag
 		});
 
 		grandTotalTons += summary.total_tons;
@@ -141,7 +201,8 @@ export async function generateEodSummary(
 		spec_violations: grandSpecViolations,
 		sites,
 		mix_breakdown: mixBreakdown,
-		crew_notes: crewNotes
+		crew_notes: crewNotes,
+		spread_rate_flags: spreadRateFlags
 	};
 }
 
@@ -165,6 +226,28 @@ export function eodSummaryToTemplateVars(
 		timeZone: 'UTC'
 	});
 
+	// Build spread rate compliance block (text and HTML variants).
+	let spreadRateText = '';
+	let spreadRateHtml = '';
+	if (data.spread_rate_flags.length > 0) {
+		const flagLines = data.spread_rate_flags.map((f) => {
+			const dir = f.deviation_pct > 0 ? 'over' : 'under';
+			const abs = Math.abs(f.deviation_pct);
+			return `${f.site_name}: actual ${f.actual_lbs_sy} lbs/SY vs target ${f.target_lbs_sy} lbs/SY (${abs}% ${dir})`;
+		});
+		spreadRateText = flagLines.join('\n');
+		spreadRateHtml = flagLines
+			.map(
+				(line) =>
+					`<tr><td style="padding:4px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:13px;color:#9a3412;">&#9888;&nbsp; ${line}</td></tr>`
+			)
+			.join('');
+	} else {
+		spreadRateText = 'All sites within 5% of target spread rate.';
+		spreadRateHtml =
+			'<tr><td style="padding:4px 0;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif;font-size:13px;color:#166534;">&#10003;&nbsp; All sites within 5% of target spread rate.</td></tr>';
+	}
+
 	return {
 		org_name: data.org_name,
 		date: fmtDate,
@@ -175,6 +258,9 @@ export function eodSummaryToTemplateVars(
 		spec_violations: data.spec_violations.toString(),
 		mix_breakdown: data.mix_breakdown,
 		crew_notes: data.crew_notes,
+		spread_rate_compliance_count: data.spread_rate_flags.length.toString(),
+		spread_rate_compliance_text: spreadRateText,
+		spread_rate_compliance_html: spreadRateHtml,
 		logo_url: opts.logoUrl ?? '',
 		accent_color: opts.accentColor ?? '#f5a623',
 		report_url: opts.reportUrl ?? 'https://paverate.com/dashboard'
