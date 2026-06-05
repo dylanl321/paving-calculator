@@ -34,6 +34,8 @@
     width?: number;
     /** Line opacity 0–1 */
     opacity?: number;
+    /** Dash array for dashed lines, e.g., [4, 4] */
+    dashArray?: number[];
     /** Called when the line is clicked */
     onclick?: (e: unknown) => void;
   }
@@ -45,6 +47,7 @@
     color,
     width = 4,
     opacity = 1,
+    dashArray,
     onclick,
   }: Props = $props();
 
@@ -83,6 +86,15 @@
       data: toGeoJSON(coordinates),
     });
 
+    const paintProps: Record<string, unknown> = {
+      'line-color': resolveColor(),
+      'line-width': width,
+      'line-opacity': opacity,
+    };
+    if (dashArray) {
+      paintProps['line-dasharray'] = dashArray;
+    }
+
     map.addLayer({
       id: layerId,
       type: 'line',
@@ -91,11 +103,7 @@
         'line-join': 'round',
         'line-cap': 'round',
       },
-      paint: {
-        'line-color': resolveColor(),
-        'line-width': width,
-        'line-opacity': opacity,
-      },
+      paint: paintProps,
     });
 
     if (onclick) {
@@ -133,6 +141,7 @@
     const _status = status;
     const _width = width;
     const _opacity = opacity;
+    const _dashArray = dashArray;
 
     if (!browser) return;
 
@@ -156,6 +165,9 @@
         map.setPaintProperty(layerId, 'line-color', _color ?? STATUS_COLORS[_status] ?? STATUS_COLORS.planned);
         map.setPaintProperty(layerId, 'line-width', _width);
         map.setPaintProperty(layerId, 'line-opacity', _opacity);
+        if (_dashArray) {
+          map.setPaintProperty(layerId, 'line-dasharray', _dashArray);
+        }
       }
     }
 
