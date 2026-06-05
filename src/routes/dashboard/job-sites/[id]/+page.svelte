@@ -372,7 +372,7 @@
 	{:else if activeTab === 'verification'}
 		<VerificationTab jobSiteId={jobSiteState.id} {configForm} onGoToTab={(tab) => (activeTab = tab)} />
 	{:else if activeTab === 'equipment'}
-		<EquipmentTab jobSiteId={jobSiteState.id} bind:equipmentList />
+		<EquipmentTab jobSiteId={jobSiteState.id} jobSiteName={jobSiteState.name} bind:equipmentList />
 	{:else if activeTab === 'calculations'}
 		<CalculationsTab calculations={data.calculations} onNewCalculation={handleNewCalculation} />
 	{:else if activeTab === 'daily_log'}

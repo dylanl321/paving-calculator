@@ -29,6 +29,7 @@ export interface DbOrgSettings {
 	email_from_name: string | null;
 	email_reply_to: string | null;
 	report_recipients: string | null;
+	equipment_templates: string | null;
 	updated_by: string | null;
 	updated_at: number;
 }
@@ -526,4 +527,52 @@ export class DbOrgHelper {
 			failedEmails: failed?.c ?? 0
 		};
 	}
+
+	// ── Equipment Templates ───────────────────────────────────────────────
+
+	async getEquipmentTemplates(orgId: string): Promise<EquipmentTemplate[]> {
+		const settings = await this.getOrgSettings(orgId);
+		if (!settings || !settings.equipment_templates) {
+			return [];
+		}
+		try {
+			const parsed = JSON.parse(settings.equipment_templates);
+			return Array.isArray(parsed) ? parsed : [];
+		} catch {
+			return [];
+		}
+	}
+
+	async upsertEquipmentTemplates(orgId: string, templates: EquipmentTemplate[]): Promise<void> {
+		const serialized = JSON.stringify(templates);
+		const now = Math.floor(Date.now() / 1000);
+		const existing = await this.getOrgSettings(orgId);
+
+		if (!existing) {
+			await this.db
+				.prepare(
+					`INSERT INTO org_settings (org_id, equipment_templates, updated_at)
+					VALUES (?, ?, ?)`
+				)
+				.bind(orgId, serialized, now)
+				.run();
+		} else {
+			await this.db
+				.prepare('UPDATE org_settings SET equipment_templates = ?, updated_at = ? WHERE org_id = ?')
+				.bind(serialized, now, orgId)
+				.run();
+		}
+	}
+}
+
+export interface EquipmentTemplate {
+	id: string;
+	name: string;
+	items: Array<{
+		equipment_type: string;
+		name: string;
+		capacity: string | null;
+		notes: string | null;
+	}>;
+	created_at: number;
 }

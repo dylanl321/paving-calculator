@@ -15,11 +15,25 @@
 		equipment: EquipmentItem;
 	}
 
+	interface EquipmentTemplate {
+		id: string;
+		name: string;
+		items: Array<{
+			equipment_type: string;
+			name: string;
+			capacity: string | null;
+			notes: string | null;
+		}>;
+		created_at: number;
+	}
+
 	let {
 		jobSiteId,
+		jobSiteName = '',
 		equipmentList = $bindable()
 	}: {
 		jobSiteId: string;
+		jobSiteName?: string;
 		equipmentList: Equipment[];
 	} = $props();
 
@@ -31,6 +45,12 @@
 	});
 
 	let saving = $state(false);
+	let templates = $state<EquipmentTemplate[]>([]);
+	let loadingTemplates = $state(false);
+	let showAddFromTemplateModal = $state(false);
+	let showSaveAsTemplateModal = $state(false);
+	let templateName = $state('');
+	let addingFromTemplate = $state(false);
 
 	async function addEquipment() {
 		if (!newEquipment.name) return;
@@ -66,10 +86,97 @@
 			saving = false;
 		}
 	}
+
+	async function loadTemplates() {
+		loadingTemplates = true;
+		try {
+			const response = await api.get('/api/org/equipment-templates') as { templates: EquipmentTemplate[] };
+			templates = response.templates;
+		} catch (err) {
+			console.error('Failed to load templates:', err);
+		} finally {
+			loadingTemplates = false;
+		}
+	}
+
+	function openAddFromTemplateModal() {
+		loadTemplates();
+		showAddFromTemplateModal = true;
+	}
+
+	function openSaveAsTemplateModal() {
+		templateName = jobSiteName || '';
+		showSaveAsTemplateModal = true;
+	}
+
+	async function addFromTemplate(template: EquipmentTemplate) {
+		addingFromTemplate = true;
+		try {
+			const newItems: Equipment[] = [];
+			for (const item of template.items) {
+				const { equipment } = await api.post(`/api/job-sites/${jobSiteId}/equipment`, {
+					equipment_type: item.equipment_type,
+					name: item.name,
+					capacity: item.capacity,
+					notes: item.notes
+				}) as EquipmentResponse;
+				newItems.push(equipment);
+			}
+			equipmentList = [...equipmentList, ...newItems];
+			toastStore.success(`${template.items.length} items added from template`);
+			showAddFromTemplateModal = false;
+		} catch (err) {
+			console.error('Failed to add from template:', err);
+		} finally {
+			addingFromTemplate = false;
+		}
+	}
+
+	async function saveAsTemplate() {
+		if (!templateName.trim()) {
+			toastStore.error('Template name is required');
+			return;
+		}
+
+		saving = true;
+		try {
+			const items = equipmentList.map((e) => ({
+				equipment_type: e.equipment_type,
+				name: e.name,
+				capacity: e.capacity ?? null,
+				notes: e.notes ?? null
+			}));
+
+			await api.post('/api/org/equipment-templates', {
+				name: templateName.trim(),
+				items
+			});
+
+			toastStore.success('Template saved');
+			showSaveAsTemplateModal = false;
+			templateName = '';
+		} catch (err) {
+			console.error('Failed to save template:', err);
+		} finally {
+			saving = false;
+		}
+	}
 </script>
 
 <section class="section">
-	<h3>Equipment List</h3>
+	<div class="section-header">
+		<h3>Equipment List</h3>
+		<div class="header-actions">
+			{#if equipmentList.length > 0}
+				<button class="btn-secondary" onclick={openSaveAsTemplateModal}>
+					Save as Template
+				</button>
+			{/if}
+			<button class="btn-secondary" onclick={openAddFromTemplateModal}>
+				Add from Template
+			</button>
+		</div>
+	</div>
 
 	{#if equipmentList.length === 0}
 		<div class="empty-state-mini">
@@ -181,6 +288,102 @@
 			Add Equipment
 		</button>
 	</div>
+
+	{#if showAddFromTemplateModal}
+		<div class="modal-overlay" onclick={() => { showAddFromTemplateModal = false; }}>
+			<div class="modal-card" onclick={(e) => e.stopPropagation()}>
+				<div class="modal-header">
+					<h4>Add from Template</h4>
+					<button
+						class="btn-icon"
+						onclick={() => { showAddFromTemplateModal = false; }}
+						aria-label="Close"
+					>
+						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<line x1="18" y1="6" x2="6" y2="18"></line>
+							<line x1="6" y1="6" x2="18" y2="18"></line>
+						</svg>
+					</button>
+				</div>
+				<div class="modal-body">
+					{#if loadingTemplates}
+						<div class="loading-state">Loading templates...</div>
+					{:else if templates.length === 0}
+						<div class="empty-state-small">
+							<p>No templates saved yet. Add equipment to this job site, then use "Save as Template" to create one.</p>
+						</div>
+					{:else}
+						<div class="template-list">
+							{#each templates as template}
+								<button
+									class="template-item"
+									onclick={() => addFromTemplate(template)}
+									disabled={addingFromTemplate}
+								>
+									<div class="template-info">
+										<div class="template-name">{template.name}</div>
+										<div class="template-count">{template.items.length} items</div>
+									</div>
+									<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<polyline points="9 18 15 12 9 6"></polyline>
+									</svg>
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	{#if showSaveAsTemplateModal}
+		<div class="modal-overlay" onclick={() => { showSaveAsTemplateModal = false; }}>
+			<div class="modal-card" onclick={(e) => e.stopPropagation()}>
+				<div class="modal-header">
+					<h4>Save as Template</h4>
+					<button
+						class="btn-icon"
+						onclick={() => { showSaveAsTemplateModal = false; }}
+						aria-label="Close"
+					>
+						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<line x1="18" y1="6" x2="6" y2="18"></line>
+							<line x1="6" y1="6" x2="18" y2="18"></line>
+						</svg>
+					</button>
+				</div>
+				<div class="modal-body">
+					<div class="form-group">
+						<label for="template_name">Template Name</label>
+						<input
+							type="text"
+							id="template_name"
+							bind:value={templateName}
+							placeholder="e.g., Standard Paving Crew"
+						/>
+					</div>
+					<div class="preview-section">
+						<div class="preview-label">Items to save ({equipmentList.length}):</div>
+						<div class="preview-list">
+							{#each equipmentList as item}
+								<div class="preview-item">
+									<span class="preview-type">{equipmentTypeLabels[item.equipment_type]}</span>
+									<span class="preview-name">{item.name}</span>
+								</div>
+							{/each}
+						</div>
+					</div>
+					<button
+						class="btn-primary"
+						onclick={saveAsTemplate}
+						disabled={!templateName.trim() || saving}
+					>
+						Save Template
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 </section>
 
 <style>
@@ -287,5 +490,196 @@
 	.add-equipment-form h4 {
 		margin: 0 0 16px;
 		font-size: 1rem;
+	}
+
+	.section-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-bottom: 20px;
+		flex-wrap: wrap;
+		gap: 12px;
+	}
+
+	.section-header h3 {
+		margin: 0;
+	}
+
+	.header-actions {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+
+	.modal-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: rgba(0, 0, 0, 0.7);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+		padding: 16px;
+	}
+
+	.modal-card {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		max-width: 480px;
+		width: 100%;
+		max-height: 80vh;
+		overflow-y: auto;
+	}
+
+	.modal-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 20px;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.modal-header h4 {
+		margin: 0;
+		font-size: 1.1rem;
+		color: var(--text);
+	}
+
+	.btn-icon {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 4px;
+		min-width: 48px;
+		min-height: 48px;
+	}
+
+	.btn-icon:hover {
+		background: var(--background);
+		color: var(--text);
+	}
+
+	.modal-body {
+		padding: 20px;
+	}
+
+	.loading-state {
+		text-align: center;
+		padding: 32px;
+		color: var(--text-muted);
+	}
+
+	.empty-state-small {
+		text-align: center;
+		padding: 32px 16px;
+		color: var(--text-muted);
+		font-size: 0.9rem;
+	}
+
+	.empty-state-small p {
+		margin: 0;
+		line-height: 1.5;
+	}
+
+	.template-list {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.template-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		background: var(--background);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 16px;
+		cursor: pointer;
+		text-align: left;
+		width: 100%;
+		min-height: 48px;
+		transition: background 0.2s;
+	}
+
+	.template-item:hover:not(:disabled) {
+		background: var(--surface);
+		border-color: var(--accent);
+	}
+
+	.template-item:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.template-info {
+		flex: 1;
+	}
+
+	.template-name {
+		font-weight: 600;
+		color: var(--text);
+		margin-bottom: 4px;
+	}
+
+	.template-count {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.preview-section {
+		margin: 20px 0;
+	}
+
+	.preview-label {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--text-muted);
+		margin-bottom: 8px;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.preview-list {
+		background: var(--background);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 12px;
+		max-height: 200px;
+		overflow-y: auto;
+	}
+
+	.preview-item {
+		padding: 8px 0;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.preview-item:last-child {
+		border-bottom: none;
+	}
+
+	.preview-type {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.preview-name {
+		font-weight: 500;
+		color: var(--text);
 	}
 </style>
