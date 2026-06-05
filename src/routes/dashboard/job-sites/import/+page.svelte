@@ -158,6 +158,14 @@
 	/** Set of fields that were manually corrected by the user. */
 	let correctedFields = $state<Set<string>>(new Set());
 	let confirmedFields = $state<Set<string>>(new Set());
+	/** AI/regex document classification result for the primary uploaded document. */
+	let classification = $state<{
+		type: string;
+		confidence: number;
+		description: string;
+		ai_used: boolean;
+		message?: string;
+	} | null>(null);
 
 	function handleDrop(e: DragEvent) {
 		e.preventDefault();
@@ -211,6 +219,10 @@
 				field_confidence?: FieldConfidenceMap;
 				route_preview?: RoutePreview;
 				llm_fallback?: { attempted: boolean; applied: boolean; reason: string; binding_available: boolean; outcome: 'applied' | 'not-needed' | 'binding-unavailable' | 'failed' };
+				document_type?: string;
+				classification_confidence?: number;
+				classification_description?: string;
+				classification_message?: string;
 				error?: string;
 			};
 
@@ -227,6 +239,17 @@
 			fieldConf = data.field_confidence ?? {};
 			routePreview = data.route_preview ?? null;
 			llmFallback = data.llm_fallback ?? null;
+			if (data.document_type) {
+				classification = {
+					type: data.document_type,
+					confidence: data.classification_confidence ?? 0,
+					description: data.classification_description ?? data.document_type,
+					ai_used: false,
+					message: data.classification_message
+				};
+			} else {
+				classification = null;
+			}
 			correctedFields = new Set();
 			confirmedFields = new Set();
 			step = 'review';
@@ -638,6 +661,23 @@
 			<h2 class="page-title">Review Import</h2>
 			<p class="page-subtitle">Verify the parsed data before creating the project.</p>
 		</div>
+
+		{#if classification}
+			<div class="classification-badge" class:low-conf={classification.confidence < 0.5}>
+				{#if classification.confidence >= 0.5}
+					<span class="badge-icon">📄</span>
+					<span class="badge-label">
+						Identified as: <strong>{classification.description}</strong>
+						({Math.round(classification.confidence * 100)}% confident){#if classification.ai_used}<span class="ai-tag">AI</span>{/if}
+					</span>
+				{:else}
+					<span class="badge-icon">⚠️</span>
+					<span class="badge-label">
+						{classification.message ?? "We couldn't identify this document type."}
+					</span>
+				{/if}
+			</div>
+		{/if}
 
 		<div class="doc-status">
 			<span class="doc-chip" class:present={parsed.has_contract_summary}>
@@ -1492,6 +1532,49 @@
 		gap: 10px;
 		margin-bottom: 12px;
 	}
+
+	/* Classification badge — shown at top of review step */
+	.classification-badge {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 6px;
+		background: rgba(59, 130, 246, 0.1);
+		border: 1px solid rgba(59, 130, 246, 0.3);
+		color: #93c5fd;
+		font-size: 0.8125rem;
+		margin-bottom: 0.75rem;
+	}
+
+	.classification-badge.low-conf {
+		background: rgba(245, 158, 11, 0.1);
+		border-color: rgba(245, 158, 11, 0.3);
+		color: #fcd34d;
+	}
+
+	.classification-badge .badge-icon {
+		font-size: 1rem;
+		flex-shrink: 0;
+		line-height: 1;
+	}
+
+	.classification-badge .badge-label {
+		flex: 1;
+	}
+
+	.classification-badge .ai-tag {
+		display: inline-block;
+		padding: 0.1em 0.4em;
+		border-radius: 4px;
+		background: rgba(139, 92, 246, 0.2);
+		color: #c4b5fd;
+		font-size: 0.75rem;
+		font-weight: 600;
+		margin-left: 0.25rem;
+		vertical-align: middle;
+	}
+
 
 	.doc-chip {
 		display: inline-flex;

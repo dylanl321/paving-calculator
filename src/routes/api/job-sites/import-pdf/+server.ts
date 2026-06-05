@@ -14,6 +14,7 @@ import {
 import type { FieldConfidence } from '$lib/server/pdf/confidence';
 import { runLlmFallback, needsLlmFallback, buildLlmDiagnostic, appendLlmFallbackWarning, type WorkersAi, type LlmFallbackDiagnostic } from '$lib/server/pdf/llm-fallback';
 import { buildImportRoutePreview, type ImportRoutePreview } from '$lib/server/gdot-geometry';
+import { classifyDocument, getUnrecognizedMessage, type DocumentClassification } from '$lib/server/pdf/classify-document';
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB per file
 
@@ -163,6 +164,13 @@ export interface DocumentInventory {
 		roadway_log: boolean;
 		detailed_estimate: boolean;
 	};
+	/** AI/regex classification result for this document. */
+	classification?: {
+		type: string;
+		confidence: number;
+		description: string;
+		ai_used: boolean;
+	};
 }
 
 /** Flat map of field name -> confidence level, for the review UI. */
@@ -178,6 +186,14 @@ export interface ImportPdfResponse {
 	field_confidence: FieldConfidenceMap;
 	/** Diagnostic describing whether/why the Workers AI fallback ran. */
 	llm_fallback: LlmFallbackDiagnostic;
+	/** Primary document classification type (first uploaded file). */
+	document_type: string;
+	/** Classification confidence 0–1. */
+	classification_confidence: number;
+	/** Human-readable label for the classified document type. */
+	classification_description: string;
+	/** Helpful message for unrecognized or unsupported document types (optional). */
+	classification_message?: string;
 }
 
 function labelForPage(text: string, pageNumber: number): string {
@@ -241,6 +257,12 @@ export async function POST(event: RequestEvent) {
 		const sourceKeys: string[] = [];
 		const documents: ImportedDocument[] = [];
 		const documentInventory: DocumentInventory[] = [];
+		// Classification of the primary (first) uploaded document.
+		let primaryClassification: DocumentClassification | null = null;
+
+		// Workers AI binding — may be undefined in local dev. Needed for both
+		// document classification and LLM fallback field-filling.
+		const ai = event.platform.env.AI as WorkersAi | undefined;
 
 		for (const file of files) {
 			const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
@@ -262,6 +284,17 @@ export async function POST(event: RequestEvent) {
 				const text = pages.map((page) => page.text).join('\n\f\n');
 				const type = detectDocumentType(text);
 				texts.push(text);
+
+				// Classify the document (AI slow-path when regex returns unknown).
+				// Run for all files; track the primary (first) document classification.
+				const fileClassification = await classifyDocument(
+					ai,
+					pages.map((page) => page.text)
+				);
+				if (primaryClassification === null) {
+					primaryClassification = fileClassification;
+				}
+
 				documents.push({ filename: file.name, source_key: key, type });
 				documentInventory.push({
 					filename: file.name,
@@ -272,7 +305,13 @@ export async function POST(event: RequestEvent) {
 						page_number: page.page_number,
 						label: labelForPage(page.text, page.page_number)
 					})),
-					evidence: evidenceFromPages(type, pages)
+					evidence: evidenceFromPages(type, pages),
+					classification: {
+						type: fileClassification.type,
+						confidence: fileClassification.confidence,
+						description: fileClassification.description,
+						ai_used: fileClassification.ai_used
+					}
 				});
 			} catch (err) {
 				console.error('PDF text extraction failed for', file.name, err);
@@ -298,7 +337,6 @@ export async function POST(event: RequestEvent) {
 		// platform proxy, so the fallback can no-op without any signal. We capture
 		// the outcome and surface it (diagnostic field + parsed.warnings) so the
 		// behaviour is observable rather than silent.
-		const ai = event.platform.env.AI as WorkersAi | undefined;
 		const attempted = needsLlmFallback(v2);
 		const fallback = await runLlmFallback(ai, v2);
 		const llm_fallback = buildLlmDiagnostic(attempted, !!ai, fallback);
@@ -330,6 +368,13 @@ export async function POST(event: RequestEvent) {
 			if (f && 'confidence' in f) field_confidence[k] = f.confidence;
 		}
 
+		// Build classification message for unrecognized or low-confidence types.
+		const classificationMessage =
+			primaryClassification &&
+			(primaryClassification.type === 'unknown' || primaryClassification.confidence < 0.5)
+				? getUnrecognizedMessage(primaryClassification)
+				: undefined;
+
 		return json({
 			parsed,
 			source_keys: sourceKeys,
@@ -337,7 +382,11 @@ export async function POST(event: RequestEvent) {
 			document_inventory: documentInventory,
 			route_preview,
 			field_confidence,
-			llm_fallback
+			llm_fallback,
+			document_type: primaryClassification?.type ?? 'unknown',
+			classification_confidence: primaryClassification?.confidence ?? 0,
+			classification_description: primaryClassification?.description ?? 'Unknown Document Type',
+			classification_message: classificationMessage
 		} satisfies ImportPdfResponse);
 	} catch (error) {
 		if (error instanceof Response) return error;
