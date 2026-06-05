@@ -225,17 +225,40 @@
 	async function saveEntry() {
 		if (!currentLog) return;
 
+		// Auto-compute spread_rate_actual for paving entries when not manually set
+		const payload = { ...entryForm };
+		if (
+			payload.entry_type === 'paving' &&
+			payload.spread_rate_actual == null &&
+			payload.tons_placed != null &&
+			payload.tons_placed > 0
+		) {
+			const distFt =
+				payload.distance_ft ??
+				(payload.station_start != null && payload.station_end != null
+					? (payload.station_end - payload.station_start) * 100
+					: null);
+			const widthFt = (data.siteConfig as any)?.config?.lane_width_ft || 12;
+			if (distFt != null && distFt > 0) {
+				payload.spread_rate_actual = actualSpreadRate({
+					tons: payload.tons_placed,
+					distanceFt: distFt,
+					widthFt
+				});
+			}
+		}
+
 		try {
 			if (editingEntry) {
 				await api.put(
 					`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries/${editingEntry.id}`,
-					entryForm
+					payload
 				);
 				showEntryForm = false;
 				await loadLogDetails();
 				toastStore.success('Entry updated');
 			} else {
-				await api.post(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries`, entryForm);
+				await api.post(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries`, payload);
 				showEntryForm = false;
 				await loadLogDetails();
 				toastStore.success('Entry added');
@@ -1042,8 +1065,19 @@
 										<span>{entry.loads_count} loads</span>
 									{/if}
 									{#if entry.tack_gallons}
-										<span>{entry.tack_gallons.toFixed(1)} gal tack</span>
-									{/if}
+												<span>{entry.tack_gallons.toFixed(1)} gal tack</span>
+											{/if}
+											{#if entry.entry_type === 'paving' && entry.spread_rate_actual != null}
+												{@const targetRate = (data.siteConfig as any)?.config?.target_spread_rate ?? null}
+												{@const courseType = (data.siteConfig as any)?.config?.course_type ?? null}
+												{@const check = spreadSpecCheck(entry.spread_rate_actual, targetRate, courseType, orgSettingsStore.overrides)}
+												<span
+													class="spread-rate-badge spread-rate-{check ? check.status : 'neutral'}"
+													title={check ? check.message : 'No target set'}
+												>
+													{entry.spread_rate_actual.toFixed(0)} lbs/SY{check ? (check.status === 'good' ? ' ✓' : check.status === 'warn' ? ' ⚠' : ' ✗') : ''}
+												</span>
+											{/if}
 								</div>
 								{#if entry.notes}
 									<div class="entry-notes">{entry.notes}</div>
@@ -1162,6 +1196,21 @@
 					<div class="field-compact">
 						<label for="spread-rate">Spread Rate (lbs/SY)</label>
 						<input type="number" id="spread-rate" bind:value={entryForm.spread_rate_actual} step="0.1" />
+						{#if entryForm.entry_type === 'paving' && entryForm.spread_rate_actual == null}
+							{@const previewDist = entryForm.distance_ft ?? (entryForm.station_start != null && entryForm.station_end != null ? (entryForm.station_end - entryForm.station_start) * 100 : null)}
+							{@const previewWidth = (data.siteConfig as any)?.config?.lane_width_ft || 12}
+							{#if entryForm.tons_placed != null && entryForm.tons_placed > 0 && previewDist != null && previewDist > 0}
+								{@const previewRate = actualSpreadRate({ tons: entryForm.tons_placed, distanceFt: previewDist, widthFt: previewWidth })}
+								{@const targetRate = (data.siteConfig as any)?.config?.target_spread_rate ?? null}
+								{@const courseType = (data.siteConfig as any)?.config?.course_type ?? null}
+								{@const previewCheck = spreadSpecCheck(previewRate, targetRate, courseType, orgSettingsStore.overrides)}
+								<div class="spread-rate-preview">
+									Auto: <span class="spread-rate-badge spread-rate-{previewCheck ? previewCheck.status : 'neutral'}">
+										{previewRate.toFixed(0)} lbs/SY{previewCheck ? (previewCheck.status === 'good' ? ' ✓' : previewCheck.status === 'warn' ? ' ⚠' : ' ✗') : ''}
+									</span>
+								</div>
+							{/if}
+						{/if}
 					</div>
 					<div class="field-compact">
 						<label for="tack">Tack (gallons)</label>
@@ -1684,6 +1733,49 @@
 
 	.entry-details span {
 		white-space: nowrap;
+	}
+
+	.spread-rate-badge {
+		display: inline-flex;
+		align-items: center;
+		padding: 1px 7px;
+		border-radius: 10px;
+		font-size: 0.78rem;
+		font-weight: 600;
+		white-space: nowrap;
+	}
+
+	.spread-rate-good {
+		background: rgba(34, 197, 94, 0.18);
+		color: #22c55e;
+		border: 1px solid rgba(34, 197, 94, 0.35);
+	}
+
+	.spread-rate-warn {
+		background: rgba(234, 179, 8, 0.18);
+		color: #eab308;
+		border: 1px solid rgba(234, 179, 8, 0.35);
+	}
+
+	.spread-rate-bad {
+		background: rgba(239, 68, 68, 0.18);
+		color: #ef4444;
+		border: 1px solid rgba(239, 68, 68, 0.35);
+	}
+
+	.spread-rate-neutral {
+		background: var(--surface-alt);
+		color: var(--text-muted);
+		border: 1px solid var(--border);
+	}
+
+	.spread-rate-preview {
+		margin-top: 5px;
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		display: flex;
+		align-items: center;
+		gap: 5px;
 	}
 
 	.entry-notes {
