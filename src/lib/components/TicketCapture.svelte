@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { DbLoad } from '$lib/server/db';
+	import type { TicketExtraction } from '$lib/server/ai/ticket-ocr';
 
 	interface Props {
 		jobSiteId: string;
@@ -10,7 +11,7 @@
 
 	let { jobSiteId, onLogged, numLanes = null, compact = false }: Props = $props();
 
-	type Stage = 'idle' | 'reviewing' | 'saving' | 'done' | 'error';
+	type Stage = 'idle' | 'analyzing' | 'reviewing' | 'saving' | 'done' | 'error';
 
 	let stage = $state<Stage>('idle');
 	let errorMsg = $state('');
@@ -19,6 +20,10 @@
 	let fileInputEl: HTMLInputElement;
 	let imageUrl = $state<string | null>(null);
 	let imageFile = $state<File | null>(null);
+
+	// OCR state
+	let ocrResult = $state<TicketExtraction | null>(null);
+	let ocrAttempted = $state(false);
 
 	// Form fields (user fills after seeing image)
 	let ticketNumber = $state('');
@@ -63,7 +68,66 @@
 		const mm = String(now.getMinutes()).padStart(2, '0');
 		loadTime = `${hh}:${mm}`;
 
-		stage = 'reviewing';
+		// Start analyzing stage and trigger OCR
+		stage = 'analyzing';
+		scanTicket();
+	}
+
+	async function scanTicket() {
+		try {
+			const formData = new FormData();
+			formData.append('photo', imageFile!);
+			const res = await fetch('/api/job-sites/' + jobSiteId + '/loads/scan', {
+				method: 'POST',
+				credentials: 'include',
+				body: formData
+			});
+
+			if (res.ok) {
+				const data = (await res.json()) as {
+					photo_id: string;
+					ocr_fields: TicketExtraction | null;
+				};
+
+				if (data.ocr_fields) {
+					ocrResult = data.ocr_fields;
+
+					// Pre-fill fields from OCR
+					if (data.ocr_fields.ticket_number.value) {
+						ticketNumber = data.ocr_fields.ticket_number.value;
+					}
+					if (data.ocr_fields.net_weight.value != null) {
+						tonsInput = data.ocr_fields.net_weight.value.toString();
+					}
+					if (data.ocr_fields.truck_number.value) {
+						truckId = data.ocr_fields.truck_number.value;
+					}
+
+					// Try to match material_type against MIX_TYPES
+					if (data.ocr_fields.material_type.value) {
+						const mat = data.ocr_fields.material_type.value.toLowerCase();
+						const match = MIX_TYPES.find(
+							(mt) => mt && mt.toLowerCase().includes(mat.split(' ')[0])
+						);
+						if (match) mixType = match;
+					}
+
+					// Parse timestamp to HH:MM
+					if (data.ocr_fields.load_timestamp.value) {
+						const ts = data.ocr_fields.load_timestamp.value;
+						const timeMatch = ts.match(/(\d{1,2}):(\d{2})/);
+						if (timeMatch) {
+							loadTime = timeMatch[1].padStart(2, '0') + ':' + timeMatch[2];
+						}
+					}
+				}
+			}
+		} catch (_) {
+			// OCR failure is non-blocking, user can fill manually
+		} finally {
+			ocrAttempted = true;
+			stage = 'reviewing';
+		}
 	}
 
 	function cancel() {
@@ -82,11 +146,39 @@
 		passNumber = null;
 		notes = '';
 		imageFile = null;
+		ocrResult = null;
+		ocrAttempted = false;
 		if (imageUrl) {
 			URL.revokeObjectURL(imageUrl);
 			imageUrl = null;
 		}
 		if (fileInputEl) fileInputEl.value = '';
+	}
+
+	function getFieldConf(
+		field: { value: unknown; confidence: string } | undefined
+	): string | null {
+		if (!field || field.value == null) return null;
+		if (field.confidence === 'high' || field.confidence === 'medium') {
+			return field.confidence;
+		}
+		return null;
+	}
+
+	function hasOcrData(): boolean {
+		if (!ocrAttempted || !ocrResult) return false;
+		const fields = [
+			ocrResult.gross_weight,
+			ocrResult.tare_weight,
+			ocrResult.net_weight,
+			ocrResult.ticket_number,
+			ocrResult.truck_number,
+			ocrResult.material_type
+		];
+		return fields.some((f) => {
+			const conf = getFieldConf(f);
+			return conf === 'high' || conf === 'medium';
+		});
 	}
 
 	async function logLoad() {
@@ -224,6 +316,46 @@
 	{/if}
 </div>
 
+{#if stage === 'analyzing'}
+	<!-- Analyzing stage -->
+	<div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Analyzing Ticket">
+		<div class="modal-inner">
+			{#if imageUrl}
+				<div class="ticket-img-wrap">
+					<img src={imageUrl} alt="Truck ticket" class="ticket-img" />
+				</div>
+			{/if}
+			<div class="analyzing-state">
+				<svg
+					class="spin"
+					width="32"
+					height="32"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					<path d="M21 12a9 9 0 11-6.219-8.56" />
+				</svg>
+				<div class="analyzing-text">Analyzing ticket...</div>
+				<button
+					type="button"
+					class="skip-btn"
+					onclick={() => {
+						ocrAttempted = true;
+						stage = 'reviewing';
+					}}
+				>
+					Skip
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
 {#if stage === 'reviewing' || stage === 'saving' || stage === 'error' || stage === 'done'}
 	<!-- Full-screen modal overlay -->
 	<div class="modal-overlay" role="dialog" aria-modal="true" aria-label="Truck Ticket Entry">
@@ -238,10 +370,21 @@
 
 			<!-- Data entry form -->
 			<div class="ticket-form">
+				{#if hasOcrData()}
+					<div class="ocr-banner">
+						AI pre-filled fields from ticket photo -- review before saving
+					</div>
+				{/if}
+
 				<h2 class="form-title">Log Ticket</h2>
 
 				<div class="field-row">
-					<label for="tc-ticket" class="field-label">Ticket #</label>
+					<label for="tc-ticket" class="field-label">
+						Ticket #
+						{#if getFieldConf(ocrResult?.ticket_number)}
+							<span class="conf-dot {getFieldConf(ocrResult?.ticket_number)}"></span>
+						{/if}
+					</label>
 					<input
 						id="tc-ticket"
 						type="text"
@@ -254,7 +397,12 @@
 				</div>
 
 				<div class="field-row required">
-					<label for="tc-tons" class="field-label">Tons <span class="req-star">*</span></label>
+					<label for="tc-tons" class="field-label">
+						Tons <span class="req-star">*</span>
+						{#if getFieldConf(ocrResult?.net_weight)}
+							<span class="conf-dot {getFieldConf(ocrResult?.net_weight)}"></span>
+						{/if}
+					</label>
 					<input
 						id="tc-tons"
 						type="number"
@@ -270,7 +418,12 @@
 				</div>
 
 				<div class="field-row">
-					<label for="tc-truck" class="field-label">Truck ID</label>
+					<label for="tc-truck" class="field-label">
+						Truck ID
+						{#if getFieldConf(ocrResult?.truck_number)}
+							<span class="conf-dot {getFieldConf(ocrResult?.truck_number)}"></span>
+						{/if}
+					</label>
 					<input
 						id="tc-truck"
 						type="text"
@@ -282,7 +435,12 @@
 				</div>
 
 				<div class="field-row">
-					<label for="tc-mix" class="field-label">Mix Type</label>
+					<label for="tc-mix" class="field-label">
+						Mix Type
+						{#if getFieldConf(ocrResult?.material_type)}
+							<span class="conf-dot {getFieldConf(ocrResult?.material_type)}"></span>
+						{/if}
+					</label>
 					<select
 						id="tc-mix"
 						bind:value={mixType}
@@ -404,7 +562,7 @@
 							</svg>
 							Saving...
 						{:else}
-							Log Load
+							Confirm & Log Load
 						{/if}
 					</button>
 				</div>
@@ -671,6 +829,64 @@
 
 	.spin {
 		animation: spin 0.9s linear infinite;
+	}
+
+	/* Analyzing stage */
+	.analyzing-state {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: 32px 16px;
+		gap: 16px;
+	}
+
+	.analyzing-text {
+		font-size: 1rem;
+		color: var(--text-muted);
+	}
+
+	.skip-btn {
+		background: transparent;
+		border: 1px solid var(--border, #333);
+		border-radius: 6px;
+		color: var(--text-muted);
+		padding: 8px 16px;
+		min-height: 44px;
+		cursor: pointer;
+		font-size: 0.875rem;
+	}
+
+	.skip-btn:hover {
+		background: var(--surface);
+	}
+
+	/* OCR banner */
+	.ocr-banner {
+		background: color-mix(in srgb, #f59e0b 12%, var(--surface));
+		border: 1px solid #f59e0b;
+		border-radius: 6px;
+		padding: 8px 12px;
+		font-size: 0.8125rem;
+		color: #fbbf24;
+		margin-bottom: 12px;
+	}
+
+	/* Confidence dots */
+	.conf-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		display: inline-block;
+		margin-left: 4px;
+	}
+
+	.conf-dot.high {
+		background: #22c55e;
+	}
+
+	.conf-dot.medium {
+		background: #f59e0b;
 	}
 
 	/* Landscape: side-by-side layout */
