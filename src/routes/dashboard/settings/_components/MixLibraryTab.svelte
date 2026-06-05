@@ -22,6 +22,7 @@
 	let formPlantSupplier = $state('');
 	let formNotes = $state('');
 	let formIsDefault = $state(false);
+	let seedingGdot = $state(false);
 
 	const mixTypeOptions = [
 		{ value: '', label: '(blank)' },
@@ -131,6 +132,55 @@
 			toastStore.error('Failed to delete preset');
 		}
 	}
+
+	async function seedGdot() {
+		seedingGdot = true;
+		try {
+			const res = await fetch('/api/org/mix-presets/seed-gdot', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({})
+			});
+
+			if (res.status === 409) {
+				const data = (await res.json()) as { error: string; count: number };
+				if (data.error === 'org_has_presets') {
+					const confirmed = confirm(
+						`You already have ${data.count} preset${data.count === 1 ? '' : 's'}. Load GDOT defaults anyway?`
+					);
+					if (!confirmed) {
+						seedingGdot = false;
+						return;
+					}
+
+					// Retry with force
+					const forceRes = await fetch('/api/org/mix-presets/seed-gdot', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ force: true })
+					});
+
+					if (!forceRes.ok) {
+						throw new Error('Failed to seed GDOT defaults');
+					}
+
+					const forceData = (await forceRes.json()) as { seeded: number };
+					toastStore.success(`GDOT defaults loaded (${forceData.seeded} mix types added)`);
+					await loadPresets();
+				}
+			} else if (!res.ok) {
+				throw new Error('Failed to seed GDOT defaults');
+			} else {
+				const data = (await res.json()) as { seeded: number };
+				toastStore.success(`GDOT defaults loaded (${data.seeded} mix types added)`);
+				await loadPresets();
+			}
+		} catch (e) {
+			toastStore.error('Failed to load GDOT defaults');
+		} finally {
+			seedingGdot = false;
+		}
+	}
 </script>
 
 <section class="card">
@@ -140,7 +190,20 @@
 	</p>
 
 	{#if canEdit}
-		<button class="btn-add" onclick={openAddModal}>Add preset</button>
+		<div class="btn-row">
+			<button class="btn-add" onclick={openAddModal}>Add preset</button>
+			<button class="btn-gdot" onclick={seedGdot} disabled={seedingGdot}>
+				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"
+					/>
+				</svg>
+				{seedingGdot ? 'Loading...' : 'Load GDOT Defaults'}
+			</button>
+		</div>
 	{/if}
 
 	{#if presets.length > 0}
@@ -389,6 +452,13 @@
 {/if}
 
 <style>
+	.btn-row {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+		margin-bottom: 16px;
+	}
+
 	.btn-add {
 		background: var(--accent);
 		color: var(--accent-text);
@@ -400,11 +470,36 @@
 		cursor: pointer;
 		min-height: 48px;
 		transition: opacity 0.2s;
-		margin-bottom: 16px;
 	}
 
 	.btn-add:hover {
 		opacity: 0.9;
+	}
+
+	.btn-gdot {
+		background: transparent;
+		border: 1px solid var(--border);
+		color: var(--text);
+		padding: 14px 24px;
+		border-radius: 8px;
+		font-weight: 500;
+		font-size: 15px;
+		cursor: pointer;
+		min-height: 48px;
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		transition: all 0.2s;
+	}
+
+	.btn-gdot:hover:not(:disabled) {
+		border-color: var(--accent);
+		color: var(--accent);
+	}
+
+	.btn-gdot:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
 	.presets-list {
