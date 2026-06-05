@@ -30,6 +30,9 @@ export interface DbOrgSettings {
 	email_reply_to: string | null;
 	report_recipients: string | null;
 	equipment_templates: string | null;
+	plant_lat: number | null;
+	plant_lng: number | null;
+	plant_name: string | null;
 	updated_by: string | null;
 	updated_at: number;
 }
@@ -313,6 +316,9 @@ export class DbOrgHelper {
 			emailReplyTo?: string | null;
 			reportRecipients?: string | null;
 			updatedBy?: string | null;
+			plantLat?: number | null;
+			plantLng?: number | null;
+			plantName?: string | null;
 		}
 	): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
@@ -374,6 +380,18 @@ export class DbOrgHelper {
 		if (updates.updatedBy !== undefined) {
 			fields.push('updated_by = ?');
 			values.push(updates.updatedBy);
+		}
+		if (updates.plantLat !== undefined) {
+			fields.push('plant_lat = ?');
+			values.push(updates.plantLat);
+		}
+		if (updates.plantLng !== undefined) {
+			fields.push('plant_lng = ?');
+			values.push(updates.plantLng);
+		}
+		if (updates.plantName !== undefined) {
+			fields.push('plant_name = ?');
+			values.push(updates.plantName);
 		}
 
 		fields.push('updated_at = ?');

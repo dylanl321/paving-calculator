@@ -62,6 +62,14 @@
 	// svelte-ignore state_referenced_locally
 	let emailReplyTo = $state(data.settings?.emailReplyTo ?? '');
 
+	// --- Plant (asphalt plant) location ---
+	// svelte-ignore state_referenced_locally
+	let plantName = $state(data.settings?.plantName ?? '');
+	// svelte-ignore state_referenced_locally
+	let plantLatStr = $state(data.settings?.plantLat != null ? String(data.settings.plantLat) : '');
+	// svelte-ignore state_referenced_locally
+	let plantLngStr = $state(data.settings?.plantLng != null ? String(data.settings.plantLng) : '');
+
 	// --- Default job setup (seeded from YAML, overridden where present) ---
 	let roadWidthFt = $state(ov.defaults?.roadWidthFt ?? config.defaults.roadWidthFt);
 	let truckLoadTons = $state(ov.defaults?.truckLoadTons ?? config.defaults.truckLoadTons);
@@ -161,7 +169,10 @@
 				accentColor: useCustomAccent ? accentColor : null,
 				emailFromName: emailFromName.trim() || null,
 				emailReplyTo: emailReplyTo.trim() || null,
-				overrides
+				overrides,
+				plantLat: plantLatStr.trim() ? parseFloat(plantLatStr.trim()) : null,
+				plantLng: plantLngStr.trim() ? parseFloat(plantLngStr.trim()) : null,
+				plantName: plantName.trim() || null
 			});
 
 			// Upload logo if a new file was selected.
@@ -268,6 +279,9 @@
 			bind:orgAddress
 			bind:superintendentEmail
 			bind:superintendentPhone
+			bind:plantName
+			bind:plantLatStr
+			bind:plantLngStr
 		/>
 	{:else if activeTab === 'defaults'}
 		<DefaultsTab
