@@ -11,6 +11,7 @@ interface LoadRequestBody {
 	ticket_number?: string | null;
 	spread_rate?: number | null;
 	notes?: string | null;
+	ticket_photo_id?: string | null;
 }
 
 export const GET: RequestHandler = async ({ params, locals, platform, url }) => {
@@ -103,7 +104,7 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 
 	await platform!.env.DB
 		.prepare(
-			'INSERT INTO loads (id, job_site_id, user_id, ticket_number, tons, timestamp, spread_rate, notes, lane_number, pass_number, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+			'INSERT INTO loads (id, job_site_id, user_id, ticket_number, tons, timestamp, spread_rate, notes, lane_number, pass_number, created_at, ticket_photo_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 		)
 		.bind(
 			id,
@@ -116,7 +117,8 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 			body.notes || null,
 			body.lane_number || null,
 			body.pass_number || null,
-			now
+			now,
+			body.ticket_photo_id || null
 		)
 		.run();
 
@@ -135,7 +137,7 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		rejected: 0,
 		rejection_reason: null,
 		rejection_notes: null,
-		ticket_photo_id: null
+		ticket_photo_id: body.ticket_photo_id || null
 	};
 
 	await recordAudit(platform!.env.DB, {
