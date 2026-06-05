@@ -10,6 +10,7 @@
 	import type { PageData } from './$types';
 	import { formatDate } from '$lib/utils/format';
 	import ViewSwitcher from '$lib/components/ViewSwitcher.svelte';
+	import JobSiteCompletenessBar from '$lib/components/JobSiteCompletenessBar.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -112,11 +113,6 @@
 		return sites;
 	});
 
-	function completenessColor(status: string | null): string {
-		if (status === 'complete') return 'var(--good, #22c55e)';
-		if (status === 'needs-attention') return '#f59e0b';
-		return '#ef4444';
-	}
 
 	async function handleCreateJobSite(e: Event) {
 		e.preventDefault();
@@ -475,12 +471,16 @@
 									{site.calculation_count} calculation{site.calculation_count === 1 ? '' : 's'}
 								</div>
 							{/if}
-							{#if site.completeness_score != null}
-								<div class="completeness-badge" style="color: {completenessColor(site.completeness_status)}">
-									{site.completeness_score}%
-								</div>
-							{/if}
 						</div>
+						{#if site.completeness_score != null}
+							<div class="card-completeness">
+								<JobSiteCompletenessBar
+									score={site.completeness_score}
+									status={site.completeness_status}
+									compact={false}
+								/>
+							</div>
+						{/if}
 					</a>
 				{/each}
 			</div>
@@ -524,9 +524,11 @@
 						<div class="table-cell td-calcs">{site.calculation_count}</div>
 						<div class="table-cell td-setup">
 							{#if site.completeness_score != null}
-								<span class="completeness-badge" style="color: {completenessColor(site.completeness_status)}; font-weight: 600;">
-									{site.completeness_score}%
-								</span>
+								<JobSiteCompletenessBar
+									score={site.completeness_score}
+									status={site.completeness_status}
+									compact={true}
+								/>
 							{:else}
 								—
 							{/if}
@@ -1116,6 +1118,12 @@
 		font-size: 0.8rem;
 		font-weight: 600;
 		white-space: nowrap;
+	}
+
+	.card-completeness {
+		margin-top: 10px;
+		padding-top: 10px;
+		border-top: 1px solid var(--border);
 	}
 
 	.header-controls {
