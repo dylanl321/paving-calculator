@@ -11,6 +11,8 @@ type DailyLogUpdateBody = Partial<
 		| 'weather_temp_f'
 		| 'weather_conditions'
 		| 'wind_speed_mph'
+		| 'is_raining'
+		| 'weather_fetched_at'
 		| 'crew_count'
 		| 'start_time'
 		| 'end_time'

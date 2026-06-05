@@ -58,6 +58,8 @@ export interface DbDailyLog {
 	weather_temp_f: number | null;
 	weather_conditions: 'clear' | 'cloudy' | 'rain' | 'wind' | 'fog' | null;
 	wind_speed_mph: number | null;
+	is_raining: number | null; // 0 or 1 (SQLite boolean)
+	weather_fetched_at: number | null; // unix ts — set when auto-fetch succeeds
 	crew_count: number | null;
 	start_time: string | null; // HH:MM
 	end_time: string | null; // HH:MM
@@ -159,6 +161,8 @@ export class DbLogHelper {
 			weather_temp_f: null,
 			weather_conditions: null,
 			wind_speed_mph: null,
+			is_raining: null,
+			weather_fetched_at: null,
 			crew_count: null,
 			start_time: null,
 			end_time: null,
@@ -182,6 +186,8 @@ export class DbLogHelper {
 				| 'weather_temp_f'
 				| 'weather_conditions'
 				| 'wind_speed_mph'
+				| 'is_raining'
+				| 'weather_fetched_at'
 				| 'crew_count'
 				| 'start_time'
 				| 'end_time'
@@ -208,6 +214,14 @@ export class DbLogHelper {
 		if (updates.wind_speed_mph !== undefined) {
 			fields.push('wind_speed_mph = ?');
 			values.push(updates.wind_speed_mph);
+		}
+		if (updates.is_raining !== undefined) {
+			fields.push('is_raining = ?');
+			values.push(updates.is_raining);
+		}
+		if (updates.weather_fetched_at !== undefined) {
+			fields.push('weather_fetched_at = ?');
+			values.push(updates.weather_fetched_at);
 		}
 		if (updates.crew_count !== undefined) {
 			fields.push('crew_count = ?');
