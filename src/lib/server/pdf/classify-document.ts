@@ -89,6 +89,8 @@ const TYPE_DESCRIPTIONS: Record<DocumentClassType, string> = {
 function fromGdotType(gdotType: string): DocumentClassType {
 	if (gdotType === 'contract_summary') return 'gdot_contract_summary';
 	if (gdotType === 'job_setup') return 'gdot_job_setup';
+	if (gdotType === 'inspection_report') return 'inspection_report';
+	if (gdotType === 'change_order') return 'change_order';
 	return 'unknown';
 }
 
@@ -212,8 +214,9 @@ export function getUnrecognizedMessage(classification: DocumentClassification): 
 		plan_sheet:
 			'This appears to be a Plan Sheet. We can extract project details if a contract summary is also uploaded.',
 		inspection_report:
-			'This appears to be an Inspection Report. We do not yet support importing inspection reports.',
-		change_order: 'This appears to be a Change Order. Change order import is coming soon.',
+			'This appears to be a Daily Inspection Report. Inspection report data has been extracted — review it in the parsed results.',
+		change_order:
+			'This appears to be a Change Order. Change order data has been extracted — review it in the parsed results.',
 		daily_report: 'This appears to be a Daily Report. Daily report import is not yet supported.',
 		gdot_roadway_log:
 			'This appears to be a GDOT Roadway Log. Please upload it alongside a contract summary for best results.'
