@@ -776,14 +776,42 @@ export class DbLogHelper {
 		row: Omit<DbDotRoadSegment, 'id' | 'fetched_at' | 'updated_at'>
 	): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
+		// Pre-compute bbox columns from geometry_geojson so bbox queries are fast.
+		let bboxMinLng: number | null = null;
+		let bboxMinLat: number | null = null;
+		let bboxMaxLng: number | null = null;
+		let bboxMaxLat: number | null = null;
+		if (row.geometry_geojson) {
+			try {
+				const geom = JSON.parse(row.geometry_geojson) as { type?: string; coordinates?: [number, number][] };
+				if (geom.type === 'LineString' && Array.isArray(geom.coordinates) && geom.coordinates.length > 0) {
+					let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+					for (const [lng, lat] of geom.coordinates) {
+						if (lng < minLng) minLng = lng;
+						if (lng > maxLng) maxLng = lng;
+						if (lat < minLat) minLat = lat;
+						if (lat > maxLat) maxLat = lat;
+					}
+					if (isFinite(minLng)) {
+						bboxMinLng = minLng;
+						bboxMinLat = minLat;
+						bboxMaxLng = maxLng;
+						bboxMaxLat = maxLat;
+					}
+				}
+			} catch {
+				// malformed JSON — leave bbox as null
+			}
+		}
 		await this.db
 			.prepare(
 				`INSERT INTO dot_road_segments
 					(state_dot, source, external_id, road_name, route_id, functional_class, surface_type,
 					 iri, pci, psr, begin_milepost, end_milepost, length_miles, lanes, aadt,
 					 district_code, county_code, geometry_geojson, raw_json, data_year,
-					 fetched_at, updated_at)
-				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+					 fetched_at, updated_at,
+					 bbox_min_lng, bbox_min_lat, bbox_max_lng, bbox_max_lat)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 				ON CONFLICT(state_dot, source, external_id)
 				DO UPDATE SET
 					road_name=excluded.road_name, route_id=excluded.route_id,
@@ -794,16 +822,48 @@ export class DbLogHelper {
 					district_code=excluded.district_code, county_code=excluded.county_code,
 					geometry_geojson=excluded.geometry_geojson, raw_json=excluded.raw_json,
 					data_year=excluded.data_year, fetched_at=excluded.fetched_at,
-					updated_at=excluded.updated_at`
+					updated_at=excluded.updated_at,
+					bbox_min_lng=excluded.bbox_min_lng, bbox_min_lat=excluded.bbox_min_lat,
+					bbox_max_lng=excluded.bbox_max_lng, bbox_max_lat=excluded.bbox_max_lat`
 			)
 			.bind(
 				row.state_dot, row.source, row.external_id, row.road_name, row.route_id,
 				row.functional_class, row.surface_type, row.iri, row.pci, row.psr,
 				row.begin_milepost, row.end_milepost, row.length_miles, row.lanes, row.aadt,
 				row.district_code, row.county_code, row.geometry_geojson, row.raw_json,
-				row.data_year, now, now
+				row.data_year, now, now,
+				bboxMinLng, bboxMinLat, bboxMaxLng, bboxMaxLat
 			)
 			.run();
+	}
+
+	/**
+	 * Query dot_road_segments whose bounding box overlaps the given [minLng, minLat, maxLng, maxLat] bbox.
+	 * Returns up to `limit` rows that have geometry and whose bbox intersects the request area.
+	 * Only returns GA (GDOT) segments by default via stateDot filter.
+	 */
+	async getDotSegmentsByBbox(
+		minLng: number,
+		minLat: number,
+		maxLng: number,
+		maxLat: number,
+		stateDot = 'GA',
+		limit = 200
+	): Promise<DbDotRoadSegment[]> {
+		return await this.db
+			.prepare(
+				`SELECT * FROM dot_road_segments
+				 WHERE state_dot = ?
+				   AND bbox_min_lng IS NOT NULL
+				   AND bbox_min_lng <= ?
+				   AND bbox_max_lng >= ?
+				   AND bbox_min_lat <= ?
+				   AND bbox_max_lat >= ?
+				 LIMIT ?`
+			)
+			.bind(stateDot, maxLng, minLng, maxLat, minLat, limit)
+			.all<DbDotRoadSegment>()
+			.then((r) => r.results);
 	}
 
 	async getDotSegmentsByState(stateDot: string, limit = 500): Promise<DbDotRoadSegment[]> {
