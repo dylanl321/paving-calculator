@@ -9,6 +9,8 @@ export interface DbOrgMaterial {
 	supplier: string | null;
 	notes: string | null;
 	base_material_id: string | null;
+	material_type: string | null;
+	residual_rate_gal_sy: number | null;
 	is_active: number;
 	sort_order: number;
 	created_at: number;
@@ -21,6 +23,8 @@ export interface CreateMaterialInput {
 	supplier?: string | null;
 	notes?: string | null;
 	base_material_id?: string | null;
+	material_type?: string | null;
+	residual_rate_gal_sy?: number | null;
 	sort_order?: number;
 }
 
@@ -68,8 +72,9 @@ export class DbMaterialsHelper {
 				`INSERT INTO org_materials (
 					id, org_id, name, category,
 					density_tons_per_yd3, supplier, notes,
-					base_material_id, is_active, sort_order, created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`
+					base_material_id, material_type, residual_rate_gal_sy,
+					is_active, sort_order, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`
 			)
 			.bind(
 				id,
@@ -80,6 +85,8 @@ export class DbMaterialsHelper {
 				input.supplier ?? null,
 				input.notes ?? null,
 				input.base_material_id ?? null,
+				input.material_type ?? null,
+				input.residual_rate_gal_sy ?? null,
 				input.sort_order ?? 0,
 				now
 			)
@@ -117,6 +124,14 @@ export class DbMaterialsHelper {
 		if (input.notes !== undefined) {
 			fields.push('notes = ?');
 			values.push(input.notes);
+		}
+		if (input.material_type !== undefined) {
+			fields.push('material_type = ?');
+			values.push(input.material_type);
+		}
+		if (input.residual_rate_gal_sy !== undefined) {
+			fields.push('residual_rate_gal_sy = ?');
+			values.push(input.residual_rate_gal_sy);
 		}
 		if (input.sort_order !== undefined) {
 			fields.push('sort_order = ?');
@@ -186,6 +201,8 @@ export class DbMaterialsHelper {
 			supplier: input.supplier ?? null,
 			notes: input.notes ?? null,
 			base_material_id: baseMaterialId,
+			material_type: input.material_type ?? null,
+			residual_rate_gal_sy: input.residual_rate_gal_sy ?? null,
 			sort_order: input.sort_order ?? 0
 		});
 	}

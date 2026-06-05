@@ -11,6 +11,8 @@
 		supplier: string | null;
 		notes: string | null;
 		base_material_id: string | null;
+		material_type: string | null;
+		residual_rate_gal_sy: number | null;
 		sort_order: number;
 		created_at: number | null;
 		source: 'builtin' | 'override' | 'custom';
@@ -31,6 +33,8 @@
 	let editDensity = $state<number | null>(null);
 	let editSupplier = $state('');
 	let editNotes = $state('');
+	let editMaterialType = $state<string | null>(null);
+	let editResidualRate = $state<number | null>(null);
 
 	// Add form state
 	let addName = $state('');
@@ -38,6 +42,8 @@
 	let addDensity = $state<number | null>(null);
 	let addSupplier = $state('');
 	let addNotes = $state('');
+	let addMaterialType = $state<string | null>(null);
+	let addResidualRate = $state<number | null>(null);
 
 	const CATEGORIES = [
 		{ value: 'aggregate', label: 'Aggregate' },
@@ -46,6 +52,16 @@
 		{ value: 'concrete', label: 'Concrete' },
 		{ value: 'other', label: 'Other' }
 	];
+
+	const MATERIAL_TYPES = [
+		{ value: null, label: 'None' },
+		{ value: 'emulsion', label: 'Emulsion Tack' },
+		{ value: 'trackless', label: 'Trackless Tack' }
+	];
+
+	// GDOT S413 spec defaults
+	const TACK_NEW_AC_DEFAULT = 0.065; // midpoint of 0.05-0.08
+	const TACK_AGED_DEFAULT = 0.08; // midpoint of 0.06-0.10
 
 	async function loadMaterials() {
 		loading = true;
@@ -74,6 +90,8 @@
 		editDensity = material.density_tons_per_yd3;
 		editSupplier = material.supplier || '';
 		editNotes = material.notes || '';
+		editMaterialType = material.material_type;
+		editResidualRate = material.residual_rate_gal_sy;
 		showAddForm = false;
 	}
 
@@ -84,6 +102,8 @@
 		editDensity = null;
 		editSupplier = '';
 		editNotes = '';
+		editMaterialType = null;
+		editResidualRate = null;
 	}
 
 	async function saveEdit() {
@@ -100,6 +120,8 @@
 
 			body.density_tons_per_yd3 = editDensity;
 			body.supplier = editSupplier.trim() || null;
+			body.material_type = editMaterialType;
+			body.residual_rate_gal_sy = editResidualRate;
 
 			if (selectedMaterial.source === 'custom') {
 				body.notes = editNotes.trim() || null;
@@ -172,6 +194,8 @@
 		addDensity = null;
 		addSupplier = '';
 		addNotes = '';
+		addMaterialType = null;
+		addResidualRate = null;
 	}
 
 	function cancelAdd() {
@@ -181,6 +205,8 @@
 		addDensity = null;
 		addSupplier = '';
 		addNotes = '';
+		addMaterialType = null;
+		addResidualRate = null;
 	}
 
 	async function addMaterial() {
@@ -196,7 +222,9 @@
 				category: addCategory,
 				density_tons_per_yd3: addDensity,
 				supplier: addSupplier.trim() || null,
-				notes: addNotes.trim() || null
+				notes: addNotes.trim() || null,
+				material_type: addMaterialType,
+				residual_rate_gal_sy: addResidualRate
 			};
 
 			await api.post('/api/org/materials', body, {
@@ -222,6 +250,35 @@
 	function getCategoryLabel(category: string): string {
 		return CATEGORIES.find((c) => c.value === category)?.label || category;
 	}
+
+	function getMaterialTypeLabel(type: string | null): string {
+		return MATERIAL_TYPES.find((t) => t.value === type)?.label || 'None';
+	}
+
+	function isTackType(type: string | null): boolean {
+		return type === 'emulsion' || type === 'trackless';
+	}
+
+	function setEditTackDefault(defaultValue: number) {
+		editResidualRate = defaultValue;
+	}
+
+	function setAddTackDefault(defaultValue: number) {
+		addResidualRate = defaultValue;
+	}
+
+	// Auto-set residual rate when material type changes to tack type
+	$effect(() => {
+		if (isTackType(editMaterialType) && editResidualRate == null) {
+			editResidualRate = TACK_NEW_AC_DEFAULT;
+		}
+	});
+
+	$effect(() => {
+		if (isTackType(addMaterialType) && addResidualRate == null) {
+			addResidualRate = TACK_NEW_AC_DEFAULT;
+		}
+	});
 </script>
 
 <!-- Materials List -->
@@ -255,9 +312,16 @@
 					<div class="td td-name">{material.name}</div>
 					<div class="td td-category">{getCategoryLabel(material.category)}</div>
 					<div class="td td-density">
-						{material.density_tons_per_yd3 != null
-							? `${material.density_tons_per_yd3.toFixed(2)} tons/yd³`
-							: '—'}
+						{#if material.density_tons_per_yd3 != null}
+							{material.density_tons_per_yd3.toFixed(2)} tons/yd³
+						{:else}
+							—
+						{/if}
+						{#if material.residual_rate_gal_sy != null}
+							<span class="tack-rate-badge">
+								{material.residual_rate_gal_sy.toFixed(3)} gal/SY
+							</span>
+						{/if}
 					</div>
 					<div class="td td-supplier">{material.supplier || '—'}</div>
 					<div class="td td-source">
@@ -315,6 +379,50 @@
 				<input id="edit-supplier" type="text" bind:value={editSupplier} placeholder="Optional" />
 			</div>
 
+			<div class="field">
+				<label for="edit-material-type">Material Type</label>
+				<select id="edit-material-type" bind:value={editMaterialType}>
+					{#each MATERIAL_TYPES as mt}
+						<option value={mt.value}>{mt.label}</option>
+					{/each}
+				</select>
+			</div>
+
+			{#if isTackType(editMaterialType)}
+				<div class="field">
+					<label for="edit-residual-rate">Residual Rate (gal/SY)</label>
+					<input
+						id="edit-residual-rate"
+						type="number"
+						min="0.01"
+						max="0.25"
+						step="0.005"
+						bind:value={editResidualRate}
+					/>
+					<div class="tack-suggestion">
+						<p class="suggestion-text">
+							GDOT S413 suggests: 0.05-0.08 gal/SY (new AC) — 0.06-0.10 gal/SY (aged)
+						</p>
+						<div class="suggestion-buttons">
+							<button
+								type="button"
+								class="ghost-btn small"
+								onclick={() => setEditTackDefault(TACK_NEW_AC_DEFAULT)}
+							>
+								Use New AC default (0.065)
+							</button>
+							<button
+								type="button"
+								class="ghost-btn small"
+								onclick={() => setEditTackDefault(TACK_AGED_DEFAULT)}
+							>
+								Use Aged default (0.080)
+							</button>
+						</div>
+					</div>
+				</div>
+			{/if}
+
 			<div class="edit-actions">
 				<button type="button" class="ghost-btn" onclick={cancelEdit}>Cancel</button>
 				{#if selectedMaterial.source === 'override'}
@@ -362,6 +470,50 @@
 				<label for="edit-notes">Notes</label>
 				<textarea id="edit-notes" bind:value={editNotes} placeholder="Optional notes"></textarea>
 			</div>
+
+			<div class="field">
+				<label for="edit-material-type-custom">Material Type</label>
+				<select id="edit-material-type-custom" bind:value={editMaterialType}>
+					{#each MATERIAL_TYPES as mt}
+						<option value={mt.value}>{mt.label}</option>
+					{/each}
+				</select>
+			</div>
+
+			{#if isTackType(editMaterialType)}
+				<div class="field">
+					<label for="edit-residual-rate-custom">Residual Rate (gal/SY)</label>
+					<input
+						id="edit-residual-rate-custom"
+						type="number"
+						min="0.01"
+						max="0.25"
+						step="0.005"
+						bind:value={editResidualRate}
+					/>
+					<div class="tack-suggestion">
+						<p class="suggestion-text">
+							GDOT S413 suggests: 0.05-0.08 gal/SY (new AC) — 0.06-0.10 gal/SY (aged)
+						</p>
+						<div class="suggestion-buttons">
+							<button
+								type="button"
+								class="ghost-btn small"
+								onclick={() => setEditTackDefault(TACK_NEW_AC_DEFAULT)}
+							>
+								Use New AC default (0.065)
+							</button>
+							<button
+								type="button"
+								class="ghost-btn small"
+								onclick={() => setEditTackDefault(TACK_AGED_DEFAULT)}
+							>
+								Use Aged default (0.080)
+							</button>
+						</div>
+					</div>
+				</div>
+			{/if}
 
 			<div class="edit-actions">
 				<button type="button" class="ghost-btn" onclick={cancelEdit}>Cancel</button>
@@ -422,6 +574,50 @@
 				<label for="add-notes">Notes</label>
 				<textarea id="add-notes" bind:value={addNotes} placeholder="Optional notes"></textarea>
 			</div>
+
+			<div class="field">
+				<label for="add-material-type">Material Type</label>
+				<select id="add-material-type" bind:value={addMaterialType}>
+					{#each MATERIAL_TYPES as mt}
+						<option value={mt.value}>{mt.label}</option>
+					{/each}
+				</select>
+			</div>
+
+			{#if isTackType(addMaterialType)}
+				<div class="field">
+					<label for="add-residual-rate">Residual Rate (gal/SY)</label>
+					<input
+						id="add-residual-rate"
+						type="number"
+						min="0.01"
+						max="0.25"
+						step="0.005"
+						bind:value={addResidualRate}
+					/>
+					<div class="tack-suggestion">
+						<p class="suggestion-text">
+							GDOT S413 suggests: 0.05-0.08 gal/SY (new AC) — 0.06-0.10 gal/SY (aged)
+						</p>
+						<div class="suggestion-buttons">
+							<button
+								type="button"
+								class="ghost-btn small"
+								onclick={() => setAddTackDefault(TACK_NEW_AC_DEFAULT)}
+							>
+								Use New AC default (0.065)
+							</button>
+							<button
+								type="button"
+								class="ghost-btn small"
+								onclick={() => setAddTackDefault(TACK_AGED_DEFAULT)}
+							>
+								Use Aged default (0.080)
+							</button>
+						</div>
+					</div>
+				</div>
+			{/if}
 
 			<div class="edit-actions">
 				<button type="button" class="ghost-btn" onclick={cancelAdd}>Cancel</button>
@@ -542,6 +738,41 @@
 	.badge-custom {
 		background: rgba(34, 197, 94, 0.15);
 		color: #22c55e;
+	}
+
+	.tack-rate-badge {
+		display: block;
+		font-size: 0.75rem;
+		color: var(--accent);
+		margin-top: 4px;
+		font-weight: 600;
+	}
+
+	.tack-suggestion {
+		margin-top: 8px;
+		padding: 12px;
+		background: var(--surface-alt);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+	}
+
+	.suggestion-text {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+		margin: 0 0 8px 0;
+		line-height: 1.4;
+	}
+
+	.suggestion-buttons {
+		display: flex;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+
+	.ghost-btn.small {
+		font-size: 0.8rem;
+		padding: 6px 12px;
+		min-height: 36px;
 	}
 
 	.edit-actions {
