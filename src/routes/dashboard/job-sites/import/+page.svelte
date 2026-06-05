@@ -158,6 +158,17 @@
 	/** Set of fields that were manually corrected by the user. */
 	let correctedFields = $state<Set<string>>(new Set());
 	let confirmedFields = $state<Set<string>>(new Set());
+	/** Per-file multi-document section breakdown from the parser. */
+	let documentsFound = $state<Array<{
+		file_index: number;
+		sections: Array<{
+			type: string;
+			pages: number[];
+			startPage: number;
+			endPage: number;
+			confidence: number;
+		}>;
+	}>>([]);
 	/** AI/regex document classification result for the primary uploaded document. */
 	let classification = $state<{
 		type: string;
@@ -223,6 +234,10 @@
 				classification_confidence?: number;
 				classification_description?: string;
 				classification_message?: string;
+				documents_found?: Array<{
+					file_index: number;
+					sections: Array<{ type: string; pages: number[]; startPage: number; endPage: number; confidence: number; }>;
+				}>;
 				error?: string;
 			};
 
@@ -239,6 +254,7 @@
 			fieldConf = data.field_confidence ?? {};
 			routePreview = data.route_preview ?? null;
 			llmFallback = data.llm_fallback ?? null;
+			documentsFound = data.documents_found ?? [];
 			if (data.document_type) {
 				classification = {
 					type: data.document_type,
@@ -834,6 +850,28 @@
 			</div>
 		{/if}
 
+		{#if documentsFound.some(f => f.sections.length > 1)}
+			<section class="review-section multi-doc-section">
+				<h3>Multi-Document PDF Detected</h3>
+				{#each documentsFound.filter(f => f.sections.length > 1) as fileDoc}
+					{@const filename = documents[fileDoc.file_index]?.filename ?? `File ${fileDoc.file_index + 1}`}
+					<div class="multi-doc-file">
+						<div class="multi-doc-filename">{filename}</div>
+						<p class="multi-doc-hint">Found {fileDoc.sections.length} document sections in this file:</p>
+						<div class="multi-doc-chips">
+							{#each fileDoc.sections as section}
+								<span class="multi-doc-chip">
+									<span class="multi-doc-type">{section.type === 'contract_summary' ? 'Contract Summary' : section.type === 'job_setup' ? 'Job Setup' : 'Unknown'}</span>
+									<span class="multi-doc-pages">pp. {section.startPage}–{section.endPage}</span>
+									<span class="multi-doc-conf">{Math.round(section.confidence * 100)}%</span>
+								</span>
+							{/each}
+						</div>
+					</div>
+				{/each}
+			</section>
+		{/if}
+
 		<section class="review-section">
 			<h3>Project Information</h3>
 			<div class="review-grid">
@@ -1182,7 +1220,7 @@
 		</section>
 
 		<div class="review-actions">
-			<button class="btn btn-ghost" onclick={() => { step = 'upload'; files = []; parsed = null; routePreview = null; }}>
+			<button class="btn btn-ghost" onclick={() => { step = 'upload'; files = []; parsed = null; routePreview = null; documentsFound = []; }}>
 				Start Over
 			</button>
 			<button class="btn btn-primary" onclick={createProject} disabled={!parsed.name}>
@@ -2057,5 +2095,58 @@
 		.conf-legend {
 			gap: 8px;
 		}
+	}
+
+	/* Multi-document breakdown */
+	.multi-doc-section h3 {
+		margin-bottom: 12px;
+	}
+
+	.multi-doc-file {
+		margin-bottom: 12px;
+	}
+
+	.multi-doc-filename {
+		font-weight: 700;
+		font-size: 0.9rem;
+		margin-bottom: 4px;
+	}
+
+	.multi-doc-hint {
+		font-size: 0.82rem;
+		color: var(--text-muted);
+		margin: 0 0 8px;
+	}
+
+	.multi-doc-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.multi-doc-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 6px 12px;
+		background: rgba(59, 130, 246, 0.08);
+		border: 1px solid rgba(59, 130, 246, 0.3);
+		border-radius: 999px;
+		font-size: 0.8rem;
+	}
+
+	.multi-doc-type {
+		font-weight: 700;
+		color: #93c5fd;
+	}
+
+	.multi-doc-pages {
+		color: var(--text-muted);
+	}
+
+	.multi-doc-conf {
+		color: #22c55e;
+		font-weight: 700;
+		font-size: 0.75rem;
 	}
 </style>

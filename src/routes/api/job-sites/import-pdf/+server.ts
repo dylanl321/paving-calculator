@@ -194,6 +194,17 @@ export interface ImportPdfResponse {
 	classification_description: string;
 	/** Helpful message for unrecognized or unsupported document types (optional). */
 	classification_message?: string;
+	/** Per-file multi-document section breakdown (populated when a file has 2+ detected sections). */
+	documents_found: Array<{
+		file_index: number;
+		sections: Array<{
+			type: string;
+			pages: number[];
+			startPage: number;
+			endPage: number;
+			confidence: number;
+		}>;
+	}>;
 }
 
 function labelForPage(text: string, pageNumber: number): string {
@@ -257,6 +268,7 @@ export async function POST(event: RequestEvent) {
 		const sourceKeys: string[] = [];
 		const documents: ImportedDocument[] = [];
 		const documentInventory: DocumentInventory[] = [];
+		const allPageArrays: PdfPositionedTextPage[][] = [];
 		// Classification of the primary (first) uploaded document.
 		let primaryClassification: DocumentClassification | null = null;
 
@@ -281,6 +293,7 @@ export async function POST(event: RequestEvent) {
 
 			try {
 				const pages = await pdfToPositionedText(file.bytes);
+				allPageArrays.push(pages);
 				const text = pages.map((page) => page.text).join('\n\f\n');
 				const type = detectDocumentType(text);
 				texts.push(text);
@@ -326,7 +339,7 @@ export async function POST(event: RequestEvent) {
 			}
 		}
 
-		const v2 = parseGdotDocumentsV2(texts);
+		const v2 = parseGdotDocumentsV2(texts, allPageArrays);
 
 		// Phase 2 (optional): supplement low-confidence geographic/identity fields
 		// with the Workers AI fallback. Best-effort — fills ONLY low/null fields,
@@ -386,7 +399,8 @@ export async function POST(event: RequestEvent) {
 			document_type: primaryClassification?.type ?? 'unknown',
 			classification_confidence: primaryClassification?.confidence ?? 0,
 			classification_description: primaryClassification?.description ?? 'Unknown Document Type',
-			classification_message: classificationMessage
+			classification_message: classificationMessage,
+			documents_found: v2.documents_found
 		} satisfies ImportPdfResponse);
 	} catch (error) {
 		if (error instanceof Response) return error;

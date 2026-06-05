@@ -47,6 +47,96 @@ export interface ParsedProductionMix {
 
 export type GdotDocumentType = 'contract_summary' | 'job_setup' | 'unknown';
 
+export interface DocumentSection {
+	type: GdotDocumentType;
+	pages: number[];
+	startPage: number;
+	endPage: number;
+	confidence: number;
+	text: string;
+}
+
+export function detectPageSections(pages: PdfPositionedTextPage[]): DocumentSection[] {
+	const sections: DocumentSection[] = [];
+	let currentType: GdotDocumentType | null = null;
+	let currentPages: number[] = [];
+	let currentTexts: string[] = [];
+	let currentConfidence = 0;
+
+	function flushSection() {
+		if (currentType && currentPages.length > 0) {
+			sections.push({
+				type: currentType,
+				pages: currentPages,
+				startPage: currentPages[0],
+				endPage: currentPages[currentPages.length - 1],
+				confidence: currentConfidence,
+				text: currentTexts.join('\n\f\n')
+			});
+		}
+		currentType = null;
+		currentPages = [];
+		currentTexts = [];
+		currentConfidence = 0;
+	}
+
+	for (const page of pages) {
+		const text = page.text;
+		// Skip blank/separator pages
+		if (text.trim().length < 50) continue;
+		// Skip table of contents pages
+		if (/TABLE OF CONTENTS|INDEX OF SHEETS/i.test(text)) continue;
+
+		let detected: GdotDocumentType = 'unknown';
+		let conf = 0.6;
+
+		// High-confidence signals
+		if (/JOB SET-?UP FORM|HEAVYBID #|PRODUCTION GOALS/i.test(text)) {
+			detected = 'job_setup';
+			conf = 0.9;
+		} else if (/Contract Schedule|Proposal ID|Schedule of Items|Total Bid:|PROPOSAL INDEX/i.test(text)) {
+			detected = 'contract_summary';
+			conf = 0.9;
+		} else if (/LOG ROADWAY|ROADWAY LOG|LOG WIDTH/i.test(text)) {
+			// roadway log is still part of contract_summary in our model
+			detected = 'contract_summary';
+			conf = 0.7;
+		} else {
+			// Weaker signals
+			if (/JOB NUMBER|CONTRACT AMOUNT|ASPHALT SUPPLIER/i.test(text)) {
+				detected = 'job_setup';
+				conf = 0.6;
+			} else if (/Contract ID:|Project\(s\):|Total Bid/i.test(text)) {
+				detected = 'contract_summary';
+				conf = 0.6;
+			}
+		}
+
+		if (detected === 'unknown') {
+			// Carry forward current type for unknown pages between sections
+			if (currentType) {
+				currentPages.push(page.page_number);
+				currentTexts.push(text);
+			}
+			continue;
+		}
+
+		if (detected !== currentType) {
+			flushSection();
+			currentType = detected;
+			currentConfidence = conf;
+		} else {
+			// Same type — keep the max confidence
+			if (conf > currentConfidence) currentConfidence = conf;
+		}
+		currentPages.push(page.page_number);
+		currentTexts.push(text);
+	}
+
+	flushSection();
+	return sections;
+}
+
 export interface ParsedGdotJob {
 	// Identity
 	name: string | null;
@@ -925,6 +1015,11 @@ export interface ParsedGdotJobV2 {
 	warnings: string[];
 	/** Zones where extraction confidence was low — passed to Phase 2 LLM fallback. */
 	lowConfidenceZones: import('./zone-extractor.js').Zone[];
+	/** Sections detected in each uploaded file (index matches the texts[] input). */
+	documents_found: Array<{
+		file_index: number;
+		sections: DocumentSection[];
+	}>;
 }
 
 function emptyV2(): ParsedGdotJobV2 {
@@ -967,7 +1062,8 @@ function emptyV2(): ParsedGdotJobV2 {
 		has_contract_summary: false,
 		has_job_setup: false,
 		warnings: [],
-		lowConfidenceZones: []
+		lowConfidenceZones: [],
+		documents_found: []
 	};
 }
 
@@ -1126,8 +1222,16 @@ function applyZonePass(text: string, docType: GdotDocumentType, v2: ParsedGdotJo
  * production-mix rows from medium to high confidence when they can parse the
  * table structure directly.
  */
-export function parseGdotDocumentsV2(texts: string[]): ParsedGdotJobV2 {
+export function parseGdotDocumentsV2(texts: string[], allPages?: PdfPositionedTextPage[][]): ParsedGdotJobV2 {
 	const v2 = emptyV2();
+
+	// Detect per-file page sections when page data is available.
+	if (allPages && allPages.length > 0) {
+		v2.documents_found = allPages.map((pages, fileIndex) => ({
+			file_index: fileIndex,
+			sections: detectPageSections(pages)
+		}));
+	}
 
 	// --- Pass 1: existing flat-regex parsers tagged with confidence ---
 	const v1 = emptyResult();
