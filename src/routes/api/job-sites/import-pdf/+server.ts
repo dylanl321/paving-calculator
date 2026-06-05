@@ -205,6 +205,8 @@ export interface ImportPdfResponse {
 			confidence: number;
 		}>;
 	}>;
+	field_source: Record<string, string>;
+	parser_duration_ms: number;
 }
 
 function labelForPage(text: string, pageNumber: number): string {
@@ -339,7 +341,9 @@ export async function POST(event: RequestEvent) {
 			}
 		}
 
+		const parserStart = Date.now();
 		const v2 = parseGdotDocumentsV2(texts, allPageArrays);
+		const parser_duration_ms = Date.now() - parserStart;
 
 		// Phase 2 (optional): supplement low-confidence geographic/identity fields
 		// with the Workers AI fallback. Best-effort — fills ONLY low/null fields,
@@ -381,6 +385,12 @@ export async function POST(event: RequestEvent) {
 			if (f && 'confidence' in f) field_confidence[k] = f.confidence;
 		}
 
+		const field_source: Record<string, string> = {};
+		for (const k of scalarFields) {
+			const f = v2[k] as { source?: string } | null | undefined;
+			if (f && typeof f === 'object' && f.source) field_source[k] = f.source;
+		}
+
 		// Build classification message for unrecognized or low-confidence types.
 		const classificationMessage =
 			primaryClassification &&
@@ -400,7 +410,9 @@ export async function POST(event: RequestEvent) {
 			classification_confidence: primaryClassification?.confidence ?? 0,
 			classification_description: primaryClassification?.description ?? 'Unknown Document Type',
 			classification_message: classificationMessage,
-			documents_found: v2.documents_found
+			documents_found: v2.documents_found,
+			field_source,
+			parser_duration_ms
 		} satisfies ImportPdfResponse);
 	} catch (error) {
 		if (error instanceof Response) return error;
