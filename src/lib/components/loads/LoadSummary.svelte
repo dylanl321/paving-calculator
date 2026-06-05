@@ -6,7 +6,8 @@
 	import YieldEfficiencyGauge from '../YieldEfficiencyGauge.svelte';
 	import MaterialOrderForecast from '../MaterialOrderForecast.svelte';
 	import AfternoonForecastCard from '../AfternoonForecastCard.svelte';
-	import { job } from '$lib/stores/job.svelte';
+	import SourceTag from '../SourceTag.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { spreadToleranceFor } from '$lib/config';
 
 	interface Props {
@@ -65,9 +66,9 @@
 			: null
 	);
 
-	const tolerance = $derived(spreadToleranceFor(job.courseType));
+	const tolerance = $derived(spreadToleranceFor(calcContext.course_type.value));
 	const targetRate = $derived(
-		job.thicknessIn > 0 ? job.thicknessIn * 110 : null
+		calcContext.lift_thickness.value > 0 ? calcContext.lift_thickness.value * 110 : null
 	);
 
 	const acceptedLoadsWithSpreadRate = $derived(
@@ -201,6 +202,11 @@
 	{#if targetRate != null}
 		<div class="yield-efficiency-section">
 			<YieldEfficiencyGauge yieldEfficiency={yieldEfficiency} targetRate={targetRate} />
+		</div>
+		<div class="context-text">
+			<SourceTag source={calcContext.lift_thickness.source} updatedAt={calcContext.lift_thickness.updatedAt} label="Thickness" />
+			<SourceTag source={calcContext.course_type.source} updatedAt={calcContext.course_type.updatedAt} label="Course Type" />
+			<span>Using {calcContext.lift_thickness.value}" lift, {calcContext.course_type.value} (±{tolerance.toleranceLbsSy} lbs/SY tolerance)</span>
 		</div>
 	{/if}
 </div>
@@ -423,5 +429,19 @@
 	.completion-remaining--done {
 		color: #22c55e;
 		opacity: 1;
+	}
+
+	.context-text {
+		display: flex;
+		align-items: center;
+		gap: var(--sp-2);
+		flex-wrap: wrap;
+		margin-top: var(--sp-3);
+		padding: var(--sp-3);
+		background: var(--surface-alt);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-xs);
+		color: var(--text-muted);
 	}
 </style>

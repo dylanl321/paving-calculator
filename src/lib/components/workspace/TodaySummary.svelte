@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { today } from '$lib/stores/today.svelte';
-	import { job } from '$lib/stores/job.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { formatFeet } from '$lib/utils/format';
 
 	interface Props {
@@ -10,7 +10,7 @@
 	let { variant = 'full' }: Props = $props();
 
 	const r = $derived(today.rollup);
-	const y = $derived(today.yieldVsTarget(job.widthFt, job.thicknessIn));
+	const y = $derived(today.yieldVsTarget(calcContext.road_width.value, calcContext.lift_thickness.value));
 </script>
 
 <div class="summary" class:compact={variant === 'compact'}>

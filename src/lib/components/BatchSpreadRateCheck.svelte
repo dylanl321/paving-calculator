@@ -4,9 +4,10 @@
 	import SpreadRateGauge from './SpreadRateGauge.svelte';
 	import SpecAlert from './SpecAlert.svelte';
 	import HelpTip from './HelpTip.svelte';
+	import SourceTag from './SourceTag.svelte';
 	import { spreadSpecCheck, spreadToleranceFor } from '$lib/config';
-	import { job } from '$lib/stores/job.svelte';
 	import { today } from '$lib/stores/today.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { spreadRateFromThickness, actualSpreadRate } from '$lib/config/formulas';
 	import { unitsStore } from '$lib/stores/units.svelte';
 	import { UNIT_LABELS, toKgPerM2 } from '$lib/utils/unitConvert';
@@ -30,15 +31,15 @@
 	);
 
 	const targetRate = $derived(
-		job.thicknessIn > 0 ? spreadRateFromThickness(job.thicknessIn) : null
+		calcContext.lift_thickness.value > 0 ? spreadRateFromThickness(calcContext.lift_thickness.value) : null
 	);
 
 	const aggregateRate = $derived(
-		aggregateTons > 0 && aggregateDistanceFt > 0 && job.widthFt > 0
+		aggregateTons > 0 && aggregateDistanceFt > 0 && calcContext.road_width.value > 0
 			? actualSpreadRate({
 					tons: aggregateTons,
 					distanceFt: aggregateDistanceFt,
-					widthFt: job.widthFt
+					widthFt: calcContext.road_width.value
 				})
 			: null
 	);
@@ -51,8 +52,8 @@
 		aggregateRate != null && unitsStore.system === 'metric' ? toKgPerM2(aggregateRate) : aggregateRate
 	);
 
-	const tolerance = $derived(spreadToleranceFor(job.courseType));
-	const spec = $derived(spreadSpecCheck(aggregateRate, targetRate, job.courseType));
+	const tolerance = $derived(spreadToleranceFor(calcContext.course_type.value));
+	const spec = $derived(spreadSpecCheck(aggregateRate, targetRate, calcContext.course_type.value));
 
 	const badge = $derived(
 		spec ? { kind: spec.status, text: spec.label } : null
@@ -150,6 +151,12 @@
 					badge={badge}
 				/>
 			</div>
+		</div>
+
+		<div class="source-row">
+			<SourceTag source={calcContext.road_width.source} updatedAt={calcContext.road_width.updatedAt} label="Width" />
+			<SourceTag source={calcContext.lift_thickness.source} updatedAt={calcContext.lift_thickness.updatedAt} label="Thickness" />
+			<SourceTag source={calcContext.course_type.source} updatedAt={calcContext.course_type.updatedAt} label="Course" />
 		</div>
 
 		{#if aggregateRate != null && targetRate != null}
@@ -362,6 +369,13 @@
 		font-size: var(--fs-lg);
 		font-weight: var(--fw-bold);
 		color: var(--text);
+	}
+
+	.source-row {
+		display: flex;
+		gap: var(--sp-2);
+		flex-wrap: wrap;
+		margin-bottom: var(--sp-4);
 	}
 
 	@media (max-width: 460px) {

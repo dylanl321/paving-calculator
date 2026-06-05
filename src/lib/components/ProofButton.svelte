@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { job } from '$lib/stores/job.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 
 	async function handleExport() {
 		try {
@@ -9,9 +10,9 @@
 			const jobState = {
 				siteName: job.siteName,
 				siteDescription: job.siteDescription,
-				courseType: job.courseType,
-				widthFt: job.widthFt,
-				thicknessIn: job.thicknessIn,
+				courseType: calcContext.course_type.value,
+				widthFt: calcContext.road_width.value,
+				thicknessIn: calcContext.lift_thickness.value,
 				machineId: job.machineId,
 				firstPass: job.firstPass,
 				truckLoadTons: job.truckLoadTons,

@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { weather } from '$lib/stores/weather.svelte';
-	import { job } from '$lib/stores/job.svelte';
+	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { placementCheck } from '$lib/config';
 
 	let collapsed = $state(true);
 
 	const tempStatus = $derived.by(() => {
 		const temp = weather.effectiveTempF;
-		const thickness = job.thicknessIn;
+		const thickness = calcContext.lift_thickness.value;
 
 		if (temp == null || thickness <= 0 || !weather.hasLocation) {
 			return 'neutral';
