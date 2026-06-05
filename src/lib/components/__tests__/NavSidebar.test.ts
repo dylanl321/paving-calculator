@@ -612,9 +612,10 @@ describe('AppShell: responsive layout structure', () => {
     expect(tabletBreakpoint).toBe(1100);
   });
 
-  it('shell grid areas at tablet: nav, weather, main, footer', () => {
-    // At >=900px the grid-template-areas includes nav / weather / main / footer
-    const expectedAreas = ['nav', 'weather', 'main', 'footer'];
+  it('shell grid areas at tablet: nav, main, footer', () => {
+    // At >=900px the grid-template-areas includes nav / main / footer.
+    // Weather lives inside the sidebar rather than taking a full shell row.
+    const expectedAreas = ['nav', 'main', 'footer'];
     // Presence-check: each area must be named
     for (const area of expectedAreas) {
       expect(expectedAreas).toContain(area);

@@ -11,6 +11,7 @@
 	import NavMobileBar from './NavMobileBar.svelte';
 	import NavSidebarFooter from './NavSidebarFooter.svelte';
 	import NavList from './NavList.svelte';
+	import WeatherBar from '$lib/components/WeatherBar.svelte';
 
 	let { onOpenPalette = () => {} }: { onOpenPalette?: () => void } = $props();
 
@@ -172,6 +173,7 @@
 	{/if}
 
 	<NavList items={visibleItems} {activeHref} {expanded} onToggleExpanded={toggleExpanded} />
+	<WeatherBar />
 	<NavSidebarFooter {onOpenPalette} isAuthenticated={authStore.isAuthenticated} isCollapsed={navCollapsedStore.collapsed} orgName={orgSettingsStore.orgName} />
 </nav>
 
