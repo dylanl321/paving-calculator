@@ -54,7 +54,14 @@
 			toolId: 'stick-check',
 			toolLabel: 'Stick Check',
 			result: resultStr,
-			summary: `${target ?? '?'}in compacted`
+			summary: `${target ?? '?'}in compacted`,
+			inputs: {
+				target_compacted_in: target
+			},
+			outputs: {
+				loose_in: parseFloat(loose.toFixed(2)),
+				result: resultStr
+			}
 		});
 	});
 
