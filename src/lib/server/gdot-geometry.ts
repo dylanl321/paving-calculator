@@ -19,6 +19,18 @@ import { assessRoadwayLogAnchoring } from './roadway-log-anchoring.js';
 import { feetToCoordinate, polylineLengthFt, stationToFeet } from '$lib/services/mapUtils';
 import { routeAlongRoads } from '$lib/services/roadSnap';
 import { parseTerminus, type ParsedTerminus } from './terminus-parser.js';
+import {
+	calibrationToRouteMeasure,
+	measureToPoint,
+	type LrsRoute,
+	type RouteCalibration
+} from './dot/lrs-route.js';
+import {
+	resolveRouteFromPlanWithEvents,
+	type RouteSourceDetail
+} from './plan-route-resolver.js';
+
+export type { RouteSourceDetail };
 
 const GDOT_GPAS_LAYER5 =
 	'https://maps.georgia.gov/arcgis/rest/services/GDOT/GDOT_GPAS/MapServer/5/query';
@@ -297,12 +309,23 @@ export interface ResolvedLocation {
 	/** GDOT route LineString when a named route was matched. */
 	routeGeometry: GeoJsonLineString | null;
 	/** How the coordinates were obtained, for diagnostics. */
-	source: 'gdot_route' | 'osm_termini_route' | 'osm_overpass' | 'geocode' | 'county_centroid' | 'none';
+	source:
+		| 'gdot_lrs'
+		| 'gdot_route'
+		| 'osm_termini_route'
+		| 'osm_overpass'
+		| 'geocode'
+		| 'county_centroid'
+		| 'none';
 	locationPrecision: LocationPrecision;
 	countyBoundary: CountyBoundary | null;
 	lookupWarnings: string[];
 	parsed_begin_terminus?: ParsedTerminus | null;
 	parsed_end_terminus?: ParsedTerminus | null;
+	/** LRS route with M-values when resolved via plan mid-point. */
+	lrsRoute?: LrsRoute | null;
+	calibration?: RouteCalibration | null;
+	routeSourceDetail?: RouteSourceDetail | null;
 }
 
 interface RoadwayLogEventPreview {
@@ -343,6 +366,7 @@ export interface ImportRoutePreview {
 	projected_log_events?: RoadwayLogEventPreview[];
 	parsed_begin_terminus?: ParsedTerminus | null;
 	parsed_end_terminus?: ParsedTerminus | null;
+	route_source_detail?: RouteSourceDetail | null;
 }
 
 /**
@@ -432,6 +456,11 @@ export async function buildImportRoutePreview(opts: {
 	beginTerminus?: string | null;
 	endTerminus?: string | null;
 	roadwayLogEvents?: RoadwayLogEventForPreview[];
+	countyNumber?: string | null;
+	midpointEasting?: number | null;
+	midpointNorthing?: number | null;
+	midpointZoneLabel?: string | null;
+	grossLengthMi?: number | null;
 }): Promise<ImportRoutePreview> {
 	const resolved = await resolveImportLocation(opts);
 	const parsedBegin = parseTerminus(opts.beginTerminus);
@@ -445,12 +474,22 @@ export async function buildImportRoutePreview(opts: {
 		totalLengthFt: opts.totalLengthFt,
 		routeSource: resolved.source
 	});
-	const projectedLogEvents = anchoring.anchored
-		? projectRoadwayLogEvents(opts.roadwayLogEvents ?? [], waypoints)
-		: [];
+	const projectedLogEvents =
+		resolved.lrsRoute && resolved.calibration
+			? projectRoadwayLogEventsLrs(
+					opts.roadwayLogEvents ?? [],
+					resolved.lrsRoute,
+					resolved.calibration
+				)
+			: anchoring.anchored
+				? projectRoadwayLogEvents(opts.roadwayLogEvents ?? [], waypoints)
+				: [];
 
 	let message: string;
-	if (resolved.source === 'gdot_route') {
+	if (resolved.source === 'gdot_lrs') {
+		message =
+			'GDOT LRS route matched from the plan mid-point and trimmed to project limits. Confirm the alignment or flip/edit on the map.';
+	} else if (resolved.source === 'gdot_route') {
 		message = anchoring.anchored
 			? 'GDOT route geometry matches the project length. Confirm the alignment or flip/edit it on the map.'
 			: 'GDOT route geometry found, but it must be trimmed or redrawn to the actual project limits before log markers are plotted.';
@@ -486,7 +525,8 @@ export async function buildImportRoutePreview(opts: {
 		expected_length_ft: anchoring.expectedLengthFt,
 		projected_log_events: projectedLogEvents,
 		parsed_begin_terminus: parsedBegin,
-		parsed_end_terminus: parsedEnd
+		parsed_end_terminus: parsedEnd,
+		route_source_detail: resolved.routeSourceDetail ?? null
 	};
 }
 
@@ -509,8 +549,58 @@ export async function resolveImportLocation(opts: {
 	locationDescription: string | null;
 	beginTerminus?: string | null;
 	endTerminus?: string | null;
+	roadwayLogEvents?: RoadwayLogEventForPreview[];
+	countyNumber?: string | null;
+	midpointEasting?: number | null;
+	midpointNorthing?: number | null;
+	midpointZoneLabel?: string | null;
+	grossLengthMi?: number | null;
 }): Promise<ResolvedLocation> {
 	const lookupWarnings: string[] = [];
+
+	const canTryLrs =
+		opts.routeDesignation &&
+		opts.midpointEasting != null &&
+		opts.midpointNorthing != null &&
+		Number.isFinite(opts.midpointEasting) &&
+		Number.isFinite(opts.midpointNorthing);
+
+	if (canTryLrs) {
+		try {
+			const planRoute = await resolveRouteFromPlanWithEvents(
+				{
+					routeDesignation: opts.routeDesignation,
+					midpointEasting: opts.midpointEasting,
+					midpointNorthing: opts.midpointNorthing,
+					midpointZoneLabel: opts.midpointZoneLabel,
+					grossLengthMi: opts.grossLengthMi,
+					countyNumber: opts.countyNumber
+				},
+				opts.roadwayLogEvents ?? []
+			);
+			if (planRoute && planRoute.trimmedGeometry.coordinates.length >= 2) {
+				const mid = planRoute.trimmedGeometry.coordinates[
+					Math.floor(planRoute.trimmedGeometry.coordinates.length / 2)
+				];
+				return {
+					latitude: mid[1],
+					longitude: mid[0],
+					routeGeometry: planRoute.trimmedGeometry,
+					source: 'gdot_lrs',
+					locationPrecision: 'route',
+					countyBoundary: null,
+					lookupWarnings,
+					lrsRoute: planRoute.lrsRoute,
+					calibration: planRoute.calibration,
+					routeSourceDetail: planRoute.detail
+				};
+			}
+		} catch (err) {
+			console.error('[gdot-geometry] LRS plan route resolution failed:', err);
+			lookupWarnings.push('LRS mid-point route resolution failed; falling back to GPAS.');
+		}
+	}
+
 	const routeGeometry = await fetchGdotRouteGeometry(opts.routeDesignation, opts.county);
 
 	if (routeGeometry) {
@@ -735,6 +825,30 @@ async function fetchOsmTerminiRoute(opts: {
 		},
 		lookupWarnings
 	};
+}
+
+function projectRoadwayLogEventsLrs(
+	events: RoadwayLogEventForPreview[],
+	lrsRoute: LrsRoute,
+	calibration: RouteCalibration
+): RoadwayLogEventPreview[] {
+	return events.flatMap((event, index) => {
+		const routeM = calibrationToRouteMeasure(calibration, event.milepost);
+		const pt = measureToPoint(lrsRoute, routeM);
+		if (!pt) return [];
+		return [
+			{
+				id: `preview-log-${index}`,
+				milepost: event.milepost,
+				event_type: event.event_type ?? 'note',
+				description: event.description ?? '',
+				roadway_width_ft: event.roadway_width_ft ?? null,
+				is_reference: event.is_reference ? 1 : 0,
+				confidence: event.confidence ?? 'low',
+				coordinate_geojson: JSON.stringify({ type: 'Point', coordinates: pt })
+			}
+		];
+	});
 }
 
 function projectRoadwayLogEvents(

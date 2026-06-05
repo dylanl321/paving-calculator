@@ -1,2 +1,5 @@
 # Validation / spec-extraction tooling (see tools/spec_search.py)
 pypdf>=6.0
+# Roadway log mapper validation (tools/roadway_log_mapper.py)
+pdfplumber>=0.11
+pyproj>=3.6

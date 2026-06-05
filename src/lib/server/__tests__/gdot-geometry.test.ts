@@ -455,4 +455,80 @@ describe('buildImportRoutePreview', () => {
 		expect(preview.events_anchored).toBe(false);
 		expect(preview.projected_log_events).toEqual([]);
 	});
+
+	it('resolves 25185-style LRS route from plan mid-point and trims to project limits', async () => {
+		const lrsFindRoutesResponse = () => ({
+			features: [
+				{
+					attributes: {
+						ROUTE_CODE: '00001100',
+						SYSTEM_CODE: '1',
+						DIRECTION: 'INC',
+						COUNTY: '000',
+						FUNCTION_TYPE: 'STATE'
+					}
+				}
+			]
+		});
+
+		const lrsRouteGeometryResponse = () => ({
+			features: [
+				{
+					attributes: {
+						ROUTE_CODE: '00001100',
+						SYSTEM_CODE: '1',
+						DIRECTION: 'INC',
+						COUNTY: '000',
+						FUNCTION_TYPE: 'STATE'
+					},
+					geometry: {
+						paths: [
+							[
+								[-83.0235451, 30.6175812, 0],
+								[-83.0240581, 30.627438, 0.68],
+								[-83.02522, 30.6493255, 2.19],
+								[-83.027752, 30.6973778, 5.505]
+							]
+						]
+					}
+				}
+			]
+		});
+
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: unknown): Promise<FetchResponse> => {
+				const url = String(input);
+				if (url.includes('GDOT_ROUTE_NETWORK')) {
+					if (url.includes('returnM=true')) {
+						return { ok: true, json: async () => lrsRouteGeometryResponse() };
+					}
+					return { ok: true, json: async () => lrsFindRoutesResponse() };
+				}
+				return { ok: true, json: async () => ({ features: [], exceededTransferLimit: false }) };
+			})
+		);
+
+		const preview = await buildImportRoutePreview({
+			routeDesignation: 'SR 11',
+			county: 'Echols',
+			locationDescription: '5.505 MILES OF MILLING',
+			totalLengthFt: 5.505 * 5280,
+			midpointEasting: 386066.213,
+			midpointNorthing: 239963.852,
+			grossLengthMi: 5.505,
+			countyNumber: '101',
+			roadwayLogEvents: [
+				{ milepost: 0, station: 0, event_type: 'project_start' },
+				{ milepost: 0.68, station: 35.904, event_type: 'side_road' },
+				{ milepost: 5.505, station: 290.664, event_type: 'project_end' }
+			]
+		});
+
+		expect(preview.source).toBe('gdot_lrs');
+		expect(preview.events_anchored).toBe(true);
+		expect(preview.route_source_detail?.routeCode).toBe('00001100');
+		expect(preview.waypoints.length).toBeGreaterThanOrEqual(2);
+		expect(preview.projected_log_events?.length).toBe(3);
+	});
 });

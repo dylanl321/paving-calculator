@@ -483,7 +483,12 @@ export async function POST(event: RequestEvent) {
 			totalLengthFt: parsed.total_length_ft ?? null,
 			beginTerminus: parsed.begin_terminus ?? null,
 			endTerminus: parsed.end_terminus ?? null,
-			roadwayLogEvents: parsed.roadway_log_events ?? []
+			roadwayLogEvents: parsed.roadway_log_events ?? [],
+			countyNumber: parsed.county_number ?? null,
+			midpointEasting: parsed.midpoint_easting ?? null,
+			midpointNorthing: parsed.midpoint_northing ?? null,
+			midpointZoneLabel: parsed.midpoint_zone_label ?? null,
+			grossLengthMi: parsed.gross_length_mi ?? null
 		});
 
 		// Build a flat field_confidence map for the UI (scalar fields only).

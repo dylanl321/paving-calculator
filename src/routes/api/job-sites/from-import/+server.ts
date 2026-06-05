@@ -4,12 +4,20 @@ import { requireAuth } from '$lib/server/auth';
 import { recordAudit } from '$lib/server/audit';
 import { deliverWebhook } from '$lib/server/webhooks';
 import type { ParsedGdotJob } from '$lib/server/pdf/parse-gdot';
-import { resolveImportLocation, type LocationPrecision } from '$lib/server/gdot-geometry';
+import { resolveImportLocation, type LocationPrecision, type ResolvedLocation } from '$lib/server/gdot-geometry';
 import { lookupGdotBoundaries } from '$lib/server/gdot-boundaries';
 import {
 	assessRoadwayLogAnchoring,
 	orientWaypointsForAnchors
 } from '$lib/server/roadway-log-anchoring';
+import { buildLogSegments } from '$lib/server/roadway-log-segments';
+import {
+	calibrationToRouteMeasure,
+	measureRangeToLine,
+	measureToPoint,
+	type LrsRoute,
+	type RouteCalibration
+} from '$lib/server/dot/lrs-route';
 import {
 	geoJsonToD1,
 	metersToFeet,
@@ -18,6 +26,7 @@ import {
 	polylineLengthFt,
 	stationToFeet
 } from '$lib/services/mapUtils';
+import { constant } from '$lib/config';
 
 interface FromImportRequest {
 	parsed: ParsedGdotJob;
@@ -104,6 +113,24 @@ function eventCoordinateGeoJson(
 	return JSON.stringify({ type: 'Point', coordinates: [coord[1], coord[0]] });
 }
 
+function eventCoordinateFromLrs(
+	lrsRoute: LrsRoute,
+	calibration: RouteCalibration,
+	milepost: number
+): string | null {
+	const routeM = calibrationToRouteMeasure(calibration, milepost);
+	const pt = measureToPoint(lrsRoute, routeM);
+	if (!pt) return null;
+	return JSON.stringify({ type: 'Point', coordinates: pt });
+}
+
+const FT_PER_MILE = () => constant('CONST.FT_PER_MILE');
+const FT_PER_STATION = () => constant('CONST.FT_PER_STATION');
+
+function milepostToStation(milepost: number): number {
+	return (milepost * FT_PER_MILE()) / FT_PER_STATION();
+}
+
 /** Total length of a [lng,lat] LineString in feet. */
 function lineLengthFt(line: LineGeom): number {
 	let ft = 0;
@@ -160,6 +187,36 @@ function buildRoadSectionsFromRoute(
 			geometry: { type: 'LineString', coordinates: slice },
 			station_start: startFt / 100,
 			station_end: endFt / 100
+		});
+	}
+	return out;
+}
+
+function buildRoadSectionsFromLogSegments(
+	lrsRoute: LrsRoute,
+	calibration: RouteCalibration,
+	events: Array<{
+		milepost: number;
+		event_type?: string;
+		description: string;
+		roadway_width_ft?: number | null;
+	}>
+): Array<{ name: string; geometry: LineGeom; station_start: number; station_end: number }> {
+	const segments = buildLogSegments(events);
+	const out: Array<{ name: string; geometry: LineGeom; station_start: number; station_end: number }> = [];
+
+	for (const seg of segments) {
+		const line = measureRangeToLine(
+			lrsRoute,
+			calibrationToRouteMeasure(calibration, seg.fromMeasure),
+			calibrationToRouteMeasure(calibration, seg.toMeasure)
+		);
+		if (line.length < 2) continue;
+		out.push({
+			name: `${seg.startEventLabel} → ${seg.endEventLabel}`,
+			geometry: { type: 'LineString', coordinates: line },
+			station_start: milepostToStation(seg.fromMeasure),
+			station_end: milepostToStation(seg.toMeasure)
 		});
 	}
 	return out;
@@ -325,22 +382,30 @@ export async function POST(event: RequestEvent) {
 		let sectionCount = 0;
 		let routeWaypointsForEvents: Array<{ lat: number; lng: number }> = [];
 		let roadwayLogAnchored = false;
+		let lrsRouteForEvents: LrsRoute | null = null;
+		let lrsCalibration: RouteCalibration | null = null;
 		try {
 			const override = body.route_override?.accepted ? body.route_override : null;
 			const overrideWaypoints = Array.isArray(override?.waypoints)
 				? override.waypoints.filter(validWaypoint)
 				: [];
 			const hasOverrideRoute = overrideWaypoints.length >= 2;
-			const autoResolved = hasOverrideRoute
+			const autoResolved: ResolvedLocation | null = hasOverrideRoute
 				? null
 				: await resolveImportLocation({
 						routeDesignation: str(parsed.route_designation),
 						county: str(parsed.county),
 						locationDescription: str(parsed.location_description),
 						beginTerminus: str(parsed.begin_terminus),
-						endTerminus: str(parsed.end_terminus)
+						endTerminus: str(parsed.end_terminus),
+						roadwayLogEvents: parsedRoadwayLogEvents,
+						countyNumber: str(parsed.county_number),
+						midpointEasting: num(parsed.midpoint_easting),
+						midpointNorthing: num(parsed.midpoint_northing),
+						midpointZoneLabel: str(parsed.midpoint_zone_label),
+						grossLengthMi: num(parsed.gross_length_mi)
 					});
-			const resolved = hasOverrideRoute
+			const resolved: ResolvedLocation = hasOverrideRoute
 				? {
 						latitude: validNum(override!.latitude) ? override!.latitude : null,
 						longitude: validNum(override!.longitude) ? override!.longitude : null,
@@ -349,7 +414,9 @@ export async function POST(event: RequestEvent) {
 							coordinates: overrideWaypoints.map((wp) => [wp.lng, wp.lat] as [number, number])
 						},
 						source: override!.source || 'manual',
-						locationPrecision: override!.location_precision ?? 'route'
+						locationPrecision: override!.location_precision ?? 'route',
+						countyBoundary: null,
+						lookupWarnings: []
 					}
 				: autoResolved &&
 					  (autoResolved.routeGeometry ||
@@ -360,8 +427,10 @@ export async function POST(event: RequestEvent) {
 							latitude: validNum(override?.latitude) ? override.latitude : null,
 							longitude: validNum(override?.longitude) ? override.longitude : null,
 							routeGeometry: null,
-							source: override?.source || 'none',
-							locationPrecision: override?.location_precision ?? 'none'
+							source: 'none' as const,
+							locationPrecision: override?.location_precision ?? 'none',
+							countyBoundary: null,
+							lookupWarnings: []
 						};
 			locationSource = resolved.source;
 			locationPrecision = precisionForSource(
@@ -409,12 +478,24 @@ export async function POST(event: RequestEvent) {
 				});
 				roadwayLogAnchored = anchorAssessment.anchored;
 				routeWaypointsForEvents = waypoints;
+				lrsRouteForEvents = resolved.lrsRoute ?? null;
+				lrsCalibration = resolved.calibration ?? null;
 				await db.upsertJobSiteRoute(jobSite.id, waypoints);
 
 				const scopeLabel = (scopes[0] ?? 'Section')
 					.replace(/_/g, ' ')
 					.replace(/\b\w/g, (c) => c.toUpperCase());
-				const sections = buildRoadSectionsFromRoute(line, scopeLabel);
+				const sections =
+					resolved.source === 'gdot_lrs' &&
+					lrsRouteForEvents &&
+					lrsCalibration &&
+					parsedRoadwayLogEvents.length >= 2
+						? buildRoadSectionsFromLogSegments(
+								lrsRouteForEvents,
+								lrsCalibration,
+								parsedRoadwayLogEvents
+							)
+						: buildRoadSectionsFromRoute(line, scopeLabel);
 				const now = Math.floor(Date.now() / 1000);
 				for (let s = 0; s < sections.length; s++) {
 					const sec = sections[s];
@@ -480,7 +561,11 @@ export async function POST(event: RequestEvent) {
 						ev.is_reference ? 1 : 0,
 						str(ev.confidence) ?? 'low',
 						str(ev.raw_text),
-						roadwayLogAnchored ? eventCoordinateGeoJson(routeWaypointsForEvents, ev.station) : null,
+						roadwayLogAnchored
+							? lrsRouteForEvents && lrsCalibration
+								? eventCoordinateFromLrs(lrsRouteForEvents, lrsCalibration, ev.milepost)
+								: eventCoordinateGeoJson(routeWaypointsForEvents, ev.station)
+							: null,
 						i,
 						now
 					)

@@ -153,6 +153,8 @@ export interface ParsedGdotJob {
 	project_number: string | null;
 	contract_id: string | null;
 	county: string | null;
+	/** GDOT county code from plan sheet (e.g. "101" from COUNTY NO. 101). */
+	county_number: string | null;
 	// Contract
 	work_type: string | null;
 	contract_type: string | null;
@@ -176,6 +178,14 @@ export interface ParsedGdotJob {
 	location_description: string | null;
 	/** Route designation (e.g. "SR 13", "I-85", "CR 124") used to fetch GDOT route geometry. */
 	route_designation: string | null;
+	/** Plan mid-point state-plane easting (from contract cover sheet). */
+	midpoint_easting: number | null;
+	/** Plan mid-point state-plane northing. */
+	midpoint_northing: number | null;
+	/** Zone label on plan (diagnostics only — never used for CRS selection). */
+	midpoint_zone_label: string | null;
+	/** Gross length of project in miles (plan sheet). */
+	gross_length_mi: number | null;
 	/** Begin terminus / starting point description (e.g. "FROM SR 9"). */
 	begin_terminus: string | null;
 	/** End terminus / ending point description (e.g. "TO HALL COUNTY LINE"). */
@@ -316,6 +326,7 @@ function emptyResult(): ParsedGdotJob {
 		project_number: null,
 		contract_id: null,
 		county: null,
+		county_number: null,
 		work_type: null,
 		contract_type: null,
 		contract_amount: null,
@@ -334,6 +345,10 @@ function emptyResult(): ParsedGdotJob {
 		total_length_ft: null,
 		location_description: null,
 		route_designation: null,
+		midpoint_easting: null,
+		midpoint_northing: null,
+		midpoint_zone_label: null,
+		gross_length_mi: null,
 		begin_terminus: null,
 		end_terminus: null,
 		lane_width_ft: null,
@@ -653,6 +668,27 @@ function parseContractSummary(text: string, result: ParsedGdotJob): boolean {
 		?? firstMatch(text, /Counties:\s*([A-Za-z]+)/i)
 		?? firstMatch(text, /\b([A-Za-z]+)\s+COUNTY\b/i);
 
+	const countyNo = firstMatch(text, /COUNTY NO\.?\s*(\d+)/i);
+	if (countyNo) result.county_number = countyNo.padStart(3, '0');
+
+	const countyNameFromNo = firstMatch(text, /([A-Z][A-Z ]+?)\s+IS COUNTY NO/i);
+	if (countyNameFromNo && !result.county) {
+		result.county = countyNameFromNo
+			.split(/\s+/)
+			.map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+			.join(' ')
+			.trim();
+	}
+
+	const midMatch = text.match(
+		/MID-?POINT COORDINATES.*?\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)\s*([A-Z]+\s*ZONE)?/is
+	);
+	if (midMatch) {
+		result.midpoint_easting = toNumber(midMatch[1]);
+		result.midpoint_northing = toNumber(midMatch[2]);
+		result.midpoint_zone_label = midMatch[3]?.trim() || null;
+	}
+
 	result.contract_amount = result.contract_amount
 		?? toNumber(firstMatch(text, /Total Bid:\s*\$?([\d,]+\.\d{2})/i));
 
@@ -693,7 +729,10 @@ function parseContractSummary(text: string, result: ParsedGdotJob): boolean {
 		firstMatch(text, /NET LENGTH OF PROJECT\s+([\d.]+)/i)
 			?? firstMatch(text, /GROSS LENGTH OF PROJECT\s+([\d.]+)/i)
 	);
-	if (lenMiles != null) result.total_length_ft = result.total_length_ft ?? lenMiles * FT_PER_MILE();
+	if (lenMiles != null) {
+		result.total_length_ft = result.total_length_ft ?? lenMiles * FT_PER_MILE();
+		result.gross_length_mi = result.gross_length_mi ?? lenMiles;
+	}
 
 	result.bid_items = parseScheduleOfItems(text);
 	if (result.bid_items.length === 0) {
@@ -991,6 +1030,7 @@ export interface ParsedGdotJobV2 {
 	project_number: ParsedField<string>;
 	contract_id: ParsedField<string>;
 	county: ParsedField<string>;
+	county_number: ParsedField<string>;
 	// Contract
 	work_type: ParsedField<string>;
 	contract_type: ParsedField<string>;
@@ -1012,6 +1052,10 @@ export interface ParsedGdotJobV2 {
 	total_length_ft: ParsedField<number>;
 	location_description: ParsedField<string>;
 	route_designation: ParsedField<string>;
+	midpoint_easting: ParsedField<number>;
+	midpoint_northing: ParsedField<number>;
+	midpoint_zone_label: ParsedField<string>;
+	gross_length_mi: ParsedField<number>;
 	begin_terminus: ParsedField<string>;
 	end_terminus: ParsedField<string>;
 	/** Roadway-Log derived specs (plain; first non-null wins across documents). */
@@ -1048,6 +1092,7 @@ function emptyV2(): ParsedGdotJobV2 {
 		project_number: missing('unset'),
 		contract_id: missing('unset'),
 		county: missing('unset'),
+		county_number: missing('unset'),
 		work_type: missing('unset'),
 		contract_type: missing('unset'),
 		contract_amount: missing('unset'),
@@ -1066,6 +1111,10 @@ function emptyV2(): ParsedGdotJobV2 {
 		total_length_ft: missing('unset'),
 		location_description: missing('unset'),
 		route_designation: missing('unset'),
+		midpoint_easting: missing('unset'),
+		midpoint_northing: missing('unset'),
+		midpoint_zone_label: missing('unset'),
+		gross_length_mi: missing('unset'),
 		begin_terminus: missing('unset'),
 		end_terminus: missing('unset'),
 		lane_width_ft: null,
@@ -1127,6 +1176,7 @@ function mergeV1IntoV2(
 	setIfBetter('project_number', v1.project_number, conf, src);
 	setIfBetter('contract_id', v1.contract_id, 'high', src); // labelled field
 	setIfBetter('county', v1.county, docType === 'contract_summary' ? 'medium' : 'low', src);
+	setIfBetter('county_number', v1.county_number, 'high', src);
 	setIfBetter('work_type', v1.work_type, conf, src);
 	setIfBetter('contract_type', v1.contract_type, conf, src);
 	setIfBetter('contract_amount', v1.contract_amount, 'high', src);
@@ -1145,6 +1195,10 @@ function mergeV1IntoV2(
 	setIfBetter('total_length_ft', v1.total_length_ft, 'medium', src);
 	setIfBetter('location_description', v1.location_description, 'medium', src);
 	setIfBetter('route_designation', v1.route_designation, 'medium', src);
+	setIfBetter('midpoint_easting', v1.midpoint_easting, 'high', src);
+	setIfBetter('midpoint_northing', v1.midpoint_northing, 'high', src);
+	setIfBetter('midpoint_zone_label', v1.midpoint_zone_label, 'low', src);
+	setIfBetter('gross_length_mi', v1.gross_length_mi, 'high', src);
 	setIfBetter('begin_terminus', v1.begin_terminus, 'low', src);
 	setIfBetter('end_terminus', v1.end_terminus, 'low', src);
 	// Plain Roadway-Log specs: first non-null across documents wins.
@@ -1345,6 +1399,7 @@ export function toV1(v2: ParsedGdotJobV2): ParsedGdotJob {
 		project_number: v2.project_number.value,
 		contract_id: v2.contract_id.value,
 		county: v2.county.value,
+		county_number: v2.county_number.value,
 		work_type: v2.work_type.value,
 		contract_type: v2.contract_type.value,
 		contract_amount: v2.contract_amount.value,
@@ -1363,6 +1418,10 @@ export function toV1(v2: ParsedGdotJobV2): ParsedGdotJob {
 		total_length_ft: v2.total_length_ft.value,
 		location_description: v2.location_description.value,
 		route_designation: v2.route_designation.value,
+		midpoint_easting: v2.midpoint_easting.value,
+		midpoint_northing: v2.midpoint_northing.value,
+		midpoint_zone_label: v2.midpoint_zone_label.value,
+		gross_length_mi: v2.gross_length_mi.value,
 		begin_terminus: v2.begin_terminus.value,
 		end_terminus: v2.end_terminus.value,
 		lane_width_ft: v2.lane_width_ft,

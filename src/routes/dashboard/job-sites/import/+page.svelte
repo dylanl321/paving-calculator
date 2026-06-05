@@ -92,6 +92,7 @@
 		project_number: string | null;
 		contract_id: string | null;
 		county: string | null;
+		county_number: string | null;
 		work_type: string | null;
 		contract_type: string | null;
 		contract_amount: number | null;
@@ -110,6 +111,10 @@
 		total_length_ft: number | null;
 		location_description: string | null;
 		route_designation: string | null;
+		midpoint_easting: number | null;
+		midpoint_northing: number | null;
+		midpoint_zone_label: string | null;
+		gross_length_mi: number | null;
 		begin_terminus: string | null;
 		end_terminus: string | null;
 		scopes: string[];
@@ -134,7 +139,7 @@
 	}
 
 	interface RoutePreview {
-		source: 'gdot_route' | 'osm_termini_route' | 'osm_overpass' | 'geocode' | 'county_centroid' | 'manual' | 'none';
+		source: 'gdot_lrs' | 'gdot_route' | 'osm_termini_route' | 'osm_overpass' | 'geocode' | 'county_centroid' | 'manual' | 'none';
 		location_precision: 'route' | 'point' | 'county' | 'none';
 		latitude: number | null;
 		longitude: number | null;
@@ -154,6 +159,14 @@
 		projected_log_events?: PreviewRoadwayLogEvent[];
 		parsed_begin_terminus?: ParsedTerminus | null;
 		parsed_end_terminus?: ParsedTerminus | null;
+		route_source_detail?: {
+			crs: string;
+			routeCode: string;
+			county?: string;
+			mAtMidpoint: number;
+			offcenterM: number;
+			calibrationOffsetMi: number;
+		} | null;
 	}
 
 	let step = $state<'upload' | 'parsing' | 'review' | 'creating'>('upload');
@@ -348,6 +361,11 @@
 					begin_terminus: parsed.begin_terminus,
 					end_terminus: parsed.end_terminus,
 					total_length_ft: parsed.total_length_ft,
+					county_number: parsed.county_number,
+					midpoint_easting: parsed.midpoint_easting,
+					midpoint_northing: parsed.midpoint_northing,
+					midpoint_zone_label: parsed.midpoint_zone_label,
+					gross_length_mi: parsed.gross_length_mi,
 					roadway_log_events: parsed.roadway_log_events ?? []
 				}),
 				credentials: 'include'
@@ -453,6 +471,7 @@
 	}
 
 	function routeSourceBadge(source: RoutePreview['source'] | undefined): { label: string; color: string } {
+		if (source === 'gdot_lrs') return { label: 'GDOT LRS', color: '#15803d' };
 		if (source === 'gdot_route') return { label: 'GDOT Authoritative', color: '#16a34a' };
 		if (source === 'osm_termini_route') return { label: 'OSM Routed', color: '#2563eb' };
 		if (source === 'osm_overpass') return { label: 'OSM Overpass', color: '#0891b2' };
@@ -1137,6 +1156,19 @@
 							</p>
 						{:else}
 							<p class="anchor-status">No roadway-log mileposts were parsed from these PDFs.</p>
+						{/if}
+						{#if routePreview?.route_source_detail}
+							<p class="lrs-detail">
+								LRS {routePreview.route_source_detail.routeCode}
+								{#if routePreview.route_source_detail.county}
+									· county {routePreview.route_source_detail.county}
+								{/if}
+								· {routePreview.route_source_detail.crs}
+								· mid-point {routePreview.route_source_detail.offcenterM} m off centerline
+								{#if routePreview.route_source_detail.calibrationOffsetMi !== 0}
+									· offset {routePreview.route_source_detail.calibrationOffsetMi} mi
+								{/if}
+							</p>
 						{/if}
 						{#if routePreview?.lookup_warnings?.length}
 							<div class="route-warnings">
@@ -1948,6 +1980,12 @@
 
 	.anchor-status.anchored {
 		color: var(--accent);
+	}
+
+	.lrs-detail {
+		margin-top: 6px !important;
+		font-size: 0.78rem;
+		color: var(--text-muted);
 	}
 
 	.route-warnings {

@@ -124,6 +124,15 @@ export function assessRoadwayLogAnchoring(opts: {
 		};
 	}
 
+	if (opts.routeSource === 'gdot_lrs') {
+		return {
+			anchored: opts.events.length > 0,
+			reason: opts.events.length > 0 ? 'anchored-route-length-match' : 'missing-log',
+			expectedLengthFt,
+			routeLengthFt
+		};
+	}
+
 	const ratio = routeLengthFt / expectedLengthFt;
 	if (ratio >= 0.85 && ratio <= 1.2) {
 		return {

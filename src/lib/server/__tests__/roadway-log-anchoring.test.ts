@@ -60,4 +60,17 @@ describe('roadway-log anchoring', () => {
 		expect(assessment.anchored).toBe(false);
 		expect(assessment.reason).toBe('route-needs-trimming');
 	});
+
+	it('anchors LRS-trimmed routes when log events exist', () => {
+		const assessment = assessRoadwayLogAnchoring({
+			waypoints: [
+				{ lat: 30.61758, lng: -83.02355 },
+				{ lat: 30.69738, lng: -83.02775 }
+			],
+			events: [oneMileEvent],
+			totalLengthFt: 5280,
+			routeSource: 'gdot_lrs'
+		});
+		expect(assessment.anchored).toBe(true);
+	});
 });
