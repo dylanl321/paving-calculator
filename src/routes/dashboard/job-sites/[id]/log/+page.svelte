@@ -18,6 +18,7 @@
 	import ComparativeDayView from '$lib/components/ComparativeDayView.svelte';
 	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
 	import CompletenessBar from '$lib/components/CompletenessBar.svelte';
+	import DailyRunningTotalBanner from '$lib/components/DailyRunningTotalBanner.svelte';
 	import { today } from '$lib/stores/today.svelte';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
 	import SignatureModal from '$lib/components/SignatureModal.svelte';
@@ -688,6 +689,15 @@
 				</button>
 			{/if}
 		</div>
+	{/if}
+
+	{#if currentLog && entries.length > 0}
+		<DailyRunningTotalBanner
+			totalTons={entrySummary.total_tons}
+			totalLf={todayPavingFt}
+			entryCount={entries.length}
+			targetTons={currentLog.target_tons ?? null}
+		/>
 	{/if}
 
 	<div class="page-header">
