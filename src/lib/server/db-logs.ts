@@ -1,6 +1,16 @@
 import type { D1Database } from '../../cloudflare';
-import type { DbDotRoadSegment, DbDotSyncLog } from '$lib/types/dot';
-export type { DbDotRoadSegment, DbDotSyncLog } from '$lib/types/dot';
+import type {
+	DbDotRoadSegment,
+	DbDotSyncLog,
+	DbGdotConstructionProject,
+	DbGdotConstructionProjectInsert
+} from '$lib/types/dot';
+export type {
+	DbDotRoadSegment,
+	DbDotSyncLog,
+	DbGdotConstructionProject,
+	DbGdotConstructionProjectInsert
+} from '$lib/types/dot';
 
 export interface DbNotificationPref {
 	user_id: string;
@@ -836,6 +846,64 @@ export class DbLogHelper {
 			)
 			.bind(stateDot, source)
 			.first<DbDotSyncLog>();
+	}
+
+	// ── GDOT Construction Projects ────────────────────────────────────────
+
+	async upsertGdotConstructionProject(
+		row: DbGdotConstructionProjectInsert
+	): Promise<void> {
+		const now = Math.floor(Date.now() / 1000);
+		await this.db
+			.prepare(
+				`INSERT INTO gdot_construction_projects
+					(project_number, description, county, district, let_date, comp_date,
+					 project_type, route, latitude, longitude, geometry_geojson, raw_json,
+					 fetched_at, updated_at)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+				ON CONFLICT(project_number)
+				DO UPDATE SET
+					description=excluded.description, county=excluded.county,
+					district=excluded.district, let_date=excluded.let_date,
+					comp_date=excluded.comp_date, project_type=excluded.project_type,
+					route=excluded.route, latitude=excluded.latitude,
+					longitude=excluded.longitude,
+					geometry_geojson=excluded.geometry_geojson,
+					raw_json=excluded.raw_json, updated_at=excluded.updated_at`
+			)
+			.bind(
+				row.project_number, row.description, row.county, row.district,
+				row.let_date, row.comp_date, row.project_type, row.route,
+				row.latitude, row.longitude, row.geometry_geojson, row.raw_json,
+				now, now
+			)
+			.run();
+	}
+
+	async getGdotConstructionProjectsByCounty(
+		county: string,
+		limit = 10
+	): Promise<DbGdotConstructionProject[]> {
+		return await this.db
+			.prepare(
+				`SELECT * FROM gdot_construction_projects
+				 WHERE lower(county) = lower(?)
+				 ORDER BY updated_at DESC LIMIT ?`
+			)
+			.bind(county, limit)
+			.all<DbGdotConstructionProject>()
+			.then((r) => r.results);
+	}
+
+	async getGdotConstructionProjects(limit = 50): Promise<DbGdotConstructionProject[]> {
+		return await this.db
+			.prepare(
+				`SELECT * FROM gdot_construction_projects
+				 ORDER BY updated_at DESC LIMIT ?`
+			)
+			.bind(limit)
+			.all<DbGdotConstructionProject>()
+			.then((r) => r.results);
 	}
 
 	// ── Email Report Schedules ────────────────────────────────────────────

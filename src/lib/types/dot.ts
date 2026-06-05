@@ -68,6 +68,31 @@ export interface DbDotRoadSegment {
   updated_at: number;
 }
 
+/** Raw D1 row from `gdot_construction_projects`. */
+export interface DbGdotConstructionProject {
+  id: string;
+  project_number: string;
+  description: string | null;
+  county: string | null;
+  district: string | null;
+  let_date: number | null;
+  comp_date: number | null;
+  project_type: string | null;
+  route: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  geometry_geojson: string | null;
+  raw_json: string;
+  fetched_at: number;
+  updated_at: number;
+}
+
+/** Insert shape (omits id, fetched_at, updated_at). */
+export type DbGdotConstructionProjectInsert = Omit<
+  DbGdotConstructionProject,
+  'id' | 'fetched_at' | 'updated_at'
+>;
+
 /** Raw D1 row from `dot_sync_log`. */
 export interface DbDotSyncLog {
   id: string;
