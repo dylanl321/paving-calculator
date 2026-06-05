@@ -178,6 +178,9 @@
 	let documents = $state<Array<{ filename: string; source_key: string; type: string }>>([]);
 	let documentInventory = $state<DocumentInventory[]>([]);
 	let schematicProgress = $state('');
+	let parseStatus = $state('');
+	let renderedPageCount = $state(0);
+	let totalRenderPages = $state(0);
 	let fieldConf = $state<FieldConfidenceMap>({});
 	let fieldSource = $state<Record<string, string>>({});
 	let parserDurationMs = $state<number | null>(null);
@@ -264,20 +267,26 @@
 		if (files.length === 0) return;
 		step = 'parsing';
 		parseError = '';
+		parseStatus = 'Preparing upload';
+		renderedPageCount = 0;
+		totalRenderPages = 0;
 
 		const formData = new FormData();
 		for (const f of files) {
 			formData.append('files', f);
 		}
+		parseStatus = 'Rendering page evidence';
 		await appendPageImageEvidence(formData, files);
 
 		try {
+			parseStatus = 'Uploading PDFs and extracting project data';
 			const res = await fetch('/api/job-sites/import-pdf', {
 				method: 'POST',
 				body: formData,
 				credentials: 'include'
 			});
 
+			parseStatus = 'Preparing review';
 			const data = await res.json() as {
 				parsed?: ParsedJob;
 				source_keys?: string[];
@@ -308,6 +317,7 @@
 
 			if (!res.ok) {
 				parseError = data.error || 'Failed to parse PDF';
+				parseStatus = '';
 				step = 'upload';
 				return;
 			}
@@ -338,9 +348,11 @@
 			confirmedFields = new Set();
 			parsingReport = data.parsing_report ?? null;
 			primaryFilename = files[0]?.name ?? '';
+			parseStatus = '';
 			step = 'review';
 		} catch {
 			parseError = 'Network error — check your connection';
+			parseStatus = '';
 			step = 'upload';
 		}
 	}
@@ -356,7 +368,9 @@
 				const data = new Uint8Array(await file.arrayBuffer());
 				const pdf = await getDocument({ data, useSystemFonts: true, verbosity: VerbosityLevel.ERRORS }).promise;
 				const maxPages = Math.min(pdf.numPages, 40);
+				totalRenderPages += maxPages;
 				for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+					parseStatus = `Rendering page evidence ${renderedPageCount + 1}/${totalRenderPages}`;
 					const page = await pdf.getPage(pageNum);
 					const viewport = page.getViewport({ scale: 1 });
 					const longestSide = Math.max(viewport.width, viewport.height);
@@ -375,6 +389,7 @@
 					const field = `page_image_${pdfIndex}_${pageNum}`;
 					formData.append(field, blob, `${file.name}-page-${pageNum}.jpg`);
 					meta.push({ field, pdf_index: pdfIndex, filename: file.name, page_number: pageNum });
+					renderedPageCount += 1;
 				}
 			}
 		} catch (err) {
@@ -802,6 +817,22 @@
 			<button class="btn btn-primary parse-btn" onclick={uploadAndParse} disabled={step === 'parsing'}>
 				{step === 'parsing' ? 'Parsing…' : 'Upload & Parse'}
 			</button>
+
+			{#if step === 'parsing'}
+				<div class="parse-progress" role="status" aria-live="polite">
+					<div class="spinner small"></div>
+					<div>
+						<strong>{parseStatus || 'Processing PDFs'}</strong>
+						<p>
+							{#if totalRenderPages > 0 && renderedPageCount < totalRenderPages}
+								{renderedPageCount} of {totalRenderPages} pages rendered for AI evidence
+							{:else}
+								Server extraction is running deterministic checks, AI extraction, and route lookup.
+							{/if}
+						</p>
+					</div>
+				</div>
+			{/if}
 		{/if}
 
 	{:else if step === 'review' && parsed}
@@ -1788,6 +1819,29 @@
 		margin-top: 16px;
 	}
 
+	.parse-progress {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin-top: 14px;
+		padding: 12px 14px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text);
+	}
+
+	.parse-progress strong {
+		display: block;
+		font-size: 0.9rem;
+	}
+
+	.parse-progress p {
+		margin: 3px 0 0;
+		color: var(--text-muted);
+		font-size: 0.8rem;
+	}
+
 	/* Review */
 	.warnings {
 		margin-bottom: 16px;
@@ -2299,6 +2353,13 @@
 		border-top-color: var(--accent);
 		border-radius: 50%;
 		animation: spin 0.8s linear infinite;
+	}
+
+	.spinner.small {
+		width: 22px;
+		height: 22px;
+		border-width: 2px;
+		flex-shrink: 0;
 	}
 
 	@keyframes spin {

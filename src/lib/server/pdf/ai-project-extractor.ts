@@ -118,7 +118,7 @@ const ROUTE_CRITICAL_FIELDS = new Set<ScalarKey>([
 	'gross_length_mi'
 ]);
 
-const PROJECT_EXTRACTION_SCHEMA = {
+const SCALAR_EXTRACTION_SCHEMA = {
 	type: 'object',
 	properties: {
 		fields: {
@@ -134,12 +134,28 @@ const PROJECT_EXTRACTION_SCHEMA = {
 				}
 			}
 		},
+		warnings: { type: 'array', items: { type: 'string' } }
+	},
+	required: ['fields', 'warnings']
+};
+
+const ITEM_EXTRACTION_SCHEMA = {
+	type: 'object',
+	properties: {
 		bid_items: { type: 'array', items: { type: 'object' } },
 		production_mixes: { type: 'array', items: { type: 'object' } },
+		warnings: { type: 'array', items: { type: 'string' } }
+	},
+	required: ['bid_items', 'production_mixes', 'warnings']
+};
+
+const ROADWAY_EXTRACTION_SCHEMA = {
+	type: 'object',
+	properties: {
 		roadway_log_events: { type: 'array', items: { type: 'object' } },
 		warnings: { type: 'array', items: { type: 'string' } }
 	},
-	required: ['fields', 'bid_items', 'production_mixes', 'roadway_log_events', 'warnings']
+	required: ['roadway_log_events', 'warnings']
 };
 
 const SYSTEM_PROMPT =
@@ -149,31 +165,63 @@ const SYSTEM_PROMPT =
 	'Do not invent values. Keep bid_quantity (contract/allotted tons) separate from ' +
 	'takeoff_tonnage (production target tons).';
 
-function extractionPrompt(pages: EvidencePage[]): string {
+function evidenceText(pages: EvidencePage[], perPageChars = 4000, totalChars = 50000): string {
 	const evidence = pages
 		.map((page) => {
 			const text = [page.text, page.ocr_text].filter(Boolean).join('\n');
 			return [
 				`PDF ${page.pdf_index}: ${page.filename}`,
 				`Page ${page.page_number}: ${page.page_label}`,
-				text.slice(0, 6000)
+				text.slice(0, perPageChars)
 			].join('\n');
 		})
 		.join('\n\n---\n\n')
-		.slice(0, 90000);
+		.slice(0, totalChars);
 
+	return evidence;
+}
+
+function scalarExtractionPrompt(pages: EvidencePage[]): string {
 	return (
 		'Fill these fields when present: ' +
 		SCALAR_FIELDS.join(', ') +
-		'. Also extract bid_items, production_mixes, and roadway_log_events when present. ' +
+		'. Return a top-level JSON object with exactly these keys: fields, warnings. ' +
+		'The fields object maps each field name to { value, confidence, source_pdf_index, source_filename, source_page }. ' +
+		'Every non-null field must include source evidence. Do not return bid_items, production_mixes, or roadway_log_events. ' +
+		'Do not wrap the result in Markdown.\n\n' +
+		evidenceText(pages)
+	);
+}
+
+function itemExtractionPrompt(pages: EvidencePage[]): string {
+	return (
+		'Extract only contract bid item rows and asphalt production mix rows from these paving pages. ' +
 		'For bid_items use line_number, item_id, description, quantity, unit, unit_price, bid_amount, section, is_alternate, selected. ' +
 		'For production_mixes use mix_name, mix_type, unit, bid_quantity, takeoff_tonnage, quantity_per_day, est_days, contract_unit_price. ' +
-		'For roadway_log_events use milepost, description, event_type, roadway_width_ft, side, surface, is_reference. ' +
-		'Return a top-level JSON object with exactly these keys: fields, bid_items, production_mixes, roadway_log_events, warnings. ' +
-		'The fields object maps each field name to { value, confidence, source_pdf_index, source_filename, source_page }. ' +
+		'Every row must include source_pdf_index, source_filename, and source_page. ' +
+		'Keep bid_quantity (contract/allotted tons) separate from takeoff_tonnage (production target tons). ' +
+		'Return a top-level JSON object with exactly these keys: bid_items, production_mixes, warnings. ' +
+		'Use an empty array when no rows are present. Do not return scalar fields or roadway_log_events. ' +
 		'Do not wrap the result in Markdown.\n\n' +
-		evidence
+		evidenceText(pages, 7000, 50000)
 	);
+}
+
+function roadwayExtractionPrompt(pages: EvidencePage[]): string {
+	return (
+		'Extract only roadway log rows/events from these paving pages. ' +
+		'For roadway_log_events use milepost, description, event_type, roadway_width_ft, side, surface, is_reference. ' +
+		'Every row must include source_pdf_index, source_filename, and source_page. ' +
+		'Return a top-level JSON object with exactly these keys: roadway_log_events, warnings. ' +
+		'Use an empty array when no rows are present. Do not return scalar fields, bid_items, or production_mixes. ' +
+		'Do not wrap the result in Markdown.\n\n' +
+		evidenceText(pages, 7000, 50000)
+	);
+}
+
+function targetedPages(pages: EvidencePage[], pattern: RegExp): EvidencePage[] {
+	const matches = pages.filter((page) => pattern.test(`${page.page_label}\n${page.text}\n${page.ocr_text ?? ''}`));
+	return matches.length > 0 ? matches : pages;
 }
 
 function parseJsonString(text: string): AiProjectExtraction | null {
@@ -303,18 +351,62 @@ function describeAiResponse(raw: unknown): string {
 async function runProjectModel(
 	ai: WorkersAi,
 	model: string,
-	pages: EvidencePage[],
-	responseFormat: Record<string, unknown>
+	prompt: string,
+	responseFormat: Record<string, unknown>,
+	maxTokens = 2048
 ): Promise<unknown> {
 	return ai.run(model, {
 		messages: [
 			{ role: 'system', content: SYSTEM_PROMPT },
-			{ role: 'user', content: extractionPrompt(pages) }
+			{ role: 'user', content: prompt }
 		],
 		temperature: 0.1,
-		max_tokens: 4096,
+		max_tokens: maxTokens,
 		response_format: responseFormat
 	});
+}
+
+function combineExtractions(parts: AiProjectExtraction[]): AiProjectExtraction {
+	return {
+		fields: Object.assign({}, ...parts.map((part) => part.fields ?? {})),
+		bid_items: parts.flatMap((part) => part.bid_items ?? []),
+		production_mixes: parts.flatMap((part) => part.production_mixes ?? []),
+		roadway_log_events: parts.flatMap((part) => part.roadway_log_events ?? []),
+		warnings: parts.flatMap((part) => part.warnings ?? [])
+	};
+}
+
+async function runTargetedExtraction(
+	ai: WorkersAi,
+	model: string,
+	prompt: string,
+	schema: Record<string, unknown>,
+	maxTokens: number
+): Promise<{ extraction: AiProjectExtraction | null; schemaShape: string; retryShape: string }> {
+	const raw = await runProjectModel(
+		ai,
+		model,
+		prompt,
+		{
+			type: 'json_schema',
+			json_schema: schema
+		},
+		maxTokens
+	);
+
+	let extraction = extractJson(raw);
+	let retryShape = '';
+	if (!extraction) {
+		const retryRaw = await runProjectModel(ai, model, prompt, { type: 'json_object' }, maxTokens);
+		extraction = extractJson(retryRaw);
+		retryShape = describeAiResponse(retryRaw);
+	}
+
+	return {
+		extraction,
+		schemaShape: describeAiResponse(raw),
+		retryShape
+	};
 }
 
 function sourceOf(f: AiField<unknown> | { source_filename?: string | null; source_page?: number | null }): string | null {
@@ -530,20 +622,25 @@ export async function runAiProjectExtraction(
 
 	try {
 		await ocrEvidenceImages(ai, pages);
-		const raw = await runProjectModel(ai, model, pages, {
-			type: 'json_schema',
-			json_schema: PROJECT_EXTRACTION_SCHEMA
-		});
+		const itemPages = targetedPages(
+			pages,
+			/SCHEDULE OF ITEMS|CONTRACT SCHEDULE|PROPOSAL\s+LINE\s+NUMBER|UNIT PRICE\s+BID AMOUNT|DETAILED ESTIMATE|PRODUCTION GOALS|PAVING SECTIONS|BID QUANTIT/i
+		);
+		const roadwayPages = targetedPages(
+			pages,
+			/ROADWAY\s+LOG|\bLOG\b.*WIDTH|ROADWAY\s+[\s\S]{0,80}\bLOG\s+WIDTH|TYPICAL SECTION/i
+		);
+		const runs = [
+			await runTargetedExtraction(ai, model, scalarExtractionPrompt(pages), SCALAR_EXTRACTION_SCHEMA, 2048),
+			await runTargetedExtraction(ai, model, itemExtractionPrompt(itemPages), ITEM_EXTRACTION_SCHEMA, 3072),
+			await runTargetedExtraction(ai, model, roadwayExtractionPrompt(roadwayPages), ROADWAY_EXTRACTION_SCHEMA, 3072)
+		];
 
-		let extraction = extractJson(raw);
-		let retryShape = '';
-		if (!extraction) {
-			const retryRaw = await runProjectModel(ai, model, pages, { type: 'json_object' });
-			extraction = extractJson(retryRaw);
-			retryShape = describeAiResponse(retryRaw);
-		}
-		if (!extraction) {
-			const schemaShape = describeAiResponse(raw);
+		const extractions = runs
+			.map((run) => run.extraction)
+			.filter((extraction): extraction is AiProjectExtraction => extraction != null);
+
+		if (extractions.length === 0) {
 			console.log(
 				JSON.stringify({
 					event: 'pdf_ai_extraction_no_json',
@@ -551,8 +648,12 @@ export async function runAiProjectExtraction(
 					pages: pages.length,
 					text_chars: pages.reduce((sum, page) => sum + page.text.length + (page.ocr_text?.length ?? 0), 0),
 					image_pages: pages.filter((page) => page.image != null).length,
-					schema_response_shape: schemaShape,
-					retry_response_shape: retryShape
+					scalar_schema_response_shape: runs[0].schemaShape,
+					scalar_retry_response_shape: runs[0].retryShape,
+					item_schema_response_shape: runs[1].schemaShape,
+					item_retry_response_shape: runs[1].retryShape,
+					roadway_schema_response_shape: runs[2].schemaShape,
+					roadway_retry_response_shape: runs[2].retryShape
 				})
 			);
 			return {
@@ -561,8 +662,24 @@ export async function runAiProjectExtraction(
 				outcome: 'failed',
 				model,
 				duration_ms: Date.now() - started,
-				reason: `no-json:${schemaShape}${retryShape ? `;retry:${retryShape}` : ''}`
+				reason: 'no-json:all-staged-extractions'
 			};
+		}
+
+		const extraction = combineExtractions(extractions);
+		if (extractions.length < runs.length) {
+			console.log(
+				JSON.stringify({
+					event: 'pdf_ai_extraction_partial_json',
+					model,
+					pages: pages.length,
+					applied_stages: extractions.length,
+					failed_stages: runs.length - extractions.length,
+					scalar_response_shape: runs[0].extraction ? 'parsed' : `${runs[0].schemaShape};retry:${runs[0].retryShape}`,
+					item_response_shape: runs[1].extraction ? 'parsed' : `${runs[1].schemaShape};retry:${runs[1].retryShape}`,
+					roadway_response_shape: runs[2].extraction ? 'parsed' : `${runs[2].schemaShape};retry:${runs[2].retryShape}`
+				})
+			);
 		}
 
 		const applied = mergeAiExtraction(v2, extraction);
