@@ -90,8 +90,8 @@
 			toolId: 'tack',
 			toolLabel: 'Tack Rate',
 			result: resultStr,
-		summary: `${lengthFt ?? '?'}ft \u00d7 ${calcContext.road_width.value}ft wide`,
-		inputs: {
+			summary: `${lengthFt ?? '?'}ft \u00d7 ${calcContext.road_width.value}ft wide`,
+			inputs: {
 				length_ft: lengthFt,
 				width_ft: calcContext.road_width.value,
 				tack_application: job.tackApplication
