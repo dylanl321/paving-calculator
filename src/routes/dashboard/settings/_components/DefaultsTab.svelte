@@ -2,6 +2,7 @@
 	import { config } from '$lib/config';
 	import { OVERRIDABLE_CONSTANTS, constantDefault } from '$lib/config/overrides';
 	import type { RangeEntry } from '$lib/config';
+	import SpecAlert from '$lib/components/SpecAlert.svelte';
 
 	let {
 		canEdit,
@@ -54,6 +55,16 @@
 	const courseTypes = config.spreadTolerance;
 	const constantKeys = Object.keys(OVERRIDABLE_CONSTANTS);
 
+	// GDOT spec constants for lift thickness validation
+	const GDOT_MIN_LIFT_IN = 1.5;
+	const GDOT_MAX_LIFT_IN = 4.0;
+	const THICK_MULT = config.constants.THICK_MULT.value;
+
+	// Derived validation values
+	const liftThicknessWarn = $derived(liftThicknessIn < GDOT_MIN_LIFT_IN || liftThicknessIn > GDOT_MAX_LIFT_IN);
+	const spreadRateTarget = $derived(liftThicknessIn * THICK_MULT);
+	const spreadRateWarn = $derived(spreadRateTarget < 165 || spreadRateTarget > 440);
+
 	function isConstOverridden(key: string): boolean {
 		return constants[key] !== constantDefault(key);
 	}
@@ -81,6 +92,22 @@
 		<div class="field">
 			<label for="liftThickness">Lift thickness (in) {#if isDefaultOverridden('liftThicknessIn', liftThicknessIn)}<span class="badge">Overridden</span>{/if}</label>
 			<input id="liftThickness" type="number" step="0.5" min="0.5" max="10" bind:value={liftThicknessIn} disabled={!canEdit} />
+		</div>
+		<div class="field wide">
+			{#if liftThicknessWarn}
+				<SpecAlert
+					status="warn"
+					message="Lift thickness {liftThicknessIn.toFixed(1)} in is outside GDOT single-lift range ({GDOT_MIN_LIFT_IN}–{GDOT_MAX_LIFT_IN} in)"
+					guidance="GDOT Table 5 limits single lifts to {GDOT_MIN_LIFT_IN}–{GDOT_MAX_LIFT_IN} in for standard HMA mixes."
+					clause="GDOT Table 5"
+				/>
+			{/if}
+			<div class="hint" style="margin-top: 8px;">
+				Target spread rate: {Math.round(spreadRateTarget)} lbs/SY
+				{#if spreadRateWarn}
+					<span style="color: var(--warn); font-weight: 600;"> (outside typical 165–440 lbs/SY range)</span>
+				{/if}
+			</div>
 		</div>
 		<div class="field">
 			<label for="mixType">Mix type {#if mixType.trim()}<span class="badge">Set</span>{/if}</label>
