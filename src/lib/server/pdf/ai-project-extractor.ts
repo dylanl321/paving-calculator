@@ -169,32 +169,91 @@ function extractionPrompt(pages: EvidencePage[]): string {
 		'For bid_items use line_number, item_id, description, quantity, unit, unit_price, bid_amount, section, is_alternate, selected. ' +
 		'For production_mixes use mix_name, mix_type, unit, bid_quantity, takeoff_tonnage, quantity_per_day, est_days, contract_unit_price. ' +
 		'For roadway_log_events use milepost, description, event_type, roadway_width_ft, side, surface, is_reference. ' +
-		'Return JSON matching the supplied schema.\n\n' +
+		'Return a top-level JSON object with exactly these keys: fields, bid_items, production_mixes, roadway_log_events, warnings. ' +
+		'The fields object maps each field name to { value, confidence, source_pdf_index, source_filename, source_page }. ' +
+		'Do not wrap the result in Markdown.\n\n' +
 		evidence
 	);
 }
 
-function extractJson(raw: unknown): AiProjectExtraction | null {
-	const candidate =
-		raw && typeof raw === 'object' && 'response' in raw
-			? (raw as { response: unknown }).response
-			: raw;
-
-	if (candidate && typeof candidate === 'object') return candidate as AiProjectExtraction;
-	if (typeof candidate === 'string') {
-		try {
-			return JSON.parse(candidate) as AiProjectExtraction;
-		} catch {
-			const match = /\{[\s\S]*\}/.exec(candidate);
-			if (!match) return null;
+function parseJsonString(text: string): AiProjectExtraction | null {
+	try {
+		return JSON.parse(text) as AiProjectExtraction;
+	} catch {
+		const fenced = /```(?:json)?\s*([\s\S]*?)\s*```/i.exec(text);
+		if (fenced?.[1]) {
 			try {
-				return JSON.parse(match[0]) as AiProjectExtraction;
+				return JSON.parse(fenced[1]) as AiProjectExtraction;
 			} catch {
-				return null;
+				// fall through to object match
+			}
+		}
+		const match = /\{[\s\S]*\}/.exec(text);
+		if (!match) return null;
+		try {
+			return JSON.parse(match[0]) as AiProjectExtraction;
+		} catch {
+			return null;
+		}
+	}
+}
+
+function extractJson(raw: unknown): AiProjectExtraction | null {
+	if (raw == null) return null;
+	if (typeof raw === 'string') return parseJsonString(raw);
+	if (typeof raw !== 'object') return null;
+
+	const obj = raw as Record<string, unknown>;
+	if ('fields' in obj || 'bid_items' in obj || 'production_mixes' in obj) {
+		return obj as AiProjectExtraction;
+	}
+
+	const directCandidates = [
+		obj.response,
+		obj.result,
+		obj.output,
+		obj.text,
+		obj.description,
+		obj.generated_text
+	];
+	for (const candidate of directCandidates) {
+		const parsed = extractJson(candidate);
+		if (parsed) return parsed;
+	}
+
+	const choices = obj.choices;
+	if (Array.isArray(choices)) {
+		for (const choice of choices) {
+			const parsed = extractJson(choice);
+			if (parsed) return parsed;
+			if (choice && typeof choice === 'object') {
+				const message = (choice as Record<string, unknown>).message;
+				const messageParsed = extractJson(message);
+				if (messageParsed) return messageParsed;
+				if (message && typeof message === 'object') {
+					const contentParsed = extractJson((message as Record<string, unknown>).content);
+					if (contentParsed) return contentParsed;
+				}
 			}
 		}
 	}
+
 	return null;
+}
+
+async function runProjectModel(
+	ai: WorkersAi,
+	model: string,
+	pages: EvidencePage[],
+	responseFormat: Record<string, unknown>
+): Promise<unknown> {
+	return ai.run(model, {
+		messages: [
+			{ role: 'system', content: SYSTEM_PROMPT },
+			{ role: 'user', content: extractionPrompt(pages) }
+		],
+		response_format: responseFormat
+	});
 }
 
 function sourceOf(f: AiField<unknown> | { source_filename?: string | null; source_page?: number | null }): string | null {
@@ -410,18 +469,16 @@ export async function runAiProjectExtraction(
 
 	try {
 		await ocrEvidenceImages(ai, pages);
-		const raw = await ai.run(model, {
-			messages: [
-				{ role: 'system', content: SYSTEM_PROMPT },
-				{ role: 'user', content: extractionPrompt(pages) }
-			],
-			response_format: {
-				type: 'json_schema',
-				json_schema: PROJECT_EXTRACTION_SCHEMA
-			}
+		const raw = await runProjectModel(ai, model, pages, {
+			type: 'json_schema',
+			json_schema: PROJECT_EXTRACTION_SCHEMA
 		});
 
-		const extraction = extractJson(raw);
+		let extraction = extractJson(raw);
+		if (!extraction) {
+			const retryRaw = await runProjectModel(ai, model, pages, { type: 'json_object' });
+			extraction = extractJson(retryRaw);
+		}
 		if (!extraction) {
 			return {
 				attempted: true,

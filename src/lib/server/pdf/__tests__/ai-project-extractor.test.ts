@@ -19,6 +19,17 @@ function mockAi(response: unknown): WorkersAi {
 	};
 }
 
+function mockAiSequence(responses: unknown[]): WorkersAi {
+	let idx = 0;
+	return {
+		async run() {
+			const response = responses[Math.min(idx, responses.length - 1)];
+			idx += 1;
+			return response;
+		}
+	};
+}
+
 function evidence(text = BASE_TEXT): EvidencePage[] {
 	return [
 		{
@@ -163,6 +174,63 @@ describe('runAiProjectExtraction', () => {
 
 		expect(diag.outcome).toBe('applied');
 		expect(v2.contract_id.value).toBe('B1CBA2502850-0');
+		expect(v2.contract_id.source).toBe('ai:contract.pdf:p2');
+	});
+
+	it('reads nested Workers AI response wrapper shapes', async () => {
+		const v2 = parseGdotDocumentsV2(['Contract Schedule\nTotal Bid: $1,000.00']);
+		const ai = mockAi({
+			result: {
+				response: JSON.stringify({
+					fields: {
+						contract_id: {
+							value: 'B1CBA2502850-0',
+							confidence: 0.9,
+							source_pdf_index: 0,
+							source_filename: 'contract.pdf',
+							source_page: 2
+						}
+					},
+					bid_items: [],
+					production_mixes: [],
+					roadway_log_events: [],
+					warnings: []
+				})
+			}
+		});
+
+		const diag = await runAiProjectExtraction(ai, evidence(), v2);
+
+		expect(diag.outcome).toBe('applied');
+		expect(v2.contract_id.value).toBe('B1CBA2502850-0');
+	});
+
+	it('retries with json_object mode when schema mode returns no JSON', async () => {
+		const v2 = parseGdotDocumentsV2(['Contract Schedule\nTotal Bid: $1,000.00']);
+		const ai = mockAiSequence([
+			{ response: 'I cannot parse that document.' },
+			{
+				response: {
+					fields: {
+						contract_id: {
+							value: 'B1CBA2502850-0',
+							confidence: 0.9,
+							source_pdf_index: 0,
+							source_filename: 'contract.pdf',
+							source_page: 2
+						}
+					},
+					bid_items: [],
+					production_mixes: [],
+					roadway_log_events: [],
+					warnings: []
+				}
+			}
+		]);
+
+		const diag = await runAiProjectExtraction(ai, evidence(), v2);
+
+		expect(diag.outcome).toBe('applied');
 		expect(v2.contract_id.source).toBe('ai:contract.pdf:p2');
 	});
 });

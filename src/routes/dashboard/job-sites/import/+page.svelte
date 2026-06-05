@@ -350,11 +350,11 @@
 		const meta: Array<{ field: string; pdf_index: number; filename: string; page_number: number }> = [];
 
 		try {
-			const { getDocument } = await import('pdfjs-serverless');
+			const { getDocument, VerbosityLevel } = await import('pdfjs-serverless');
 			for (let pdfIndex = 0; pdfIndex < pdfFiles.length; pdfIndex++) {
 				const file = pdfFiles[pdfIndex];
 				const data = new Uint8Array(await file.arrayBuffer());
-				const pdf = await getDocument({ data, useSystemFonts: true }).promise;
+				const pdf = await getDocument({ data, useSystemFonts: true, verbosity: VerbosityLevel.ERRORS }).promise;
 				const maxPages = Math.min(pdf.numPages, 40);
 				for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
 					const page = await pdf.getPage(pageNum);
@@ -593,9 +593,9 @@
 		if (!file) return;
 
 		try {
-			const { getDocument } = await import('pdfjs-serverless');
+			const { getDocument, VerbosityLevel } = await import('pdfjs-serverless');
 			const data = new Uint8Array(await file.arrayBuffer());
-			const pdf = await getDocument({ data, useSystemFonts: true }).promise;
+			const pdf = await getDocument({ data, useSystemFonts: true, verbosity: VerbosityLevel.ERRORS }).promise;
 			const maxPages = Math.min(pdf.numPages, 40);
 
 			for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
