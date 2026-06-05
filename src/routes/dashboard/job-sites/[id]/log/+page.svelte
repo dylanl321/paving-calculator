@@ -489,7 +489,14 @@
 				{
 					date: currentLog.log_date,
 					siteName: data.jobSite.name,
-					orgName: undefined,
+					orgName: (data as any).org?.name ?? undefined,
+					gdotProjectNumber: (data as any).jobSite?.project_number ?? null,
+					gdotCounty:
+						(data as any).jobSite?.gdot_county ||
+						(data.siteConfig as any)?.config?.route_county ||
+						null,
+					gdotRoute: (data.siteConfig as any)?.config?.route_designation ?? null,
+					gdotContractor: (data as any).org?.name ?? null,
 					weatherTempF: currentLog.weather_temp_f,
 					weatherConditions: currentLog.weather_conditions,
 					windSpeedMph: currentLog.wind_speed_mph,
@@ -1262,6 +1269,8 @@
 		entrySummary={entrySummary}
 		siteConfig={data.siteConfig}
 		siteName={data.jobSite.name}
+		orgName={(data as any).org?.name ?? null}
+		jobSite={data.jobSite}
 		onClose={() => (showCloseOut = false)}
 		onComplete={handleCloseOutComplete}
 	/>

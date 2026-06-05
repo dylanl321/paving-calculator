@@ -187,6 +187,10 @@
 		const reportData = {
 			date: log.log_date,
 			siteName: 'Job Site',
+			gdotProjectNumber: null,
+			gdotCounty: null,
+			gdotRoute: null,
+			gdotContractor: null,
 			weatherTempF: log.weather_temp_f,
 			weatherConditions: log.weather_conditions,
 			windSpeedMph: log.wind_speed_mph,
