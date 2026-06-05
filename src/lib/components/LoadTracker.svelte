@@ -11,6 +11,7 @@
 	import LoadList from './loads/LoadList.svelte';
 	import TicketScan from './loads/TicketScan.svelte';
 	import LoadSummary from './loads/LoadSummary.svelte';
+	import OfflineBadge from '$lib/components/ui/OfflineBadge.svelte';
 
 	interface Props {
 		jobSiteId: string;
@@ -263,6 +264,7 @@
 			<TruckIcon size={24} />
 			<h3>Load Tracker</h3>
 			<HelpTip text="Tracks how many truck loads have arrived. Each load's tonnage contributes to your running spread rate calculation." />
+			<OfflineBadge />
 		</div>
 		{#if !showNewLoadForm && isAuthenticated}
 			<div class="header-actions">

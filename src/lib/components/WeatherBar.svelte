@@ -2,6 +2,7 @@
 	import { weather } from '$lib/stores/weather.svelte';
 	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { placementCheck } from '$lib/config';
+	import OfflineBadge from '$lib/components/ui/OfflineBadge.svelte';
 
 	let collapsed = $state(true);
 
@@ -51,6 +52,7 @@
 <div class="weather-bar" class:weather-bar--good={tempStatus === 'good'} class:weather-bar--warn={tempStatus === 'warn'} class:weather-bar--bad={tempStatus === 'bad'} class:weather-bar--neutral={tempStatus === 'neutral'} class:weather-bar--collapsed={collapsed}>
 	{#if !weather.hasLocation}
 		<div class="weather-bar__hint">Set location for weather</div>
+		<OfflineBadge />
 	{:else}
 		<button type="button" class="weather-bar__toggle" onclick={toggleCollapse} aria-label={collapsed ? 'Expand weather bar' : 'Collapse weather bar'}>
 			{#if weather.effectiveTempF != null}
@@ -73,6 +75,7 @@
 				{/if}
 			</div>
 		{/if}
+		<OfflineBadge />
 	{/if}
 </div>
 
