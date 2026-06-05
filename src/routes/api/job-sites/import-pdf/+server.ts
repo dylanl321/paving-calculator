@@ -235,7 +235,9 @@ export async function POST(event: RequestEvent) {
 		const route_preview = await buildImportRoutePreview({
 			routeDesignation: parsed.route_designation ?? null,
 			county: parsed.county ?? null,
-			locationDescription: parsed.location_description ?? null
+			locationDescription: parsed.location_description ?? null,
+			totalLengthFt: parsed.total_length_ft ?? null,
+			roadwayLogEvents: parsed.roadway_log_events ?? []
 		});
 
 		// Build a flat field_confidence map for the UI (scalar fields only).

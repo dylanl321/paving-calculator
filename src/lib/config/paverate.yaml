@@ -75,6 +75,12 @@ constants:
     tier: ~
     status: NA
     note: US short ton
+  FT_PER_MILE:
+    value: 5280
+    unit: ft / mile
+    tier: ~
+    status: NA
+    note: Universal roadway stationing conversion
   CF_PER_CY:
     value: 27
     unit: cu ft / cu yd

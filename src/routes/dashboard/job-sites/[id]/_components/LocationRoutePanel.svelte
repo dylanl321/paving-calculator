@@ -4,12 +4,13 @@
 	import { polylineLengthFt, stationToFeet } from '$lib/services/mapUtils';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { formatFeet } from '$lib/utils/format';
-	import type { JobSite, RouteWaypoint } from '../+page';
+	import type { JobSite, RoadwayLogEvent, RouteWaypoint } from '../+page';
 	import type { ConfigForm } from './shared';
 
 	let {
 		jobSite,
 		routeWaypoints = [],
+		roadwayLogEvents = [],
 		configForm,
 		numLanes = null,
 		laneWidthFt = null,
@@ -18,6 +19,7 @@
 	}: {
 		jobSite: JobSite;
 		routeWaypoints?: RouteWaypoint[];
+		roadwayLogEvents?: RoadwayLogEvent[];
 		configForm: ConfigForm;
 		numLanes?: number | null;
 		laneWidthFt?: number | null;
@@ -33,6 +35,7 @@
 
 	const hasLocation = $derived(jobSite.latitude != null && jobSite.longitude != null);
 	const hasRoute = $derived(routeWaypoints.length >= 2);
+	const hasRoadwayLog = $derived(roadwayLogEvents.length > 0);
 	const hasProjectLimits = $derived(
 		configForm.begin_station != null && configForm.end_station != null
 	);
@@ -215,6 +218,7 @@
 					location_description: jobSite.location_description
 				}}
 				initialWaypoints={routeWaypoints}
+				{roadwayLogEvents}
 				{numLanes}
 				{laneWidthFt}
 				height="420px"
@@ -275,6 +279,27 @@
 						onPick={(field, station) => saveTerminus(field, station)}
 					/>
 				{/await}
+			</div>
+		{/if}
+
+		{#if hasRoadwayLog}
+			<div class="roadway-log-block">
+				<div class="terminus-head">
+					<h4>Imported Roadway Log</h4>
+					<span>Events from the plan sheet, sorted by project mile.</span>
+				</div>
+				<div class="roadway-log-list">
+					{#each roadwayLogEvents as event (event.id)}
+						<div class="roadway-log-row" class:reference={event.is_reference === 1}>
+							<span class="log-mile">{event.milepost.toFixed(3)}</span>
+							<span class="log-type">{event.event_type.replace(/_/g, ' ')}</span>
+							<span class="log-desc">{event.description}</span>
+							{#if event.roadway_width_ft}
+								<span class="log-width">{event.roadway_width_ft} ft</span>
+							{/if}
+						</div>
+					{/each}
+				</div>
 			</div>
 		{/if}
 	{/if}
@@ -429,7 +454,8 @@
 	}
 
 	.route-load,
-	.terminus-block {
+	.terminus-block,
+	.roadway-log-block {
 		margin-top: 16px;
 	}
 
@@ -448,6 +474,50 @@
 		color: var(--text);
 	}
 
+	.roadway-log-list {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		margin-top: 10px;
+	}
+
+	.roadway-log-row {
+		display: grid;
+		grid-template-columns: 64px 120px minmax(0, 1fr) auto;
+		gap: 10px;
+		align-items: start;
+		padding: 9px 10px;
+		background: var(--surface-alt);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		font-size: 0.82rem;
+	}
+
+	.roadway-log-row.reference {
+		opacity: 0.78;
+	}
+
+	.log-mile {
+		color: var(--accent);
+		font-weight: 800;
+	}
+
+	.log-type {
+		color: var(--text-muted);
+		text-transform: capitalize;
+	}
+
+	.log-desc {
+		color: var(--text);
+		line-height: 1.3;
+	}
+
+	.log-width {
+		color: var(--text-muted);
+		font-weight: 700;
+		white-space: nowrap;
+	}
+
 	.saving {
 		margin: 8px 0 0;
 		color: var(--text-muted);
@@ -464,6 +534,15 @@
 		.route-load {
 			flex-direction: column;
 			align-items: stretch;
+		}
+
+		.roadway-log-row {
+			grid-template-columns: 58px 1fr;
+		}
+
+		.log-desc,
+		.log-width {
+			grid-column: 1 / -1;
 		}
 	}
 </style>

@@ -15,6 +15,7 @@
 
 import { fetchArcgisFeatures } from './dot/arcgis-fetch.js';
 import type { GeoJsonLineString } from '$lib/types/dot';
+import { assessRoadwayLogAnchoring } from './roadway-log-anchoring.js';
 
 const GDOT_GPAS_LAYER5 =
 	'https://maps.georgia.gov/arcgis/rest/services/GDOT/GDOT_GPAS/MapServer/5/query';
@@ -215,21 +216,35 @@ export interface ImportRoutePreview {
 	longitude: number | null;
 	waypoints: Array<{ lat: number; lng: number }>;
 	message?: string;
+	events_anchored?: boolean;
+	anchor_message?: string;
+	route_length_ft?: number | null;
+	expected_length_ft?: number | null;
 }
 
 export async function buildImportRoutePreview(opts: {
 	routeDesignation: string | null;
 	county: string | null;
 	locationDescription: string | null;
+	totalLengthFt?: number | null;
+	roadwayLogEvents?: Array<{ milepost: number; station: number; event_type?: string; is_reference?: boolean }>;
 }): Promise<ImportRoutePreview> {
 	const resolved = await resolveImportLocation(opts);
 	const waypoints = resolved.routeGeometry
 		? resolved.routeGeometry.coordinates.map(([lng, lat]) => ({ lat, lng }))
 		: [];
+	const anchoring = assessRoadwayLogAnchoring({
+		waypoints,
+		events: opts.roadwayLogEvents ?? [],
+		totalLengthFt: opts.totalLengthFt,
+		routeSource: resolved.source
+	});
 
 	let message: string;
 	if (resolved.source === 'gdot_route') {
-		message = 'GDOT route geometry found. Confirm the alignment or edit it on the map.';
+		message = anchoring.anchored
+			? 'GDOT route geometry matches the project length. Confirm the alignment or flip/edit it on the map.'
+			: 'GDOT route geometry found, but it must be trimmed or redrawn to the actual project limits before log markers are plotted.';
 	} else if (resolved.source === 'geocode') {
 		message = 'Location was geocoded, but no route centerline was found.';
 	} else if (resolved.source === 'county_centroid') {
@@ -243,7 +258,11 @@ export async function buildImportRoutePreview(opts: {
 		latitude: resolved.latitude,
 		longitude: resolved.longitude,
 		waypoints,
-		message
+		message,
+		events_anchored: anchoring.anchored,
+		anchor_message: anchoring.reason,
+		route_length_ft: anchoring.routeLengthFt,
+		expected_length_ft: anchoring.expectedLengthFt
 	};
 }
 

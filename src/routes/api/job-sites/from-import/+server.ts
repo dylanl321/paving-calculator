@@ -6,7 +6,18 @@ import { deliverWebhook } from '$lib/server/webhooks';
 import type { ParsedGdotJob } from '$lib/server/pdf/parse-gdot';
 import { resolveImportLocation } from '$lib/server/gdot-geometry';
 import { lookupGdotBoundaries } from '$lib/server/gdot-boundaries';
-import { geoJsonToD1, metersToFeet, haversineMeters } from '$lib/services/mapUtils';
+import {
+	assessRoadwayLogAnchoring,
+	orientWaypointsForAnchors
+} from '$lib/server/roadway-log-anchoring';
+import {
+	geoJsonToD1,
+	metersToFeet,
+	haversineMeters,
+	feetToCoordinate,
+	polylineLengthFt,
+	stationToFeet
+} from '$lib/services/mapUtils';
 
 interface FromImportRequest {
 	parsed: ParsedGdotJob;
@@ -18,6 +29,7 @@ interface FromImportRequest {
 		longitude: number | null;
 		waypoints: Array<{ lat: number; lng: number }>;
 		source: string;
+		events_anchored?: boolean;
 	};
 }
 
@@ -56,6 +68,18 @@ function validNum(v: unknown): v is number {
 interface LineGeom {
 	type: 'LineString';
 	coordinates: [number, number][];
+}
+
+function eventCoordinateGeoJson(
+	waypoints: Array<{ lat: number; lng: number }>,
+	station: number | null
+): string | null {
+	if (station == null || !Number.isFinite(station) || waypoints.length < 2) return null;
+	const stationFeet = stationToFeet(station);
+	if (stationFeet > polylineLengthFt(waypoints)) return null;
+	const coord = feetToCoordinate(stationFeet, waypoints);
+	if (!coord) return null;
+	return JSON.stringify({ type: 'Point', coordinates: [coord[1], coord[0]] });
 }
 
 /** Total length of a [lng,lat] LineString in feet. */
@@ -241,6 +265,12 @@ export async function POST(event: RequestEvent) {
 			}
 		}
 
+		const parsedRoadwayLogEvents = Array.isArray(parsed.roadway_log_events)
+			? parsed.roadway_log_events
+			: [];
+		const projectStartEvent = parsedRoadwayLogEvents.find((ev) => ev.event_type === 'project_start');
+		const projectEndEvent = parsedRoadwayLogEvents.find((ev) => ev.event_type === 'project_end');
+
 		const configPatch: Partial<DbJobSiteConfig> = {
 			total_length_ft: num(parsed.total_length_ft),
 			mix_type: primaryMix ? str(primaryMix.mix_name) : null,
@@ -253,6 +283,8 @@ export async function POST(event: RequestEvent) {
 			route_designation: str(parsed.route_designation),
 			begin_terminus: str(parsed.begin_terminus),
 			end_terminus: str(parsed.end_terminus),
+			begin_station: num(projectStartEvent?.station),
+			end_station: num(projectEndEvent?.station),
 			// Roadway-Log derived specs (only when the log sheet was parseable).
 			lane_width_ft: num(parsed.lane_width_ft),
 			num_lanes: num(parsed.num_lanes),
@@ -268,6 +300,8 @@ export async function POST(event: RequestEvent) {
 		// failure leaves coordinates null and the user can place the pin manually.
 		let locationSource: string = 'none';
 		let sectionCount = 0;
+		let routeWaypointsForEvents: Array<{ lat: number; lng: number }> = [];
+		let roadwayLogAnchored = false;
 		try {
 			const override = body.route_override?.accepted ? body.route_override : null;
 			const resolved = override
@@ -310,13 +344,24 @@ export async function POST(event: RequestEvent) {
 			// When we have the actual route polyline, store it as the route
 			// waypoints and split it into stationed road sections.
 			if (resolved.routeGeometry && resolved.routeGeometry.coordinates.length >= 2) {
+				// Route waypoints are stored as {lat,lng} (GeoJSON is [lng,lat]).
+				const waypoints = orientWaypointsForAnchors(
+					resolved.routeGeometry.coordinates.map(([lng, lat]) => ({ lat, lng })),
+					configPatch.begin_station,
+					configPatch.end_station
+				);
 				const line = {
 					type: 'LineString' as const,
-					coordinates: resolved.routeGeometry.coordinates as [number, number][]
+					coordinates: waypoints.map((wp) => [wp.lng, wp.lat] as [number, number])
 				};
-
-				// Route waypoints are stored as {lat,lng} (GeoJSON is [lng,lat]).
-				const waypoints = line.coordinates.map(([lng, lat]) => ({ lat, lng }));
+				const anchorAssessment = assessRoadwayLogAnchoring({
+					waypoints,
+					events: parsedRoadwayLogEvents,
+					totalLengthFt: num(parsed.total_length_ft),
+					routeSource: resolved.source
+				});
+				roadwayLogAnchored = anchorAssessment.anchored;
+				routeWaypointsForEvents = waypoints;
 				await db.upsertJobSiteRoute(jobSite.id, waypoints);
 
 				const scopeLabel = (scopes[0] ?? 'Section')
@@ -352,6 +397,49 @@ export async function POST(event: RequestEvent) {
 			}
 		} catch (err) {
 			console.error('Import location resolution failed (non-fatal):', err);
+		}
+
+		let roadwayLogEventCount = 0;
+		const roadwayLogEvents = parsedRoadwayLogEvents;
+		const sourceKeys = Array.isArray(body.source_keys) ? body.source_keys : [];
+		if (roadwayLogEvents.length > 0) {
+			const now = Math.floor(Date.now() / 1000);
+			for (let i = 0; i < roadwayLogEvents.length; i++) {
+				const ev = roadwayLogEvents[i];
+				if (!validNum(ev.milepost) || !validNum(ev.station) || !str(ev.description)) continue;
+				const sourceKey =
+					typeof ev.source_index === 'number' && ev.source_index >= 0
+						? (sourceKeys[ev.source_index] ?? null)
+						: null;
+				await event.platform!.env.DB.prepare(
+					`INSERT INTO roadway_log_events
+					(id, job_site_id, source_key, page_number, milepost, station, event_type, description,
+					 roadway_width_ft, side, surface, is_reference, confidence, raw_text, coordinate_geojson,
+					 sort_order, created_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				)
+					.bind(
+						'logevt_' + crypto.randomUUID().replace(/-/g, '').slice(0, 10),
+						jobSite.id,
+						sourceKey,
+						validNum(ev.page_number) ? ev.page_number : null,
+						ev.milepost,
+						ev.station,
+						str(ev.event_type) ?? 'note',
+						str(ev.description),
+						num(ev.roadway_width_ft),
+						str(ev.side),
+						str(ev.surface),
+						ev.is_reference ? 1 : 0,
+						str(ev.confidence) ?? 'low',
+						str(ev.raw_text),
+						roadwayLogAnchored ? eventCoordinateGeoJson(routeWaypointsForEvents, ev.station) : null,
+						i,
+						now
+					)
+					.run();
+				roadwayLogEventCount++;
+			}
 		}
 
 		// Bid items (carry alternate / selected flags).
@@ -402,7 +490,8 @@ export async function POST(event: RequestEvent) {
 				production_mixes: mixes.length,
 				scopes,
 				location_source: locationSource,
-				road_sections: sectionCount
+				road_sections: sectionCount,
+				roadway_log_events: roadwayLogEventCount
 			},
 			ipAddress:
 				event.request.headers.get('cf-connecting-ip') ||
@@ -422,7 +511,12 @@ export async function POST(event: RequestEvent) {
 			occurredAt: jobSite.created_at
 		});
 
-		return json({ id: jobSite.id, name: jobSite.name, bid_items: itemCount });
+		return json({
+			id: jobSite.id,
+			name: jobSite.name,
+			bid_items: itemCount,
+			roadway_log_events: roadwayLogEventCount
+		});
 	} catch (error) {
 		if (error instanceof Response) return error;
 		console.error('Create job from import error:', error);

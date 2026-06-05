@@ -11,6 +11,17 @@
 		lng: number;
 	}
 
+	interface RoadwayLogEvent {
+		id: string;
+		milepost: number;
+		event_type: string;
+		description: string;
+		roadway_width_ft: number | null;
+		is_reference: number;
+		confidence: string;
+		coordinate_geojson: string | null;
+	}
+
 	interface SitePin {
 		id: string;
 		name: string;
@@ -25,6 +36,7 @@
 		initialWaypoints?: Waypoint[];
 		numLanes?: number | null;
 		laneWidthFt?: number | null;
+		roadwayLogEvents?: RoadwayLogEvent[];
 		height?: string;
 		onRouteSave?: (waypoints: Waypoint[]) => Promise<void>;
 	}
@@ -34,6 +46,7 @@
 		initialWaypoints = [],
 		numLanes = null,
 		laneWidthFt = null,
+		roadwayLogEvents = [],
 		height = '400px',
 		onRouteSave
 	}: Props = $props();
@@ -53,6 +66,7 @@
 	let snapping = $state(false);
 	let snapError = $state('');
 	let controlMarkers: MapLibreMarker[] = [];
+	let previousInitialWaypoints = initialWaypoints;
 
 	const isMobile = $derived(
 		browser && typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
@@ -80,6 +94,23 @@
 	});
 
 	const routePoints = $derived<[number, number][]>(waypoints.map((wp) => [wp.lat, wp.lng]));
+	const plottedRoadwayLogEvents = $derived.by(() => {
+		return roadwayLogEvents.flatMap((event) => {
+			if (!event.coordinate_geojson) return [];
+			try {
+				const geo = JSON.parse(event.coordinate_geojson) as {
+					type?: string;
+					coordinates?: [number, number];
+				};
+				if (geo.type !== 'Point' || !Array.isArray(geo.coordinates)) return [];
+				const [lng, lat] = geo.coordinates;
+				if (!Number.isFinite(lat) || !Number.isFinite(lng)) return [];
+				return [{ ...event, lat, lng }];
+			} catch {
+				return [];
+			}
+		});
+	});
 	const firstWaypoint = $derived(waypoints.length >= 2 ? waypoints[0] : null);
 	const lastWaypoint = $derived(waypoints.length >= 2 ? waypoints[waypoints.length - 1] : null);
 	const guideText = $derived.by(() => {
@@ -94,6 +125,42 @@
 		const totalWidthMeters = feetToMeters(numLanes * laneWidthFt);
 		return laneCorridorPolygon(waypoints, totalWidthMeters);
 	});
+
+	function eventColor(type: string): string {
+		if (type === 'project_start' || type === 'project_end') return '#f2c037';
+		if (type === 'width_change') return '#60a5fa';
+		if (type === 'operation_change') return '#34d399';
+		if (type === 'side_road' || type === 'reference') return '#cbd5e1';
+		return '#94a3b8';
+	}
+
+	function eventLabel(type: string): string {
+		if (type === 'project_start') return 'S';
+		if (type === 'project_end') return 'E';
+		if (type === 'width_change') return 'W';
+		if (type === 'operation_change') return 'O';
+		if (type === 'side_road' || type === 'reference') return 'R';
+		return '•';
+	}
+
+	function escapeHtml(value: string): string {
+		return value.replace(/[&<>"']/g, (ch) => {
+			const map: Record<string, string> = {
+				'&': '&amp;',
+				'<': '&lt;',
+				'>': '&gt;',
+				'"': '&quot;',
+				"'": '&#39;'
+			};
+			return map[ch];
+		});
+	}
+
+	function eventPopup(event: RoadwayLogEvent): string {
+		const width = event.roadway_width_ft ? `<br>Width: ${event.roadway_width_ft} ft` : '';
+		const ref = event.is_reference ? '<br><em>Reference only</em>' : '';
+		return `<b>Log ${event.milepost.toFixed(3)}</b><br>${escapeHtml(event.description)}${width}${ref}`;
+	}
 
 	function handleMapReady(map: MapLibreMap) {
 		mapInstance = map;
@@ -114,6 +181,14 @@
 			mapInstance.getCanvas().style.cursor = drawMode ? 'crosshair' : '';
 		}
 	}
+
+	$effect(() => {
+		if (initialWaypoints !== previousInitialWaypoints) {
+			previousInitialWaypoints = initialWaypoints;
+			waypoints = [...initialWaypoints];
+			controlPoints = [];
+		}
+	});
 
 	/**
 	 * Add a clicked point: snap it to the nearest real road, then rebuild the
@@ -162,6 +237,11 @@
 		controlPoints = [];
 		waypoints = [];
 		snapError = '';
+	}
+
+	function flipRoute() {
+		waypoints = [...waypoints].reverse();
+		controlPoints = [...controlPoints].reverse();
 	}
 
 	function clearControlMarkers() {
@@ -313,6 +393,15 @@
 							popupHtml="<b>Route end edge</b><br>Set project start/end below for the actual project limits."
 						/>
 					{/if}
+					{#each plottedRoadwayLogEvents as event (event.id)}
+						<MapMarker
+							lat={event.lat}
+							lng={event.lng}
+							color={eventColor(event.event_type)}
+							label={eventLabel(event.event_type)}
+							popupHtml={eventPopup(event)}
+						/>
+					{/each}
 				{/if}
 
 			{/snippet}
@@ -383,6 +472,26 @@
 			{/if}
 
 			{#if waypoints.length > 0 || controlPoints.length > 0}
+				{#if waypoints.length >= 2}
+					<button type="button" class="map-btn" onclick={flipRoute} title="Reverse route direction">
+						<svg
+							width="18"
+							height="18"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<path d="M17 1l4 4-4 4"></path>
+							<path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+							<path d="M7 23l-4-4 4-4"></path>
+							<path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+						</svg>
+						Flip
+					</button>
+				{/if}
 				<button type="button" class="map-btn map-btn-warn" onclick={clearRoute} title="Clear route">
 					<svg
 						width="18"

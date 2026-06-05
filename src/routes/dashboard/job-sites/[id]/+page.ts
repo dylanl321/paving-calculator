@@ -95,6 +95,31 @@ export interface RouteWaypoint {
 	lng: number;
 }
 
+export interface RoadwayLogEvent {
+	id: string;
+	source_key: string | null;
+	page_number: number | null;
+	milepost: number;
+	station: number;
+	event_type:
+		| 'project_start'
+		| 'project_end'
+		| 'operation_change'
+		| 'width_change'
+		| 'side_road'
+		| 'reference'
+		| 'note';
+	description: string;
+	roadway_width_ft: number | null;
+	side: 'left' | 'right' | null;
+	surface: 'paved' | 'unpaved' | null;
+	is_reference: number;
+	confidence: 'high' | 'medium' | 'low';
+	raw_text: string | null;
+	coordinate_geojson: string | null;
+	sort_order: number;
+}
+
 interface CalculationsResponse {
 	calculations?: Calculation[];
 }
@@ -109,6 +134,9 @@ interface AssignmentsResponse {
 }
 interface RouteResponse {
 	waypoints?: RouteWaypoint[];
+}
+interface RoadwayLogEventsResponse {
+	events?: RoadwayLogEvent[];
 }
 interface MilestonesResponse {
 	milestones?: Milestone[];
@@ -155,12 +183,13 @@ export const load: PageLoad = async ({ params, fetch }) => {
 
 		const siteData = (await siteRes.json()) as JobSite;
 
-		const [calcRes, configRes, equipmentRes, assignmentsRes, routeRes, milestonesRes, mixesRes] = await Promise.all([
+		const [calcRes, configRes, equipmentRes, assignmentsRes, routeRes, roadwayLogRes, milestonesRes, mixesRes] = await Promise.all([
 			fetch(`/api/calculations?job_site_id=${params.id}`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/config`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/equipment`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/assignments`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/route`, { credentials: 'include' }),
+			fetch(`/api/job-sites/${params.id}/roadway-log-events`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/milestones`, { credentials: 'include' }),
 			fetch(`/api/job-sites/${params.id}/mixes`, { credentials: 'include' })
 		]);
@@ -174,6 +203,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 		const equipmentData = (equipmentRes.ok ? await equipmentRes.json() : { equipment: [] }) as EquipmentResponse;
 		const assignmentsData = (assignmentsRes.ok ? await assignmentsRes.json() : { assignments: [] }) as AssignmentsResponse;
 		const routeData = (routeRes.ok ? await routeRes.json() : { waypoints: [] }) as RouteResponse;
+		const roadwayLogData = (roadwayLogRes.ok ? await roadwayLogRes.json() : { events: [] }) as RoadwayLogEventsResponse;
 		const milestonesData = (milestonesRes.ok ? await milestonesRes.json() : { milestones: [] }) as MilestonesResponse;
 		const mixesData = (mixesRes.ok ? await mixesRes.json() : { mixes: [] }) as MixesResponse;
 
@@ -206,6 +236,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 			equipment: equipmentData.equipment || [],
 			assignments: assignmentsData.assignments || [],
 			routeWaypoints: routeData.waypoints || [],
+			roadwayLogEvents: roadwayLogData.events || [],
 			milestones: milestonesData.milestones || [],
 			mixes,
 			activeMix

@@ -41,6 +41,22 @@
 		contract_unit_price: number | null;
 	}
 
+	interface ParsedRoadwayLogEvent {
+		source_index: number | null;
+		page_number: number | null;
+		milepost: number;
+		station: number;
+		event_type: string;
+		description: string;
+		roadway_width_ft: number | null;
+		side: 'left' | 'right' | null;
+		surface: 'paved' | 'unpaved' | null;
+		is_reference: boolean;
+		confidence: 'high' | 'medium' | 'low';
+		raw_text: string;
+		sort_order: number;
+	}
+
 	interface ParsedJob {
 		name: string | null;
 		job_number: string | null;
@@ -70,6 +86,7 @@
 		scopes: string[];
 		bid_items: ParsedBidItem[];
 		production_mixes: ParsedMix[];
+		roadway_log_events: ParsedRoadwayLogEvent[];
 		detected_documents: string[];
 		has_contract_summary: boolean;
 		has_job_setup: boolean;
@@ -82,6 +99,10 @@
 		longitude: number | null;
 		waypoints: Array<{ lat: number; lng: number }>;
 		message?: string;
+		events_anchored?: boolean;
+		anchor_message?: string;
+		route_length_ft?: number | null;
+		expected_length_ft?: number | null;
 	}
 
 	let step = $state<'upload' | 'parsing' | 'review' | 'creating'>('upload');
@@ -208,7 +229,8 @@
 					location_description: parsed.location_description,
 					begin_terminus: parsed.begin_terminus,
 					end_terminus: parsed.end_terminus,
-					total_length_ft: parsed.total_length_ft
+					total_length_ft: parsed.total_length_ft,
+					roadway_log_events: parsed.roadway_log_events ?? []
 				}),
 				credentials: 'include'
 			});
@@ -254,7 +276,8 @@
 								latitude: routePreview.latitude,
 								longitude: routePreview.longitude,
 								waypoints: routePreview.waypoints,
-								source: routePreview.source
+								source: routePreview.source,
+								events_anchored: routePreview.events_anchored
 							}
 						: undefined,
 					corrections: correctionsMeta,
@@ -282,6 +305,25 @@
 			toastStore.error('Network error — check your connection');
 			step = 'review';
 		}
+	}
+
+	function flipRoutePreview() {
+		if (!routePreview?.waypoints?.length) return;
+		routePreview = {
+			...routePreview,
+			source: 'manual',
+			waypoints: [...routePreview.waypoints].reverse(),
+			message: 'Route direction flipped. Save this route if the roadway log runs the opposite way.'
+		};
+	}
+
+	function anchorLabel(preview: RoutePreview | null): string {
+		if (!preview) return 'No route anchor yet';
+		if (preview.events_anchored) return 'Roadway log markers will plot on this route';
+		if (preview.anchor_message === 'route-needs-trimming') return 'Trim this route to the project limits before plotting markers';
+		if (preview.anchor_message === 'route-too-short') return 'Route is shorter than the roadway log';
+		if (preview.anchor_message === 'missing-route') return 'No route available for roadway log markers';
+		return 'Roadway log markers will stay list-only until the route is confirmed';
 	}
 
 	// Classifies a plan-sheet page from its extracted text into a human label.
@@ -678,6 +720,30 @@
 					</div>
 				{/each}
 			</div>
+
+			{#if parsed.roadway_log_events?.length}
+				<div class="roadway-log-preview">
+					<div class="route-preview-head">
+						<div>
+							<h4>Imported Roadway Log</h4>
+							<p>These mile markers will be placed on the confirmed road route after project creation.</p>
+						</div>
+						<span class="log-count">{parsed.roadway_log_events.length} events</span>
+					</div>
+					<div class="roadway-log-table">
+						{#each parsed.roadway_log_events as event}
+							<div class="roadway-log-row" class:reference={event.is_reference}>
+								<span class="log-mile">{event.milepost.toFixed(3)}</span>
+								<span class="log-type">{event.event_type.replace(/_/g, ' ')}</span>
+								<span class="log-desc">{event.description}</span>
+								{#if event.roadway_width_ft}
+									<span class="log-width">{event.roadway_width_ft} ft</span>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/if}
 		</section>
 
 		<section class="review-section">
@@ -725,10 +791,22 @@
 					<div>
 						<h4>Route Preview</h4>
 						<p>{routePreview?.message ?? 'No route preview has been resolved yet.'}</p>
+						{#if parsed.roadway_log_events?.length}
+							<p class="anchor-status" class:anchored={routePreview?.events_anchored}>
+								{anchorLabel(routePreview)}
+							</p>
+						{/if}
 					</div>
-					<button type="button" class="btn btn-ghost btn-sm" onclick={refreshRoutePreview} disabled={routePreviewLoading}>
-						{routePreviewLoading ? 'Refreshing...' : 'Refresh'}
-					</button>
+					<div class="route-preview-actions">
+						{#if routePreview?.waypoints?.length}
+							<button type="button" class="btn btn-ghost btn-sm" onclick={flipRoutePreview}>
+								Flip Direction
+							</button>
+						{/if}
+						<button type="button" class="btn btn-ghost btn-sm" onclick={refreshRoutePreview} disabled={routePreviewLoading}>
+							{routePreviewLoading ? 'Refreshing...' : 'Refresh'}
+						</button>
+					</div>
 				</div>
 				{#if routePreview?.latitude != null && routePreview.longitude != null && browser}
 					{#await import('$lib/components/RouteAlignmentMap.svelte')}
@@ -753,7 +831,9 @@
 									waypoints,
 									latitude: center?.lat ?? routePreview!.latitude,
 									longitude: center?.lng ?? routePreview!.longitude,
-									message: 'Edited route preview will be used when the project is created.'
+									message: 'Edited route preview will be used when the project is created.',
+									events_anchored: waypoints.length >= 2 && (parsed.roadway_log_events?.length ?? 0) > 0,
+									anchor_message: 'anchored-manual-route'
 								};
 								toastStore.success('Route preview updated');
 							}}
@@ -1326,12 +1406,25 @@
 		border-top: 1px solid var(--border);
 	}
 
+	.roadway-log-preview {
+		margin-top: 16px;
+		padding-top: 16px;
+		border-top: 1px solid var(--border);
+	}
+
 	.route-preview-head {
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: 12px;
 		margin-bottom: 12px;
+	}
+
+	.route-preview-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		justify-content: flex-end;
 	}
 
 	.route-preview-head h4 {
@@ -1346,11 +1439,75 @@
 		font-size: 0.82rem;
 	}
 
+	.anchor-status {
+		display: inline-flex;
+		width: fit-content;
+		margin-top: 8px !important;
+		padding: 5px 9px;
+		border: 1px solid rgba(242, 192, 55, 0.35);
+		border-radius: 999px;
+		color: var(--text-muted);
+		background: rgba(242, 192, 55, 0.08);
+		font-weight: 700;
+	}
+
+	.anchor-status.anchored {
+		color: var(--accent);
+	}
+
 	.route-preview-empty {
 		padding: 18px;
 		background: var(--bg);
 		border: 1px dashed var(--border);
 		border-radius: 8px;
+	}
+
+	.log-count {
+		color: var(--accent);
+		font-size: 0.82rem;
+		font-weight: 800;
+	}
+
+	.roadway-log-table {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.roadway-log-row {
+		display: grid;
+		grid-template-columns: 64px 120px minmax(0, 1fr) auto;
+		gap: 10px;
+		padding: 8px 10px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		font-size: 0.82rem;
+	}
+
+	.roadway-log-row.reference {
+		opacity: 0.78;
+	}
+
+	.log-mile {
+		color: var(--accent);
+		font-weight: 800;
+	}
+
+	.log-type {
+		color: var(--text-muted);
+		text-transform: capitalize;
+	}
+
+	.log-desc {
+		color: var(--text);
+		line-height: 1.3;
+	}
+
+	.log-width {
+		color: var(--text-muted);
+		font-weight: 700;
+		white-space: nowrap;
 	}
 
 	.warning-item {

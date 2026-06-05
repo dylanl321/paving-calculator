@@ -213,6 +213,33 @@ export interface DbJobSiteRoute {
 	updated_at: number;
 }
 
+export interface DbRoadwayLogEvent {
+	id: string;
+	job_site_id: string;
+	source_key: string | null;
+	page_number: number | null;
+	milepost: number;
+	station: number;
+	event_type:
+		| 'project_start'
+		| 'project_end'
+		| 'operation_change'
+		| 'width_change'
+		| 'side_road'
+		| 'reference'
+		| 'note';
+	description: string;
+	roadway_width_ft: number | null;
+	side: 'left' | 'right' | null;
+	surface: 'paved' | 'unpaved' | null;
+	is_reference: number;
+	confidence: 'high' | 'medium' | 'low';
+	raw_text: string | null;
+	coordinate_geojson: string | null;
+	sort_order: number;
+	created_at: number;
+}
+
 export interface DbRoadSection {
 	id: string;
 	job_site_id: string;

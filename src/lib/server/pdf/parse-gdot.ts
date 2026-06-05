@@ -1,7 +1,9 @@
 import { getDocument } from 'pdfjs-serverless';
+import { constant } from '$lib/config';
 import { extractZones } from './zone-extractor.js';
 import { parseTableZone, applyBidQuantities } from './table-parser.js';
 import { field, mergeField, type ParsedField, type FieldConfidence } from './confidence.js';
+import { parseRoadwayLogEvents, type ParsedRoadwayLogEvent } from './roadway-log.js';
 
 /**
  * Parser for GDOT-style paving documents:
@@ -88,6 +90,7 @@ export interface ParsedGdotJob {
 	num_lanes: number | null;
 	milling_depth_in: number | null;
 	spread_rate_lbs_sy: number | null;
+	roadway_log_events: ParsedRoadwayLogEvent[];
 	// Multi-scope tags (e.g. ["milling","resurfacing","shoulder_rehab"])
 	scopes: string[];
 	// Line items
@@ -103,7 +106,7 @@ export interface ParsedGdotJob {
 	warnings: string[];
 }
 
-const FT_PER_MILE = 5280;
+const FT_PER_MILE = () => constant('CONST.FT_PER_MILE');
 
 /**
  * Extract roadway-spec fields from a plan-set "LOG ROADWAY" sheet when present
@@ -238,6 +241,7 @@ function emptyResult(): ParsedGdotJob {
 		num_lanes: null,
 		milling_depth_in: null,
 		spread_rate_lbs_sy: null,
+		roadway_log_events: [],
 		scopes: [],
 		bid_items: [],
 		production_mixes: [],
@@ -288,8 +292,74 @@ export function detectDocumentType(text: string): GdotDocumentType {
 	return 'unknown';
 }
 
-/** Extract plain text from a PDF (works in the Workers runtime via pdfjs-serverless). */
-export async function pdfToText(bytes: ArrayBuffer): Promise<string> {
+export interface PdfPositionedTextItem {
+	str: string;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+export interface PdfPositionedTextRow {
+	y: number;
+	text: string;
+	items: PdfPositionedTextItem[];
+}
+
+export interface PdfPositionedTextPage {
+	page_number: number;
+	text: string;
+	items: PdfPositionedTextItem[];
+	rows: PdfPositionedTextRow[];
+}
+
+function positionedItem(item: unknown): PdfPositionedTextItem | null {
+	if (!item || typeof item !== 'object' || !('str' in item)) return null;
+	const source = item as {
+		str?: unknown;
+		transform?: unknown;
+		width?: unknown;
+		height?: unknown;
+	};
+	const str = typeof source.str === 'string' ? source.str : '';
+	if (!str.trim()) return null;
+	const transform = Array.isArray(source.transform) ? source.transform : [];
+	const x = typeof transform[4] === 'number' ? transform[4] : 0;
+	const y = typeof transform[5] === 'number' ? transform[5] : 0;
+	const width = typeof source.width === 'number' ? source.width : 0;
+	const height = typeof source.height === 'number' ? source.height : 0;
+	return { str, x, y, width, height };
+}
+
+function groupTextRows(items: PdfPositionedTextItem[]): PdfPositionedTextRow[] {
+	const sorted = [...items].sort((a, b) => (Math.abs(b.y - a.y) > 2 ? b.y - a.y : a.x - b.x));
+	const rows: PdfPositionedTextRow[] = [];
+
+	for (const item of sorted) {
+		const row = rows.find((candidate) => Math.abs(candidate.y - item.y) <= 2);
+		if (row) {
+			row.items.push(item);
+			row.y = (row.y * (row.items.length - 1) + item.y) / row.items.length;
+		} else {
+			rows.push({ y: item.y, text: '', items: [item] });
+		}
+	}
+
+	return rows
+		.sort((a, b) => b.y - a.y)
+		.map((row) => {
+			const rowItems = [...row.items].sort((a, b) => a.x - b.x);
+			return {
+				...row,
+				items: rowItems,
+				text: rowItems.map((item) => item.str).join(' ').replace(/\s+/g, ' ').trim()
+			};
+		})
+		.filter((row) => row.text.length > 0);
+}
+
+/** Extract positioned text from a PDF while preserving page and row order. */
+export async function pdfToPositionedText(bytes: ArrayBuffer): Promise<PdfPositionedTextPage[]> {
 	const doc = await getDocument({
 		data: new Uint8Array(bytes),
 		useSystemFonts: true,
@@ -298,16 +368,29 @@ export async function pdfToText(bytes: ArrayBuffer): Promise<string> {
 		isEvalSupported: false
 	}).promise;
 
-	const pages: string[] = [];
+	const pages: PdfPositionedTextPage[] = [];
 	for (let i = 1; i <= doc.numPages; i++) {
 		const page = await doc.getPage(i);
 		const content = await page.getTextContent();
-		const text = content.items
-			.map((item: unknown) => (item && typeof item === 'object' && 'str' in item ? (item as { str: string }).str : ''))
-			.join(' ');
-		pages.push(text);
+		const items = content.items.flatMap((item: unknown) => {
+			const positioned = positionedItem(item);
+			return positioned ? [positioned] : [];
+		});
+		const rows = groupTextRows(items);
+		pages.push({
+			page_number: i,
+			text: rows.map((row) => row.text).join('\n'),
+			items,
+			rows
+		});
 	}
-	return pages.join('\n');
+	return pages;
+}
+
+/** Extract plain text from a PDF (works in the Workers runtime via pdfjs-serverless). */
+export async function pdfToText(bytes: ArrayBuffer): Promise<string> {
+	const pages = await pdfToPositionedText(bytes);
+	return pages.map((page) => page.text).join('\n\f\n');
 }
 
 function toNumber(raw: string | null | undefined): number | null {
@@ -502,7 +585,7 @@ function parseContractSummary(text: string, result: ParsedGdotJob): boolean {
 		firstMatch(text, /NET LENGTH OF PROJECT\s+([\d.]+)/i)
 			?? firstMatch(text, /GROSS LENGTH OF PROJECT\s+([\d.]+)/i)
 	);
-	if (lenMiles != null) result.total_length_ft = result.total_length_ft ?? lenMiles * FT_PER_MILE;
+	if (lenMiles != null) result.total_length_ft = result.total_length_ft ?? lenMiles * FT_PER_MILE();
 
 	result.bid_items = parseScheduleOfItems(text);
 	if (result.bid_items.length === 0) {
@@ -652,6 +735,10 @@ export function parseGdotDocuments(texts: string[]): ParsedGdotJob {
 		}
 		if (parseContractSummary(text, result)) matchedAny = true;
 		if (parseJobSetup(text, result)) matchedAny = true;
+		if (result.roadway_log_events.length === 0) {
+			const events = parseRoadwayLogEvents(text);
+			if (events.length > 0) result.roadway_log_events = events;
+		}
 	}
 
 	result.has_contract_summary = result.detected_documents.includes('contract_summary');
@@ -824,6 +911,7 @@ export interface ParsedGdotJobV2 {
 	num_lanes: number | null;
 	milling_depth_in: number | null;
 	spread_rate_lbs_sy: number | null;
+	roadway_log_events: ParsedRoadwayLogEvent[];
 	// Derived (no confidence needed — evidence-backed)
 	// Derived (no confidence needed — evidence-backed)
 	scopes: string[];
@@ -871,6 +959,7 @@ function emptyV2(): ParsedGdotJobV2 {
 		num_lanes: null,
 		milling_depth_in: null,
 		spread_rate_lbs_sy: null,
+		roadway_log_events: [],
 		scopes: [],
 		bid_items: [],
 		production_mixes: [],
@@ -1044,13 +1133,18 @@ export function parseGdotDocumentsV2(texts: string[]): ParsedGdotJobV2 {
 	const v1 = emptyResult();
 	let matchedAny = false;
 
-	for (const text of texts) {
+	for (let i = 0; i < texts.length; i++) {
+		const text = texts[i];
 		const docType = detectDocumentType(text);
 		if (docType !== 'unknown' && !v1.detected_documents.includes(docType)) {
 			v1.detected_documents.push(docType);
 		}
 		if (parseContractSummary(text, v1)) matchedAny = true;
 		if (parseJobSetup(text, v1)) matchedAny = true;
+		if (v1.roadway_log_events.length === 0) {
+			const events = parseRoadwayLogEvents(text, i);
+			if (events.length > 0) v1.roadway_log_events = events;
+		}
 	}
 
 	v1.has_contract_summary = v1.detected_documents.includes('contract_summary');
@@ -1094,6 +1188,7 @@ export function parseGdotDocumentsV2(texts: string[]): ParsedGdotJobV2 {
 	v2.has_contract_summary = v1.has_contract_summary;
 	v2.has_job_setup = v1.has_job_setup;
 	v2.scopes = v1.scopes;
+	v2.roadway_log_events = v1.roadway_log_events;
 	v2.warnings = [...v1.warnings];
 
 	// --- Pass 2: zone-based table parsers (upgrade to high confidence) ---
@@ -1152,6 +1247,7 @@ export function toV1(v2: ParsedGdotJobV2): ParsedGdotJob {
 		num_lanes: v2.num_lanes,
 		milling_depth_in: v2.milling_depth_in,
 		spread_rate_lbs_sy: v2.spread_rate_lbs_sy,
+		roadway_log_events: v2.roadway_log_events,
 		scopes: v2.scopes,
 		bid_items: v2.bid_items,
 		production_mixes: v2.production_mixes,

@@ -34,8 +34,15 @@
     mapStyle?: 'dark' | 'light' | string;
     /** Called once the map is fully loaded and ready */
     onready?: (map: MapLibreMap) => void;
-    /** Allow wheel/trackpad zoom while scrolling over the map */
-    scrollZoom?: boolean;
+    /**
+     * Wheel/trackpad zoom behavior:
+     * - 'cooperative': page scroll passes through; Ctrl/Cmd+wheel zooms the map.
+     * - true: wheel zooms immediately on hover.
+     * - false: wheel zoom is disabled.
+     */
+    scrollZoom?: boolean | 'cooperative';
+    /** Show built-in zoom buttons. */
+    navigationControl?: boolean;
     /** Two-way bindable map instance */
     map?: MapLibreMap | null;
     /** Slot for child layer components */
@@ -49,7 +56,8 @@
     height = '100%',
     mapStyle,
     onready,
-    scrollZoom = false,
+    scrollZoom = 'cooperative',
+    navigationControl = true,
     map = $bindable(null),
     layers,
   }: Props = $props();
@@ -92,7 +100,8 @@
         container,
         style: resolveStyle(mapStyle),
         zoom,
-        scrollZoom,
+        scrollZoom: scrollZoom !== false,
+        cooperativeGestures: scrollZoom === 'cooperative',
         attributionControl: {
           customAttribution: '<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a>',
         },
@@ -110,7 +119,12 @@
       }
 
       m = new maplibregl.Map(initOptions);
-      if (!scrollZoom) m.scrollZoom.disable();
+      if (navigationControl) {
+        m.addControl(
+          new maplibregl.NavigationControl({ showCompass: false, visualizePitch: false }),
+          'bottom-right'
+        );
+      }
 
       m.on('load', () => {
         mapInstance = m;

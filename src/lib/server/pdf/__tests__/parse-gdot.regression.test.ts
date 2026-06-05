@@ -462,6 +462,41 @@ describe('Roadway-Log spec extraction', () => {
 		expect(v1.spread_rate_lbs_sy).toBe(135);
 		expect(v1.lane_width_ft).toBe(12);
 	});
+
+	it('extracts roadway-log milepost events for map plotting', () => {
+		const text =
+			'10 P. I. NO: M006670 ECHOLS COUNTY (MILES) LOG ROADWAY WIDTH ' +
+			'0.000 BEGIN PROJECT 3580 FT+/- SOUTH OF CENTERLINE OF STRICKLAND RD AT THE GEORGIA/FLORIDA STATE LINE ' +
+			'BEGIN FULL WIDTH VARIABLE DEPTH MILLING (1 1/4 INCHES TYPICAL) BEGIN FULL WIDTH 135 POUNDS PER SQUARE YARD 9.5 MM RESURFACING ' +
+			'2-12 FT TRAVEL LANES 58 FT OF ASPH CONC PVMT (MP 0.000/ECHOLS CO.) 58 ' +
+			'.019 WIDTH CHANGE END 20 FT ASPHALT PAVED SHOULDER LEFT END 14 FT ASPHALT PAVED SHOULDER RIGHT 28 ' +
+			'0.047 END MILLING BEGIN FULL WIDTH CRACK RELIEF INTERLAYER CONTINUE FULL WIDTH 9.5 MM RESURFACING 28 ' +
+			'0.680 STRICKLAND ROAD, LEFT, UNPAVED ' +
+			'5.505 END PROJECT, 190 FT +/- SOUTH OF BAY BRANCH ROAD PROVIDE SMOOTH TIE-IN AND TRANSITION (MP 5.6/ECHOLS CO) 28 ' +
+			'5.540 BAY BRANCH ROAD RIGHT PAVED (REFERENCE ONLY) 217 11 P. I. NO: M006670 ECHOLS COUNTY DETAILED ESTIMATE';
+
+		const result = parseGdotDocuments([text]);
+		expect(result.roadway_log_events.map((e) => e.milepost)).toEqual([
+			0, 0.019, 0.047, 0.68, 5.505, 5.54
+		]);
+		expect(result.roadway_log_events[0].event_type).toBe('project_start');
+		expect(result.roadway_log_events[1].event_type).toBe('width_change');
+		expect(result.roadway_log_events[1].description.startsWith('.019')).toBe(false);
+		expect(result.roadway_log_events[3]).toMatchObject({
+			event_type: 'side_road',
+			side: 'left',
+			surface: 'unpaved'
+		});
+		expect(result.roadway_log_events[4]).toMatchObject({
+			event_type: 'project_end',
+			roadway_width_ft: 28
+		});
+		expect(result.roadway_log_events[5]).toMatchObject({
+			event_type: 'reference',
+			is_reference: true,
+			surface: 'paved'
+		});
+	});
 });
 
 describe('parseGdotDocumentsV2 - geographic field confidence', () => {

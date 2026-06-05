@@ -329,6 +329,7 @@
 			<LocationRoutePanel
 				jobSite={jobSiteState}
 				routeWaypoints={routeWaypointsState}
+				roadwayLogEvents={data.roadwayLogEvents}
 				{configForm}
 				numLanes={configForm.num_lanes}
 				laneWidthFt={configForm.lane_width_ft}
