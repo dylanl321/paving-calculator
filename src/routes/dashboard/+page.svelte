@@ -79,6 +79,23 @@
 	let createError = $state('');
 	let creating = $state(false);
 
+	// Quick-start: derive the best job to start today's log on.
+	const activeJobs = $derived(
+		data.jobSites.filter((s: any) => s.status?.toLowerCase() === 'active')
+	);
+	// Single active job → direct link. Multiple → dropdown. Zero active → fallback to most-recently-updated.
+	const quickStartJob = $derived(
+		activeJobs.length === 1
+			? activeJobs[0]
+			: activeJobs.length === 0
+				? [...data.jobSites].sort((a: any, b: any) => (b.updated_at ?? 0) - (a.updated_at ?? 0))[0] ?? null
+				: null // multiple active → use dropdown
+	);
+	let showQuickDropdown = $state(false);
+	function handleQuickDropdownKey(e: KeyboardEvent) {
+		if (e.key === 'Escape') showQuickDropdown = false;
+	}
+
 	const totalSites = $derived(data.jobSites.length);
 	const activeSites = $derived(
 		data.jobSites.filter((s: any) => s.status?.toLowerCase() === 'active').length
@@ -189,6 +206,65 @@
 			<button class="verify-resend" onclick={resendVerification} disabled={resendingVerification}>
 				{resendingVerification ? 'Sending…' : 'Resend email'}
 			</button>
+		</div>
+	{/if}
+
+	{#if data.jobSites.length > 0}
+		<div class="quick-start-bar">
+			<div class="quick-start-label">
+				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<circle cx="12" cy="12" r="10"></circle>
+					<polyline points="12 6 12 12 16 14"></polyline>
+				</svg>
+				<span>Start Today's Log</span>
+			</div>
+			{#if quickStartJob}
+				<a
+					href="/dashboard/job-sites/{quickStartJob.id}/log"
+					class="quick-start-btn"
+				>
+					{quickStartJob.name}
+					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<polyline points="9 18 15 12 9 6"></polyline>
+					</svg>
+				</a>
+			{:else if activeJobs.length > 1}
+				<div class="quick-start-dropdown-wrap">
+					<button
+						class="quick-start-btn"
+						onclick={() => (showQuickDropdown = !showQuickDropdown)}
+						onkeydown={handleQuickDropdownKey}
+						aria-haspopup="listbox"
+						aria-expanded={showQuickDropdown}
+					>
+						{activeJobs.length} active projects
+						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class:rotated={showQuickDropdown}>
+							<polyline points="6 9 12 15 18 9"></polyline>
+						</svg>
+					</button>
+					{#if showQuickDropdown}
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div class="quick-start-overlay" onclick={() => (showQuickDropdown = false)}></div>
+						<ul class="quick-start-menu" role="listbox" aria-label="Choose a project">
+							{#each activeJobs as job}
+								<li role="option" aria-selected="false">
+									<a
+										href="/dashboard/job-sites/{job.id}/log"
+										class="quick-start-menu-item"
+										onclick={() => (showQuickDropdown = false)}
+									>
+										<span class="menu-item-name">{job.name}</span>
+										{#if job.location_description}
+											<span class="menu-item-loc">{job.location_description}</span>
+										{/if}
+									</a>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
+			{/if}
 		</div>
 	{/if}
 
@@ -590,6 +666,116 @@
 		opacity: 0.6;
 		cursor: not-allowed;
 	}
+
+	/* ── Quick-start bar ─────────────────────────────────────── */
+	.quick-start-bar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-3);
+		flex-wrap: wrap;
+		margin-bottom: var(--sp-4);
+		padding: 14px var(--sp-4);
+		background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+		border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+		border-radius: var(--radius);
+	}
+
+	.quick-start-label {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.quick-start-label svg {
+		color: var(--accent);
+		flex-shrink: 0;
+	}
+
+	.quick-start-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 48px;
+		padding: 0 20px;
+		background: var(--accent);
+		color: var(--accent-text);
+		border: none;
+		border-radius: var(--radius);
+		font-size: 0.95rem;
+		font-weight: 700;
+		cursor: pointer;
+		text-decoration: none;
+		transition: opacity 0.2s;
+		white-space: nowrap;
+		max-width: min(100%, 320px);
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.quick-start-btn:hover {
+		opacity: 0.88;
+	}
+
+	.quick-start-dropdown-wrap {
+		position: relative;
+	}
+
+	.quick-start-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 10;
+	}
+
+	.quick-start-menu {
+		position: absolute;
+		right: 0;
+		top: calc(100% + 6px);
+		z-index: 20;
+		min-width: 260px;
+		max-width: 340px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+		padding: 6px 0;
+		list-style: none;
+		margin: 0;
+	}
+
+	.quick-start-menu-item {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 12px 16px;
+		text-decoration: none;
+		color: var(--text);
+		min-height: 48px;
+		justify-content: center;
+		transition: background 0.15s;
+	}
+
+	.quick-start-menu-item:hover {
+		background: var(--surface-hover);
+	}
+
+	.menu-item-name {
+		font-weight: 600;
+		font-size: 0.95rem;
+	}
+
+	.menu-item-loc {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+	}
+
+	svg.rotated {
+		transform: rotate(180deg);
+	}
+
+	/* ─────────────────────────────────────────────────────────── */
 
 	.dashboard-grid {
 		display: flex;
