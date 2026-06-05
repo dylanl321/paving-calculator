@@ -8,7 +8,7 @@
 	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import type { PageData } from './$types';
-	import { formatDate } from '$lib/utils/format';
+	import { formatDate, formatRelativeTime } from '$lib/utils/format';
 	import ViewSwitcher from '$lib/components/ViewSwitcher.svelte';
 	import JobSiteCompletenessBar from '$lib/components/JobSiteCompletenessBar.svelte';
 
@@ -28,7 +28,7 @@
 	// svelte-ignore state_referenced_locally
 	let emailVerified = $state((data.user as DashboardUser)?.email_verified ?? true);
 	let resendingVerification = $state(false);
-	let sortBy = $state<'name' | 'status' | 'completeness'>('name');
+	let sortBy = $state<'name' | 'status' | 'completeness' | 'last_activity'>('name');
 
 	const VERIFY_ERROR_MESSAGES: Record<string, string> = {
 		missing_token: 'That verification link was missing its token. Try resending the email.',
@@ -125,6 +125,13 @@
 				const scoreA = a.completeness_score ?? 999;
 				const scoreB = b.completeness_score ?? 999;
 				return scoreA - scoreB;
+			});
+		} else if (sortBy === 'last_activity') {
+			// Most recent daily log first; sites with no logs go to the bottom.
+			return sites.sort((a: any, b: any) => {
+				const tsA = a.last_activity ?? 0;
+				const tsB = b.last_activity ?? 0;
+				return tsB - tsA;
 			});
 		}
 		return sites;
@@ -393,6 +400,7 @@
 						<option value="name">Name</option>
 						<option value="status">Status</option>
 						<option value="completeness">Completeness</option>
+						<option value="last_activity">Last Activity</option>
 					</select>
 				</div>
 				{#if !showCreateForm}
@@ -547,7 +555,16 @@
 									{site.calculation_count} calculation{site.calculation_count === 1 ? '' : 's'}
 								</div>
 							{/if}
-						</div>
+							{#if site.last_activity != null && sortBy === 'last_activity'}
+								<div class="last-activity-badge">
+									<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<circle cx="12" cy="12" r="10"></circle>
+										<polyline points="12 6 12 12 16 14"></polyline>
+									</svg>
+									{formatRelativeTime(site.last_activity)}
+								</div>
+							{/if}
+							</div>
 						{#if site.completeness_score != null}
 							<div class="card-completeness">
 								<JobSiteCompletenessBar
@@ -571,7 +588,7 @@
 					<div class="table-cell th-tons">Tons Today</div>
 					<div class="table-cell th-calcs">Calcs</div>
 					<div class="table-cell th-setup">Setup</div>
-					<div class="table-cell th-date">Created</div>
+					<div class="table-cell th-date">{sortBy === 'last_activity' ? 'Last Active' : 'Created'}</div>
 				</div>
 				{#each sortedJobSites as site}
 					<a href="/dashboard/job-sites/{site.id}" class="sites-table-row">
@@ -609,7 +626,13 @@
 								—
 							{/if}
 						</div>
-						<div class="table-cell td-date">{formatDate(site.created_at)}</div>
+						<div class="table-cell td-date">
+							{#if sortBy === 'last_activity'}
+								{site.last_activity != null ? formatRelativeTime(site.last_activity) : '—'}
+							{:else}
+								{formatDate(site.created_at)}
+							{/if}
+						</div>
 					</a>
 				{/each}
 			</div>
@@ -1310,6 +1333,15 @@
 		margin-top: 10px;
 		padding-top: 10px;
 		border-top: 1px solid var(--border);
+	}
+
+	.last-activity-badge {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		white-space: nowrap;
 	}
 
 	.header-controls {
