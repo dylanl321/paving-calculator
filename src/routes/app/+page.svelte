@@ -4,11 +4,10 @@
 	import type { PageData } from './$types';
 	import { config } from '$lib/config';
 	import { calcContext } from '$lib/stores/calcContext.svelte';
-	import { spreadRateFromThickness, stickCheck } from '$lib/config/formulas';
+	import { spreadRateFromThickness } from '$lib/config/formulas';
 	import { findTool, allTools, toolGroups } from '$lib/workspace/tools';
 	import JobBar from '$lib/components/workspace/JobBar.svelte';
 	import ToolList from '$lib/components/workspace/ToolList.svelte';
-	import SpreadRateChart from '$lib/components/charts/SpreadRateChart.svelte';
 	import UnitToggle from '$lib/components/UnitToggle.svelte';
 	import HomePrimaryCalcs from '$lib/components/workspace/HomePrimaryCalcs.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
@@ -58,7 +57,6 @@
 	const targetRate = $derived(
 		thicknessIn > 0 ? Math.round(spreadRateFromThickness(thicknessIn)) : 0
 	);
-	const looseHeight = $derived(thicknessIn > 0 ? stickCheck(thicknessIn) : 0);
 
 	// Mobile swipe state
 	let swipeOffset = $state(0);
@@ -383,28 +381,6 @@
 				</div>
 			</section>
 
-			<aside class="rates" aria-label="Calculation assumptions">
-				<div class="rates-header">
-					<div class="eyebrow">Calculation Assumptions</div>
-				</div>
-				<div class="rate-stats">
-					<div class="rate-stat">
-						<span class="rv">{targetRate}</span>
-						<span class="ru">lbs/SY</span>
-						<span class="rl">Target spread</span>
-					</div>
-					<div class="rate-stat">
-						<span class="rv">{looseHeight.toFixed(2)}</span>
-						<span class="ru">in</span>
-						<span class="rl">Loose mat height</span>
-					</div>
-				</div>
-
-				<div class="chart-block">
-					<div class="eyebrow">Spread Rate Curve</div>
-					<SpreadRateChart {targetRate} />
-				</div>
-			</aside>
 		{:else}
 			<section class="stage" use:swipeNav style="transform: translateX({swipeOffset}px);">
 				{#if showHints && canGoPrev()}
@@ -451,28 +427,6 @@
 				</div>
 			</section>
 
-			<aside class="rates" aria-label="Calculation assumptions">
-				<div class="rates-header">
-					<div class="eyebrow">Calculation Assumptions</div>
-				</div>
-				<div class="rate-stats">
-					<div class="rate-stat">
-						<span class="rv">{targetRate}</span>
-						<span class="ru">lbs/SY</span>
-						<span class="rl">Target spread</span>
-					</div>
-					<div class="rate-stat">
-						<span class="rv">{looseHeight.toFixed(2)}</span>
-						<span class="ru">in</span>
-						<span class="rl">Loose mat height</span>
-					</div>
-				</div>
-
-				<div class="chart-block">
-					<div class="eyebrow">Spread Rate Curve</div>
-					<SpreadRateChart {targetRate} />
-				</div>
-			</aside>
 		{/if}
 	</div>
 </div>
@@ -681,12 +635,8 @@
 			display: none;
 		}
 	}
-	.rates {
-		order: 2;
-	}
-
 	/* Mobile: tool picker sits at the top as a horizontal chip menu (see ToolList),
-	   then the active calculator, then live rates below. */
+	   then the active calculator. */
 	@media (max-width: 899px) {
 		.project-context {
 			align-items: stretch;
@@ -710,10 +660,6 @@
 	}
 
 	.tools-header {
-		display: none;
-	}
-
-	.rates-header {
 		display: none;
 	}
 
@@ -822,51 +768,14 @@
 		}
 	}
 
-	.rate-stats {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: var(--sp-2);
-		margin-top: var(--sp-2);
-	}
-	.rate-stat {
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		padding: var(--sp-3);
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-	.rv {
-		font-size: var(--fs-xl);
-		font-weight: var(--fw-heavy);
-		color: var(--accent);
-		line-height: 1;
-	}
-	.ru {
-		font-size: var(--fs-xs);
-		color: var(--text-muted);
-	}
-	.rl {
-		font-size: var(--fs-xs);
-		color: var(--text-muted);
-		margin-top: 2px;
-	}
-	.chart-block {
-		margin-top: var(--sp-4);
-	}
-	.chart-block .eyebrow {
-		display: block;
-		margin-bottom: var(--sp-2);
-	}
-
-	/* Desktop: three columns — tool list | stage | live rates */
+	/* Desktop: tool list | stage */
 	@media (min-width: 1320px) {
 		.panes {
 			display: grid;
-			grid-template-columns: var(--toollist-w) 1fr var(--context-w);
+			grid-template-columns: var(--toollist-w) minmax(0, 900px);
 			gap: var(--sp-6);
 			align-items: start;
+			justify-content: center;
 		}
 		.tools {
 			order: 0;
@@ -880,7 +789,6 @@
 		.stage {
 			order: 1;
 			min-width: 0;
-			max-width: 720px;
 		}
 		.stage-head {
 			position: sticky;
@@ -889,20 +797,9 @@
 			z-index: 2;
 			padding-bottom: var(--sp-3);
 		}
-		.rates {
-			order: 2;
-			position: sticky;
-			top: var(--sp-4);
-		}
-		.rates-header {
-			display: block;
-			padding-bottom: var(--sp-3);
-			margin-bottom: var(--sp-3);
-			border-bottom: 1px solid var(--border);
-		}
 	}
 
-	/* Tablet: tool list + stage; rates fold under the stage */
+	/* Tablet: tool list + stage */
 	@media (min-width: 900px) and (max-width: 1319px) {
 		.panes {
 			display: grid;
@@ -918,10 +815,6 @@
 		.stage {
 			order: 1;
 			min-width: 0;
-		}
-		.rates {
-			order: 2;
-			grid-column: 1 / -1;
 		}
 	}
 </style>
