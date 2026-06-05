@@ -75,14 +75,13 @@ describe('NumberField', () => {
 			expect(input.step).toBe('0.5');
 		});
 
-		it('step attribute is absent when step prop is not provided', () => {
+		it('step defaults to 1 when step prop is not provided', () => {
 			const { getByLabelText } = render(NumberField, {
 				props: { label: 'Amount', value: 5 }
 			});
 			const input = getByLabelText('Amount') as HTMLInputElement;
-			// step defaults to "any" or empty when not set by svelte
-			// We only verify the prop was not explicitly set to something odd
-			expect(input.step === '' || input.step === 'any' || !input.hasAttribute('step')).toBe(true);
+			// NumberField defaults step=1 to power the +/- stepper buttons
+			expect(input.step).toBe('1');
 		});
 	});
 
