@@ -56,6 +56,33 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 
 	const entry = await logDb.createLogEntry(params.logId, body);
 
+	// Auto-mark overlapping road sections as completed when a paving entry has station data
+	let sectionsUpdated = 0;
+	if (
+		entry.entry_type === 'paving' &&
+		entry.station_start != null &&
+		entry.station_end != null
+	) {
+		const stationMin = Math.min(entry.station_start, entry.station_end);
+		const stationMax = Math.max(entry.station_start, entry.station_end);
+
+		// Overlap: section overlaps entry when section.station_start < entryMax AND section.station_end > entryMin
+		const result = await platform!.env.DB.prepare(
+			`UPDATE road_sections
+			 SET status = 'completed', updated_at = unixepoch()
+			 WHERE job_site_id = ?
+			   AND status = 'active'
+			   AND station_start IS NOT NULL
+			   AND station_end IS NOT NULL
+			   AND station_start < ?
+			   AND station_end > ?`
+		)
+			.bind(log.job_site_id, stationMax, stationMin)
+			.run();
+
+		sectionsUpdated = result.meta?.changes ?? 0;
+	}
+
 	await recordAudit(platform!.env.DB, {
 		actorUserId: locals.user.id,
 		actorName: locals.user.name,
@@ -66,5 +93,5 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 		newValue: body
 	});
 
-	return json({ entry }, { status: 201 });
+	return json({ entry, sectionsUpdated }, { status: 201 });
 };
