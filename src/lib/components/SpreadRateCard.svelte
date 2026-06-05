@@ -21,6 +21,7 @@
 	import { logDraft } from '$lib/stores/logDraft.svelte';
 	import { calcHistory } from '$lib/stores/calcHistory.svelte';
 	import { onDestroy } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { unitsStore } from '$lib/stores/units.svelte';
 	import {
 		UNIT_LABELS,
@@ -143,6 +144,26 @@
 	const multMeta = constantMeta('CONST.THICK_MULT');
 	const placement = $derived(placementCheck(weather.effectiveTempF, calcContext.lift_thickness.value));
 	const rain = $derived(rainCheck(weather.rainNext24hIn));
+
+	/** Weather-aware Table 4 cross-link warning — only shown when air temp is strictly below minimum. */
+	const weatherWarning = $derived.by(() => {
+		// No warning when offline (no weather data)
+		if (weather.effectiveTempF == null) return null;
+		// No warning if no lift thickness set
+		if (calcContext.lift_thickness.value <= 0) return null;
+		// Only warn on fail (strictly below minimum, not just borderline)
+		if (placement?.status !== 'fail') return null;
+		const currentTemp = weather.effectiveTempF;
+		const minTemp = placement.minTempF;
+		const thickness = calcContext.lift_thickness.value;
+		const deficit = minTemp - currentTemp;
+		return {
+			message: `Current ${currentTemp}\u00b0F \u2014 ${deficit}\u00b0F below Table\u00a04 min ${minTemp}\u00b0F for ${thickness}" lift`,
+			clause: '\u00a7400.3.05.E Table\u00a04',
+			clauseTitle: 'HMA Lift Thickness \u2014 Weather Limitations',
+			guidance: 'Tap to check paving window conditions.'
+		};
+	});
 
 	const targetBadge = $derived.by(() => {
 		if (rain?.status === 'fail') {
@@ -386,6 +407,30 @@
 			</p>
 		</div>
 	</div>
+
+	{#if weatherWarning}
+		<button
+			type="button"
+			class="weather-warning-btn"
+			onclick={() => goto('?tool=paving-window')}
+			aria-label="View paving window — temperature below Table 4 minimum"
+		>
+			<div class="weather-warning-inner">
+				<svg class="weather-warning-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+					<path d="M8 1L15 14H1L8 1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+					<path d="M8 6V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+					<circle cx="8" cy="11.5" r="0.75" fill="currentColor"/>
+				</svg>
+				<div class="weather-warning-body">
+					<div class="weather-warning-message">{weatherWarning.message}</div>
+					<div class="weather-warning-sub">{weatherWarning.guidance} <span class="weather-warning-clause" title={weatherWarning.clauseTitle}>{weatherWarning.clause}</span></div>
+				</div>
+				<svg class="weather-warning-arrow" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+					<path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+				</svg>
+			</div>
+		</button>
+	{/if}
 
 	{#if placedRate != null && targetRate != null}
 		<SpreadRateGauge actual={placedRate} target={targetRate} toleranceLbsSy={tolerance.toleranceLbsSy} />
@@ -693,5 +738,78 @@
 		.two-up {
 			grid-template-columns: 1fr;
 		}
+	}
+	.weather-warning-btn {
+		display: block;
+		width: 100%;
+		padding: 0;
+		background: none;
+		border: none;
+		cursor: pointer;
+		text-align: left;
+		margin: var(--sp-3) 0 0;
+		border-radius: var(--radius-sm);
+	}
+	.weather-warning-btn:focus-visible {
+		outline: 2px solid var(--bad);
+		outline-offset: 2px;
+	}
+	.weather-warning-inner {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--sp-3);
+		padding: var(--sp-3) var(--sp-4);
+		background: color-mix(in srgb, var(--bad) 14%, transparent);
+		border: 1px solid color-mix(in srgb, var(--bad) 40%, transparent);
+		border-left: var(--sp-1) solid var(--bad);
+		border-radius: var(--radius-sm);
+		color: var(--bad);
+		transition: background 0.15s ease;
+		min-height: var(--touch);
+	}
+	.weather-warning-btn:hover .weather-warning-inner {
+		background: color-mix(in srgb, var(--bad) 22%, transparent);
+	}
+	.weather-warning-btn:active .weather-warning-inner {
+		background: color-mix(in srgb, var(--bad) 28%, transparent);
+	}
+	.weather-warning-icon {
+		flex-shrink: 0;
+		margin-top: 2px;
+	}
+	.weather-warning-body {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: var(--sp-1);
+	}
+	.weather-warning-message {
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
+		line-height: 1.4;
+	}
+	.weather-warning-sub {
+		font-size: var(--fs-xs);
+		opacity: 0.85;
+		line-height: 1.3;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--sp-2);
+	}
+	.weather-warning-clause {
+		display: inline-block;
+		padding: 1px var(--sp-2);
+		background: color-mix(in srgb, var(--surface) 70%, var(--bad) 10%);
+		border-radius: var(--radius-sm);
+		font-size: var(--fs-2xs);
+		font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+		font-weight: var(--fw-semibold);
+		cursor: help;
+	}
+	.weather-warning-arrow {
+		flex-shrink: 0;
+		margin-top: 2px;
+		opacity: 0.7;
 	}
 </style>
