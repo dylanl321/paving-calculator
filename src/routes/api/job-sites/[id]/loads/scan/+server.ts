@@ -2,17 +2,17 @@ import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbPhotoHelper } from '$lib/server/db-photos';
 import { requireAuth } from '$lib/server/auth';
+import { extractTicketData, type WorkersAi, type TicketExtraction } from '$lib/server/ai/ticket-ocr';
 
 /**
  * POST /api/job-sites/:id/loads/scan
  *
  * Accepts a truck ticket photo (multipart/form-data, field: 'photo').
  * Stores the image in R2 via the photo_attachments system and returns
- * { photo_id, ocr_fields: null }.
+ * { photo_id, photo, ocr_fields }.
  *
- * ocr_fields is null in this stub. Future: integrate Cloudflare AI Vision
- * or a third-party OCR service to extract ticket_number, tons, truck_id,
- * mix_type, load_time automatically.
+ * If Workers AI is available, attempts to extract structured data from
+ * the ticket photo. Returns null ocr_fields if AI unavailable or fails.
  */
 export async function POST(event: RequestEvent) {
 	try {
@@ -61,11 +61,23 @@ export async function POST(event: RequestEvent) {
 			uploaded_by: user.id
 		});
 
+		// Try OCR if Workers AI is available
+		let ocrFields: TicketExtraction | null = null;
+		if (event.platform?.env.AI) {
+			try {
+				ocrFields = await extractTicketData(
+					event.platform.env.AI as WorkersAi,
+					arrayBuffer
+				);
+			} catch (err) {
+				console.warn('Ticket OCR failed:', err);
+			}
+		}
+
 		return json({
 			photo_id: photo.id,
 			photo,
-			// Placeholder for future OCR extraction
-			ocr_fields: null
+			ocr_fields: ocrFields
 		});
 	} catch (err) {
 		if (err instanceof Response) throw err;
