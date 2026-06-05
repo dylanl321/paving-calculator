@@ -3,6 +3,7 @@ import { DbHelper } from '$lib/server/db';
 import { DbLogHelper } from '$lib/server/db-logs';
 import { recordAudit } from '$lib/server/audit';
 import { deliverWebhook } from '$lib/server/webhooks';
+import { fetchWeatherSnapshot } from '$lib/server/weather-snapshot';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, locals, platform, url }) => {
@@ -57,6 +58,23 @@ export const POST: RequestHandler = async ({ params, locals, platform }) => {
 	}
 
 	const log = await logDb.createDailyLog(params.id, today, locals.user.id);
+
+	// Auto-fetch weather snapshot if job site has coordinates.
+	// Fire-and-forget (await but swallow errors) so offline doesn't block creation.
+	if (jobSite.latitude != null && jobSite.longitude != null) {
+		try {
+			const snap = await fetchWeatherSnapshot(jobSite.latitude, jobSite.longitude);
+			await logDb.updateDailyLog(log.id, snap);
+			// Reflect the fetched weather on the returned log object
+			log.weather_temp_f = snap.weather_temp_f;
+			log.weather_conditions = snap.weather_conditions;
+			log.wind_speed_mph = snap.wind_speed_mph;
+			log.is_raining = snap.is_raining;
+			log.weather_fetched_at = snap.weather_fetched_at;
+		} catch {
+			// Offline or API unavailable — log is still created, weather stays null
+		}
+	}
 
 	await recordAudit(platform!.env.DB, {
 		actorUserId: locals.user.id,
