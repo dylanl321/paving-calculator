@@ -6,6 +6,7 @@
 	import ETACalculator from '$lib/components/ETACalculator.svelte';
 	import SchematicViewer from '$lib/components/SchematicViewer.svelte';
 	import DataSourceBadge from '$lib/components/DataSourceBadge.svelte';
+	import NearbyGdotProjects from '$lib/components/NearbyGdotProjects.svelte';
 	import { spreadToleranceFor } from '$lib/config';
 	import { job } from '$lib/stores/job.svelte';
 	import { fmt, fmtDollars, type ConfigForm } from './shared';
@@ -862,6 +863,10 @@
 		</button>
 	{/if}
 </section>
+
+{#if data.jobSite.gdot_county}
+	<NearbyGdotProjects county={data.jobSite.gdot_county} />
+{/if}
 
 <LoadTracker jobSiteId={data.jobSite.id} isAuthenticated={!!data.user} numLanes={data.config?.num_lanes} targetTonnage={configForm.total_tonnage || estTonnage || null} />
 
