@@ -501,7 +501,7 @@ export async function runAiProjectExtraction(
 		}
 		if (!extraction) {
 			const schemaShape = describeAiResponse(raw);
-			console.warn(
+			console.log(
 				JSON.stringify({
 					event: 'pdf_ai_extraction_no_json',
 					model,
@@ -532,7 +532,7 @@ export async function runAiProjectExtraction(
 			reason: applied ? 'applied' : 'no-usable-evidence'
 		};
 	} catch (err) {
-		console.warn(
+		console.log(
 			JSON.stringify({
 				event: 'pdf_ai_extraction_error',
 				model,
