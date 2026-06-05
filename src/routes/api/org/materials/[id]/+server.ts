@@ -8,16 +8,25 @@ import { materials as builtinMaterials } from '$lib/config';
 const VALID_CATEGORIES = ['aggregate', 'asphalt', 'soil', 'concrete', 'other'] as const;
 type Category = (typeof VALID_CATEGORIES)[number];
 
+const VALID_MATERIAL_TYPES = ['emulsion', 'cutback', 'trackless'] as const;
+type MaterialType = (typeof VALID_MATERIAL_TYPES)[number];
+
 const NAME_MAX = 100;
 const DENSITY_MIN = 0.1;
 const DENSITY_MAX = 5.0;
+const RESIDUAL_RATE_MIN = 0.01;
+const RESIDUAL_RATE_MAX = 0.25;
 
 function isValidCategory(v: unknown): v is Category {
 	return typeof v === 'string' && VALID_CATEGORIES.includes(v as Category);
 }
 
+function isValidMaterialType(v: unknown): v is MaterialType {
+	return typeof v === 'string' && VALID_MATERIAL_TYPES.includes(v as MaterialType);
+}
+
 function validateMaterialInput(body: Record<string, unknown>): string | null {
-	const { name, category, density_tons_per_yd3 } = body;
+	const { name, category, density_tons_per_yd3, material_type, residual_rate_gal_sy } = body;
 
 	if (name !== undefined) {
 		if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -36,6 +45,19 @@ function validateMaterialInput(body: Record<string, unknown>): string | null {
 		const v = Number(density_tons_per_yd3);
 		if (isNaN(v) || v < DENSITY_MIN || v > DENSITY_MAX) {
 			return `density_tons_per_yd3 must be between ${DENSITY_MIN} and ${DENSITY_MAX}`;
+		}
+	}
+
+	if (material_type !== null && material_type !== undefined) {
+		if (!isValidMaterialType(material_type)) {
+			return `material_type must be one of: ${VALID_MATERIAL_TYPES.join(', ')}, or null`;
+		}
+	}
+
+	if (residual_rate_gal_sy !== null && residual_rate_gal_sy !== undefined) {
+		const v = Number(residual_rate_gal_sy);
+		if (isNaN(v) || v < RESIDUAL_RATE_MIN || v > RESIDUAL_RATE_MAX) {
+			return `residual_rate_gal_sy must be between ${RESIDUAL_RATE_MIN} and ${RESIDUAL_RATE_MAX}`;
 		}
 	}
 
@@ -93,6 +115,11 @@ export async function PUT(event: RequestEvent) {
 				input.supplier = body.supplier != null ? String(body.supplier) : null;
 			if (body.notes !== undefined)
 				input.notes = body.notes != null ? String(body.notes) : null;
+			if (body.material_type !== undefined)
+				input.material_type = body.material_type != null ? String(body.material_type) : null;
+			if (body.residual_rate_gal_sy !== undefined)
+				input.residual_rate_gal_sy =
+					body.residual_rate_gal_sy != null ? Number(body.residual_rate_gal_sy) : null;
 			if (body.sort_order !== undefined) input.sort_order = Number(body.sort_order);
 
 			// For upsert, if creating new, we need name + category
@@ -118,6 +145,11 @@ export async function PUT(event: RequestEvent) {
 				input.supplier = body.supplier != null ? String(body.supplier) : null;
 			if (body.notes !== undefined)
 				input.notes = body.notes != null ? String(body.notes) : null;
+			if (body.material_type !== undefined)
+				input.material_type = body.material_type != null ? String(body.material_type) : null;
+			if (body.residual_rate_gal_sy !== undefined)
+				input.residual_rate_gal_sy =
+					body.residual_rate_gal_sy != null ? Number(body.residual_rate_gal_sy) : null;
 			if (body.sort_order !== undefined) input.sort_order = Number(body.sort_order);
 
 			material = await materialsDb.updateOrgMaterial(id, org.id, input);
