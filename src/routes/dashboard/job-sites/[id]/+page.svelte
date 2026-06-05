@@ -20,7 +20,7 @@
 	import WorkZonesTab from './_components/WorkZonesTab.svelte';
 	import ScheduleTab from './_components/ScheduleTab.svelte';
 	import ActivityTab from './_components/ActivityTab.svelte';
-	import { haversineFeet } from '$lib/services/mapUtils';
+	import { haversineFeet, polylineLengthFt } from '$lib/services/mapUtils';
 	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
 	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { fmt, fmtDollars } from './_components/shared';
@@ -30,6 +30,9 @@
 	let activeTab = $state('overview');
 	let jobSiteState = $state({ ...data.jobSite });
 	let routeWaypointsState = $state([...data.routeWaypoints]);
+	let lengthSource = $state<'route' | 'manual'>(
+		data.routeWaypoints?.length >= 2 && !data.config?.total_length_ft ? 'route' : 'manual'
+	);
 
 	// Intentional one-time snapshot of loaded data for an editable form; should
 	// NOT re-derive from `data` on every change.
@@ -82,6 +85,21 @@
 	$effect(() => {
 		calcContext.seedFromJobSite(data.config);
 	});
+
+	$effect(() => {
+		const wps = routeWaypointsState;
+		if (wps && wps.length >= 2 && (lengthSource === 'route' || !configForm.total_length_ft)) {
+			const ft = polylineLengthFt(wps);
+			if (ft > 0) {
+				configForm.total_length_ft = Math.round(ft);
+				lengthSource = 'route';
+			}
+		}
+	});
+
+	function handleLengthManualEdit() {
+		lengthSource = 'manual';
+	}
 
 	function handleNewCalculation() {
 		goto(`/?job_site_id=${jobSiteState.id}`);
@@ -322,6 +340,7 @@
 			{roadTypeLabel}
 			{scopeLabel}
 			{tackLabel}
+			{lengthSource}
 			onGoToTab={(tab) => (activeTab = tab)}
 		/>
 	{:else if activeTab === 'location'}
@@ -342,7 +361,14 @@
 			/>
 		</section>
 	{:else if activeTab === 'configuration'}
-		<ConfigurationTab jobSiteId={jobSiteState.id} bind:configForm {estTonnage} lat={jobSiteState.latitude} lng={jobSiteState.longitude} />
+		<ConfigurationTab
+			jobSiteId={jobSiteState.id}
+			bind:configForm
+			{estTonnage}
+			lat={jobSiteState.latitude}
+			lng={jobSiteState.longitude}
+			onLengthManualEdit={handleLengthManualEdit}
+		/>
 	{:else if activeTab === 'verification'}
 		<VerificationTab jobSiteId={jobSiteState.id} {configForm} onGoToTab={(tab) => (activeTab = tab)} />
 	{:else if activeTab === 'equipment'}
