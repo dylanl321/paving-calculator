@@ -143,6 +143,26 @@
 				</ul>
 			{/if}
 		</section>
+
+		<section class="panel">
+			<div class="panel-head">
+				<h2>Document Feedback</h2>
+				<span class="panel-hint">What users uploaded that we don't support yet</span>
+			</div>
+			{#if data.docFeedbackGroups.length === 0}
+				<p class="empty">No document feedback submitted yet.</p>
+			{:else}
+				<ul class="activity-list">
+					{#each data.docFeedbackGroups as fb}
+						<li>
+							<span class="activity-main">{fb.user_corrected_type}</span>
+							<span class="activity-sub">{fb.count} submission{fb.count === 1 ? '' : 's'}</span>
+							<span class="activity-meta">{formatDate(fb.last_seen)}</span>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
 	</div>
 </div>
 
@@ -228,6 +248,11 @@
 
 	.panel-head a:hover {
 		text-decoration: underline;
+	}
+
+	.panel-hint {
+		font-size: 0.8rem;
+		color: var(--text-muted);
 	}
 
 	.activity-list {

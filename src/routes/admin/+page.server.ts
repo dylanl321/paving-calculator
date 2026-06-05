@@ -12,19 +12,38 @@ export const load: PageServerLoad = async (event) => {
 
 	const db = new DbHelper(event.platform!.env.DB);
 
-	const [stats, recentUsers, recentOrgs, needingAttention, recentFailedEmails] = await Promise.all([
-		db.getAdminStats(),
-		db.getRecentUsers(6),
-		db.getRecentOrganizations(6),
-		db.getOrgsNeedingAttention(),
-		db.getEmailLog({ failedOnly: true, limit: 8 }).then((r) => r.rows).catch(() => [])
-	]);
+	// Query document_feedback grouped by user_corrected_type for the admin view.
+	const docFeedbackPromise = event.platform!.env.DB
+		.prepare(
+			`SELECT
+				user_corrected_type,
+				COUNT(*) as count,
+				MAX(uploaded_at) as last_seen
+			FROM document_feedback
+			GROUP BY user_corrected_type
+			ORDER BY count DESC
+			LIMIT 20`
+		)
+		.all<{ user_corrected_type: string; count: number; last_seen: number }>()
+		.then((r) => r.results ?? [])
+		.catch(() => []);
+
+	const [stats, recentUsers, recentOrgs, needingAttention, recentFailedEmails, docFeedbackGroups] =
+		await Promise.all([
+			db.getAdminStats(),
+			db.getRecentUsers(6),
+			db.getRecentOrganizations(6),
+			db.getOrgsNeedingAttention(),
+			db.getEmailLog({ failedOnly: true, limit: 8 }).then((r) => r.rows).catch(() => []),
+			docFeedbackPromise
+		]);
 
 	return {
 		stats,
 		recentUsers: recentUsers.map(({ password_hash, ...u }) => u),
 		recentOrgs,
 		needingAttention,
-		recentFailedEmails
+		recentFailedEmails,
+		docFeedbackGroups
 	};
 };

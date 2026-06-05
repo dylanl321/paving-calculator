@@ -3,6 +3,7 @@
 	import { browser } from '$app/environment';
 	import { config } from '$lib/config';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import DocumentFeedback from '$lib/components/DocumentFeedback.svelte';
 	import {
 		PROJECT_FIELDS,
 		LOCATION_FIELDS,
@@ -179,6 +180,17 @@
 		ai_used: boolean;
 		message?: string;
 	} | null>(null);
+	/** Structured parsing report with field-level detail and suggestions. */
+	let parsingReport = $state<{
+		detected_type: string | null;
+		confidence: number;
+		extractable_fields: string[];
+		missing_fields: string[];
+		suggestions: string[];
+		is_supported: boolean;
+	} | null>(null);
+	/** Filename of the primary uploaded document (for feedback submission). */
+	let primaryFilename = $state('');
 
 	function handleDrop(e: DragEvent) {
 		e.preventDefault();
@@ -240,6 +252,14 @@
 					file_index: number;
 					sections: Array<{ type: string; pages: number[]; startPage: number; endPage: number; confidence: number; }>;
 				}>;
+				parsing_report?: {
+					detected_type: string | null;
+					confidence: number;
+					extractable_fields: string[];
+					missing_fields: string[];
+					suggestions: string[];
+					is_supported: boolean;
+				};
 				error?: string;
 			};
 
@@ -272,6 +292,8 @@
 			}
 			correctedFields = new Set();
 			confirmedFields = new Set();
+			parsingReport = data.parsing_report ?? null;
+			primaryFilename = files[0]?.name ?? '';
 			step = 'review';
 		} catch {
 			parseError = 'Network error — check your connection';
@@ -763,6 +785,13 @@
 				{@render reportContent()}
 			</div>
 		</details>
+		{/if}
+
+		{#if parsingReport}
+			<DocumentFeedback
+				report={parsingReport}
+				filename={primaryFilename}
+			/>
 		{/if}
 
 		<div class="doc-status">
