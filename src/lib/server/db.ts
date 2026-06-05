@@ -165,6 +165,7 @@ export class DbHelper {
 	upsertDotSegment(...args: Parameters<DbLogHelper['upsertDotSegment']>) { return this.logs.upsertDotSegment(...args); }
 	logDotSync(...args: Parameters<DbLogHelper['logDotSync']>) { return this.logs.logDotSync(...args); }
 	getLastDotSync(...args: Parameters<DbLogHelper['getLastDotSync']>) { return this.logs.getLastDotSync(...args); }
+	getDotSegmentsByBbox(...args: Parameters<DbLogHelper['getDotSegmentsByBbox']>) { return this.logs.getDotSegmentsByBbox(...args); }
 	upsertGdotConstructionProject(...args: Parameters<DbLogHelper['upsertGdotConstructionProject']>) { return this.logs.upsertGdotConstructionProject(...args); }
 	getGdotConstructionProjectsByCounty(...args: Parameters<DbLogHelper['getGdotConstructionProjectsByCounty']>) { return this.logs.getGdotConstructionProjectsByCounty(...args); }
 	getGdotConstructionProjects(...args: Parameters<DbLogHelper['getGdotConstructionProjects']>) { return this.logs.getGdotConstructionProjects(...args); }
