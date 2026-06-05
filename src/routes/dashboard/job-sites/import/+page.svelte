@@ -122,7 +122,7 @@
 	}
 
 	interface RoutePreview {
-		source: 'gdot_route' | 'osm_termini_route' | 'geocode' | 'county_centroid' | 'manual' | 'none';
+		source: 'gdot_route' | 'osm_termini_route' | 'osm_overpass' | 'geocode' | 'county_centroid' | 'manual' | 'none';
 		latitude: number | null;
 		longitude: number | null;
 		waypoints: Array<{ lat: number; lng: number }>;
@@ -388,13 +388,14 @@
 		return 'Roadway log markers will stay list-only until the route is confirmed';
 	}
 
-	function routeSourceLabel(source: RoutePreview['source'] | undefined): string {
-		if (source === 'gdot_route') return 'GDOT route geometry';
-		if (source === 'osm_termini_route') return 'OSM road route fallback';
-		if (source === 'geocode') return 'Geocoded location only';
-		if (source === 'county_centroid') return 'County-level location only';
-		if (source === 'manual') return 'Manually reviewed route';
-		return 'No route geometry';
+	function routeSourceBadge(source: RoutePreview['source'] | undefined): { label: string; color: string } {
+		if (source === 'gdot_route') return { label: 'GDOT Authoritative', color: '#16a34a' };
+		if (source === 'osm_termini_route') return { label: 'OSM Routed', color: '#2563eb' };
+		if (source === 'osm_overpass') return { label: 'OSM Overpass', color: '#0891b2' };
+		if (source === 'geocode') return { label: 'Geocoded Pin', color: '#d97706' };
+		if (source === 'county_centroid') return { label: 'County Center', color: '#ea580c' };
+		if (source === 'manual') return { label: 'User Defined', color: '#7c3aed' };
+		return { label: 'No Route', color: '#6b7280' };
 	}
 
 	const evidenceSummary = $derived.by(() => {
@@ -958,7 +959,7 @@
 						<h4>Route Preview</h4>
 						<p>{routePreview?.message ?? 'No route preview has been resolved yet.'}</p>
 						<div class="route-status-row">
-							<span class="route-source">{routeSourceLabel(routePreview?.source)}</span>
+							<span class="route-source-badge" style="background:{routeSourceBadge(routePreview?.source).color}; color:#fff; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:600">{routeSourceBadge(routePreview?.source).label}</span>
 							{#if parsed.route_designation}
 								<span>Parsed route: {parsed.route_designation}</span>
 							{/if}
@@ -992,6 +993,13 @@
 						</button>
 					</div>
 				</div>
+				{#if routePreview != null && routePreview.source !== 'manual'}
+					<button class="btn btn-secondary" style="margin-top:8px; min-height:48px" onclick={() => {
+						routePreview = null;
+						toastStore.success('Route cleared — draw manually after creating the project');
+					}}>Clear &amp; redraw manually</button>
+					<p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">After creating the project, draw the route on the map.</p>
+				{/if}
 				{#if routePreview?.latitude != null && routePreview.longitude != null && browser}
 					{#await import('$lib/components/RouteAlignmentMap.svelte')}
 						<div class="map-mini-loading">Loading route preview...</div>
