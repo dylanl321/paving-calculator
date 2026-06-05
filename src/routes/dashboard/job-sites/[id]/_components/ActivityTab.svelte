@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { api } from '$lib/utils/api-error';
 
 	let { jobSiteId }: { jobSiteId: string } = $props();
@@ -202,7 +203,7 @@
 		filterType;
 		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 		filterUser;
-		loadEntries(true);
+		untrack(() => loadEntries(true));
 	});
 </script>
 

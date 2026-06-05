@@ -62,13 +62,11 @@
 	}
 
 	// Show suggestion banner when we have data, user hasn't dismissed, and fields aren't already filled
-	const showSuggestion = $derived(
-		!suggestionDismissed &&
-			!suggestionLoading &&
-			countySuggestion !== null &&
-			(countySuggestion.county || countySuggestion.district) &&
-			(!configForm.route_county && !configForm.route_district)
-	);
+	const showSuggestion = $derived.by(() => {
+		if (suggestionDismissed || suggestionLoading || countySuggestion === null) return false;
+		if (configForm.route_county || configForm.route_district) return false;
+		return Boolean(countySuggestion.county || countySuggestion.district);
+	});
 
 	async function acceptCountySuggestion() {
 		if (!countySuggestion) return;
