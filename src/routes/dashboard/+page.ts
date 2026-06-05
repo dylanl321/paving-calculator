@@ -56,6 +56,20 @@ export const load: PageLoad = async ({ fetch, url }) => {
 		}
 		const completenessById = new Map((completenessData.sites ?? []).map((s) => [s.id, s]));
 
+		// Best-effort last-activity fetch (latest daily_logs.created_at per site)
+		let lastActivityData: { sites?: Array<{ id: string; last_activity: number | null }> } = {};
+		try {
+			const lastActivityRes = await fetch('/api/org/last-activity', { credentials: 'include' });
+			if (lastActivityRes.ok) {
+				lastActivityData = await lastActivityRes.json();
+			}
+		} catch {
+			// Graceful degradation
+		}
+		const lastActivityById = new Map(
+			(lastActivityData.sites ?? []).map((s) => [s.id, s.last_activity])
+		);
+
 		// Get calculation counts for each job site
 		const jobSitesWithCounts = await Promise.all(
 			jobSitesData.job_sites.map(async (site) => {
@@ -74,7 +88,8 @@ export const load: PageLoad = async ({ fetch, url }) => {
 					crew_name: live?.crew_name ?? null,
 					crew_color: live?.crew_color ?? null,
 					completeness_score: completeness?.score ?? null,
-					completeness_status: completeness?.status ?? null
+					completeness_status: completeness?.status ?? null,
+					last_activity: lastActivityById.get(site.id) ?? null
 				};
 			})
 		);
