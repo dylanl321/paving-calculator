@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import type { PageData } from './$types';
 	import { config } from '$lib/config';
 	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { spreadRateFromThickness, stickCheck } from '$lib/config/formulas';
@@ -14,9 +15,18 @@
 	import ScreedManView from '$lib/components/ScreedManView.svelte';
 	import CalcHistoryLog from '$lib/components/CalcHistoryLog.svelte';
 	import { recentTools } from '$lib/stores/recentTools.svelte';
+	import { job } from '$lib/stores/job.svelte';
+
+	let { data }: { data: PageData } = $props();
 
 	const isScreedMan = $derived(authStore.org?.role === 'screed_man');
 	const isLaborer = $derived(authStore.org?.role === 'laborer');
+	const projectContext = $derived(
+		data.jobContext && 'jobSite' in data.jobContext ? data.jobContext : null
+	);
+	const jobContextError = $derived(
+		data.jobContext && 'error' in data.jobContext ? data.jobContext.error : null
+	);
 
 	const activeTool = $derived(findTool($page.url.searchParams.get('tool')));
 	const isHome = $derived(activeTool == null);
@@ -48,6 +58,7 @@
 	let historyOpen = $state(false);
 	let hintTimeout: number | undefined;
 	let isDraggingStage = $state(false);
+	let seededJobSiteId = $state<string | null>(null);
 
 	// Swipe navigation action
 	function swipeNav(node: HTMLElement) {
@@ -188,6 +199,39 @@
 		recentTools.init();
 	});
 
+	$effect(() => {
+		const context = projectContext;
+		if (!context || seededJobSiteId === context.jobSite.id) return;
+
+		calcContext.clearManual('road_width');
+		calcContext.clearManual('lift_thickness');
+		calcContext.clearManual('course_type');
+		calcContext.seedFromJobSite({
+			lane_width_ft: context.config?.lane_width_ft,
+			target_thickness_in: context.config?.target_thickness_in,
+			course_type: context.courseType
+		});
+
+		job.siteName = context.jobSite.name;
+		job.siteDescription = context.jobSite.location_description ?? '';
+		if (context.config?.lane_width_ft != null && context.config.lane_width_ft > 0) {
+			job.widthFt = context.config.lane_width_ft;
+		}
+		if (
+			context.config?.target_thickness_in != null &&
+			context.config.target_thickness_in > 0
+		) {
+			job.thicknessIn = context.config.target_thickness_in;
+		}
+		if (context.courseType) {
+			job.courseType = context.courseType;
+		}
+		if (context.config?.tack_type) {
+			job.tackApplication = context.config.tack_type;
+		}
+		seededJobSiteId = context.jobSite.id;
+	});
+
 	// Resolve recent tool IDs to full Tool objects for rendering
 	const recentToolList = $derived(
 		recentTools.ids
@@ -205,6 +249,45 @@
 {:else}
 <div class="workspace">
 	<JobBar />
+
+	{#if projectContext}
+		<section class="project-context" aria-label="Project calculator context">
+			<div class="project-main">
+				<div class="eyebrow">Project Calculator</div>
+				<h2>{projectContext.jobSite.name}</h2>
+				{#if projectContext.activeMix}
+					<p>{projectContext.activeMix.mix_name}</p>
+				{:else if projectContext.jobSite.location_description}
+					<p>{projectContext.jobSite.location_description}</p>
+				{/if}
+			</div>
+			<div class="project-facts">
+				{#if projectContext.config?.lane_width_ft}
+					<span><b>{projectContext.config.lane_width_ft}</b> ft width</span>
+				{/if}
+				{#if projectContext.config?.target_thickness_in}
+					<span><b>{projectContext.config.target_thickness_in}</b>" lift</span>
+				{/if}
+				{#if projectContext.config?.target_spread_rate}
+					<span><b>{Math.round(projectContext.config.target_spread_rate)}</b> lbs/SY</span>
+				{:else}
+					<span><b>{targetRate}</b> lbs/SY</span>
+				{/if}
+				{#if projectContext.config?.total_tonnage}
+					<span><b>{Math.round(projectContext.config.total_tonnage).toLocaleString()}</b> target tons</span>
+				{/if}
+			</div>
+			<a class="project-link" href="/dashboard/job-sites/{projectContext.jobSite.id}">Back to Project</a>
+		</section>
+	{:else if jobContextError}
+		<section class="project-context warning" aria-label="Project calculator context unavailable">
+			<div class="project-main">
+				<div class="eyebrow">Project Calculator</div>
+				<h2>Project context unavailable</h2>
+			</div>
+			<a class="project-link" href="/login">Sign in</a>
+		</section>
+	{/if}
 
 	<div class="panes">
 		<aside class="tools" aria-label="Tool picker">
@@ -394,6 +477,82 @@
 		gap: var(--sp-4);
 	}
 
+	.project-context {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--sp-4);
+		padding: var(--sp-3) var(--sp-4);
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+	}
+
+	.project-context.warning {
+		border-color: color-mix(in srgb, var(--brand) 45%, var(--border));
+	}
+
+	.project-main {
+		min-width: 0;
+	}
+
+	.project-main h2 {
+		margin: 2px 0 0;
+		font-size: var(--fs-lg);
+		line-height: 1.2;
+	}
+
+	.project-main p {
+		margin: 4px 0 0;
+		color: var(--text-muted);
+		font-size: var(--fs-sm);
+	}
+
+	.project-facts {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: var(--sp-2);
+		flex-wrap: wrap;
+		margin-left: auto;
+	}
+
+	.project-facts span {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 4px;
+		min-height: 32px;
+		padding: 6px 9px;
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		color: var(--text-muted);
+		font-size: var(--fs-sm);
+		background: var(--surface-2);
+	}
+
+	.project-facts b {
+		color: var(--text);
+	}
+
+	.project-link {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 40px;
+		padding: 0 var(--sp-3);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		color: var(--text);
+		font-size: var(--fs-sm);
+		font-weight: var(--fw-semibold);
+		text-decoration: none;
+		white-space: nowrap;
+	}
+
+	.project-link:hover {
+		border-color: var(--brand);
+	}
+
 	/* ── Calc History Section ───────────────────────────────────────────── */
 	.history-section {
 		margin-top: 1.5rem;
@@ -521,6 +680,20 @@
 	/* Mobile: tool picker sits at the top as a horizontal chip menu (see ToolList),
 	   then the active calculator, then live rates below. */
 	@media (max-width: 899px) {
+		.project-context {
+			align-items: stretch;
+			flex-direction: column;
+		}
+
+		.project-facts {
+			justify-content: flex-start;
+			margin-left: 0;
+		}
+
+		.project-link {
+			width: 100%;
+		}
+
 		.tools {
 			margin: 0 calc(-1 * var(--sp-4));
 			padding: var(--sp-2) var(--sp-4);
