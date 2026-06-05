@@ -15,6 +15,8 @@ import type { FieldConfidence } from '$lib/server/pdf/confidence';
 import { runLlmFallback, needsLlmFallback, buildLlmDiagnostic, appendLlmFallbackWarning, type WorkersAi, type LlmFallbackDiagnostic } from '$lib/server/pdf/llm-fallback';
 import { buildImportRoutePreview, type ImportRoutePreview } from '$lib/server/gdot-geometry';
 import { classifyDocument, getUnrecognizedMessage, type DocumentClassification } from '$lib/server/pdf/classify-document';
+import { parseInspectionReport, type ParsedInspectionReport } from '$lib/server/pdf/parse-inspection';
+import { parseChangeOrder, type ParsedChangeOrder } from '$lib/server/pdf/parse-change-order';
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB per file
 
@@ -207,6 +209,10 @@ export interface ImportPdfResponse {
 	}>;
 	field_source: Record<string, string>;
 	parser_duration_ms: number;
+	/** Parsed daily inspection report data (populated when an inspection report is detected). */
+	inspection_report?: ParsedInspectionReport;
+	/** Parsed change order data (populated when a change order is detected). */
+	change_order?: ParsedChangeOrder;
 }
 
 function labelForPage(text: string, pageNumber: number): string {
@@ -345,6 +351,19 @@ export async function POST(event: RequestEvent) {
 		const v2 = parseGdotDocumentsV2(texts, allPageArrays);
 		const parser_duration_ms = Date.now() - parserStart;
 
+		// --- Inspection report / change order parsers ---
+		// Run if any uploaded document was classified as that type.
+		let inspection_report: ParsedInspectionReport | undefined;
+		let change_order: ParsedChangeOrder | undefined;
+		for (let i = 0; i < texts.length; i++) {
+			const docType = detectDocumentType(texts[i]);
+			if (docType === 'inspection_report' && !inspection_report) {
+				inspection_report = parseInspectionReport(texts[i]);
+			} else if (docType === 'change_order' && !change_order) {
+				change_order = parseChangeOrder(texts[i]);
+			}
+		}
+
 		// Phase 2 (optional): supplement low-confidence geographic/identity fields
 		// with the Workers AI fallback. Best-effort — fills ONLY low/null fields,
 		// never overrides medium/high deterministic values, and degrades silently
@@ -412,7 +431,9 @@ export async function POST(event: RequestEvent) {
 			classification_message: classificationMessage,
 			documents_found: v2.documents_found,
 			field_source,
-			parser_duration_ms
+			parser_duration_ms,
+			...(inspection_report !== undefined ? { inspection_report } : {}),
+			...(change_order !== undefined ? { change_order } : {})
 		} satisfies ImportPdfResponse);
 	} catch (error) {
 		if (error instanceof Response) return error;

@@ -45,7 +45,7 @@ export interface ParsedProductionMix {
 	contract_unit_price: number | null;
 }
 
-export type GdotDocumentType = 'contract_summary' | 'job_setup' | 'unknown';
+export type GdotDocumentType = 'contract_summary' | 'job_setup' | 'inspection_report' | 'change_order' | 'unknown';
 
 export interface DocumentSection {
 	type: GdotDocumentType;
@@ -101,6 +101,15 @@ export function detectPageSections(pages: PdfPositionedTextPage[]): DocumentSect
 			// roadway log is still part of contract_summary in our model
 			detected = 'contract_summary';
 			conf = 0.7;
+		} else if (/\bCHANGE\s+ORDER\b|\bSUPPLEMENTAL\s+AGREEMENT\b/i.test(text)) {
+			detected = 'change_order';
+			conf = 0.9;
+		} else if (
+			/DAILY REPORT OF CONSTRUCTION|INSPECTOR'?S?\s+DAILY\s+REPORT/i.test(text) ||
+			(/DAILY\s+(WORK\s+)?REPORT/i.test(text) && /INSPECTOR|GDOT|CONTRACTOR/i.test(text))
+		) {
+			detected = 'inspection_report';
+			conf = 0.9;
 		} else {
 			// Weaker signals
 			if (/JOB NUMBER|CONTRACT AMOUNT|ASPHALT SUPPLIER/i.test(text)) {
@@ -368,7 +377,7 @@ export function mapMixType(name: string | null): string | null {
 
 /**
  * Classify a single document's extracted text as a GDOT contract summary, an
- * internal job-setup form, or unknown.
+ * internal job-setup form, inspection report, change order, or unknown.
  */
 export function detectDocumentType(text: string): GdotDocumentType {
 	if (/JOB SET-?UP FORM/i.test(text) || /HEAVYBID #/i.test(text) || /PRODUCTION GOALS/i.test(text)) {
@@ -378,6 +387,15 @@ export function detectDocumentType(text: string): GdotDocumentType {
 		/Contract Schedule|Proposal ID|Schedule of Items|Total Bid:|PROPOSAL INDEX/i.test(text)
 	) {
 		return 'contract_summary';
+	}
+	if (/\bCHANGE\s+ORDER\b|\bSUPPLEMENTAL\s+AGREEMENT\b/i.test(text)) {
+		return 'change_order';
+	}
+	if (
+		/DAILY REPORT OF CONSTRUCTION|INSPECTOR'?S?\s+DAILY\s+REPORT/i.test(text) ||
+		(/DAILY\s+(WORK\s+)?REPORT/i.test(text) && /INSPECTOR|GDOT|CONTRACTOR/i.test(text))
+	) {
+		return 'inspection_report';
 	}
 	return 'unknown';
 }
