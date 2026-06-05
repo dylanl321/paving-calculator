@@ -20,6 +20,67 @@
 		lng: number | null;
 	} = $props();
 
+	// --- GDOT county/district auto-fill ---
+	interface CountySuggestion {
+		county: string | null;
+		district: string | null;
+	}
+	let countySuggestion = $state<CountySuggestion | null>(null);
+	let suggestionDismissed = $state(false);
+	let suggestionLoading = $state(false);
+	// Track last lookup coords to avoid duplicate calls
+	let lastLookupKey = $state<string | null>(null);
+
+	$effect(() => {
+		if (!browser) return;
+		if (lat === null || lng === null) return;
+		const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+		if (key === lastLookupKey) return;
+		lastLookupKey = key;
+		// Reset any previous dismissed suggestion when location changes
+		suggestionDismissed = false;
+		countySuggestion = null;
+		fetchCountySuggestion(lat, lng);
+	});
+
+	async function fetchCountySuggestion(latVal: number, lngVal: number) {
+		suggestionLoading = true;
+		try {
+			const res = await fetch(`/api/gdot/county-lookup?lat=${latVal}&lng=${lngVal}`);
+			if (!res.ok) return;
+			const data: CountySuggestion = await res.json();
+			if (data.county || data.district) {
+				countySuggestion = data;
+			}
+		} catch {
+			// Silent fail — suggestion is optional
+		} finally {
+			suggestionLoading = false;
+		}
+	}
+
+	// Show suggestion banner when we have data, user hasn't dismissed, and fields aren't already filled
+	const showSuggestion = $derived(
+		!suggestionDismissed &&
+			!suggestionLoading &&
+			countySuggestion !== null &&
+			(countySuggestion.county || countySuggestion.district) &&
+			(!configForm.route_county && !configForm.route_district)
+	);
+
+	async function acceptCountySuggestion() {
+		if (!countySuggestion) return;
+		if (countySuggestion.county) configForm.route_county = countySuggestion.county;
+		if (countySuggestion.district) configForm.route_district = countySuggestion.district;
+		suggestionDismissed = true;
+		await saveConfig();
+		toastStore.success('County and district pre-filled from location');
+	}
+
+	function dismissCountySuggestion() {
+		suggestionDismissed = true;
+	}
+
 	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
 	const REQUIRED_CONFIG_FIELDS = [
@@ -455,6 +516,57 @@
 			}}
 		/>
 
+		{#if suggestionLoading}
+			<div class="county-suggestion county-suggestion--loading" aria-live="polite">
+				<span class="suggestion-spinner"></span>
+				<span class="suggestion-text">Looking up county from location…</span>
+			</div>
+		{:else if showSuggestion && countySuggestion}
+			<div class="county-suggestion" role="region" aria-label="GDOT county suggestion">
+				<div class="suggestion-icon">📍</div>
+				<div class="suggestion-body">
+					<p class="suggestion-title">Location detected</p>
+					<p class="suggestion-detail">
+						{#if countySuggestion.county}County: <strong>{countySuggestion.county}</strong>{/if}
+						{#if countySuggestion.county && countySuggestion.district} · {/if}
+						{#if countySuggestion.district}District: <strong>{countySuggestion.district}</strong>{/if}
+					</p>
+					<p class="suggestion-hint">Pre-fill county and district from your job site location?</p>
+				</div>
+				<div class="suggestion-actions">
+					<button type="button" class="suggestion-accept" onclick={acceptCountySuggestion}>
+						Use these
+					</button>
+					<button type="button" class="suggestion-dismiss" onclick={dismissCountySuggestion} aria-label="Dismiss suggestion">
+						✕
+					</button>
+				</div>
+			</div>
+		{/if}
+
+		<div class="form-grid county-district-grid">
+			<div class="form-group">
+				<label for="route_county">County</label>
+				<input
+					type="text"
+					id="route_county"
+					bind:value={configForm.route_county}
+					placeholder="e.g. Fulton"
+					onchange={saveConfig}
+				/>
+			</div>
+			<div class="form-group">
+				<label for="route_district">GDOT District</label>
+				<input
+					type="text"
+					id="route_district"
+					bind:value={configForm.route_district}
+					placeholder="e.g. 7"
+					onchange={saveConfig}
+				/>
+			</div>
+		</div>
+
 		<h3 class="form-section-title">Contract Costs</h3>
 
 		<div class="form-grid">
@@ -770,5 +882,119 @@
 
 	.required-empty {
 		border-color: #f59e0b !important;
+	}
+
+	/* County auto-fill suggestion banner */
+	.county-suggestion {
+		display: flex;
+		align-items: flex-start;
+		gap: 12px;
+		margin-top: 12px;
+		padding: 14px 16px;
+		background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+		border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+		border-radius: var(--radius);
+		font-size: 0.9rem;
+	}
+
+	.county-suggestion--loading {
+		background: var(--surface);
+		border-color: var(--border);
+		align-items: center;
+		color: var(--text-muted);
+	}
+
+	.suggestion-spinner {
+		display: inline-block;
+		width: 14px;
+		height: 14px;
+		border: 2px solid var(--border);
+		border-top-color: var(--accent);
+		border-radius: 50%;
+		animation: spin 0.7s linear infinite;
+		flex-shrink: 0;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
+	}
+
+	.suggestion-text {
+		font-size: 0.85rem;
+	}
+
+	.suggestion-icon {
+		font-size: 1.2rem;
+		flex-shrink: 0;
+		margin-top: 1px;
+	}
+
+	.suggestion-body {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.suggestion-title {
+		margin: 0 0 4px;
+		font-weight: 700;
+		font-size: 0.85rem;
+		color: var(--text);
+	}
+
+	.suggestion-detail {
+		margin: 0 0 4px;
+		font-size: 0.9rem;
+		color: var(--text);
+	}
+
+	.suggestion-hint {
+		margin: 0;
+		font-size: 0.78rem;
+		color: var(--text-muted);
+	}
+
+	.suggestion-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-shrink: 0;
+	}
+
+	.suggestion-accept {
+		min-height: 48px;
+		padding: 0 18px;
+		background: var(--accent);
+		color: var(--accent-text, #fff);
+		border: none;
+		border-radius: var(--radius);
+		font-size: 0.85rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: opacity 0.2s;
+		white-space: nowrap;
+	}
+
+	.suggestion-accept:hover {
+		opacity: 0.88;
+	}
+
+	.suggestion-dismiss {
+		min-height: 48px;
+		min-width: 44px;
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		font-size: 1rem;
+		cursor: pointer;
+		padding: 0 8px;
+		transition: color 0.2s;
+	}
+
+	.suggestion-dismiss:hover {
+		color: var(--text);
+	}
+
+	.county-district-grid {
+		margin-top: 12px;
 	}
 </style>
