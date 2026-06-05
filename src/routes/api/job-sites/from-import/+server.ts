@@ -4,7 +4,7 @@ import { requireAuth } from '$lib/server/auth';
 import { recordAudit } from '$lib/server/audit';
 import { deliverWebhook } from '$lib/server/webhooks';
 import type { ParsedGdotJob } from '$lib/server/pdf/parse-gdot';
-import { resolveImportLocation } from '$lib/server/gdot-geometry';
+import { resolveImportLocation, type LocationPrecision } from '$lib/server/gdot-geometry';
 import { lookupGdotBoundaries } from '$lib/server/gdot-boundaries';
 import {
 	assessRoadwayLogAnchoring,
@@ -29,6 +29,7 @@ interface FromImportRequest {
 		longitude: number | null;
 		waypoints: Array<{ lat: number; lng: number }>;
 		source: string;
+		location_precision?: LocationPrecision;
 		events_anchored?: boolean;
 	};
 }
@@ -72,6 +73,18 @@ function validWaypoint(wp: unknown): wp is { lat: number; lng: number } {
 		validNum((wp as { lat?: unknown }).lat) &&
 		validNum((wp as { lng?: unknown }).lng)
 	);
+}
+
+function precisionForSource(
+	source: string | null | undefined,
+	routeGeometry: LineGeom | null | undefined,
+	latitude: number | null,
+	longitude: number | null
+): LocationPrecision {
+	if (routeGeometry && routeGeometry.coordinates.length >= 2) return 'route';
+	if (source === 'county_centroid') return 'county';
+	if (latitude != null && longitude != null) return 'point';
+	return 'none';
 }
 
 interface LineGeom {
@@ -308,6 +321,7 @@ export async function POST(event: RequestEvent) {
 		// with the road already drawn (sections + stationing). Best-effort: any
 		// failure leaves coordinates null and the user can place the pin manually.
 		let locationSource: string = 'none';
+		let locationPrecision: LocationPrecision = 'none';
 		let sectionCount = 0;
 		let routeWaypointsForEvents: Array<{ lat: number; lng: number }> = [];
 		let roadwayLogAnchored = false;
@@ -334,7 +348,8 @@ export async function POST(event: RequestEvent) {
 							type: 'LineString' as const,
 							coordinates: overrideWaypoints.map((wp) => [wp.lng, wp.lat] as [number, number])
 						},
-						source: override!.source || 'manual'
+						source: override!.source || 'manual',
+						locationPrecision: override!.location_precision ?? 'route'
 					}
 				: autoResolved &&
 					  (autoResolved.routeGeometry ||
@@ -345,9 +360,16 @@ export async function POST(event: RequestEvent) {
 							latitude: validNum(override?.latitude) ? override.latitude : null,
 							longitude: validNum(override?.longitude) ? override.longitude : null,
 							routeGeometry: null,
-							source: override?.source || 'none'
+							source: override?.source || 'none',
+							locationPrecision: override?.location_precision ?? 'none'
 						};
 			locationSource = resolved.source;
+			locationPrecision = precisionForSource(
+				resolved.source,
+				resolved.routeGeometry,
+				resolved.latitude,
+				resolved.longitude
+			);
 
 			if (resolved.latitude != null && resolved.longitude != null) {
 				// County/district from the PDF's coordinates (authoritative GDOT lookup).
@@ -359,6 +381,8 @@ export async function POST(event: RequestEvent) {
 				await db.updateJobSite(jobSite.id, {
 					latitude: resolved.latitude,
 					longitude: resolved.longitude,
+					location_source: locationSource,
+					location_precision: locationPrecision,
 					gdot_county: county ?? str(parsed.county),
 					gdot_district: district
 				});
@@ -513,6 +537,7 @@ export async function POST(event: RequestEvent) {
 				production_mixes: mixes.length,
 				scopes,
 				location_source: locationSource,
+				location_precision: locationPrecision,
 				road_sections: sectionCount,
 				roadway_log_events: roadwayLogEventCount
 			},

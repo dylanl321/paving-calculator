@@ -7,10 +7,22 @@
 	import type { JobSite, RoadwayLogEvent, RouteWaypoint } from '../+page';
 	import type { ConfigForm } from './shared';
 
+	interface CountyBoundary {
+		county: string;
+		bounds: [[number, number], [number, number]];
+		geojson: {
+			type: 'Feature';
+			properties?: { county?: string };
+			geometry: { type: 'Polygon'; coordinates: number[][][] };
+		};
+	}
+	type LocationPrecision = 'route' | 'point' | 'county' | 'none';
+
 	let {
 		jobSite,
 		routeWaypoints = [],
 		roadwayLogEvents = [],
+		countyBoundary = null,
 		configForm,
 		numLanes = null,
 		laneWidthFt = null,
@@ -20,10 +32,16 @@
 		jobSite: JobSite;
 		routeWaypoints?: RouteWaypoint[];
 		roadwayLogEvents?: RoadwayLogEvent[];
+		countyBoundary?: CountyBoundary | null;
 		configForm: ConfigForm;
 		numLanes?: number | null;
 		laneWidthFt?: number | null;
-		onLocationSaved?: (coords: { latitude: number | null; longitude: number | null }) => void;
+		onLocationSaved?: (coords: {
+			latitude: number | null;
+			longitude: number | null;
+			location_source?: string | null;
+			location_precision?: string | null;
+		}) => void;
 		onRouteSaved?: (waypoints: RouteWaypoint[]) => void;
 	} = $props();
 
@@ -34,6 +52,18 @@
 	let pickerLng = $state<number | null>(jobSite.longitude ?? null);
 
 	const hasLocation = $derived(jobSite.latitude != null && jobSite.longitude != null);
+	const locationPrecision = $derived<LocationPrecision>(
+		jobSite.location_precision === 'route' ||
+			jobSite.location_precision === 'point' ||
+			jobSite.location_precision === 'county' ||
+			jobSite.location_precision === 'none'
+			? jobSite.location_precision
+			: hasLocation
+				? 'point'
+				: 'none'
+	);
+	const hasExactLocation = $derived(hasLocation && locationPrecision !== 'county');
+	const hasCountyContext = $derived(hasLocation && locationPrecision === 'county' && !!countyBoundary);
 	const hasRoute = $derived(routeWaypoints.length >= 2);
 	const hasRoadwayLog = $derived(roadwayLogEvents.length > 0);
 	const hasProjectLimits = $derived(
@@ -46,7 +76,8 @@
 			: null
 	);
 	const currentSetupStep = $derived.by(() => {
-		if (!hasLocation) return 'Move the pin onto the project area.';
+		if (hasCountyContext) return 'County is known. Load or draw the exact road line next.';
+		if (!hasExactLocation) return 'Move the pin onto the project area.';
 		if (!hasRoute) return 'Load or draw the road line that the project follows.';
 		if (!hasProjectLimits) return 'Set the project start and end along the road line.';
 		return 'Route setup is ready for work zones and daily progress.';
@@ -62,7 +93,18 @@
 				credentials: 'include'
 			});
 			if (res.ok) {
-				onLocationSaved?.({ latitude: lat, longitude: lng });
+				const updated = (await res.json()) as {
+					latitude: number | null;
+					longitude: number | null;
+					location_source?: string | null;
+					location_precision?: string | null;
+				};
+				onLocationSaved?.({
+					latitude: updated.latitude,
+					longitude: updated.longitude,
+					location_source: updated.location_source,
+					location_precision: updated.location_precision
+				});
 				pickerLat = lat;
 				pickerLng = lng;
 				showLocationSearch = false;
@@ -85,7 +127,16 @@
 			credentials: 'include'
 		});
 		if (res.ok) {
+			const body = (await res.json()) as {
+				location?: {
+					latitude: number | null;
+					longitude: number | null;
+					location_source?: string | null;
+					location_precision?: string | null;
+				} | null;
+			};
 			onRouteSaved?.(waypoints);
+			if (body.location) onLocationSaved?.(body.location);
 			toastStore.success('Route saved');
 		} else {
 			toastStore.error('Failed to save route');
@@ -150,7 +201,7 @@
 		</div>
 		{#if hasLocation}
 			<button type="button" class="link-btn" onclick={() => (showLocationSearch = !showLocationSearch)}>
-				{showLocationSearch ? 'Cancel' : 'Change Location'}
+				{showLocationSearch ? 'Cancel' : hasExactLocation ? 'Change Location' : 'Set Exact Location'}
 			</button>
 		{/if}
 	</div>
@@ -162,11 +213,19 @@
 			<p>{currentSetupStep}</p>
 		</div>
 		<ol class="setup-steps">
-			<li class:complete={hasLocation} class:active={!hasLocation}>
+			<li class:complete={hasExactLocation} class:active={!hasExactLocation}>
 				<span>1</span>
 				<div>
-					<strong>Project pin</strong>
-					<small>{hasLocation ? 'Location is set' : 'Place it near the work'}</small>
+					<strong>{hasCountyContext ? 'County context' : 'Project pin'}</strong>
+					<small>
+						{#if hasExactLocation}
+							Location is set
+						{:else if hasCountyContext}
+							{jobSite.gdot_county ?? countyBoundary?.county} County known
+						{:else}
+							Place it near the work
+						{/if}
+					</small>
 				</div>
 			</li>
 			<li class:complete={hasRoute} class:active={hasLocation && !hasRoute}>
@@ -221,6 +280,10 @@
 				{roadwayLogEvents}
 				{numLanes}
 				{laneWidthFt}
+				locationPrecision={locationPrecision}
+				countyBoundaryGeojson={countyBoundary?.geojson ?? null}
+				countyBounds={countyBoundary?.bounds ?? null}
+				countyName={jobSite.gdot_county ?? countyBoundary?.county ?? null}
 				height="420px"
 				onRouteSave={saveRoute}
 			/>

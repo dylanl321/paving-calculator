@@ -48,6 +48,22 @@ interface EsriPolygon {
 	rings?: number[][][];
 }
 
+export type LocationPrecision = 'route' | 'point' | 'county' | 'none';
+
+export interface CountyBoundary {
+	county: string;
+	centroid: { lat: number; lng: number };
+	bounds: [[number, number], [number, number]];
+	geojson: {
+		type: 'Feature';
+		properties: { county: string };
+		geometry: {
+			type: 'Polygon';
+			coordinates: number[][][];
+		};
+	};
+}
+
 /**
  * Approximate centroid of an ESRI polygon (average of the outer-ring vertices).
  * Returns [lat, lng] (rings are [lng, lat]). This is a coarse point-in-polygon
@@ -71,20 +87,66 @@ function polygonCentroid(poly: EsriPolygon): [number, number] | null {
 	return [sy / n, sx / n];
 }
 
+function countyNameFromAttributes(attrs: Record<string, unknown> | undefined, fallback: string): string {
+	for (const field of ['NAME', 'COUNTY_NAME', 'COUNTYNAME', 'COUNTY']) {
+		const value = attrs?.[field];
+		if (typeof value === 'string' && value.trim()) return value.trim();
+	}
+	return fallback;
+}
+
+function polygonBounds(poly: EsriPolygon): [[number, number], [number, number]] | null {
+	let minLat = Infinity;
+	let minLng = Infinity;
+	let maxLat = -Infinity;
+	let maxLng = -Infinity;
+	for (const ring of poly.rings ?? []) {
+		for (const pt of ring) {
+			if (typeof pt[0] !== 'number' || typeof pt[1] !== 'number') continue;
+			const [lng, lat] = pt;
+			minLat = Math.min(minLat, lat);
+			minLng = Math.min(minLng, lng);
+			maxLat = Math.max(maxLat, lat);
+			maxLng = Math.max(maxLng, lng);
+		}
+	}
+	if (![minLat, minLng, maxLat, maxLng].every(Number.isFinite)) return null;
+	return [
+		[minLat, minLng],
+		[maxLat, maxLng]
+	];
+}
+
+function polygonGeojson(poly: EsriPolygon, county: string): CountyBoundary['geojson'] | null {
+	const rings = poly.rings
+		?.map((ring) =>
+			ring
+				.filter((pt) => typeof pt[0] === 'number' && typeof pt[1] === 'number')
+				.map(([lng, lat]) => [lng, lat])
+		)
+		.filter((ring) => ring.length >= 4);
+	if (!rings?.length) return null;
+	return {
+		type: 'Feature',
+		properties: { county },
+		geometry: {
+			type: 'Polygon',
+			coordinates: rings
+		}
+	};
+}
+
 /**
- * Resolve an approximate [lat, lng] for a Georgia county from the authoritative
- * GDOT county boundary polygons. Used as a real, key-less fallback when no route
- * designation is parsed and the free-text geocoder misses. Returns null on any
- * failure (never invents a coordinate).
+ * Resolve the authoritative GDOT county boundary polygon and derived map
+ * metadata. This is context/evidence only: it can orient a user, but must never
+ * be treated as a road alignment or exact paving limit.
  */
-export async function fetchCountyCentroid(county: string | null): Promise<[number, number] | null> {
+export async function fetchCountyBoundary(county: string | null): Promise<CountyBoundary | null> {
 	const name = county?.trim();
 	if (!name) return null;
 	const bare = normaliseCounty(name);
 	if (!bare) return null;
 
-	// County polygons carry their name under one of several fields across GDOT
-	// service revisions; OR them so a single query matches.
 	const nameFields = ['NAME', 'COUNTY_NAME', 'COUNTYNAME', 'COUNTY'];
 	const where = nameFields
 		.map((f) => `UPPER(${f}) = UPPER('${sqlEscape(bare)}')`)
@@ -92,7 +154,7 @@ export async function fetchCountyCentroid(county: string | null): Promise<[numbe
 
 	const params = new URLSearchParams({
 		where,
-		outFields: 'NAME',
+		outFields: 'NAME,COUNTY_NAME,COUNTYNAME,COUNTY',
 		returnGeometry: 'true',
 		outSR: '4326',
 		f: 'json'
@@ -104,15 +166,37 @@ export async function fetchCountyCentroid(county: string | null): Promise<[numbe
 		});
 		if (!res.ok) return null;
 		const data = (await res.json()) as {
-			features?: Array<{ geometry?: EsriPolygon }>;
+			features?: Array<{ attributes?: Record<string, unknown>; geometry?: EsriPolygon }>;
 		};
-		const geom = data.features?.[0]?.geometry;
+		const feature = data.features?.[0];
+		const geom = feature?.geometry;
 		if (!geom) return null;
-		return polygonCentroid(geom);
+		const displayCounty = countyNameFromAttributes(feature.attributes, bare);
+		const centroid = polygonCentroid(geom);
+		const bounds = polygonBounds(geom);
+		const geojson = polygonGeojson(geom, displayCounty);
+		if (!centroid || !bounds || !geojson) return null;
+		return {
+			county: displayCounty,
+			centroid: { lat: centroid[0], lng: centroid[1] },
+			bounds,
+			geojson
+		};
 	} catch (err) {
-		console.error('[gdot-geometry] county centroid fetch failed:', err);
+		console.error('[gdot-geometry] county boundary fetch failed:', err);
 		return null;
 	}
+}
+
+/**
+ * Resolve an approximate [lat, lng] for a Georgia county from the authoritative
+ * GDOT county boundary polygons. Used as a real, key-less fallback when no route
+ * designation is parsed and the free-text geocoder misses. Returns null on any
+ * failure (never invents a coordinate).
+ */
+export async function fetchCountyCentroid(county: string | null): Promise<[number, number] | null> {
+	const boundary = await fetchCountyBoundary(county);
+	return boundary ? [boundary.centroid.lat, boundary.centroid.lng] : null;
 }
 
 /**
@@ -214,6 +298,8 @@ export interface ResolvedLocation {
 	routeGeometry: GeoJsonLineString | null;
 	/** How the coordinates were obtained, for diagnostics. */
 	source: 'gdot_route' | 'osm_termini_route' | 'osm_overpass' | 'geocode' | 'county_centroid' | 'none';
+	locationPrecision: LocationPrecision;
+	countyBoundary: CountyBoundary | null;
 	lookupWarnings: string[];
 	parsed_begin_terminus?: ParsedTerminus | null;
 	parsed_end_terminus?: ParsedTerminus | null;
@@ -242,9 +328,12 @@ interface RoadwayLogEventForPreview {
 
 export interface ImportRoutePreview {
 	source: ResolvedLocation['source'] | 'manual';
+	location_precision: LocationPrecision;
 	latitude: number | null;
 	longitude: number | null;
 	waypoints: Array<{ lat: number; lng: number }>;
+	county_boundary_geojson?: CountyBoundary['geojson'] | null;
+	county_bounds?: CountyBoundary['bounds'] | null;
 	message?: string;
 	lookup_warnings?: string[];
 	events_anchored?: boolean;
@@ -252,6 +341,8 @@ export interface ImportRoutePreview {
 	route_length_ft?: number | null;
 	expected_length_ft?: number | null;
 	projected_log_events?: RoadwayLogEventPreview[];
+	parsed_begin_terminus?: ParsedTerminus | null;
+	parsed_end_terminus?: ParsedTerminus | null;
 }
 
 /**
@@ -381,9 +472,12 @@ export async function buildImportRoutePreview(opts: {
 
 	return {
 		source: resolved.source,
+		location_precision: resolved.locationPrecision,
 		latitude: resolved.latitude,
 		longitude: resolved.longitude,
 		waypoints,
+		county_boundary_geojson: resolved.countyBoundary?.geojson ?? null,
+		county_bounds: resolved.countyBoundary?.bounds ?? null,
 		message,
 		lookup_warnings: resolved.lookupWarnings,
 		events_anchored: anchoring.anchored,
@@ -427,6 +521,8 @@ export async function resolveImportLocation(opts: {
 				longitude: centroid[1],
 				routeGeometry,
 				source: 'gdot_route',
+				locationPrecision: 'route',
+				countyBoundary: null,
 				lookupWarnings
 			};
 		}
@@ -450,6 +546,8 @@ export async function resolveImportLocation(opts: {
 				longitude: centroid[1],
 				routeGeometry: osmRoute.routeGeometry,
 				source: 'osm_termini_route',
+				locationPrecision: 'route',
+				countyBoundary: null,
 				lookupWarnings
 			};
 		}
@@ -466,6 +564,8 @@ export async function resolveImportLocation(opts: {
 					longitude: centroid[1],
 					routeGeometry: overpassGeometry,
 					source: 'osm_overpass',
+					locationPrecision: 'route',
+					countyBoundary: null,
 					lookupWarnings
 				};
 			}
@@ -481,9 +581,7 @@ export async function resolveImportLocation(opts: {
 	const geoQuery =
 		opts.locationDescription && opts.county
 			? `${opts.locationDescription}, ${normaliseCounty(opts.county)} County, GA`
-			: opts.county
-				? `${normaliseCounty(opts.county)} County, GA`
-				: opts.locationDescription;
+			: opts.locationDescription;
 	const coords = await geocodeAddress(geoQuery);
 	if (coords) {
 		return {
@@ -491,6 +589,8 @@ export async function resolveImportLocation(opts: {
 			longitude: coords[1],
 			routeGeometry: null,
 			source: 'geocode',
+			locationPrecision: 'point',
+			countyBoundary: null,
 			lookupWarnings
 		};
 	}
@@ -498,18 +598,28 @@ export async function resolveImportLocation(opts: {
 	// Fallback B: authoritative GDOT county polygon centroid. Always attempted
 	// when a county is present, so a route-less, address-less document still
 	// gets an approximate pin.
-	const centroid = await fetchCountyCentroid(opts.county);
-	if (centroid) {
+	const countyBoundary = await fetchCountyBoundary(opts.county);
+	if (countyBoundary) {
 		return {
-			latitude: centroid[0],
-			longitude: centroid[1],
+			latitude: countyBoundary.centroid.lat,
+			longitude: countyBoundary.centroid.lng,
 			routeGeometry: null,
 			source: 'county_centroid',
+			locationPrecision: 'county',
+			countyBoundary,
 			lookupWarnings
 		};
 	}
 
-	return { latitude: null, longitude: null, routeGeometry: null, source: 'none', lookupWarnings };
+	return {
+		latitude: null,
+		longitude: null,
+		routeGeometry: null,
+		source: 'none',
+		locationPrecision: 'none',
+		countyBoundary: null,
+		lookupWarnings
+	};
 }
 
 async function geocodeOsm(query: string): Promise<{ lat: number; lng: number } | null> {

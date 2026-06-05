@@ -11,6 +11,8 @@ export interface DbJobSite {
 	location_description: string | null;
 	latitude: number | null;
 	longitude: number | null;
+	location_source: string | null;
+	location_precision: string | null;
 	gdot_county: string | null;
 	gdot_district: string | null;
 	status: 'active' | 'completed' | 'archived';
@@ -303,9 +305,21 @@ export class DbJobSitesHelper {
 
 		await this.db
 			.prepare(
-				'INSERT INTO job_sites (id, org_id, name, location_description, latitude, longitude, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+				'INSERT INTO job_sites (id, org_id, name, location_description, latitude, longitude, location_source, location_precision, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 			)
-			.bind(id, orgId, name, locationDescription, latitude, longitude, 'active', now, now)
+			.bind(
+				id,
+				orgId,
+				name,
+				locationDescription,
+				latitude,
+				longitude,
+				latitude != null && longitude != null ? 'manual' : null,
+				latitude != null && longitude != null ? 'point' : 'none',
+				'active',
+				now,
+				now
+			)
 			.run();
 
 		return {
@@ -315,6 +329,8 @@ export class DbJobSitesHelper {
 			location_description: locationDescription,
 			latitude,
 			longitude,
+			location_source: latitude != null && longitude != null ? 'manual' : null,
+			location_precision: latitude != null && longitude != null ? 'point' : 'none',
 			gdot_county: null,
 			gdot_district: null,
 			status: 'active',
@@ -357,7 +373,20 @@ export class DbJobSitesHelper {
 
 	async updateJobSite(
 		id: string,
-		updates: Partial<Pick<DbJobSite, 'name' | 'location_description' | 'latitude' | 'longitude' | 'gdot_county' | 'gdot_district' | 'status'>>
+		updates: Partial<
+			Pick<
+				DbJobSite,
+				| 'name'
+				| 'location_description'
+				| 'latitude'
+				| 'longitude'
+				| 'location_source'
+				| 'location_precision'
+				| 'gdot_county'
+				| 'gdot_district'
+				| 'status'
+			>
+		>
 	): Promise<void> {
 		const now = Math.floor(Date.now() / 1000);
 		const fields: string[] = [];
@@ -378,6 +407,14 @@ export class DbJobSitesHelper {
 		if (updates.longitude !== undefined) {
 			fields.push('longitude = ?');
 			values.push(updates.longitude);
+		}
+		if (updates.location_source !== undefined) {
+			fields.push('location_source = ?');
+			values.push(updates.location_source);
+		}
+		if (updates.location_precision !== undefined) {
+			fields.push('location_precision = ?');
+			values.push(updates.location_precision);
 		}
 		if (updates.gdot_county !== undefined) {
 			fields.push('gdot_county = ?');

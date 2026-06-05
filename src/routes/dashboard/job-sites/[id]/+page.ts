@@ -27,6 +27,8 @@ export interface JobSite {
 	status: string;
 	latitude: number | null;
 	longitude: number | null;
+	location_source?: string | null;
+	location_precision?: 'route' | 'point' | 'county' | 'none' | string | null;
 	location_description: string | null;
 	gdot_county?: string | null;
 	gdot_district?: string | null;
@@ -138,6 +140,17 @@ interface RouteResponse {
 interface RoadwayLogEventsResponse {
 	events?: RoadwayLogEvent[];
 }
+
+interface CountyBoundary {
+	county: string;
+	centroid: { lat: number; lng: number };
+	bounds: [[number, number], [number, number]];
+	geojson: {
+		type: 'Feature';
+		properties?: { county?: string };
+		geometry: { type: 'Polygon'; coordinates: number[][][] };
+	};
+}
 interface MilestonesResponse {
 	milestones?: Milestone[];
 }
@@ -206,6 +219,17 @@ export const load: PageLoad = async ({ params, fetch }) => {
 		const roadwayLogData = (roadwayLogRes.ok ? await roadwayLogRes.json() : { events: [] }) as RoadwayLogEventsResponse;
 		const milestonesData = (milestonesRes.ok ? await milestonesRes.json() : { milestones: [] }) as MilestonesResponse;
 		const mixesData = (mixesRes.ok ? await mixesRes.json() : { mixes: [] }) as MixesResponse;
+		const routeWaypoints = routeData.waypoints || [];
+		let countyBoundary: CountyBoundary | null = null;
+		if (siteData.gdot_county && routeWaypoints.length < 2) {
+			const countyRes = await fetch(
+				`/api/gdot/county-boundary?county=${encodeURIComponent(siteData.gdot_county)}`,
+				{ credentials: 'include' }
+			);
+			if (countyRes.ok) {
+				countyBoundary = (await countyRes.json()) as CountyBoundary;
+			}
+		}
 
 		const mixes = mixesData.mixes || [];
 		const activeMix = mixes.find((m) => m.is_active === 1) ?? mixes[0] ?? null;
@@ -235,11 +259,12 @@ export const load: PageLoad = async ({ params, fetch }) => {
 			config,
 			equipment: equipmentData.equipment || [],
 			assignments: assignmentsData.assignments || [],
-			routeWaypoints: routeData.waypoints || [],
+			routeWaypoints,
 			roadwayLogEvents: roadwayLogData.events || [],
 			milestones: milestonesData.milestones || [],
 			mixes,
-			activeMix
+			activeMix,
+			countyBoundary
 		};
 	} catch (err) {
 		// Re-throw SvelteKit errors/redirects; do not swallow real load failures

@@ -3,9 +3,20 @@
 	import type { ConfigForm } from './shared';
 	import LocationRoutePanel from './LocationRoutePanel.svelte';
 
+	interface CountyBoundary {
+		county: string;
+		bounds: [[number, number], [number, number]];
+		geojson: {
+			type: 'Feature';
+			properties?: { county?: string };
+			geometry: { type: 'Polygon'; coordinates: number[][][] };
+		};
+	}
+
 	let {
 		jobSite,
 		routeWaypoints = [],
+		countyBoundary = null,
 		numLanes = null,
 		laneWidthFt = null,
 		totalLengthFt = null,
@@ -15,11 +26,17 @@
 	}: {
 		jobSite: JobSite;
 		routeWaypoints?: RouteWaypoint[];
+		countyBoundary?: CountyBoundary | null;
 		numLanes?: number | null;
 		laneWidthFt?: number | null;
 		totalLengthFt?: number | null;
 		configForm: ConfigForm;
-		onLocationSaved?: (coords: { latitude: number | null; longitude: number | null }) => void;
+		onLocationSaved?: (coords: {
+			latitude: number | null;
+			longitude: number | null;
+			location_source?: string | null;
+			location_precision?: string | null;
+		}) => void;
 		onRouteSaved?: (waypoints: RouteWaypoint[]) => void;
 	} = $props();
 </script>
@@ -28,6 +45,7 @@
 	<LocationRoutePanel
 		{jobSite}
 		{routeWaypoints}
+		{countyBoundary}
 		{configForm}
 		{numLanes}
 		{laneWidthFt}
@@ -35,7 +53,7 @@
 		{onRouteSaved}
 	/>
 
-	{#if jobSite.latitude != null && jobSite.longitude != null}
+	{#if jobSite.latitude != null && jobSite.longitude != null && jobSite.location_precision !== 'county'}
 		{#await import('$lib/components/WorkZoneMap.svelte')}
 			<div class="map-mini-loading">Loading work zones...</div>
 		{:then { default: WorkZoneMap }}

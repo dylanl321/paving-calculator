@@ -3,6 +3,7 @@ import {
 	lineStringCentroid,
 	fetchGdotRouteGeometry,
 	geocodeAddress,
+	fetchCountyBoundary,
 	fetchCountyCentroid,
 	resolveImportLocation,
 	buildImportRoutePreview
@@ -179,6 +180,29 @@ describe('fetchCountyCentroid', () => {
 	});
 });
 
+describe('fetchCountyBoundary', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('returns GeoJSON, centroid, and bounds from the GDOT county layer', async () => {
+		mockFetchOnce(() => countyPolygonResponse());
+		const boundary = await fetchCountyBoundary('Lowndes');
+		expect(boundary?.county).toBe('LOWNDES');
+		expect(boundary?.geojson.geometry.type).toBe('Polygon');
+		expect(boundary?.geojson.geometry.coordinates[0]).toHaveLength(5);
+		expect(boundary?.bounds).toEqual([
+			[30.7, -83.4],
+			[31.1, -83.0]
+		]);
+		expect(boundary?.centroid.lat).toBeGreaterThan(30.6);
+		expect(boundary?.centroid.lng).toBeLessThan(-82.9);
+	});
+
+	it('returns null when the county polygon is missing', async () => {
+		mockFetchOnce(() => ({ features: [] }));
+		expect(await fetchCountyBoundary('Missing')).toBe(null);
+	});
+});
+
 describe('resolveImportLocation', () => {
 	afterEach(() => vi.unstubAllGlobals());
 
@@ -250,6 +274,8 @@ describe('resolveImportLocation', () => {
 			locationDescription: null
 		});
 		expect(res.source).toBe('county_centroid');
+		expect(res.locationPrecision).toBe('county');
+		expect(res.countyBoundary?.geojson.geometry.type).toBe('Polygon');
 		expect(res.routeGeometry).toBe(null);
 		expect(res.latitude).not.toBe(null);
 		expect(res.longitude).not.toBe(null);
@@ -263,6 +289,7 @@ describe('resolveImportLocation', () => {
 			locationDescription: null
 		});
 		expect(res.source).toBe('none');
+		expect(res.locationPrecision).toBe('none');
 		expect(res.latitude).toBe(null);
 		expect(res.longitude).toBe(null);
 		expect(res.routeGeometry).toBe(null);
@@ -282,6 +309,7 @@ describe('buildImportRoutePreview', () => {
 			roadwayLogEvents: []
 		});
 		expect(preview.source).toBe('gdot_route');
+		expect(preview.location_precision).toBe('route');
 		expect(preview.waypoints.length).toBe(3);
 	});
 
@@ -393,5 +421,38 @@ describe('buildImportRoutePreview', () => {
 		expect(preview.latitude).toBe(null);
 		expect(preview.longitude).toBe(null);
 		expect(preview.waypoints).toEqual([]);
+	});
+
+	it('returns county context without anchoring log markers when only county resolves', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: unknown): Promise<FetchResponse> => {
+				const url = String(input);
+				if (url.includes('census')) {
+					return { ok: true, json: async () => ({ result: { addressMatches: [] } }) };
+				}
+				if (url.includes('GDOT_Boundaries')) {
+					return { ok: true, json: async () => countyPolygonResponse() };
+				}
+				return { ok: true, json: async () => ({ features: [], exceededTransferLimit: false }) };
+			})
+		);
+
+		const preview = await buildImportRoutePreview({
+			routeDesignation: null,
+			county: 'Lowndes',
+			locationDescription: null,
+			roadwayLogEvents: [{ milepost: 1, station: 52.8, event_type: 'project_end' }]
+		});
+
+		expect(preview.source).toBe('county_centroid');
+		expect(preview.location_precision).toBe('county');
+		expect(preview.county_boundary_geojson?.geometry.type).toBe('Polygon');
+		expect(preview.county_bounds).toEqual([
+			[30.7, -83.4],
+			[31.1, -83.0]
+		]);
+		expect(preview.events_anchored).toBe(false);
+		expect(preview.projected_log_events).toEqual([]);
 	});
 });

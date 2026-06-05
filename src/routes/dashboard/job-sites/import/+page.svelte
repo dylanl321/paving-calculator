@@ -135,9 +135,16 @@
 
 	interface RoutePreview {
 		source: 'gdot_route' | 'osm_termini_route' | 'osm_overpass' | 'geocode' | 'county_centroid' | 'manual' | 'none';
+		location_precision: 'route' | 'point' | 'county' | 'none';
 		latitude: number | null;
 		longitude: number | null;
 		waypoints: Array<{ lat: number; lng: number }>;
+		county_boundary_geojson?: {
+			type: 'Feature';
+			properties?: { county?: string };
+			geometry: { type: 'Polygon'; coordinates: number[][][] };
+		} | null;
+		county_bounds?: [[number, number], [number, number]] | null;
 		message?: string;
 		lookup_warnings?: string[];
 		events_anchored?: boolean;
@@ -394,6 +401,7 @@
 								longitude: reviewedRoute.longitude,
 								waypoints: reviewedRoute.waypoints,
 								source: reviewedRoute.source,
+								location_precision: reviewedRoute.location_precision,
 								events_anchored: reviewedRoute.events_anchored
 							}
 						: undefined,
@@ -429,6 +437,7 @@
 		routePreview = {
 			...routePreview,
 			source: 'manual',
+			location_precision: 'route',
 			waypoints: [...routePreview.waypoints].reverse(),
 			message: 'Route direction flipped. Save this route if the roadway log runs the opposite way.'
 		};
@@ -1170,12 +1179,17 @@
 							}}
 							initialWaypoints={routePreview.waypoints}
 							roadwayLogEvents={routePreview.projected_log_events ?? []}
+							locationPrecision={routePreview.location_precision}
+							countyBoundaryGeojson={routePreview.county_boundary_geojson ?? null}
+							countyBounds={routePreview.county_bounds ?? null}
+							countyName={parsed.county}
 							height="360px"
 							onRouteSave={async (waypoints) => {
 								const center = waypoints[Math.floor(waypoints.length / 2)];
 								routePreview = {
 									...routePreview!,
 									source: 'manual',
+									location_precision: 'route',
 									waypoints,
 									latitude: center?.lat ?? routePreview!.latitude,
 									longitude: center?.lng ?? routePreview!.longitude,

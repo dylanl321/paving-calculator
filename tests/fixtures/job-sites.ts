@@ -25,6 +25,8 @@ export interface CreateTestJobSiteOptions {
 	projectNumber?: string | null;
 	latitude?: number | null;
 	longitude?: number | null;
+	locationSource?: string | null;
+	locationPrecision?: string | null;
 }
 
 /**
@@ -45,16 +47,34 @@ export async function createTestJobSite(
 	const projectNumber = opts.projectNumber ?? null;
 	const latitude = opts.latitude ?? null;
 	const longitude = opts.longitude ?? null;
+	const locationSource =
+		opts.locationSource ?? (latitude != null && longitude != null ? 'manual' : null);
+	const locationPrecision =
+		opts.locationPrecision ?? (latitude != null && longitude != null ? 'point' : 'none');
 	const now = Math.floor(Date.now() / 1000);
 
 	await testDb.d1
 		.prepare(
 			`INSERT INTO job_sites
         (id, org_id, name, location_description, status, job_number, project_number,
-         latitude, longitude, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         latitude, longitude, location_source, location_precision, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		)
-		.bind(id, orgId, name, locationDescription, status, jobNumber, projectNumber, latitude, longitude, now, now)
+		.bind(
+			id,
+			orgId,
+			name,
+			locationDescription,
+			status,
+			jobNumber,
+			projectNumber,
+			latitude,
+			longitude,
+			locationSource,
+			locationPrecision,
+			now,
+			now
+		)
 		.run();
 
 	return {
@@ -64,6 +84,8 @@ export async function createTestJobSite(
 		location_description: locationDescription,
 		latitude,
 		longitude,
+		location_source: locationSource,
+		location_precision: locationPrecision,
 		gdot_county: null,
 		gdot_district: null,
 		status,

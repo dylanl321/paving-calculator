@@ -69,6 +69,15 @@ export const PUT: RequestHandler = async ({ params, platform, locals, request })
 	const oldRoute = await db.getJobSiteRoute(params.id);
 
 	await db.upsertJobSiteRoute(params.id, waypoints);
+	if (waypoints.length >= 2) {
+		const center = waypoints[Math.floor(waypoints.length / 2)];
+		await db.updateJobSite(params.id, {
+			latitude: center.lat,
+			longitude: center.lng,
+			location_source: 'manual',
+			location_precision: 'route'
+		});
+	}
 
 	await recordAudit(platform!.env.DB, {
 		actorUserId: locals.user.id,
@@ -86,5 +95,16 @@ export const PUT: RequestHandler = async ({ params, platform, locals, request })
 		userAgent: request.headers.get('user-agent') || undefined
 	});
 
-	return json({ success: true });
+	return json({
+		success: true,
+		location:
+			waypoints.length >= 2
+				? {
+						latitude: waypoints[Math.floor(waypoints.length / 2)].lat,
+						longitude: waypoints[Math.floor(waypoints.length / 2)].lng,
+						location_source: 'manual',
+						location_precision: 'route'
+					}
+				: null
+	});
 };

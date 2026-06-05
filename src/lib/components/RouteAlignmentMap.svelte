@@ -1,7 +1,14 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
-	import { MapView, MapMarker, MapPolyline, MapPolygon, RoadwayLogLayer } from '$lib/components/map-v2';
+	import {
+		MapView,
+		MapGeoJSON,
+		MapMarker,
+		MapPolyline,
+		MapPolygon,
+		RoadwayLogLayer
+	} from '$lib/components/map-v2';
 	import { polylineLengthFt, laneCorridorPolygon, feetToMeters } from '$lib/services/mapUtils';
 	import { buildRoadAlignment, snapToNearestRoad } from '$lib/services/roadSnap';
 	import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
@@ -31,12 +38,27 @@
 		location_description?: string | null;
 	}
 
+	type LocationPrecision = 'route' | 'point' | 'county' | 'none';
+
+	type CountyBoundaryGeojson = {
+		type: 'Feature';
+		properties?: { county?: string };
+		geometry: {
+			type: 'Polygon';
+			coordinates: number[][][];
+		};
+	};
+
 	interface Props {
 		site: SitePin;
 		initialWaypoints?: Waypoint[];
 		numLanes?: number | null;
 		laneWidthFt?: number | null;
 		roadwayLogEvents?: RoadwayLogEvent[];
+		locationPrecision?: LocationPrecision | null;
+		countyBoundaryGeojson?: CountyBoundaryGeojson | null;
+		countyBounds?: [[number, number], [number, number]] | null;
+		countyName?: string | null;
 		height?: string;
 		onRouteSave?: (waypoints: Waypoint[]) => Promise<void>;
 	}
@@ -47,6 +69,10 @@
 		numLanes = null,
 		laneWidthFt = null,
 		roadwayLogEvents = [],
+		locationPrecision = null,
+		countyBoundaryGeojson = null,
+		countyBounds = null,
+		countyName = null,
 		height = '400px',
 		onRouteSave
 	}: Props = $props();
@@ -79,7 +105,12 @@
 		archived: '#475569'
 	};
 
+	const effectivePrecision = $derived<LocationPrecision>(
+		locationPrecision ?? (site.latitude != null && site.longitude != null ? 'point' : 'none')
+	);
 	const pinned = $derived(site.latitude != null && site.longitude != null);
+	const countyOnly = $derived(effectivePrecision === 'county' && !!countyBoundaryGeojson);
+	const hasMapContext = $derived(pinned || !!countyBoundaryGeojson);
 	const hasRoadwayLog = $derived(roadwayLogEvents.length > 0);
 
 	const totalLengthFt = $derived(polylineLengthFt(waypoints));
@@ -99,10 +130,27 @@
 	const firstWaypoint = $derived(waypoints.length >= 2 ? waypoints[0] : null);
 	const lastWaypoint = $derived(waypoints.length >= 2 ? waypoints[waypoints.length - 1] : null);
 	const guideText = $derived.by(() => {
+		if (countyOnly && waypoints.length < 2) {
+			return `${countyName ?? countyBoundaryGeojson?.properties?.county ?? 'County'} is known, but the exact road is not confirmed yet. Load or draw the road line.`;
+		}
 		if (drawMode) return 'Tap road points in order, or pan the map and use Add Point. Points snap onto roads.';
 		if (waypoints.length >= 2) return 'Yellow line is the saved road alignment. Start/end markers show the current route edges.';
 		return 'Load a GDOT road line or tap Edit Route to build one from road-snapped points.';
 	});
+
+	const mapCenter = $derived<[number, number]>(
+		pinned
+			? [site.latitude as number, site.longitude as number]
+			: countyBounds
+				? [
+						(countyBounds[0][0] + countyBounds[1][0]) / 2,
+						(countyBounds[0][1] + countyBounds[1][1]) / 2
+					]
+				: [32.84, -83.63]
+	);
+	const mapBounds = $derived<[[number, number], [number, number]] | null>(
+		countyOnly && waypoints.length < 2 ? countyBounds : null
+	);
 
 	const bufferCoords = $derived.by<[number, number][]>(() => {
 		if (waypoints.length < 2 || !numLanes || !laneWidthFt || numLanes <= 0 || laneWidthFt <= 0)
@@ -268,7 +316,7 @@
 	});
 </script>
 
-{#if !pinned}
+{#if !hasMapContext}
 	<div class="empty-map">
 		<svg
 			width="32"
@@ -294,19 +342,36 @@
 		</div>
 
 		<MapView
-			center={[site.latitude as number, site.longitude as number]}
-			zoom={15}
+			center={mapCenter}
+			bounds={mapBounds}
+			zoom={countyOnly ? 9 : 15}
 			{height}
 			onready={handleMapReady}
 		>
 			{#snippet layers()}
-				<MapMarker
-					lat={site.latitude as number}
-					lng={site.longitude as number}
-					color={color}
-					label={site.name.charAt(0)}
-					popupHtml={sitePopupHtml}
-				/>
+				{#if countyBoundaryGeojson}
+					<MapGeoJSON
+						id="county-boundary-{site.id}"
+						geojson={countyBoundaryGeojson}
+						layerType="fill"
+						styleFunction={() => ({
+							color: '#f2c037',
+							width: 2,
+							opacity: countyOnly ? 0.85 : 0.45,
+							fillOpacity: countyOnly ? 0.16 : 0.07
+						})}
+					/>
+				{/if}
+
+				{#if pinned && !countyOnly}
+					<MapMarker
+						lat={site.latitude as number}
+						lng={site.longitude as number}
+						color={color}
+						label={site.name.charAt(0)}
+						popupHtml={sitePopupHtml}
+					/>
+				{/if}
 
 				{#if waypoints.length >= 2}
 					<MapPolyline

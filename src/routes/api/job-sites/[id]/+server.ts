@@ -31,6 +31,8 @@ export async function GET(event: RequestEvent) {
 			location_description: jobSite.location_description,
 			latitude: jobSite.latitude,
 			longitude: jobSite.longitude,
+			location_source: jobSite.location_source,
+			location_precision: jobSite.location_precision,
 			gdot_county: jobSite.gdot_county,
 			gdot_district: jobSite.gdot_district,
 			status: jobSite.status,
@@ -94,13 +96,30 @@ export async function PATCH(event: RequestEvent) {
 
 		const body: UpdateJobSiteRequest = await event.request.json();
 
-		const updates: Partial<Pick<DbJobSite, 'name' | 'location_description' | 'latitude' | 'longitude' | 'status'>> = {};
+		const updates: Partial<
+			Pick<
+				DbJobSite,
+				| 'name'
+				| 'location_description'
+				| 'latitude'
+				| 'longitude'
+				| 'location_source'
+				| 'location_precision'
+				| 'status'
+			>
+		> = {};
 
 		if (body.name !== undefined) updates.name = body.name;
 		if (body.location_description !== undefined)
 			updates.location_description = body.location_description;
 		if (body.latitude !== undefined) updates.latitude = body.latitude;
 		if (body.longitude !== undefined) updates.longitude = body.longitude;
+		if (body.latitude !== undefined || body.longitude !== undefined) {
+			const nextLat = body.latitude !== undefined ? body.latitude : jobSite.latitude;
+			const nextLng = body.longitude !== undefined ? body.longitude : jobSite.longitude;
+			updates.location_source = 'manual';
+			updates.location_precision = nextLat != null && nextLng != null ? 'point' : 'none';
+		}
 		if (body.status !== undefined) {
 			if (!['active', 'completed', 'archived'].includes(body.status)) {
 				return json({ error: 'Invalid status' }, { status: 400 });
@@ -143,6 +162,8 @@ export async function PATCH(event: RequestEvent) {
 			location_description: updatedJobSite!.location_description,
 			latitude: updatedJobSite!.latitude,
 			longitude: updatedJobSite!.longitude,
+			location_source: updatedJobSite!.location_source,
+			location_precision: updatedJobSite!.location_precision,
 			gdot_county: updatedJobSite!.gdot_county,
 			gdot_district: updatedJobSite!.gdot_district,
 			status: updatedJobSite!.status,

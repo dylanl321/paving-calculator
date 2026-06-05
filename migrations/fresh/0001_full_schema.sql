@@ -355,6 +355,8 @@ CREATE TABLE job_sites (
     status              TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'completed', 'archived')),
     latitude            REAL,
     longitude           REAL,
+    location_source     TEXT,
+    location_precision  TEXT,
     geometry_geojson    TEXT,
     geometry_updated_at INTEGER,
     gdot_county         TEXT,

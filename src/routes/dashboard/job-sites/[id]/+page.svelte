@@ -326,7 +326,12 @@
 		/>
 
 		<OverviewTab
-			data={{ ...data, jobSite: jobSiteState, routeWaypoints: routeWaypointsState }}
+			data={{
+				...data,
+				jobSite: jobSiteState,
+				routeWaypoints: routeWaypointsState,
+				countyBoundary: data.countyBoundary
+			}}
 			{configForm}
 			{totalAreaSqYd}
 			{estTonnage}
@@ -349,6 +354,7 @@
 				jobSite={jobSiteState}
 				routeWaypoints={routeWaypointsState}
 				roadwayLogEvents={data.roadwayLogEvents}
+				countyBoundary={data.countyBoundary}
 				{configForm}
 				numLanes={configForm.num_lanes}
 				laneWidthFt={configForm.lane_width_ft}
@@ -381,6 +387,7 @@
 		<WorkZonesTab
 			jobSite={jobSiteState}
 			routeWaypoints={routeWaypointsState}
+			countyBoundary={data.countyBoundary}
 			numLanes={configForm.num_lanes}
 			laneWidthFt={configForm.lane_width_ft}
 			totalLengthFt={routeLengthFt}

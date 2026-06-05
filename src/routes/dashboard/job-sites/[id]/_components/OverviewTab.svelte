@@ -80,6 +80,10 @@
 		name: 'Job Name',
 		status: 'Status'
 	};
+	const locationPrecision = $derived(
+		data.jobSite.location_precision ?? (data.jobSite.latitude != null ? 'point' : 'none')
+	);
+	const hasCountyContext = $derived(locationPrecision === 'county' && !!data.countyBoundary);
 
 	function isEmpty(value: any): boolean {
 		return value === null || value === undefined || value === '' || value === 0;
@@ -767,12 +771,49 @@
 			<h3>Paving Progress Map</h3>
 		</div>
 		{#if progressData.geometry === null}
-			<div class="empty-state-mini">
-				<p>Draw a route alignment to see progress visualization</p>
-				<button type="button" class="btn-secondary" onclick={() => onGoToTab('work_zones')}>
-					Go to Map Tab
-				</button>
-			</div>
+			{#if data.countyBoundary}
+				{#await import('$lib/components/map-v2/MapView.svelte')}
+					<div class="map-mini-loading">Loading county map&hellip;</div>
+				{:then { default: MapView }}
+					<div class="progress-map-container">
+						<MapView
+							center={[data.countyBoundary.centroid.lat, data.countyBoundary.centroid.lng]}
+							bounds={data.countyBoundary.bounds}
+							zoom={9}
+							height="360px"
+						>
+							{#snippet layers()}
+								{#await import('$lib/components/map-v2/MapGeoJSON.svelte') then { default: MapGeoJSON }}
+									<MapGeoJSON
+										id="progress-county-context"
+										geojson={data.countyBoundary.geojson}
+										layerType="fill"
+										styleFunction={() => ({
+											color: '#f2c037',
+											width: 2,
+											opacity: 0.85,
+											fillOpacity: 0.16
+										})}
+									/>
+								{/await}
+							{/snippet}
+						</MapView>
+					</div>
+					<div class="empty-state-mini county-context-note">
+						<p>{data.countyBoundary.county} County is known. Draw or load the exact road alignment to see progress visualization.</p>
+						<button type="button" class="btn-secondary" onclick={() => onGoToTab('work_zones')}>
+							Go to Map Tab
+						</button>
+					</div>
+				{/await}
+			{:else}
+				<div class="empty-state-mini">
+					<p>Draw a route alignment to see progress visualization</p>
+					<button type="button" class="btn-secondary" onclick={() => onGoToTab('work_zones')}>
+						Go to Map Tab
+					</button>
+				</div>
+			{/if}
 		{:else}
 			{#await import('$lib/components/map-v2/MapView.svelte')}
 				<div class="map-mini-loading">Loading progress map&hellip;</div>
@@ -832,7 +873,17 @@
 		<dl class="gdot-spec-list">
 			<div class="spec-item">
 				<dt>Coordinates</dt>
-				<dd>{data.jobSite.latitude.toFixed(5)}, {data.jobSite.longitude?.toFixed(5)}</dd>
+				<dd>
+					{#if hasCountyContext}
+						County center for review
+					{:else}
+						{data.jobSite.latitude.toFixed(5)}, {data.jobSite.longitude?.toFixed(5)}
+					{/if}
+				</dd>
+			</div>
+			<div class="spec-item">
+				<dt>Location Precision</dt>
+				<dd>{hasCountyContext ? 'County known — exact route needed' : locationPrecision === 'route' ? 'Confirmed route' : 'Project point'}</dd>
 			</div>
 			<div class="spec-item">
 				<dt>County</dt>
