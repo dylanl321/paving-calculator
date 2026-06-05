@@ -375,25 +375,25 @@
 				</div>
 			</section>
 
-			<aside class="rates" aria-label="Live rates">
+			<aside class="rates" aria-label="Calculation assumptions">
 				<div class="rates-header">
-					<div class="eyebrow">Shared Targets</div>
+					<div class="eyebrow">Calculation Assumptions</div>
 				</div>
 				<div class="rate-stats">
 					<div class="rate-stat">
 						<span class="rv">{targetRate}</span>
 						<span class="ru">lbs/SY</span>
-						<span class="rl">Target rate</span>
+						<span class="rl">Target spread</span>
 					</div>
 					<div class="rate-stat">
 						<span class="rv">{looseHeight.toFixed(2)}</span>
 						<span class="ru">in</span>
-						<span class="rl">Loose behind screed</span>
+						<span class="rl">Loose mat height</span>
 					</div>
 				</div>
 
 				<div class="chart-block">
-					<div class="eyebrow">Target Rate Preview</div>
+					<div class="eyebrow">Spread Rate Curve</div>
 					<SpreadRateChart {targetRate} />
 				</div>
 			</aside>
@@ -443,25 +443,25 @@
 				</div>
 			</section>
 
-			<aside class="rates" aria-label="Live rates">
+			<aside class="rates" aria-label="Calculation assumptions">
 				<div class="rates-header">
-					<div class="eyebrow">Shared Targets</div>
+					<div class="eyebrow">Calculation Assumptions</div>
 				</div>
 				<div class="rate-stats">
 					<div class="rate-stat">
 						<span class="rv">{targetRate}</span>
 						<span class="ru">lbs/SY</span>
-						<span class="rl">Target rate</span>
+						<span class="rl">Target spread</span>
 					</div>
 					<div class="rate-stat">
 						<span class="rv">{looseHeight.toFixed(2)}</span>
 						<span class="ru">in</span>
-						<span class="rl">Loose behind screed</span>
+						<span class="rl">Loose mat height</span>
 					</div>
 				</div>
 
 				<div class="chart-block">
-					<div class="eyebrow">Target Rate Preview</div>
+					<div class="eyebrow">Spread Rate Curve</div>
 					<SpreadRateChart {targetRate} />
 				</div>
 			</aside>
