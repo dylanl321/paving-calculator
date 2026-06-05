@@ -17,6 +17,11 @@ import { buildImportRoutePreview, type ImportRoutePreview } from '$lib/server/gd
 import { classifyDocument, getUnrecognizedMessage, type DocumentClassification } from '$lib/server/pdf/classify-document';
 import { parseInspectionReport, type ParsedInspectionReport } from '$lib/server/pdf/parse-inspection';
 import { parseChangeOrder, type ParsedChangeOrder } from '$lib/server/pdf/parse-change-order';
+import {
+	runAiProjectExtraction,
+	type AiExtractionDiagnostic,
+	type EvidencePage
+} from '$lib/server/pdf/ai-project-extractor';
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB per file
 
@@ -26,17 +31,30 @@ interface UploadedFile {
 	bytes: ArrayBuffer;
 }
 
+interface UploadedPageImage {
+	pdf_index: number;
+	filename: string;
+	page_number: number;
+	bytes: ArrayBuffer;
+	type: string;
+}
+
+interface UploadBundle {
+	files: UploadedFile[];
+	pageImages: UploadedPageImage[];
+}
+
 // Reads uploaded PDF files from a multipart request. Prefers the native
 // FormData parser (production on Workers); falls back to a minimal multipart
 // parser because undici's FormData parsing can fail under `vite dev`.
-async function readPdfUploads(request: Request): Promise<UploadedFile[]> {
+async function readPdfUploadBundle(request: Request): Promise<UploadBundle> {
 	const contentType = request.headers.get('content-type') ?? '';
-	if (!contentType.includes('multipart/form-data')) return [];
+	if (!contentType.includes('multipart/form-data')) return { files: [], pageImages: [] };
 
 	const boundaryMatch = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType);
 	const boundary = boundaryMatch?.[1] ?? boundaryMatch?.[2];
 
-	let nativeFiles: UploadedFile[] | null = null;
+	let nativeBundle: UploadBundle | null = null;
 	try {
 		const form = await request.clone().formData();
 		const files: UploadedFile[] = [];
@@ -45,7 +63,8 @@ async function readPdfUploads(request: Request): Promise<UploadedFile[]> {
 				files.push({ name: value.name, type: value.type, bytes: await value.arrayBuffer() });
 			}
 		}
-		if (files.length > 0) nativeFiles = files;
+		const pageImages = await readPageImages(form);
+		if (files.length > 0) nativeBundle = { files, pageImages };
 	} catch {
 		// fall through to manual parse
 	}
@@ -53,17 +72,51 @@ async function readPdfUploads(request: Request): Promise<UploadedFile[]> {
 	// If the native parser produced clean PDF bytes (every file starts with the
 	// %PDF signature), trust it. Otherwise fall back to the manual byte parser —
 	// undici's FormData under `vite dev` can mangle binary uploads.
-	if (nativeFiles && nativeFiles.every((f) => looksLikePdf(f.bytes))) {
-		return nativeFiles;
+	if (nativeBundle && nativeBundle.files.every((f) => looksLikePdf(f.bytes))) {
+		return nativeBundle;
 	}
 
 	if (boundary) {
 		const raw = new Uint8Array(await request.arrayBuffer());
 		const manual = parseMultipartFiles(raw, boundary);
-		if (manual.length > 0) return manual;
+		if (manual.length > 0) return { files: manual, pageImages: [] };
 	}
 
-	return nativeFiles ?? [];
+	return nativeBundle ?? { files: [], pageImages: [] };
+}
+
+async function readPageImages(form: FormData): Promise<UploadedPageImage[]> {
+	const rawMeta = form.get('page_image_meta');
+	if (typeof rawMeta !== 'string' || !rawMeta.trim()) return [];
+
+	let meta: Array<{ field: string; pdf_index: number; filename: string; page_number: number }> = [];
+	try {
+		meta = JSON.parse(rawMeta) as typeof meta;
+	} catch {
+		return [];
+	}
+
+	const images: UploadedPageImage[] = [];
+	for (const item of meta) {
+		if (
+			typeof item.field !== 'string' ||
+			typeof item.pdf_index !== 'number' ||
+			typeof item.filename !== 'string' ||
+			typeof item.page_number !== 'number'
+		) {
+			continue;
+		}
+		const file = form.get(item.field);
+		if (!(file instanceof File)) continue;
+		images.push({
+			pdf_index: item.pdf_index,
+			filename: item.filename,
+			page_number: item.page_number,
+			type: file.type || 'image/jpeg',
+			bytes: await file.arrayBuffer()
+		});
+	}
+	return images;
 }
 
 // Checks for the "%PDF" magic bytes at the start of the buffer.
@@ -204,6 +257,8 @@ export interface ImportPdfResponse {
 	field_confidence: FieldConfidenceMap;
 	/** Diagnostic describing whether/why the Workers AI fallback ran. */
 	llm_fallback: LlmFallbackDiagnostic;
+	/** Diagnostic describing whether/why the primary AI extraction ran. */
+	ai_extraction: AiExtractionDiagnostic;
 	/** Primary document classification type (first uploaded file). */
 	document_type: string;
 	/** Classification confidence 0–1. */
@@ -364,7 +419,8 @@ export async function POST(event: RequestEvent) {
 			return json({ error: 'Organization not found' }, { status: 404 });
 		}
 
-		const files = await readPdfUploads(event.request);
+		const upload = await readPdfUploadBundle(event.request);
+		const files = upload.files;
 		if (files.length === 0) {
 			return json({ error: 'No PDF files provided' }, { status: 400 });
 		}
@@ -374,6 +430,7 @@ export async function POST(event: RequestEvent) {
 		const documents: ImportedDocument[] = [];
 		const documentInventory: DocumentInventory[] = [];
 		const allPageArrays: PdfPositionedTextPage[][] = [];
+		const evidencePagesByFile: EvidencePage[][] = [];
 		// Classification of the primary (first) uploaded document.
 		let primaryClassification: DocumentClassification | null = null;
 
@@ -402,6 +459,24 @@ export async function POST(event: RequestEvent) {
 				const text = pages.map((page) => page.text).join('\n\f\n');
 				const type = detectDocumentType(text);
 				texts.push(text);
+				const fileIndex = files.indexOf(file);
+				const evidencePages = pages.map((page) => {
+					const uploadedImage = upload.pageImages.find(
+						(img) =>
+							img.pdf_index === fileIndex &&
+							img.filename === file.name &&
+							img.page_number === page.page_number
+					);
+					return {
+						pdf_index: fileIndex,
+						filename: file.name,
+						page_number: page.page_number,
+						page_label: labelForPage(page.text, page.page_number),
+						text: page.text,
+						image: uploadedImage?.bytes
+					} satisfies EvidencePage;
+				});
+				evidencePagesByFile.push(evidencePages);
 
 				// Classify the document (AI slow-path when regex returns unknown).
 				// Run for all files; track the primary (first) document classification.
@@ -446,7 +521,39 @@ export async function POST(event: RequestEvent) {
 
 		const parserStart = Date.now();
 		const v2 = parseGdotDocumentsV2(texts, allPageArrays);
-		const parser_duration_ms = Date.now() - parserStart;
+		let parser_duration_ms = Date.now() - parserStart;
+
+		const projectImportCandidate = documentInventory.some((doc) => {
+			if (doc.type === 'contract_summary' || doc.type === 'job_setup') return true;
+			const classifiedType = doc.classification?.type;
+			return (
+				classifiedType === 'gdot_contract_summary' ||
+				classifiedType === 'gdot_job_setup' ||
+				classifiedType === 'gdot_roadway_log' ||
+				classifiedType === 'plan_sheet'
+			);
+		});
+
+		const ai_extraction = projectImportCandidate
+			? await runAiProjectExtraction(ai, evidencePagesByFile.flat(), v2)
+			: ({
+					attempted: false,
+					applied: false,
+					outcome: 'deterministic-fallback',
+					model: null,
+					duration_ms: 0,
+					reason: 'not-project-import-document'
+				} satisfies AiExtractionDiagnostic);
+		parser_duration_ms += ai_extraction.duration_ms ?? 0;
+		if (ai_extraction.outcome === 'binding-unavailable') {
+			v2.warnings.push(
+				'AI extraction was not available in this environment; deterministic PDF parsing was used.'
+			);
+		} else if (ai_extraction.outcome === 'failed') {
+			v2.warnings.push(
+				`AI extraction could not complete (${ai_extraction.reason}); deterministic PDF parsing was used.`
+			);
+		}
 
 		// --- Inspection report / change order parsers ---
 		// Run if any uploaded document was classified as that type.
@@ -530,6 +637,7 @@ export async function POST(event: RequestEvent) {
 			route_preview,
 			field_confidence,
 			llm_fallback,
+			ai_extraction,
 			document_type: primaryClassification?.type ?? 'unknown',
 			classification_confidence: primaryClassification?.confidence ?? 0,
 			classification_description: primaryClassification?.description ?? 'Unknown Document Type',

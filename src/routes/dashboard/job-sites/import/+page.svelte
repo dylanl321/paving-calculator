@@ -191,6 +191,14 @@
 		binding_available: boolean;
 		outcome: 'applied' | 'not-needed' | 'binding-unavailable' | 'failed';
 	} | null>(null);
+	let aiExtraction = $state<{
+		attempted: boolean;
+		applied: boolean;
+		outcome: 'applied' | 'deterministic-fallback' | 'binding-unavailable' | 'failed';
+		model: string | null;
+		duration_ms: number | null;
+		reason: string;
+	} | null>(null);
 	/** Set of fields that were manually corrected by the user. */
 	let correctedFields = $state<Set<string>>(new Set());
 	let confirmedFields = $state<Set<string>>(new Set());
@@ -261,6 +269,7 @@
 		for (const f of files) {
 			formData.append('files', f);
 		}
+		await appendPageImageEvidence(formData, files);
 
 		try {
 			const res = await fetch('/api/job-sites/import-pdf', {
@@ -277,6 +286,7 @@
 				field_confidence?: FieldConfidenceMap;
 				route_preview?: RoutePreview;
 				llm_fallback?: { attempted: boolean; applied: boolean; reason: string; binding_available: boolean; outcome: 'applied' | 'not-needed' | 'binding-unavailable' | 'failed' };
+				ai_extraction?: { attempted: boolean; applied: boolean; outcome: 'applied' | 'deterministic-fallback' | 'binding-unavailable' | 'failed'; model: string | null; duration_ms: number | null; reason: string };
 				document_type?: string;
 				classification_confidence?: number;
 				classification_description?: string;
@@ -311,6 +321,7 @@
 			parserDurationMs = typeof (data as Record<string, unknown>).parser_duration_ms === 'number' ? (data as Record<string, unknown>).parser_duration_ms as number : null;
 			routePreview = data.route_preview ?? null;
 			llmFallback = data.llm_fallback ?? null;
+			aiExtraction = data.ai_extraction ?? null;
 			documentsFound = data.documents_found ?? [];
 			if (data.document_type) {
 				classification = {
@@ -331,6 +342,47 @@
 		} catch {
 			parseError = 'Network error — check your connection';
 			step = 'upload';
+		}
+	}
+
+	async function appendPageImageEvidence(formData: FormData, pdfFiles: File[]) {
+		if (!browser) return;
+		const meta: Array<{ field: string; pdf_index: number; filename: string; page_number: number }> = [];
+
+		try {
+			const { getDocument } = await import('pdfjs-serverless');
+			for (let pdfIndex = 0; pdfIndex < pdfFiles.length; pdfIndex++) {
+				const file = pdfFiles[pdfIndex];
+				const data = new Uint8Array(await file.arrayBuffer());
+				const pdf = await getDocument({ data, useSystemFonts: true }).promise;
+				const maxPages = Math.min(pdf.numPages, 40);
+				for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+					const page = await pdf.getPage(pageNum);
+					const viewport = page.getViewport({ scale: 1 });
+					const longestSide = Math.max(viewport.width, viewport.height);
+					const scale = Math.min(2, 1600 / Math.max(1, longestSide));
+					const renderViewport = page.getViewport({ scale });
+					const canvas = document.createElement('canvas');
+					canvas.width = Math.floor(renderViewport.width);
+					canvas.height = Math.floor(renderViewport.height);
+					const ctx = canvas.getContext('2d');
+					if (!ctx) continue;
+					await page.render({ canvasContext: ctx, viewport: renderViewport, canvas }).promise;
+					const blob = await new Promise<Blob | null>((resolve) =>
+						canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.75)
+					);
+					if (!blob) continue;
+					const field = `page_image_${pdfIndex}_${pageNum}`;
+					formData.append(field, blob, `${file.name}-page-${pageNum}.jpg`);
+					meta.push({ field, pdf_index: pdfIndex, filename: file.name, page_number: pageNum });
+				}
+			}
+		} catch (err) {
+			console.warn('Page image evidence rendering failed:', err);
+		}
+
+		if (meta.length > 0) {
+			formData.append('page_image_meta', JSON.stringify(meta));
 		}
 	}
 
@@ -598,6 +650,8 @@
 	function sourceLabel(fieldName: string): string {
 		const src = fieldSource[fieldName];
 		if (!src) return '';
+		if (src.includes('deterministic+ai')) return 'Parser + AI';
+		if (src.startsWith('ai:')) return src.replace(/^ai:/, 'AI ');
 		if (src.includes('llm')) return 'AI fallback';
 		if (src.includes('table')) return 'Table parser';
 		if (src.includes('regex')) return 'Regex parser';
@@ -784,7 +838,7 @@
 					{@const medCount = ALL_REVIEW_FIELDS.filter(f => (fieldConf[f.key] ?? 'medium') === 'medium').length}
 					{@const lowCount = ALL_REVIEW_FIELDS.filter(f => (fieldConf[f.key] ?? 'medium') === 'low').length}
 					{@const totalPages = documentInventory.reduce((sum, d) => sum + d.page_count, 0)}
-					{@const llmStatus = llmFallback?.outcome ?? 'not-needed'}
+					{@const aiStatus = aiExtraction?.outcome ?? 'deterministic-fallback'}
 					<div class="report-grid">
 					<div class="report-stat">
 						<span class="stat-label">Fields extracted</span>
@@ -813,12 +867,12 @@
 					</div>
 					{/if}
 					<div class="report-stat">
-						<span class="stat-label">AI fallback</span>
+						<span class="stat-label">AI extraction</span>
 						<span class="stat-value"
-							class:stat-high={llmStatus === 'not-needed'}
-							class:stat-medium={llmStatus === 'applied'}
-							class:stat-low={llmStatus === 'failed'}>
-							{llmStatus === 'applied' ? 'Applied' : llmStatus === 'not-needed' ? 'Not needed' : llmStatus === 'binding-unavailable' ? 'Unavailable' : 'Failed'}
+							class:stat-high={aiStatus === 'applied'}
+							class:stat-medium={aiStatus === 'deterministic-fallback'}
+							class:stat-low={aiStatus === 'failed'}>
+							{aiStatus === 'applied' ? 'Applied' : aiStatus === 'deterministic-fallback' ? 'Fallback' : aiStatus === 'binding-unavailable' ? 'Unavailable' : 'Failed'}
 						</span>
 					</div>
 					</div>
@@ -842,26 +896,26 @@
 			<span class="doc-chip" class:present={parsed.has_job_setup}>
 				{parsed.has_job_setup ? '✓' : '○'} Job Setup
 			</span>
-			{#if llmFallback?.attempted}
+			{#if aiExtraction?.attempted}
 				<span
 					class="doc-chip"
-					class:present={llmFallback.applied}
-					title={llmFallback.applied
-						? 'Workers AI supplemented low-confidence fields'
-						: llmFallback.outcome === 'not-needed'
-							? 'Deterministic parsing covered everything; AI assist was not needed'
-							: llmFallback.outcome === 'binding-unavailable'
+					class:present={aiExtraction.applied}
+					title={aiExtraction.applied
+						? 'Workers AI extracted sourced project fields'
+						: aiExtraction.outcome === 'deterministic-fallback'
+							? 'Deterministic parsing was used for the project fields'
+							: aiExtraction.outcome === 'binding-unavailable'
 								? 'Workers AI is not available in this environment'
-								: `AI assist could not supplement fields (${llmFallback.reason})`}
+								: `AI extraction failed (${aiExtraction.reason})`}
 				>
-					{#if llmFallback.applied}
-						✓ AI assist applied
-					{:else if llmFallback.outcome === 'not-needed'}
-						✓ AI assist not needed
-					{:else if llmFallback.outcome === 'binding-unavailable'}
-						○ AI assist unavailable
+					{#if aiExtraction.applied}
+						✓ AI extraction applied
+					{:else if aiExtraction.outcome === 'deterministic-fallback'}
+						✓ Deterministic fallback
+					{:else if aiExtraction.outcome === 'binding-unavailable'}
+						○ AI extraction unavailable
 					{:else}
-						○ AI assist failed
+						○ AI extraction failed
 					{/if}
 				</span>
 			{/if}
@@ -1033,8 +1087,8 @@
 							{:else}
 								<span class="conf-dot conf-high" title={sourceLabel(f.key) ? 'High confidence • Source: ' + sourceLabel(f.key) : 'High confidence'} aria-label="high confidence"></span>
 							{/if}
-							{#if fieldSource[f.key]?.includes('llm')}
-								<span class="ai-field-icon" title="Value filled by AI fallback" aria-label="AI filled">&#x2736;</span>
+							{#if fieldSource[f.key]?.includes('llm') || fieldSource[f.key]?.includes('ai:')}
+								<span class="ai-field-icon" title="Value filled by AI extraction" aria-label="AI filled">&#x2736;</span>
 							{/if}
 							{#if state === 'verify'}
 								<button type="button" class="confirm-field-btn" title="Looks right" aria-label="Confirm {f.label}" onclick={() => confirmField(f.key)}>✓</button>
@@ -1115,8 +1169,8 @@
 							{:else}
 								<span class="conf-dot conf-high" title={sourceLabel(f.key) ? 'High confidence • Source: ' + sourceLabel(f.key) : 'High confidence'} aria-label="high confidence"></span>
 							{/if}
-							{#if fieldSource[f.key]?.includes('llm')}
-								<span class="ai-field-icon" title="Value filled by AI fallback" aria-label="AI filled">&#x2736;</span>
+							{#if fieldSource[f.key]?.includes('llm') || fieldSource[f.key]?.includes('ai:')}
+								<span class="ai-field-icon" title="Value filled by AI extraction" aria-label="AI filled">&#x2736;</span>
 							{/if}
 							{#if state === 'verify'}
 								<button type="button" class="confirm-field-btn" title="Looks right" aria-label="Confirm {f.label}" onclick={() => confirmField(f.key)}>✓</button>
@@ -1263,8 +1317,8 @@
 							{:else}
 								<span class="conf-dot conf-high" title={sourceLabel(f.key) ? 'High confidence • Source: ' + sourceLabel(f.key) : 'High confidence'} aria-label="high confidence"></span>
 							{/if}
-							{#if fieldSource[f.key]?.includes('llm')}
-								<span class="ai-field-icon" title="Value filled by AI fallback" aria-label="AI filled">&#x2736;</span>
+							{#if fieldSource[f.key]?.includes('llm') || fieldSource[f.key]?.includes('ai:')}
+								<span class="ai-field-icon" title="Value filled by AI extraction" aria-label="AI filled">&#x2736;</span>
 							{/if}
 							{#if state === 'verify'}
 								<button type="button" class="confirm-field-btn" title="Looks right" aria-label="Confirm {f.label}" onclick={() => confirmField(f.key)}>✓</button>
@@ -1386,7 +1440,7 @@
 		</section>
 
 		<div class="review-actions">
-			<button class="btn btn-ghost" onclick={() => { step = 'upload'; files = []; parsed = null; routePreview = null; documentsFound = []; }}>
+			<button class="btn btn-ghost" onclick={() => { step = 'upload'; files = []; parsed = null; routePreview = null; documentsFound = []; aiExtraction = null; llmFallback = null; }}>
 				Start Over
 			</button>
 			<button class="btn btn-primary" onclick={createProject} disabled={!parsed.name}>
