@@ -10,8 +10,9 @@
 		disabled?: boolean;
 		error?: string;
 	}
-	let { label, unit, value = $bindable(), step = 1, min, max, hint, disabled = false, error }: Props = $props();
+	let { label, unit, value = $bindable(), step, min, max, hint, disabled = false, error }: Props = $props();
 	const id = `f-${Math.random().toString(36).slice(2, 8)}`;
+	const stepSize = $derived(step ?? 1);
 
 	// Derived: is the current value out of the min/max range?
 	const outOfRange = $derived(
@@ -32,7 +33,7 @@
 	function decrement() {
 		if (disabled) return;
 		const current = value ?? 0;
-		const next = current - step;
+		const next = current - stepSize;
 		if (min !== undefined && next < min) return;
 		value = Math.round(next * 1e10) / 1e10;
 	}
@@ -40,13 +41,13 @@
 	function increment() {
 		if (disabled) return;
 		const current = value ?? 0;
-		const next = current + step;
+		const next = current + stepSize;
 		if (max !== undefined && next > max) return;
 		value = Math.round(next * 1e10) / 1e10;
 	}
 
-	const canDecrement = $derived(!disabled && (min === undefined || (value ?? 0) - step >= min));
-	const canIncrement = $derived(!disabled && (max === undefined || (value ?? 0) + step <= max));
+	const canDecrement = $derived(!disabled && (min === undefined || (value ?? 0) - stepSize >= min));
+	const canIncrement = $derived(!disabled && (max === undefined || (value ?? 0) + stepSize <= max));
 </script>
 
 <div class="field" class:disabled>
@@ -63,7 +64,7 @@
 			{id}
 			type="number"
 			inputmode="decimal"
-			{step}
+			step={step !== undefined ? step : undefined}
 			{min}
 			{max}
 			{disabled}
