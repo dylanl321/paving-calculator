@@ -1,5 +1,6 @@
 // Unit system preference store for imperial/metric toggle.
-// Persisted to localStorage so the user's choice is remembered.
+// Persisted to localStorage so the user's choice is remembered across sessions.
+// If authenticated, also synced to the server (server pref wins on login).
 const STORAGE_KEY = 'paverate.units.v1';
 
 type UnitSystem = 'imperial' | 'metric';
@@ -30,6 +31,24 @@ class Units {
 	set system(v: UnitSystem) {
 		this.#system = v;
 		this.#save();
+		this.#syncToServer(v);
+	}
+
+	/**
+	 * Apply a server-side preference (server wins over localStorage on login).
+	 * Does not trigger a server sync.
+	 */
+	applyServerPref(units: string) {
+		if (units === 'imperial' || units === 'metric') {
+			this.#system = units;
+			try {
+				if (typeof localStorage !== 'undefined') {
+					localStorage.setItem(STORAGE_KEY, units);
+				}
+			} catch {
+				// ignore quota / private-mode errors
+			}
+		}
 	}
 
 	#save() {
@@ -39,6 +58,18 @@ class Units {
 		} catch {
 			// ignore quota / private-mode errors
 		}
+	}
+
+	#syncToServer(units: UnitSystem) {
+		if (typeof fetch === 'undefined') return;
+		void fetch('/api/user/preferred-view', {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ units }),
+			credentials: 'include'
+		}).catch(() => {
+			// Fire-and-forget: silently ignore errors (unauthenticated users, network issues)
+		});
 	}
 }
 

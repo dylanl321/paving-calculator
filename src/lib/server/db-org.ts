@@ -241,12 +241,11 @@ export class DbOrgHelper {
 	async getUserMember(
 		userId: string,
 		orgId: string
-	): Promise<{ role: string; preferred_view: string | null } | null> {
-		const result = await this.db
-			.prepare('SELECT role, preferred_view FROM org_members WHERE user_id = ? AND org_id = ?')
+	): Promise<{ role: string; preferred_view: string | null; preferred_units: string | null } | null> {
+		return this.db
+			.prepare('SELECT role, preferred_view, preferred_units FROM org_members WHERE user_id = ? AND org_id = ?')
 			.bind(userId, orgId)
-			.first<{ role: string; preferred_view: string | null }>();
-		return result || null;
+			.first<{ role: string; preferred_view: string | null; preferred_units: string | null }>();
 	}
 
 	async getUserMemberships(

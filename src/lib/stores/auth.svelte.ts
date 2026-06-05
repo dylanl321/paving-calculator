@@ -1,5 +1,6 @@
 // Auth state store for managing logged-in user and organization.
 // Syncs with the backend API at /api/auth/me.
+import { unitsStore } from '$lib/stores/units.svelte';
 
 interface UserData {
 	id: string;
@@ -14,6 +15,7 @@ interface OrgData {
 	slug: string;
 	role: 'owner' | 'admin' | 'member' | 'foreman' | 'operator' | 'inspector' | 'office' | 'laborer' | 'screed_man';
 	preferred_view?: string | null;
+	preferred_units?: string | null;
 }
 
 interface AuthState {
@@ -56,6 +58,10 @@ class AuthStore {
 				const data = (await res.json()) as { user: UserData | null; org: OrgData | null };
 				this.#state.user = data.user;
 				this.#state.org = data.org;
+				// Server unit preference wins over localStorage on every auth fetch
+				if (data.org?.preferred_units) {
+					unitsStore.applyServerPref(data.org.preferred_units);
+				}
 			} else {
 				this.#state.user = null;
 				this.#state.org = null;
