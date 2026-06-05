@@ -1,4 +1,5 @@
 import type { Component } from 'svelte';
+import ProductionCheckCard from '$lib/components/ProductionCheckCard.svelte';
 import SpreadRateCard from '$lib/components/SpreadRateCard.svelte';
 import FeetLeftCard from '$lib/components/FeetLeftCard.svelte';
 import DistancePlannerCard from '$lib/components/DistancePlannerCard.svelte';
@@ -33,6 +34,12 @@ export const toolGroups: ToolGroup[] = [
 		id: 'asphalt',
 		label: 'Asphalt',
 		tools: [
+			{
+				id: 'production-check',
+				label: 'Production Check',
+				blurb: 'Spread rate & end-of-day reach',
+				component: ProductionCheckCard
+			},
 			{
 				id: 'spread-rate',
 				label: 'Spread Rate',

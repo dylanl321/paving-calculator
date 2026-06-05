@@ -28,7 +28,11 @@
 		data.jobContext && 'error' in data.jobContext ? data.jobContext.error : null
 	);
 
-	const activeTool = $derived(findTool($page.url.searchParams.get('tool')));
+	const requestedToolId = $derived($page.url.searchParams.get('tool'));
+	const activeTool = $derived.by(() => {
+		if (requestedToolId) return findTool(requestedToolId);
+		return projectContext ? findTool('production-check') : null;
+	});
 	const isHome = $derived(activeTool == null);
 	const ActiveComponent = $derived(activeTool?.component);
 	const activeToolGroup = $derived(toolGroups.find(g => g.tools.some(t => t.id === activeTool?.id)) ?? null);
@@ -42,7 +46,11 @@
 
 	function selectHome() {
 		const url = new URL($page.url);
-		url.searchParams.delete('tool');
+		if (projectContext) {
+			url.searchParams.set('tool', 'production-check');
+		} else {
+			url.searchParams.delete('tool');
+		}
 		goto(url, { replaceState: false, keepFocus: true, noScroll: true });
 	}
 

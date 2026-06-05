@@ -133,6 +133,21 @@ describe('feetFromTons', () => {
 	it('returns 0 when tons is 0', () => {
 		expect(feetFromTons(0, 12, 165)).toBe(0);
 	});
+
+	it('supports the active-job production check path', () => {
+		const targetRate = spreadRateFromThickness(2);
+		const actualRate = spreadRatePlaced({
+			tons: 22,
+			lengthFt: 150,
+			widthFt: 12,
+			firstPass: false
+		});
+		const reachableFeet = feetFromTons(40, 12, targetRate);
+
+		expect(targetRate).toBeCloseTo(220, 4);
+		expect(actualRate).toBeCloseTo(220, 4);
+		expect(reachableFeet).toBeCloseTo(272.73, 2);
+	});
 });
 
 // ─── actualSpreadRate ─────────────────────────────────────────────────────────

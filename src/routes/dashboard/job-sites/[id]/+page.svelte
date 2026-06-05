@@ -105,7 +105,7 @@
 	}
 
 	function handleNewCalculation() {
-		goto(`/app?job_site_id=${jobSiteState.id}&tool=spread-rate`);
+		goto(`/app?job_site_id=${jobSiteState.id}&tool=production-check`);
 	}
 
 	async function updateProjectStatus(status: 'active' | 'completed' | 'archived') {
