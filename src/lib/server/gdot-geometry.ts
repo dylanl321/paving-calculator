@@ -18,6 +18,7 @@ import type { GeoJsonLineString } from '$lib/types/dot';
 import { assessRoadwayLogAnchoring } from './roadway-log-anchoring.js';
 import { feetToCoordinate, polylineLengthFt, stationToFeet } from '$lib/services/mapUtils';
 import { routeAlongRoads } from '$lib/services/roadSnap';
+import { parseTerminus, type ParsedTerminus } from './terminus-parser.js';
 
 const GDOT_GPAS_LAYER5 =
 	'https://maps.georgia.gov/arcgis/rest/services/GDOT/GDOT_GPAS/MapServer/5/query';
@@ -214,6 +215,8 @@ export interface ResolvedLocation {
 	/** How the coordinates were obtained, for diagnostics. */
 	source: 'gdot_route' | 'osm_termini_route' | 'osm_overpass' | 'geocode' | 'county_centroid' | 'none';
 	lookupWarnings: string[];
+	parsed_begin_terminus?: ParsedTerminus | null;
+	parsed_end_terminus?: ParsedTerminus | null;
 }
 
 interface RoadwayLogEventPreview {
@@ -340,6 +343,8 @@ export async function buildImportRoutePreview(opts: {
 	roadwayLogEvents?: RoadwayLogEventForPreview[];
 }): Promise<ImportRoutePreview> {
 	const resolved = await resolveImportLocation(opts);
+	const parsedBegin = parseTerminus(opts.beginTerminus);
+	const parsedEnd = parseTerminus(opts.endTerminus);
 	const waypoints = resolved.routeGeometry
 		? resolved.routeGeometry.coordinates.map(([lng, lat]) => ({ lat, lng }))
 		: [];
@@ -385,7 +390,9 @@ export async function buildImportRoutePreview(opts: {
 		anchor_message: anchoring.reason,
 		route_length_ft: anchoring.routeLengthFt,
 		expected_length_ft: anchoring.expectedLengthFt,
-		projected_log_events: projectedLogEvents
+		projected_log_events: projectedLogEvents,
+		parsed_begin_terminus: parsedBegin,
+		parsed_end_terminus: parsedEnd
 	};
 }
 
@@ -537,8 +544,27 @@ function terminusQueries(opts: {
 	routeDesignation: string | null;
 	county: string | null;
 }): string[] {
+	const parsed = parseTerminus(opts.terminus);
 	const countyPart = opts.county ? `${normaliseCounty(opts.county)} County, Georgia` : 'Georgia';
 	const routePart = opts.routeDesignation ? `${opts.routeDesignation}, ` : '';
+
+	// If parsed as intersection with 2+ roads, build better queries
+	if (parsed && parsed.type === 'intersection' && parsed.parsed_roads.length >= 2) {
+		const roadList = parsed.parsed_roads.join(' and ');
+		return [
+			`${roadList}, ${countyPart}`,
+			`intersection of ${roadList}, ${countyPart}`,
+			`${roadList}, Georgia`,
+			`intersection of ${roadList}, Georgia`
+		];
+	}
+
+	// If parsed as milepost, skip (not geocodeable)
+	if (parsed && parsed.type === 'milepost') {
+		return [];
+	}
+
+	// Default queries for raw or landmark types
 	return [
 		`${routePart}${opts.terminus}, ${countyPart}`,
 		`${opts.terminus}, ${countyPart}`,

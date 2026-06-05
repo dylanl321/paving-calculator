@@ -122,6 +122,17 @@
 		warnings: string[];
 	}
 
+	interface ParsedTerminus {
+		type: 'intersection' | 'milepost' | 'landmark' | 'raw';
+		parsed_roads: string[];
+		milepost?: number;
+		landmark?: string;
+		offsetMiles?: number;
+		direction?: string;
+		summary: string;
+		raw: string;
+	}
+
 	interface RoutePreview {
 		source: 'gdot_route' | 'osm_termini_route' | 'osm_overpass' | 'geocode' | 'county_centroid' | 'manual' | 'none';
 		latitude: number | null;
@@ -134,6 +145,8 @@
 		route_length_ft?: number | null;
 		expected_length_ft?: number | null;
 		projected_log_events?: PreviewRoadwayLogEvent[];
+		parsed_begin_terminus?: ParsedTerminus | null;
+		parsed_end_terminus?: ParsedTerminus | null;
 	}
 
 	let step = $state<'upload' | 'parsing' | 'review' | 'creating'>('upload');

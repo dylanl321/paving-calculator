@@ -13,6 +13,7 @@
 	import { coordinateToStation, stationToCoordinate } from '$lib/services/mapUtils';
 	import { formatStation } from '$lib/services/gpsStation';
 	import type { Map as MapLibreMap } from 'maplibre-gl';
+	import type { ParsedTerminus } from '$lib/server/terminus-parser.js';
 
 	interface Waypoint {
 		lat: number;
@@ -29,6 +30,9 @@
 		/** Parsed terminus text shown as a hint (e.g. "THE FLORIDA STATE LINE"). */
 		beginLabel?: string | null;
 		endLabel?: string | null;
+		/** Parsed terminus structures for better display. */
+		beginParsed?: ParsedTerminus | null;
+		endParsed?: ParsedTerminus | null;
 		height?: string;
 		/** Fired when a terminus is set: station + snapped [lat,lng]. */
 		onPick?: (field: 'begin' | 'end', station: number, coord: [number, number]) => void;
@@ -40,6 +44,8 @@
 		endStation = $bindable(null),
 		beginLabel = null,
 		endLabel = null,
+		beginParsed = null,
+		endParsed = null,
 		height = '320px',
 		onPick
 	}: Props = $props();
@@ -188,11 +194,29 @@
 			</button>
 		</div>
 
-		{#if beginLabel || endLabel}
-			<p class="terminus-hint">
-				{#if beginLabel}<span><strong>Start:</strong> {beginLabel}</span>{/if}
-				{#if endLabel}<span><strong>End:</strong> {endLabel}</span>{/if}
-			</p>
+		{#if beginLabel || endLabel || beginParsed || endParsed}
+			<div class="terminus-hint">
+				{#if beginLabel}
+					<span><strong>Start:</strong> {beginLabel}</span>
+					{#if beginParsed && beginParsed.type === 'intersection'}
+						<span class="parsed-hint">Parsed as {beginParsed.summary}</span>
+					{:else if beginParsed && beginParsed.type === 'milepost'}
+						<span class="parsed-hint">Parsed as {beginParsed.summary}</span>
+					{:else if beginParsed && beginParsed.type === 'landmark'}
+						<span class="parsed-hint">Parsed as {beginParsed.summary}</span>
+					{/if}
+				{/if}
+				{#if endLabel}
+					<span><strong>End:</strong> {endLabel}</span>
+					{#if endParsed && endParsed.type === 'intersection'}
+						<span class="parsed-hint">Parsed as {endParsed.summary}</span>
+					{:else if endParsed && endParsed.type === 'milepost'}
+						<span class="parsed-hint">Parsed as {endParsed.summary}</span>
+					{:else if endParsed && endParsed.type === 'landmark'}
+						<span class="parsed-hint">Parsed as {endParsed.summary}</span>
+					{/if}
+				{/if}
+			</div>
 		{/if}
 
 		<div class="map-wrap" style="height: {height}">
@@ -373,10 +397,21 @@
 	.terminus-hint {
 		margin: 0;
 		display: flex;
-		flex-wrap: wrap;
-		gap: 4px 16px;
+		flex-direction: column;
+		gap: 4px;
 		font-size: 0.8rem;
 		color: var(--text-muted);
+	}
+
+	.terminus-hint > span {
+		display: block;
+	}
+
+	.parsed-hint {
+		font-size: 0.75rem;
+		color: #14b8a6;
+		margin-left: 8px;
+		font-weight: 500;
 	}
 
 	.map-wrap {
