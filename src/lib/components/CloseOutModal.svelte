@@ -1,9 +1,26 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import TimeInput from './TimeInput.svelte';
 	import { formatFeet } from '$lib/utils/format';
 	import { actualSpreadRate } from '$lib/config/formulas';
 	import { toastStore } from '$lib/stores/toast.svelte';
+
+	const COMPACTION_THRESHOLD = 92; // percent
+
+	interface DensityReading {
+		id: string;
+		station_number: number;
+		lane: string | null;
+		reading_number: number;
+		wet_density_pcf: number;
+		moisture_pct: number;
+		dry_density_pcf: number | null;
+		target_density_pcf: number | null;
+		compaction_pct: number | null;
+		depth_in: number | null;
+		notes: string | null;
+	}
 
 	interface Props {
 		jobSiteId: string;
@@ -38,6 +55,38 @@
 	let notes = $state(currentLog.notes || '');
 	let isSubmitting = $state(false);
 	let showSuccess = $state(false);
+
+	// Density summary state
+	let densityReadings = $state<DensityReading[]>([]);
+	let densityLoading = $state(true);
+	let densityError = $state(false);
+
+	const densitySummary = $derived.by(() => {
+		const readings = densityReadings;
+		const total = readings.length;
+		// Only readings with a compaction_pct can be evaluated
+		const evaluated = readings.filter((r) => r.compaction_pct !== null);
+		const passing = evaluated.filter((r) => (r.compaction_pct ?? 0) >= COMPACTION_THRESHOLD);
+		const failures = evaluated.filter((r) => (r.compaction_pct ?? 0) < COMPACTION_THRESHOLD);
+		const passPct = evaluated.length > 0 ? (passing.length / evaluated.length) * 100 : null;
+		return { total, evaluated: evaluated.length, passing: passing.length, failures, passPct };
+	});
+
+	onMount(async () => {
+		try {
+			const res = await fetch(`/api/job-sites/${jobSiteId}/logs/${logId}/density`);
+			if (res.ok) {
+				const data = (await res.json()) as { readings: DensityReading[] };
+				densityReadings = data.readings || [];
+			} else {
+				densityError = true;
+			}
+		} catch {
+			densityError = true;
+		} finally {
+			densityLoading = false;
+		}
+	});
 
 	const hoursWorked = $derived.by(() => {
 		if (!currentLog.start_time || !endTime) return 0;
@@ -204,6 +253,11 @@
 			onClose();
 		}
 	}
+
+	function stationLabel(r: DensityReading): string {
+		const lane = r.lane ? ` (${r.lane})` : '';
+		return `Sta ${r.station_number}${lane}`;
+	}
 </script>
 
 <div
@@ -251,6 +305,57 @@
 							<span class="summary-value">{hoursWorked.toFixed(1)}</span>
 						</div>
 					</div>
+				</section>
+
+				<!-- Density compaction summary -->
+				<section class="density-section">
+					<h4>Density / Compaction</h4>
+					{#if densityLoading}
+						<p class="density-loading">Loading density readings…</p>
+					{:else if densityError}
+						<p class="density-error">Could not load density readings.</p>
+					{:else if densitySummary.total === 0}
+						<p class="density-none">No density readings recorded for this log.</p>
+					{:else}
+						<div class="density-stats">
+							<div class="density-stat-item">
+								<span class="density-stat-label">Readings</span>
+								<span class="density-stat-value">{densitySummary.total}</span>
+							</div>
+							{#if densitySummary.evaluated > 0}
+								<div class="density-stat-item">
+									<span class="density-stat-label">≥ {COMPACTION_THRESHOLD}%</span>
+									<span
+										class="density-stat-value"
+										class:pass={densitySummary.failures.length === 0}
+										class:fail={densitySummary.failures.length > 0}
+									>
+										{densitySummary.passing}/{densitySummary.evaluated}
+										({densitySummary.passPct?.toFixed(0)}%)
+									</span>
+								</div>
+							{/if}
+						</div>
+
+						{#if densitySummary.failures.length > 0}
+							<div class="density-failures">
+								<p class="density-failures-label">⚠ Failing readings (below {COMPACTION_THRESHOLD}%):</p>
+								<ul class="density-failures-list">
+									{#each densitySummary.failures as r}
+										<li class="density-failure-item">
+											<span class="failure-station">{stationLabel(r)}</span>
+											<span class="failure-pct fail">{r.compaction_pct?.toFixed(1)}%</span>
+											{#if r.notes}
+												<span class="failure-notes">{r.notes}</span>
+											{/if}
+										</li>
+									{/each}
+								</ul>
+							</div>
+						{:else if densitySummary.evaluated > 0}
+							<p class="density-all-pass">✓ All readings meet {COMPACTION_THRESHOLD}% compaction</p>
+						{/if}
+					{/if}
 				</section>
 
 				<section class="details-section">
@@ -393,7 +498,8 @@
 	}
 
 	.summary-section h4,
-	.details-section h4 {
+	.details-section h4,
+	.density-section h4 {
 		margin: 0 0 12px;
 		font-size: 1rem;
 		color: var(--text-muted, #888);
@@ -429,6 +535,123 @@
 		font-size: 1.5rem;
 		font-weight: 700;
 		color: var(--accent, #f59e0b);
+	}
+
+	/* Density section */
+	.density-section {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+
+	.density-loading,
+	.density-error,
+	.density-none {
+		font-size: 0.9rem;
+		color: var(--text-muted, #888);
+		margin: 0;
+		padding: 10px 0;
+	}
+
+	.density-error {
+		color: var(--danger, #ef4444);
+	}
+
+	.density-stats {
+		display: flex;
+		gap: 16px;
+		flex-wrap: wrap;
+	}
+
+	.density-stat-item {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 12px 16px;
+		background: var(--bg-2, #2a2a2a);
+		border-radius: 8px;
+		border: 1px solid var(--border, #333);
+		min-width: 90px;
+	}
+
+	.density-stat-label {
+		font-size: 0.75rem;
+		color: var(--text-muted, #888);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.density-stat-value {
+		font-size: 1.25rem;
+		font-weight: 700;
+		color: var(--text-1, #fff);
+	}
+
+	.density-stat-value.pass {
+		color: var(--good, #10b981);
+	}
+
+	.density-stat-value.fail {
+		color: var(--danger, #ef4444);
+	}
+
+	.density-failures {
+		background: rgba(239, 68, 68, 0.08);
+		border: 1px solid rgba(239, 68, 68, 0.3);
+		border-radius: 8px;
+		padding: 12px;
+	}
+
+	.density-failures-label {
+		margin: 0 0 8px;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--danger, #ef4444);
+	}
+
+	.density-failures-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+
+	.density-failure-item {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		font-size: 0.9rem;
+		min-height: 32px;
+	}
+
+	.failure-station {
+		color: var(--text-1, #fff);
+		font-weight: 500;
+		min-width: 80px;
+	}
+
+	.failure-pct {
+		font-weight: 700;
+		font-size: 1rem;
+	}
+
+	.failure-notes {
+		color: var(--text-muted, #888);
+		font-size: 0.8rem;
+		font-style: italic;
+	}
+
+	.density-all-pass {
+		margin: 0;
+		font-size: 0.9rem;
+		color: var(--good, #10b981);
+		font-weight: 600;
+	}
+
+	.fail {
+		color: var(--danger, #ef4444);
 	}
 
 	.details-section {
