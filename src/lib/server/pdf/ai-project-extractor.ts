@@ -241,6 +241,24 @@ function extractJson(raw: unknown): AiProjectExtraction | null {
 	return null;
 }
 
+function describeAiResponse(raw: unknown): string {
+	if (raw == null) return 'null';
+	if (typeof raw === 'string') return `string:${raw.length}`;
+	if (typeof raw !== 'object') return typeof raw;
+
+	const obj = raw as Record<string, unknown>;
+	const keys = Object.keys(obj).slice(0, 8).join(',');
+	const parts = [`object{${keys}}`];
+	for (const key of ['response', 'result', 'output', 'text', 'description', 'generated_text']) {
+		if (key in obj) {
+			const value = obj[key];
+			parts.push(`${key}:${typeof value}${typeof value === 'string' ? `:${value.length}` : ''}`);
+		}
+	}
+	if (Array.isArray(obj.choices)) parts.push(`choices:${obj.choices.length}`);
+	return parts.join(' ');
+}
+
 async function runProjectModel(
 	ai: WorkersAi,
 	model: string,
@@ -475,18 +493,32 @@ export async function runAiProjectExtraction(
 		});
 
 		let extraction = extractJson(raw);
+		let retryShape = '';
 		if (!extraction) {
 			const retryRaw = await runProjectModel(ai, model, pages, { type: 'json_object' });
 			extraction = extractJson(retryRaw);
+			retryShape = describeAiResponse(retryRaw);
 		}
 		if (!extraction) {
+			const schemaShape = describeAiResponse(raw);
+			console.warn(
+				JSON.stringify({
+					event: 'pdf_ai_extraction_no_json',
+					model,
+					pages: pages.length,
+					text_chars: pages.reduce((sum, page) => sum + page.text.length + (page.ocr_text?.length ?? 0), 0),
+					image_pages: pages.filter((page) => page.image != null).length,
+					schema_response_shape: schemaShape,
+					retry_response_shape: retryShape
+				})
+			);
 			return {
 				attempted: true,
 				applied: false,
 				outcome: 'failed',
 				model,
 				duration_ms: Date.now() - started,
-				reason: 'no-json'
+				reason: `no-json:${schemaShape}${retryShape ? `;retry:${retryShape}` : ''}`
 			};
 		}
 
@@ -500,6 +532,16 @@ export async function runAiProjectExtraction(
 			reason: applied ? 'applied' : 'no-usable-evidence'
 		};
 	} catch (err) {
+		console.warn(
+			JSON.stringify({
+				event: 'pdf_ai_extraction_error',
+				model,
+				pages: pages.length,
+				text_chars: pages.reduce((sum, page) => sum + page.text.length + (page.ocr_text?.length ?? 0), 0),
+				image_pages: pages.filter((page) => page.image != null).length,
+				error: err instanceof Error ? err.message : String(err)
+			})
+		);
 		return {
 			attempted: true,
 			applied: false,
