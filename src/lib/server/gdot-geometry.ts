@@ -24,12 +24,14 @@ const GDOT_GPAS_LAYER5 =
 const CENSUS_ONELINE =
 	'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress';
 const NOMINATIM_SEARCH = 'https://nominatim.openstreetmap.org/search';
+const OVERPASS_API = 'https://overpass-api.de/api/interpreter';
 // GDOT county boundary polygons (same MapServer used by gdot-boundaries.ts for
 // point lookup). Querying by county NAME with geometry returned gives us an
 // authoritative county polygon we can reduce to an approximate centroid — a
 // real, key-less coordinate source for when no route designation is parsed.
 const GDOT_COUNTY_LAYER =
 	'https://maps.georgia.gov/arcgis/rest/services/GDOT/GDOT_Boundaries/MapServer/3/query';
+const OVERPASS_TIMEOUT_MS = 12000;
 
 /** Escape a value for an ArcGIS SQL WHERE clause. */
 function sqlEscape(v: string): string {
@@ -210,7 +212,7 @@ export interface ResolvedLocation {
 	/** GDOT route LineString when a named route was matched. */
 	routeGeometry: GeoJsonLineString | null;
 	/** How the coordinates were obtained, for diagnostics. */
-	source: 'gdot_route' | 'osm_termini_route' | 'geocode' | 'county_centroid' | 'none';
+	source: 'gdot_route' | 'osm_termini_route' | 'osm_overpass' | 'geocode' | 'county_centroid' | 'none';
 	lookupWarnings: string[];
 }
 
@@ -249,6 +251,85 @@ export interface ImportRoutePreview {
 	projected_log_events?: RoadwayLogEventPreview[];
 }
 
+/**
+ * Query Overpass API for OSM ways with ref matching a route designation.
+ * Extracts route number from routeDesignation (e.g. "SR 13" -> "13", also tries "SR 13").
+ * Builds Overpass QL query to find ways with ref=<num> or ref=<routeDesignation> in Georgia.
+ * If county provided, uses county centroid to build bounding box (centroid ± 0.4 degrees).
+ * Otherwise uses Georgia bounding box: 30.3, -85.6, 35.0, -81.0.
+ * Returns GeoJSON LineString with all way geometries concatenated, or null on error/no results.
+ */
+export async function fetchOverpassRouteGeometry(
+	routeDesignation: string | null,
+	county: string | null
+): Promise<GeoJsonLineString | null> {
+	if (!routeDesignation) return null;
+
+	const num = routeDesignation.match(/(\d+[A-Z]?)/)?.[1];
+	if (!num) return null;
+
+	let bbox = '30.3,-85.6,35.0,-81.0';
+	if (county) {
+		const centroid = await fetchCountyCentroid(county);
+		if (centroid) {
+			const [lat, lng] = centroid;
+			const offset = 0.4;
+			bbox = `${lat - offset},${lng - offset},${lat + offset},${lng + offset}`;
+		}
+	}
+
+	const srVariant = `SR ${num}`;
+	const query = `
+[out:json][timeout:10];
+(
+  way["ref"="${num}"](${bbox});
+  way["ref"="${srVariant}"](${bbox});
+);
+out geom;
+`;
+
+	try {
+		const res = await fetch(OVERPASS_API, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: `data=${encodeURIComponent(query)}`,
+			signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS)
+		});
+		if (!res.ok) return null;
+
+		const data = (await res.json()) as {
+			elements?: Array<{
+				type: string;
+				geometry?: Array<{ lat: number; lon: number }>;
+			}>;
+		};
+
+		const elements = data.elements ?? [];
+		if (elements.length === 0) return null;
+
+		const coordinates: Array<[number, number]> = [];
+		for (const el of elements) {
+			if (el.type === 'way' && el.geometry) {
+				for (const pt of el.geometry) {
+					if (typeof pt.lat === 'number' && typeof pt.lon === 'number') {
+						coordinates.push([pt.lon, pt.lat]);
+					}
+				}
+			}
+		}
+
+		if (coordinates.length < 2) return null;
+
+		return {
+			type: 'LineString',
+			coordinates
+		};
+	} catch (err) {
+		console.error('[gdot-geometry] overpass fetch failed:', err);
+		return null;
+	}
+}
+
 export async function buildImportRoutePreview(opts: {
 	routeDesignation: string | null;
 	county: string | null;
@@ -281,6 +362,10 @@ export async function buildImportRoutePreview(opts: {
 		message = anchoring.anchored
 			? 'OSM road route was found from the parsed termini. Review it before creating the project.'
 			: 'OSM road route was found from the parsed termini, but it needs review before log markers are plotted.';
+	} else if (resolved.source === 'osm_overpass') {
+		message = anchoring.anchored
+			? 'OSM Overpass route was found. Review the alignment before creating the project.'
+			: 'OSM Overpass route was found, but it needs review before log markers are plotted.';
 	} else if (resolved.source === 'geocode') {
 		message = 'Location was geocoded, but no route centerline was found.';
 	} else if (resolved.source === 'county_centroid') {
@@ -361,6 +446,26 @@ export async function resolveImportLocation(opts: {
 				lookupWarnings
 			};
 		}
+	}
+
+	// Overpass fallback: direct OSM way lookup by route designation.
+	if (opts.routeDesignation) {
+		const overpassGeometry = await fetchOverpassRouteGeometry(opts.routeDesignation, opts.county);
+		if (overpassGeometry) {
+			const centroid = lineStringCentroid(overpassGeometry);
+			if (centroid) {
+				return {
+					latitude: centroid[0],
+					longitude: centroid[1],
+					routeGeometry: overpassGeometry,
+					source: 'osm_overpass',
+					lookupWarnings
+				};
+			}
+		}
+		lookupWarnings.push(
+			`No OSM Overpass route found for ${opts.routeDesignation}${opts.county ? ` in ${opts.county}` : ''}.`
+		);
 	}
 
 	// Fallback A: geocode the most specific free-text we have. The one-line
