@@ -37,7 +37,8 @@ export async function GET(event: RequestEvent) {
 				name: org.name,
 				slug: org.slug,
 				role: member?.role ?? null,
-				preferred_view: member?.preferred_view ?? null
+				preferred_view: member?.preferred_view ?? null,
+				preferred_units: member?.preferred_units ?? null
 			}
 		});
 	} catch (error) {
