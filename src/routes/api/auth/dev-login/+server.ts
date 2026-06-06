@@ -11,7 +11,8 @@ const DEV_NAME = 'Dev User';
 const DEV_ORG = 'Dev Paving Co';
 
 export async function POST(event: RequestEvent) {
-	if (!dev) {
+	const isLocalHost = event.url.hostname === 'localhost' || event.url.hostname === '127.0.0.1';
+	if (!dev && !isLocalHost) {
 		return json({ error: 'Not found' }, { status: 404 });
 	}
 

@@ -271,10 +271,12 @@ function parseInchValue(raw: string): number | null {
  */
 function normaliseRoute(num: string | null, prefix: 'SR' | 'I' | 'US' | 'CR'): string | null {
 	if (!num) return null;
-	const n = num.trim().toUpperCase();
+	const n = num.trim().toUpperCase().replace(/\s+/g, ' ');
 	if (!n) return null;
 	return prefix === 'I' ? `I-${n}` : `${prefix} ${n}`;
 }
+
+const ROUTE_NUMBER_WITH_SUFFIX = /(\d+[A-Z]?(?:\s+(?:ALT|BU|BUS|BUSINESS|CONN|SPUR))?)/i;
 
 /**
  * Clean a captured terminus phrase: collapse whitespace, strip a trailing
@@ -705,11 +707,11 @@ function parseContractSummary(text: string, result: ParsedGdotJob): boolean {
 	// first, then the whole text. Normalised to a compact form like "SR 13".
 	const routeText = result.location_description ?? text;
 	result.route_designation = result.route_designation
-		?? normaliseRoute(firstMatch(routeText, /\b(?:STATE ROUTE|S\.?R\.?)\s*[-#]?\s*(\d+[A-Z]?)\b/i), 'SR')
+		?? normaliseRoute(firstMatch(routeText, new RegExp(`\\b(?:STATE ROUTE|S\\.?R\\.?)\\s*[-#]?\\s*${ROUTE_NUMBER_WITH_SUFFIX.source}\\b`, 'i')), 'SR')
 		?? normaliseRoute(firstMatch(routeText, /\bINTERSTATE\s*[-#]?\s*(\d+)\b/i), 'I')
 		?? normaliseRoute(firstMatch(routeText, /\bI-(\d+)\b/i), 'I')
 		?? normaliseRoute(firstMatch(routeText, /\bU\.?S\.?\s*(?:ROUTE|HWY|HIGHWAY)?\s*[-#]?\s*(\d+)\b/i), 'US')
-		?? normaliseRoute(firstMatch(routeText, /\b(?:COUNTY ROAD|C\.?R\.?)\s*[-#]?\s*(\d+[A-Z]?)\b/i), 'CR');
+		?? normaliseRoute(firstMatch(routeText, new RegExp(`\\b(?:COUNTY ROAD|C\\.?R\\.?)\\s*[-#]?\\s*${ROUTE_NUMBER_WITH_SUFFIX.source}\\b`, 'i')), 'CR');
 
 	// Begin / end termini. GDOT headlines phrase these several ways; try each
 	// and stop captures at a paren, NOTICE/Bidders sentinel, punctuation, or a

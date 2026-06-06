@@ -17,6 +17,9 @@
 	let loading = $state(false);
 
 	const resetSuccess = $page.url.searchParams.get('reset') === 'success';
+	const showDevLogin = $derived(
+		dev || $page.url.hostname === 'localhost' || $page.url.hostname === '127.0.0.1'
+	);
 
 	function validateFields(): boolean {
 		const errs: Record<string, string> = {};
@@ -222,7 +225,7 @@
 				</div>
 			</form>
 
-			{#if dev}
+			{#if showDevLogin}
 				<button type="button" class="dev-btn" onclick={handleDevLogin} disabled={loading}>
 					Dev login (local only)
 				</button>

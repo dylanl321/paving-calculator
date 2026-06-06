@@ -78,7 +78,35 @@ npm run dev      # start the dev server (http://localhost:5173)
 npm run check    # wrangler types + svelte-check
 npm run build    # production build (Cloudflare Pages output + PWA)
 npm run preview  # preview the production build via wrangler pages dev
+npm run dev:cloudflare # build + run local Cloudflare Pages with Workers AI
 npm run gen      # regenerate Cloudflare worker types
+```
+
+### Local Cloudflare / Workers AI testing
+
+Use the Cloudflare Pages local runtime when testing server routes that need
+Cloudflare bindings, including PDF import and Workers AI.
+
+```powershell
+npm run db:local
+npm run dev:cloudflare
+```
+
+Open `http://localhost:4173`. The command runs `vite build --watch` and
+`wrangler pages dev --live-reload` together, so source changes rebuild the
+Cloudflare output and Wrangler reloads the browser. `wrangler pages dev` uses
+the local D1/R2 bindings from `wrangler.jsonc` and a remote Workers AI binding
+(`--ai AI`), so AI calls execute against Cloudflare and log in the local
+terminal.
+
+For local authenticated testing, open `http://localhost:4173/login` and use the
+`Dev login (local only)` button. It seeds `dev@paverate.local` into the local D1
+database if needed.
+
+Runtime logs can also be tailed from the local log file:
+
+```powershell
+Get-Content .wrangler-local\pages-dev.out.log -Wait
 ```
 
 ## Deployment (Cloudflare Pages)

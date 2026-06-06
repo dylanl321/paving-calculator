@@ -414,6 +414,38 @@
 		correctedFields = new Set([...correctedFields, fieldName]);
 	}
 
+	function aiConflictFromWarning(warning: string): {
+		field: string;
+		currentValue: string;
+		aiValue: string;
+	} | null {
+		const match = /^(\w+) differs between deterministic parser \((.*)\) and AI \((.*)\); deterministic value retained\.$/.exec(warning);
+		if (!match) return null;
+		return {
+			field: match[1],
+			currentValue: match[2],
+			aiValue: match[3]
+		};
+	}
+
+	function useAiConflictValue(conflict: { field: string; aiValue: string }, warning: string) {
+		if (!parsed) return;
+		const key = conflict.field as keyof ParsedJob;
+		const current = parsed[key];
+		const nextValue =
+			typeof current === 'number'
+				? Number(conflict.aiValue.replace(/[$,\s]/g, ''))
+				: conflict.aiValue;
+		if (typeof current === 'number' && !Number.isFinite(nextValue as number)) return;
+		parsed = {
+			...parsed,
+			[key]: nextValue as never,
+			warnings: parsed.warnings.filter((w) => w !== warning)
+		};
+		markCorrected(conflict.field);
+		fieldSource = { ...fieldSource, [conflict.field]: 'AI alternative selected by user' };
+	}
+
 	async function refreshRoutePreview() {
 		if (!parsed) return;
 		routePreviewLoading = true;
@@ -1043,7 +1075,21 @@
 		{#if parsed.warnings.length > 0}
 			<div class="warnings">
 				{#each parsed.warnings as w}
-					<div class="warning-item">{w}</div>
+					{@const conflict = aiConflictFromWarning(w)}
+					{#if conflict}
+						<div class="warning-item conflict-review">
+							<div>
+								<strong>{conflict.field.replace(/_/g, ' ')}</strong>
+								<span>Parser kept: {conflict.currentValue}</span>
+								<span>AI suggested: {conflict.aiValue}</span>
+							</div>
+							<button class="btn btn-ghost btn-small" onclick={() => useAiConflictValue(conflict, w)}>
+								Use AI value
+							</button>
+						</div>
+					{:else}
+						<div class="warning-item">{w}</div>
+					{/if}
 				{/each}
 			</div>
 		{/if}
@@ -2172,6 +2218,38 @@
 		border-radius: var(--radius);
 		font-size: 0.85rem;
 		margin-bottom: 8px;
+	}
+
+	.conflict-review {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		color: var(--text);
+	}
+
+	.conflict-review div {
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+		min-width: 0;
+	}
+
+	.conflict-review strong {
+		color: var(--accent);
+		text-transform: capitalize;
+	}
+
+	.conflict-review span {
+		color: var(--text-muted);
+		overflow-wrap: anywhere;
+	}
+
+	.btn-small {
+		min-height: 36px;
+		padding: 6px 10px;
+		font-size: 0.8rem;
+		white-space: nowrap;
 	}
 
 	.review-section {

@@ -335,6 +335,14 @@ describe('route_designation extraction', () => {
 		expect(result.route_designation).toBe('SR 92');
 	});
 
+	it('preserves alternate route suffixes from project headlines', () => {
+		const text =
+			'Contract Schedule\nContract ID: T-ALT\nCounties: Lowndes\nNET LENGTH OF PROJECT 2.920 MILES\n' +
+			'2.920 MILES OF MILLING AND PLANT MIX RESURFACING ON SR 7 ALT BEGINNING NORTH OF MAGNOLIA ST AND EXTENDING TO SR 7 BU (SMITHBRIAR DR)\n' +
+			'Total Bid: $100,000.00\n';
+		expect(parseGdotDocuments([text]).route_designation).toBe('SR 7 ALT');
+	});
+
 	it('normalises "STATE ROUTE 13" to "SR 13"', () => {
 		const text =
 			'Contract Schedule\nContract ID: T-1\nCounties: Hall\nNET LENGTH OF PROJECT 1.000 MILES\n' +
