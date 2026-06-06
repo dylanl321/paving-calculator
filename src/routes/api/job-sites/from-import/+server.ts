@@ -1,5 +1,6 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper, type JobSiteContractMeta, type DbJobSiteConfig } from '$lib/server/db';
+import type { D1Database } from '../../../../cloudflare';
 import { requireAuth } from '$lib/server/auth';
 import { recordAudit } from '$lib/server/audit';
 import { deliverWebhook } from '$lib/server/webhooks';
@@ -11,6 +12,11 @@ import {
 	orientWaypointsForAnchors
 } from '$lib/server/roadway-log-anchoring';
 import { buildLogSegments } from '$lib/server/roadway-log-segments';
+import {
+	buildSegmentRows,
+	lineCentroid as segmentLineCentroid,
+	type ImportSegment
+} from '$lib/server/import-segments';
 import {
 	calibrationToRouteMeasure,
 	measureRangeToLine,
@@ -28,8 +34,14 @@ import {
 } from '$lib/services/mapUtils';
 import { constant } from '$lib/config';
 
+/**
+ * One physically-disconnected road segment from a multi-segment import. The
+ * shape lives in `$lib/server/import-segments` (pure, testable); re-imported
+ * here as `ImportSegment`.
+ */
 interface FromImportRequest {
 	parsed: ParsedGdotJob;
+	segments?: ImportSegment[];
 	source_keys?: string[];
 	documents?: Array<{ filename: string; source_key: string; type: string }>;
 	route_override?: {
@@ -223,6 +235,140 @@ function buildRoadSectionsFromLogSegments(
 }
 
 /**
+ * Insert one road_sections row, including the multi-segment columns added in
+ * migration 0078 (segment_group/treatment/measure_axis/termini/geometry_confidence).
+ * Mirrors the upsertJobSiteConfig core/optional split: if the optional columns
+ * don't exist yet on the shared remote D1 (migration not applied), retry with
+ * only the core columns so the import still succeeds.
+ */
+async function insertRoadSection(
+	db: D1Database,
+	row: {
+		id: string;
+		job_site_id: string;
+		name: string;
+		lane: string;
+		station_start: number | null;
+		station_end: number | null;
+		status: string;
+		geometry_geojson: string | null;
+		planned_length_ft: number | null;
+		production_mix_id: string | null;
+		segment_group: string | null;
+		treatment: string | null;
+		measure_axis: string | null;
+		begin_terminus: string | null;
+		end_terminus: string | null;
+		geometry_confidence: string | null;
+		notes: string | null;
+		sort_order: number;
+		created_at: number;
+		updated_at: number;
+	}
+): Promise<void> {
+	try {
+		await db
+			.prepare(
+				`INSERT INTO road_sections
+				(id, job_site_id, name, lane, station_start, station_end, status, geometry_geojson,
+				 planned_length_ft, production_mix_id, segment_group, treatment, measure_axis,
+				 begin_terminus, end_terminus, geometry_confidence, notes, sort_order, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			)
+			.bind(
+				row.id,
+				row.job_site_id,
+				row.name,
+				row.lane,
+				row.station_start,
+				row.station_end,
+				row.status,
+				row.geometry_geojson,
+				row.planned_length_ft,
+				row.production_mix_id,
+				row.segment_group,
+				row.treatment,
+				row.measure_axis,
+				row.begin_terminus,
+				row.end_terminus,
+				row.geometry_confidence,
+				row.notes,
+				row.sort_order,
+				row.created_at,
+				row.updated_at
+			)
+			.run();
+	} catch (err) {
+		// Optional columns may not exist yet on a lagging DB; retry core-only.
+		if (!/no such column/i.test(String(err))) throw err;
+		await db
+			.prepare(
+				`INSERT INTO road_sections
+				(id, job_site_id, name, lane, station_start, station_end, status, geometry_geojson,
+				 notes, sort_order, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			)
+			.bind(
+				row.id,
+				row.job_site_id,
+				row.name,
+				row.lane,
+				row.station_start,
+				row.station_end,
+				row.status,
+				row.geometry_geojson,
+				row.notes,
+				row.sort_order,
+				row.created_at,
+				row.updated_at
+			)
+			.run();
+	}
+}
+
+/**
+ * Persist N disconnected import segments as road_sections rows. Each segment
+ * uses its OWN geometry and its own station axis (local streets each start at
+ * station 0 - they share no route). Returns the number of rows written.
+ * Row mapping is the pure `buildSegmentRows`; this only handles ID/timestamps
+ * and the D1 insert (with the optional-column retry guard).
+ */
+async function persistImportSegments(
+	db: D1Database,
+	jobSiteId: string,
+	segments: ImportSegment[]
+): Promise<number> {
+	const now = Math.floor(Date.now() / 1000);
+	const rows = buildSegmentRows(segments);
+	for (const row of rows) {
+		const id = 'sec_' + crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+		await insertRoadSection(db, {
+			id,
+			job_site_id: jobSiteId,
+			name: row.name,
+			lane: row.lane,
+			station_start: row.station_start,
+			station_end: row.station_end,
+			status: row.status,
+			geometry_geojson: row.geometry_geojson ? geoJsonToD1(row.geometry_geojson) : null,
+			planned_length_ft: row.planned_length_ft,
+			production_mix_id: row.production_mix_id,
+			segment_group: row.segment_group,
+			treatment: row.treatment,
+			measure_axis: row.measure_axis,
+			begin_terminus: row.begin_terminus,
+			end_terminus: row.end_terminus,
+			geometry_confidence: row.geometry_confidence,
+			notes: null,
+			sort_order: row.sort_order,
+			created_at: now,
+			updated_at: now
+		});
+	}
+	return rows.length;
+}
+
+/**
  * POST /api/job-sites/from-import
  * Creates a job site from a reviewed PDF-import object: job row, contract
  * metadata + scopes, paving config (primary scope/mix/tonnage), bid items
@@ -384,6 +530,46 @@ export async function POST(event: RequestEvent) {
 		let roadwayLogAnchored = false;
 		let lrsRouteForEvents: LrsRoute | null = null;
 		let lrsCalibration: RouteCalibration | null = null;
+
+		// Multi-segment import: a project of N physically-disconnected segments
+		// (e.g. several separate city streets, or a mainline + a ramp). Each
+		// segment is persisted as its own road_sections row with its own geometry
+		// and station axis. These projects have no single route, so we skip the
+		// single-route resolution/slicing below and use the segments directly.
+		const importSegments = Array.isArray(body.segments) ? body.segments : [];
+		if (importSegments.length > 0) {
+			try {
+				sectionCount = await persistImportSegments(
+					event.platform!.env.DB,
+					jobSite.id,
+					importSegments
+				);
+				// Pin the job site at the first segment's centroid when we have no
+				// coordinate from the parsed fields, so the map opens near the work.
+				const firstGeom = importSegments.find(
+					(s) => s.geometry && Array.isArray(s.geometry.coordinates) && s.geometry.coordinates.length >= 2
+				)?.geometry;
+				const centroid = firstGeom ? segmentLineCentroid(firstGeom) : null;
+				if (centroid) {
+					locationSource = 'import_segments';
+					locationPrecision = 'route';
+					const { county, district } = await lookupGdotBoundaries(
+						centroid.lat,
+						centroid.lng
+					).catch(() => ({ county: null, district: null }));
+					await db.updateJobSite(jobSite.id, {
+						latitude: centroid.lat,
+						longitude: centroid.lng,
+						location_source: locationSource,
+						location_precision: locationPrecision,
+						gdot_county: county ?? str(parsed.county),
+						gdot_district: district
+					});
+				}
+			} catch (err) {
+				console.error('Import segment persistence failed (non-fatal):', err);
+			}
+		} else {
 		try {
 			const override = body.route_override?.accepted ? body.route_override : null;
 			const overrideWaypoints = Array.isArray(override?.waypoints)
@@ -525,6 +711,7 @@ export async function POST(event: RequestEvent) {
 			}
 		} catch (err) {
 			console.error('Import location resolution failed (non-fatal):', err);
+		}
 		}
 
 		let roadwayLogEventCount = 0;

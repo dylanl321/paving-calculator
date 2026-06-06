@@ -50,6 +50,12 @@ interface CreateSectionRequest {
 	production_mix_id?: string | null;
 	layer_label?: string | null;
 	planned_length_ft?: number | null;
+	segment_group?: string | null;
+	treatment?: string | null;
+	measure_axis?: 'project_mile' | 'none' | null;
+	begin_terminus?: string | null;
+	end_terminus?: string | null;
+	geometry_confidence?: 'high' | 'medium' | 'low' | null;
 	notes?: string | null;
 	sort_order?: number;
 }
@@ -97,6 +103,12 @@ export async function POST(event: RequestEvent) {
 			production_mix_id: body.production_mix_id ?? null,
 			layer_label: body.layer_label ?? null,
 			planned_length_ft: body.planned_length_ft ?? null,
+			segment_group: body.segment_group ?? null,
+			treatment: body.treatment ?? null,
+			measure_axis: body.measure_axis ?? null,
+			begin_terminus: body.begin_terminus ?? null,
+			end_terminus: body.end_terminus ?? null,
+			geometry_confidence: body.geometry_confidence ?? null,
 			notes: body.notes || null,
 			sort_order: body.sort_order ?? 0,
 			created_at: now,
@@ -105,8 +117,8 @@ export async function POST(event: RequestEvent) {
 
 		await event.platform!.env.DB.prepare(
 			`INSERT INTO road_sections
-			(id, job_site_id, name, lane, station_start, station_end, status, geometry_geojson, production_mix_id, layer_label, planned_length_ft, notes, sort_order, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+			(id, job_site_id, name, lane, station_start, station_end, status, geometry_geojson, production_mix_id, layer_label, planned_length_ft, segment_group, treatment, measure_axis, begin_terminus, end_terminus, geometry_confidence, notes, sort_order, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		)
 			.bind(
 				section.id,
@@ -120,6 +132,12 @@ export async function POST(event: RequestEvent) {
 				section.production_mix_id ?? null,
 				section.layer_label ?? null,
 				section.planned_length_ft ?? null,
+				section.segment_group ?? null,
+				section.treatment ?? null,
+				section.measure_axis ?? null,
+				section.begin_terminus ?? null,
+				section.end_terminus ?? null,
+				section.geometry_confidence ?? null,
 				section.notes,
 				section.sort_order,
 				section.created_at,

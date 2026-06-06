@@ -11,6 +11,7 @@
 
 import type { WorkersAi } from './llm-fallback.js';
 import { detectDocumentType } from './parse-gdot.js';
+import { CLASSIFY_LLM_MODEL } from './llm-config.js';
 
 // --------------------------------------------------------------------------
 // Types
@@ -42,9 +43,6 @@ export interface DocumentClassification {
 // --------------------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------------------
-
-/** Workers AI model for classification. Same series as llm-fallback. */
-const CLASSIFY_MODEL = '@cf/meta/llama-3.1-8b-instruct-fast';
 
 /** Maximum characters of document text sent to the AI for classification. */
 const CLASSIFY_MAX_CHARS = 3000;
@@ -159,7 +157,7 @@ export async function classifyDocument(
 		snippet;
 
 	try {
-		const result = (await ai.run(CLASSIFY_MODEL, {
+		const result = (await ai.run(CLASSIFY_LLM_MODEL, {
 			messages: [{ role: 'user', content: prompt }],
 			max_tokens: 120,
 			response_format: { type: 'json_object' }

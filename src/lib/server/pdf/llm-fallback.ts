@@ -1,16 +1,19 @@
 /**
- * Phase 2 LLM fallback for GDOT PDF parsing.
+ * Final null-only top-up pass for GDOT PDF parsing (consolidated role).
  *
- * Deterministic regex/zone parsing in parse-gdot.ts is ALWAYS the primary path.
- * This fallback runs ONLY when the deterministic pass leaves geographic / key
- * scalar fields low-confidence or null (see needsLlmFallback), and it is fed
- * ONLY the already-isolated lowConfidenceZones — never the whole document.
+ * The LLM-primary structurer (structure-contract.ts) is now the main AI stage:
+ * it produces the full multi-segment StructuredContract and, via the adapter,
+ * fills most scalar fields. This module is demoted to a thin LAST-RESORT top-up
+ * that runs AFTER the structurer + deterministic regex and fills ONLY the
+ * narrow set of geographic/identity fields that are STILL null/low — using just
+ * the already-isolated lowConfidenceZones, never the whole document.
  *
  * Spec-traceability constraint: the model may only FILL gaps. It can never
- * override a field the deterministic parser produced at medium/high confidence,
- * and anything it returns is stamped source:'llm-fallback' at 'medium'
- * confidence — we never auto-trust the model at 'high'. It must return null for
- * any field it cannot find; it must not invent values.
+ * override a field produced at medium/high confidence, anything it returns is
+ * stamped source:'llm-fallback' at 'medium' confidence (we never auto-trust the
+ * model at 'high'), and it must return null for any field it cannot find — it
+ * must not invent values. Because the structurer normally fills these first,
+ * this pass usually no-ops ('not-needed'), which is benign.
  *
  * Cloudflare Workers AI facts verified against the live docs (June 2026):
  *  - Free allocation 10,000 Neurons/day on Free AND Paid; overage $0.011/1k
@@ -25,13 +28,14 @@
 
 import { field, mergeField, type FieldConfidence } from './confidence.js';
 import type { ParsedGdotJobV2 } from './parse-gdot.js';
+import { PRIMARY_LLM_MODEL } from './llm-config.js';
 
 /**
- * Active, JSON-Mode-listed text model. We avoid @cf/meta/llama-3.1-8b-instruct
- * (on the May 30, 2026 deprecation list) and prefer the retained `-fast`
- * variant. Override per call if needed.
+ * Default model for the legacy gap-fill fallback. Sourced from the central
+ * {@link PRIMARY_LLM_MODEL} config (verified JSON-Mode-listed model) so the
+ * model id is never hardcoded here. Override per call if needed.
  */
-export const DEFAULT_LLM_MODEL = '@cf/meta/llama-3.1-8b-instruct-fast';
+export const DEFAULT_LLM_MODEL = PRIMARY_LLM_MODEL;
 
 /** Minimal shape of the env.AI binding we depend on (avoids a hard Ai type dep). */
 export interface WorkersAi {

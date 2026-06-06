@@ -168,8 +168,11 @@ describe('runLlmFallback - error fallthrough', () => {
 
 describe('DEFAULT_LLM_MODEL', () => {
 	it('is an active (non-deprecated) JSON-Mode model', () => {
-		// Must not be the deprecated @cf/meta/llama-3.1-8b-instruct (no -fast suffix).
-		expect(DEFAULT_LLM_MODEL).toBe('@cf/meta/llama-3.1-8b-instruct-fast');
+		// Sourced from the central llm-config PRIMARY_LLM_MODEL — the strongest
+		// JSON-Mode-listed instruct model (verified against the live Cloudflare
+		// docs). Must NOT be the deprecated @cf/meta/llama-3.1-8b-instruct.
+		expect(DEFAULT_LLM_MODEL).toBe('@cf/meta/llama-3.3-70b-instruct-fp8-fast');
+		expect(DEFAULT_LLM_MODEL).not.toBe('@cf/meta/llama-3.1-8b-instruct');
 	});
 });
 

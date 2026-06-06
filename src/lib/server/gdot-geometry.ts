@@ -29,6 +29,8 @@ import {
 	resolveRouteFromPlanWithEvents,
 	type RouteSourceDetail
 } from './plan-route-resolver.js';
+import type { StructuredContract, ContractSegment, SegmentKind, MeasureAxis } from './pdf/structured-contract.js';
+import type { FieldConfidence } from './pdf/confidence.js';
 
 export type { RouteSourceDetail };
 
@@ -367,6 +369,13 @@ export interface ImportRoutePreview {
 	parsed_begin_terminus?: ParsedTerminus | null;
 	parsed_end_terminus?: ParsedTerminus | null;
 	route_source_detail?: RouteSourceDetail | null;
+	/**
+	 * Per-segment mapped centerlines (LLM-primary multi-segment pipeline). When
+	 * present, the project is N disconnected named roads (a MultiLineString); the
+	 * scalar `waypoints` above remain the single representative-route preview for
+	 * back-compat with the existing review UI.
+	 */
+	mapped_segments?: MappedSegment[];
 }
 
 /**
@@ -786,7 +795,7 @@ async function geocodeTerminus(opts: {
 	return null;
 }
 
-async function fetchOsmTerminiRoute(opts: {
+export async function fetchOsmTerminiRoute(opts: {
 	routeDesignation: string | null;
 	county: string | null;
 	beginTerminus?: string | null;
@@ -875,4 +884,274 @@ function projectRoadwayLogEvents(
 			}
 		];
 	});
+}
+
+// --------------------------------------------------------------------------
+// Per-segment geometry mapping (StructuredContract → tagged MultiLineString)
+// --------------------------------------------------------------------------
+
+/**
+ * A single mapped contract segment: one named road resolved to its own
+ * centerline. `geometry` is null only when the segment is genuinely
+ * unresolvable (we never fabricate coordinates — vague/un-geocodable termini
+ * are flagged in `low_confidence_termini` for manual map placement instead).
+ *
+ * This is a SUPERSET of the downstream `ImportSegment` persistence contract
+ * (see docs/multi-segment-persistence-design.md): the first block of fields
+ * matches `ImportSegment` field-for-field so `from-import` can persist a
+ * MappedSegment directly with no translation layer. `source`,
+ * `lookup_warnings`, and `low_confidence_termini` are additive diagnostics the
+ * persistence side ignores.
+ */
+export interface MappedSegment {
+	// --- ImportSegment contract (field-for-field) ---
+	name: string | null;
+	kind: SegmentKind | null;
+	group: string | null;
+	treatment: string | null;
+	measure_axis: MeasureAxis;
+	begin_terminus: string | null;
+	end_terminus: string | null;
+	length_mi: number | null;
+	/** Resolved centerline as GeoJSON [lng, lat]; null when truly unresolvable. */
+	geometry: GeoJsonLineString | null;
+	/** Confidence in the snapped line: LRS=high, termini-snap=medium, flagged/none=low. */
+	geometry_confidence: FieldConfidence;
+	// --- additive diagnostics (ignored by from-import) ---
+	source: 'gdot_lrs' | 'osm_termini_route' | 'gdot_route' | 'none';
+	lookup_warnings: string[];
+	/** Flagged termini that were vague/un-geocodable (low confidence for user map adjustment). */
+	low_confidence_termini: string[];
+}
+
+/**
+ * The result of mapping every segment of a {@link StructuredContract}. A project
+ * is N disconnected centerlines (a MultiLineString); each {@link MappedSegment}
+ * carries its own geometry + provenance so one failing segment never aborts the
+ * rest.
+ */
+export interface MappedSegments {
+	segments: MappedSegment[];
+	lookup_warnings: string[];
+}
+
+/** Read a ParsedField<T> value, tolerating a null/undefined field. */
+function fieldValue<T>(f: { value: T | null } | null | undefined): T | null {
+	return f?.value ?? null;
+}
+
+/**
+ * Map the segment's roadway-log events into the `{ milepost, event_type }[]`
+ * shape `resolveRouteFromPlanWithEvents` expects. Only events with a finite
+ * numeric `measure` are usable; the structured event `type` carries the
+ * project_start / project_end markers the trimmer keys off.
+ */
+function segmentEventsToPlanEvents(
+	segment: ContractSegment
+): Array<{ milepost: number; event_type?: string }> {
+	const out: Array<{ milepost: number; event_type?: string }> = [];
+	for (const event of segment.events ?? []) {
+		const measure = fieldValue(event.measure);
+		if (typeof measure !== 'number' || !Number.isFinite(measure)) continue;
+		const eventType = fieldValue(event.type);
+		out.push({ milepost: measure, event_type: eventType ?? undefined });
+	}
+	return out;
+}
+
+/**
+ * Decide whether a segment can be resolved via the GDOT LRS path: it must be on
+ * a numbered route, carry a State Plane mid-point with finite easting/northing,
+ * and be stationed along the `project_mile` axis.
+ */
+function canResolveSegmentViaLrs(contract: StructuredContract, segment: ContractSegment): boolean {
+	const designation = fieldValue(contract.route?.designation ?? null);
+	if (!designation) return false;
+
+	const easting = fieldValue(contract.midpoint?.easting ?? null);
+	const northing = fieldValue(contract.midpoint?.northing ?? null);
+	if (typeof easting !== 'number' || !Number.isFinite(easting)) return false;
+	if (typeof northing !== 'number' || !Number.isFinite(northing)) return false;
+
+	return fieldValue(segment.measure_axis) === 'project_mile';
+}
+
+/** Resolve one segment via the GDOT LRS plan-route path. */
+async function mapSegmentViaLrs(
+	contract: StructuredContract,
+	segment: ContractSegment
+): Promise<{ geometry: GeoJsonLineString | null; warnings: string[] }> {
+	const warnings: string[] = [];
+	const planRoute = await resolveRouteFromPlanWithEvents(
+		{
+			routeDesignation: fieldValue(contract.route?.designation ?? null),
+			midpointEasting: fieldValue(contract.midpoint?.easting ?? null),
+			midpointNorthing: fieldValue(contract.midpoint?.northing ?? null),
+			midpointZoneLabel: fieldValue(contract.midpoint?.zone_label ?? null),
+			grossLengthMi: fieldValue(segment.length_mi) ?? fieldValue(contract.gross_length_mi),
+			countyNumber: fieldValue(contract.county?.fips ?? null)
+		},
+		segmentEventsToPlanEvents(segment)
+	);
+	if (planRoute && planRoute.trimmedGeometry.coordinates.length >= 2) {
+		return { geometry: planRoute.trimmedGeometry, warnings };
+	}
+	warnings.push(
+		`LRS mid-point route resolution did not yield geometry for segment "${
+			fieldValue(segment.name) ?? 'unnamed'
+		}".`
+	);
+	return { geometry: null, warnings };
+}
+
+/**
+ * Resolve one segment via OSRM termini road-snap. Returns geometry + warnings +
+ * the list of termini that could not be geocoded/routed (for low-confidence
+ * flagging). Never fabricates coordinates.
+ */
+async function mapSegmentViaTermini(
+	contract: StructuredContract,
+	segment: ContractSegment
+): Promise<{
+	geometry: GeoJsonLineString | null;
+	warnings: string[];
+	lowConfidenceTermini: string[];
+}> {
+	const beginTerminus = fieldValue(segment.begin_terminus);
+	const endTerminus = fieldValue(segment.end_terminus);
+	const segName = fieldValue(segment.name) ?? 'unnamed';
+
+	const missing: string[] = [];
+	if (!beginTerminus) missing.push('begin terminus');
+	if (!endTerminus) missing.push('end terminus');
+	if (missing.length > 0) {
+		return {
+			geometry: null,
+			warnings: [`Segment "${segName}" is missing its ${missing.join(' and ')}; cannot snap a route.`],
+			lowConfidenceTermini: [beginTerminus, endTerminus].filter(
+				(t): t is string => typeof t === 'string' && t.trim().length > 0
+			)
+		};
+	}
+
+	const osm = await fetchOsmTerminiRoute({
+		routeDesignation: fieldValue(contract.route?.designation ?? null),
+		county: fieldValue(contract.county?.name ?? null),
+		beginTerminus,
+		endTerminus
+	});
+
+	if (osm.routeGeometry && osm.routeGeometry.coordinates.length >= 2) {
+		return { geometry: osm.routeGeometry, warnings: osm.lookupWarnings, lowConfidenceTermini: [] };
+	}
+
+	// Both termini could not be geocoded/routed — flag them for manual placement.
+	const lowConfidenceTermini = [beginTerminus, endTerminus].filter(
+		(t): t is string => typeof t === 'string' && t.trim().length > 0
+	);
+	const warnings = [...osm.lookupWarnings];
+	warnings.push(
+		`Could not geocode/route the termini for segment "${segName}" — flag for manual map placement.`
+	);
+	return { geometry: null, warnings, lowConfidenceTermini };
+}
+
+/**
+ * Resolve geometry PER SEGMENT for a {@link StructuredContract}, returning N
+ * independently-mapped centerlines (conceptually a MultiLineString of
+ * disconnected roads). Routed (numbered-route + mid-point + project_mile)
+ * segments use the GDOT LRS path; everything else (local streets, missing
+ * route/mid-point) uses OSRM termini road-snap. Each segment is wrapped in a
+ * try/catch so one failure never aborts the rest, and no coordinate is ever
+ * fabricated — un-resolvable termini are flagged for manual placement instead.
+ */
+export async function mapStructuredContractSegments(
+	contract: StructuredContract
+): Promise<MappedSegments> {
+	const segments: MappedSegment[] = [];
+	const lookupWarnings: string[] = [];
+
+	for (const segment of contract.segments ?? []) {
+		// Base ImportSegment-contract fields, copied straight from the structured
+		// segment so the output conforms field-for-field regardless of outcome.
+		const base = {
+			name: fieldValue(segment.name),
+			kind: fieldValue(segment.kind),
+			group: fieldValue(segment.group),
+			treatment: fieldValue(segment.treatment),
+			measure_axis: (fieldValue(segment.measure_axis) ?? 'none') as MeasureAxis,
+			begin_terminus: fieldValue(segment.begin_terminus),
+			end_terminus: fieldValue(segment.end_terminus),
+			length_mi: fieldValue(segment.length_mi)
+		};
+
+		try {
+			if (canResolveSegmentViaLrs(contract, segment)) {
+				const { geometry, warnings } = await mapSegmentViaLrs(contract, segment);
+				if (geometry) {
+					segments.push({
+						...base,
+						geometry,
+						geometry_confidence: 'high',
+						source: 'gdot_lrs',
+						lookup_warnings: warnings,
+						low_confidence_termini: []
+					});
+					continue;
+				}
+				// LRS produced nothing usable — fall back to termini road-snap.
+				const fallback = await mapSegmentViaTermini(contract, segment);
+				segments.push({
+					...base,
+					geometry: fallback.geometry,
+					geometry_confidence: geometryConfidence(fallback.geometry, fallback.lowConfidenceTermini),
+					source: fallback.geometry ? 'osm_termini_route' : 'none',
+					lookup_warnings: [...warnings, ...fallback.warnings],
+					low_confidence_termini: fallback.lowConfidenceTermini
+				});
+				continue;
+			}
+
+			const { geometry, warnings, lowConfidenceTermini } = await mapSegmentViaTermini(
+				contract,
+				segment
+			);
+			segments.push({
+				...base,
+				geometry,
+				geometry_confidence: geometryConfidence(geometry, lowConfidenceTermini),
+				source: geometry ? 'osm_termini_route' : 'none',
+				lookup_warnings: warnings,
+				low_confidence_termini: lowConfidenceTermini
+			});
+		} catch (err) {
+			console.error('[gdot-geometry] segment mapping failed:', err);
+			segments.push({
+				...base,
+				geometry: null,
+				geometry_confidence: 'low',
+				source: 'none',
+				lookup_warnings: [
+					`Geometry resolution threw for segment "${base.name ?? 'unnamed'}"; left unmapped.`
+				],
+				low_confidence_termini: []
+			});
+		}
+	}
+
+	return { segments, lookup_warnings: lookupWarnings };
+}
+
+/**
+ * Confidence for a termini-snapped (non-LRS) segment line: a clean snapped line
+ * is `medium`; if any terminus had to be flagged (vague/un-geocodable) or the
+ * geometry is missing entirely it is `low`. LRS-resolved lines are `high`
+ * (handled at the call site). Mirrors the review-page amber/red convention.
+ */
+function geometryConfidence(
+	geometry: GeoJsonLineString | null,
+	lowConfidenceTermini: string[]
+): FieldConfidence {
+	if (!geometry) return 'low';
+	return lowConfidenceTermini.length > 0 ? 'low' : 'medium';
 }

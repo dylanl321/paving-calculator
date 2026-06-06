@@ -7,9 +7,10 @@ import {
 	type ParsedRoadwayLogEvent
 } from './parse-gdot.js';
 import type { WorkersAi } from './llm-fallback.js';
+import { PRIMARY_LLM_MODEL, PAGE_OCR_MODEL } from './llm-config.js';
 
-export const DEFAULT_PROJECT_EXTRACTION_MODEL = '@cf/meta/llama-3.1-8b-instruct-fast';
-export const DEFAULT_PAGE_OCR_MODEL = '@cf/unum/uform-gen2-qwen-500m';
+export const DEFAULT_PROJECT_EXTRACTION_MODEL = PRIMARY_LLM_MODEL;
+export const DEFAULT_PAGE_OCR_MODEL = PAGE_OCR_MODEL;
 
 export interface EvidencePage {
 	pdf_index: number;
@@ -165,7 +166,7 @@ const SYSTEM_PROMPT =
 	'Do not invent values. Keep bid_quantity (contract/allotted tons) separate from ' +
 	'takeoff_tonnage (production target tons).';
 
-function evidenceText(pages: EvidencePage[], perPageChars = 4000, totalChars = 50000): string {
+export function evidenceText(pages: EvidencePage[], perPageChars = 4000, totalChars = 50000): string {
 	const evidence = pages
 		.map((page) => {
 			const text = [page.text, page.ocr_text].filter(Boolean).join('\n');
@@ -241,7 +242,20 @@ function parseJsonString(text: string): AiProjectExtraction | null {
 	}
 }
 
-function parseBalancedJsonObject(text: string): AiProjectExtraction | null {
+/**
+ * Generic balanced-brace JSON-object extractor: scans `text` for the first
+ * top-level `{...}` whose braces balance (string-aware) and that JSON.parses to
+ * an object accepted by `accept`. Shared by the project extractor and the
+ * contract structurer so the brace-walking logic lives in one place.
+ *
+ * @param text   Raw model output that may have prose/markdown around the JSON.
+ * @param accept Predicate that returns true when the parsed object is the shape
+ *               the caller wants (lets two callers reuse the same walker).
+ */
+export function extractBalancedJsonObject<T>(
+	text: string,
+	accept: (parsed: Record<string, unknown>) => boolean
+): T | null {
 	for (let start = text.indexOf('{'); start >= 0; start = text.indexOf('{', start + 1)) {
 		let depth = 0;
 		let inString = false;
@@ -269,13 +283,9 @@ function parseBalancedJsonObject(text: string): AiProjectExtraction | null {
 				if (depth === 0) {
 					const candidate = text.slice(start, i + 1);
 					try {
-						const parsed = JSON.parse(candidate) as AiProjectExtraction;
-						if (
-							parsed &&
-							typeof parsed === 'object' &&
-							('fields' in parsed || 'bid_items' in parsed || 'production_mixes' in parsed)
-						) {
-							return parsed;
+						const parsed = JSON.parse(candidate) as unknown;
+						if (parsed && typeof parsed === 'object' && accept(parsed as Record<string, unknown>)) {
+							return parsed as T;
 						}
 					} catch {
 						break;
@@ -285,6 +295,13 @@ function parseBalancedJsonObject(text: string): AiProjectExtraction | null {
 		}
 	}
 	return null;
+}
+
+function parseBalancedJsonObject(text: string): AiProjectExtraction | null {
+	return extractBalancedJsonObject<AiProjectExtraction>(
+		text,
+		(parsed) => 'fields' in parsed || 'bid_items' in parsed || 'production_mixes' in parsed
+	);
 }
 
 function extractJson(raw: unknown): AiProjectExtraction | null {
@@ -429,13 +446,13 @@ function confidenceOf(raw: AiField<unknown>, hasSource: boolean): FieldConfidenc
 	return 'medium';
 }
 
-function cleanString(v: unknown): string | null {
+export function cleanString(v: unknown): string | null {
 	if (typeof v !== 'string') return null;
 	const s = v.trim();
 	return s === '' ? null : s;
 }
 
-function cleanNumber(v: unknown): number | null {
+export function cleanNumber(v: unknown): number | null {
 	if (typeof v === 'number' && Number.isFinite(v)) return v;
 	if (typeof v === 'string') {
 		const n = Number(v.replace(/[$,\s]/g, ''));
@@ -444,7 +461,7 @@ function cleanNumber(v: unknown): number | null {
 	return null;
 }
 
-function valuesAgree(a: unknown, b: unknown): boolean {
+export function valuesAgree(a: unknown, b: unknown): boolean {
 	if (a == null || b == null) return false;
 	if (typeof a === 'number' || typeof b === 'number') {
 		const an = cleanNumber(a);

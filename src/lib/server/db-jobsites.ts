@@ -254,6 +254,12 @@ export interface DbRoadSection {
 	production_mix_id?: string | null;
 	layer_label?: string | null;
 	planned_length_ft?: number | null;
+	segment_group?: string | null;
+	treatment?: string | null;
+	measure_axis?: 'project_mile' | 'none' | null;
+	begin_terminus?: string | null;
+	end_terminus?: string | null;
+	geometry_confidence?: 'high' | 'medium' | 'low' | null;
 	notes: string | null;
 	sort_order: number;
 	created_at: number;

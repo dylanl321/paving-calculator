@@ -22,6 +22,11 @@ import {
 	type AiExtractionDiagnostic,
 	type EvidencePage
 } from '$lib/server/pdf/ai-project-extractor';
+import { structureContract, type StructureContractDiagnostic } from '$lib/server/pdf/structure-contract';
+import { validateContract, crossCheckWithRegex } from '$lib/server/pdf/validate-contract';
+import { mergeStructuredContractIntoV2 } from '$lib/server/pdf/structured-contract-adapter';
+import { mapStructuredContractSegments, type MappedSegment } from '$lib/server/gdot-geometry';
+import type { StructuredContract } from '$lib/server/pdf/structured-contract';
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB per file
 
@@ -259,6 +264,8 @@ export interface ImportPdfResponse {
 	llm_fallback: LlmFallbackDiagnostic;
 	/** Diagnostic describing whether/why the primary AI extraction ran. */
 	ai_extraction: AiExtractionDiagnostic;
+	/** Diagnostic describing whether/why the LLM contract structurer ran. */
+	structure_contract: StructureContractDiagnostic;
 	/** Primary document classification type (first uploaded file). */
 	document_type: string;
 	/** Classification confidence 0–1. */
@@ -555,6 +562,50 @@ export async function POST(event: RequestEvent) {
 			);
 		}
 
+		// --- LLM-primary contract structurer (multi-segment) ---
+		// A stronger Workers AI model structures the page-labeled evidence into one
+		// strict StructuredContract (N disconnected segments). Deterministic code
+		// then validates it, cross-checks it against the regex parse, folds its
+		// scalar fields back into v2 (fill-null-only, never override deterministic
+		// medium/high), and maps each segment to its own centerline. Best-effort:
+		// a missing AI binding or unusable JSON leaves the deterministic result
+		// untouched. The flat ImportPdfResponse shape is preserved via the adapter.
+		let structuredContract: StructuredContract | null = null;
+		let mappedSegments: MappedSegment[] = [];
+		const structureResult = projectImportCandidate
+			? await structureContract(ai, evidencePagesByFile.flat())
+			: {
+					contract: null,
+					diagnostic: {
+						attempted: false,
+						applied: false,
+						outcome: 'failed',
+						model: null,
+						duration_ms: 0,
+						reason: 'not-project-import-document',
+						segment_count: 0
+					} satisfies StructureContractDiagnostic
+				};
+		const structure_contract = structureResult.diagnostic;
+		parser_duration_ms += structure_contract.duration_ms ?? 0;
+		if (structureResult.contract) {
+			// validate (flag, never drop) -> cross-check vs regex -> merge into v2.
+			structuredContract = crossCheckWithRegex(
+				validateContract(structureResult.contract),
+				v2
+			);
+			mergeStructuredContractIntoV2(v2, structuredContract);
+			try {
+				const mapped = await mapStructuredContractSegments(structuredContract);
+				mappedSegments = mapped.segments;
+				for (const w of mapped.lookup_warnings) {
+					if (w && !v2.warnings.includes(w)) v2.warnings.push(w);
+				}
+			} catch (err) {
+				console.error('Per-segment geometry mapping failed:', err);
+			}
+		}
+
 		// --- Inspection report / change order parsers ---
 		// Run if any uploaded document was classified as that type.
 		let inspection_report: ParsedInspectionReport | undefined;
@@ -597,6 +648,11 @@ export async function POST(event: RequestEvent) {
 			midpointZoneLabel: parsed.midpoint_zone_label ?? null,
 			grossLengthMi: parsed.gross_length_mi ?? null
 		});
+		// Attach per-segment mapped centerlines (multi-segment pipeline) without
+		// disturbing the back-compat single-route preview fields above.
+		if (mappedSegments.length > 0) {
+			route_preview.mapped_segments = mappedSegments;
+		}
 
 		// Build a flat field_confidence map for the UI (scalar fields only).
 		const scalarFields: (keyof ParsedGdotJobV2)[] = [
@@ -638,6 +694,7 @@ export async function POST(event: RequestEvent) {
 			field_confidence,
 			llm_fallback,
 			ai_extraction,
+			structure_contract,
 			document_type: primaryClassification?.type ?? 'unknown',
 			classification_confidence: primaryClassification?.confidence ?? 0,
 			classification_description: primaryClassification?.description ?? 'Unknown Document Type',

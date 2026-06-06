@@ -82,6 +82,30 @@ export async function PATCH(event: RequestEvent) {
 			updates.push('planned_length_ft = ?');
 			values.push(body.planned_length_ft);
 		}
+		if (body.segment_group !== undefined) {
+			updates.push('segment_group = ?');
+			values.push(body.segment_group);
+		}
+		if (body.treatment !== undefined) {
+			updates.push('treatment = ?');
+			values.push(body.treatment);
+		}
+		if (body.measure_axis !== undefined) {
+			updates.push('measure_axis = ?');
+			values.push(body.measure_axis);
+		}
+		if (body.begin_terminus !== undefined) {
+			updates.push('begin_terminus = ?');
+			values.push(body.begin_terminus);
+		}
+		if (body.end_terminus !== undefined) {
+			updates.push('end_terminus = ?');
+			values.push(body.end_terminus);
+		}
+		if (body.geometry_confidence !== undefined) {
+			updates.push('geometry_confidence = ?');
+			values.push(body.geometry_confidence);
+		}
 		if (body.notes !== undefined) {
 			updates.push('notes = ?');
 			values.push(body.notes);
@@ -206,6 +230,12 @@ interface CreateSectionRequest {
 	production_mix_id?: string | null;
 	layer_label?: string | null;
 	planned_length_ft?: number | null;
+	segment_group?: string | null;
+	treatment?: string | null;
+	measure_axis?: 'project_mile' | 'none' | null;
+	begin_terminus?: string | null;
+	end_terminus?: string | null;
+	geometry_confidence?: 'high' | 'medium' | 'low' | null;
 	notes?: string | null;
 	sort_order?: number;
 }
