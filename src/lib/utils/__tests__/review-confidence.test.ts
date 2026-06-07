@@ -9,6 +9,7 @@ import {
 	displayedConfidence,
 	fieldState,
 	isEmptyValue,
+	orderReviewFieldsByInitialState,
 	type FieldConfidenceMap
 } from '../review-confidence.js';
 
@@ -155,5 +156,25 @@ describe('countNeedsAttention', () => {
 		expect(countNeedsAttention(conf, { county: 'Hall', name: 'Proj' }, new Set(), new Set())).toBe(
 			0
 		);
+	});
+});
+
+describe('orderReviewFieldsByInitialState', () => {
+	it('groups fields by initial review state without requiring live resorting later', () => {
+		const fields = [
+			{ key: 'ok_field', label: 'OK', type: 'text' as const },
+			{ key: 'empty_low', label: 'Empty low', type: 'text' as const },
+			{ key: 'filled_low', label: 'Filled low', type: 'text' as const }
+		];
+		const conf: FieldConfidenceMap = {
+			ok_field: 'high',
+			empty_low: 'low',
+			filled_low: 'low'
+		};
+		const values = { ok_field: 'A', empty_low: null, filled_low: 'B' };
+
+		const ordered = orderReviewFieldsByInitialState(fields, values, conf, new Set(), new Set());
+
+		expect(ordered.map((f) => f.key)).toEqual(['empty_low', 'filled_low', 'ok_field']);
 	});
 });

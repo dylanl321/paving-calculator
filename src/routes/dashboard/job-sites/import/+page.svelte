@@ -14,9 +14,11 @@
 		displayedConfidence,
 		fieldState,
 		isEmptyValue,
+		orderReviewFieldsByInitialState,
 		type FieldConfidence,
 		type FieldConfidenceMap,
-		type FieldState
+		type FieldState,
+		type ReviewField
 	} from '$lib/utils/review-confidence';
 	import type {
 		ParsedBidItem,
@@ -98,6 +100,9 @@
 	/** Set of fields that were manually corrected by the user. */
 	let correctedFields = $state<Set<string>>(new Set());
 	let confirmedFields = $state<Set<string>>(new Set());
+	let projectReviewFields = $state<ReviewField[]>(PROJECT_FIELDS);
+	let locationReviewFields = $state<ReviewField[]>(LOCATION_FIELDS);
+	let customerReviewFields = $state<ReviewField[]>(CUSTOMER_FIELDS);
 	/** Per-file multi-document section breakdown from the parser. */
 	let documentsFound = $state<Array<{
 		file_index: number;
@@ -220,6 +225,7 @@
 			correctedFields = new Set();
 			confirmedFields = new Set();
 			resolvedConflicts = new Set();
+			seedReviewFieldOrder(data.parsed ?? null, data.field_confidence ?? {}, data.field_meta ?? {});
 			parsingReport = data.parsing_report ?? null;
 			primaryFilename = files[0]?.name ?? '';
 			parseStatus = '';
@@ -303,6 +309,41 @@
 		total_length_ft: 'gross_length_mi',
 		gross_length_mi: 'gross_length_mi'
 	};
+
+	function reviewValuesFrom(source: ParsedJob | null): Record<string, unknown> {
+		const out: Record<string, unknown> = {};
+		for (const f of ALL_REVIEW_FIELDS) {
+			out[f.key] = source ? (source as unknown as Record<string, unknown>)[f.key] : null;
+		}
+		return out;
+	}
+
+	function mergeFieldConfidence(
+		conf: FieldConfidenceMap,
+		meta: Record<string, FieldMeta>
+	): FieldConfidenceMap {
+		const merged: FieldConfidenceMap = { ...conf };
+		for (const f of ALL_REVIEW_FIELDS) {
+			const path = FIELD_META_PATH[f.key] ?? f.key;
+			const field = meta[path];
+			if (field) merged[f.key] = field.confidence;
+		}
+		return merged;
+	}
+
+	function seedReviewFieldOrder(
+		source: ParsedJob | null,
+		conf: FieldConfidenceMap,
+		meta: Record<string, FieldMeta>
+	) {
+		const values = reviewValuesFrom(source);
+		const merged = mergeFieldConfidence(conf, meta);
+		const corrected = new Set<string>();
+		const confirmed = new Set<string>();
+		projectReviewFields = orderReviewFieldsByInitialState(PROJECT_FIELDS, values, merged, corrected, confirmed);
+		locationReviewFields = orderReviewFieldsByInitialState(LOCATION_FIELDS, values, merged, corrected, confirmed);
+		customerReviewFields = orderReviewFieldsByInitialState(CUSTOMER_FIELDS, values, merged, corrected, confirmed);
+	}
 
 	/** Resolve the FieldMeta for a flat review-field key, when one exists. */
 	function getMeta(key: string): FieldMeta | null {
@@ -1552,11 +1593,8 @@
 		<section class="review-section">
 			<h3>Project Information</h3>
 			<div class="review-grid">
-				<!-- Fields needing attention first -->
-				{#each PROJECT_FIELDS.slice().sort((a, b) => {
-					const rank = { 'needs-input': 0, verify: 1, ok: 2 } as const;
-					return rank[getState(a.key)] - rank[getState(b.key)];
-				}) as f}
+				<!-- Fields needing attention first; order frozen at parse so inputs don't reshuffle mid-edit -->
+				{#each projectReviewFields as f}
 					{@const conf = getConf(f.key)}
 					{@const state = getState(f.key)}
 					<div class="review-field" class:field-low={state === 'needs-input'} class:field-verify={state === 'verify'} class:field-corrected={state === 'ok' && (correctedFields.has(f.key) || confirmedFields.has(f.key))}>
@@ -1634,10 +1672,7 @@
 			<h3>Location &amp; Route</h3>
 			<p class="section-hint">Route designation drives automatic map/route lookup. Verify or fill it so Work Zones get coordinates.</p>
 			<div class="review-grid">
-				{#each LOCATION_FIELDS.slice().sort((a, b) => {
-					const rank = { 'needs-input': 0, verify: 1, ok: 2 } as const;
-					return rank[getState(a.key)] - rank[getState(b.key)];
-				}) as f}
+				{#each locationReviewFields as f}
 					{@const conf = getConf(f.key)}
 					{@const state = getState(f.key)}
 					<div class="review-field" class:field-low={state === 'needs-input'} class:field-verify={state === 'verify'} class:field-corrected={state === 'ok' && (correctedFields.has(f.key) || confirmedFields.has(f.key))}>
@@ -1782,10 +1817,7 @@
 		<section class="review-section">
 			<h3>Customer / Owner</h3>
 			<div class="review-grid">
-				{#each CUSTOMER_FIELDS.slice().sort((a, b) => {
-					const rank = { 'needs-input': 0, verify: 1, ok: 2 } as const;
-					return rank[getState(a.key)] - rank[getState(b.key)];
-				}) as f}
+				{#each customerReviewFields as f}
 					{@const conf = getConf(f.key)}
 					{@const state = getState(f.key)}
 					<div class="review-field" class:field-low={state === 'needs-input'} class:field-verify={state === 'verify'} class:field-corrected={state === 'ok' && (correctedFields.has(f.key) || confirmedFields.has(f.key))}>

@@ -129,6 +129,26 @@ export function countNeedsAttention(
 }
 
 /**
+ * Initial render order for review fields. Attention states are grouped when the
+ * review page opens, but callers should keep the returned array stable while a
+ * user edits so inputs are not moved/remounted mid-keystroke.
+ */
+export function orderReviewFieldsByInitialState(
+	fields: readonly ReviewField[],
+	values: Record<string, unknown>,
+	fieldConf: FieldConfidenceMap,
+	correctedFields: ReadonlySet<string>,
+	confirmedFields: ReadonlySet<string> = new Set()
+): ReviewField[] {
+	const rank: Record<FieldState, number> = { 'needs-input': 0, verify: 1, ok: 2 };
+	return [...fields].sort((a, b) => {
+		const aState = fieldState(a.key, values[a.key], fieldConf, correctedFields, confirmedFields);
+		const bState = fieldState(b.key, values[b.key], fieldConf, correctedFields, confirmedFields);
+		return rank[aState] - rank[bState];
+	});
+}
+
+/**
  * Count of rendered review fields that display a low-confidence "!" badge. This
  * is the single source of truth for the "N fields need manual review" banner so
  * it can never disagree with the marked, editable fields the user sees.
