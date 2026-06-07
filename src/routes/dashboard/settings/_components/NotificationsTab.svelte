@@ -540,7 +540,7 @@
 
 	.toggle-switch input:checked ~ .toggle-track .toggle-thumb {
 		transform: translateX(18px);
-		background: #fff;
+		background: var(--accent-text);
 	}
 
 	.schedule-title-block {
@@ -662,7 +662,7 @@
 	}
 
 	.role-chip-active {
-		background: rgba(var(--accent-rgb, 251, 191, 36), 0.15);
+		background: color-mix(in srgb, var(--accent) 15%, transparent);
 		border-color: var(--accent);
 		color: var(--accent);
 	}
@@ -688,7 +688,7 @@
 
 	.chip-role {
 		border-color: var(--accent);
-		background: rgba(var(--accent-rgb, 251, 191, 36), 0.08);
+		background: color-mix(in srgb, var(--accent) 8%, transparent);
 	}
 
 	.recipient-email {

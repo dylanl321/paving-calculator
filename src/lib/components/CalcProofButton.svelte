@@ -75,7 +75,7 @@
 		width: 100%;
 		min-height: 48px;
 		padding: var(--sp-3) var(--sp-4);
-		background: var(--surface-2);
+		background: var(--surface-alt);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-sm);
 		color: var(--text-muted);

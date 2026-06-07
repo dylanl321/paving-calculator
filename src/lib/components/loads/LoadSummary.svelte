@@ -291,7 +291,7 @@
 	}
 
 	.tally-item--rejected .tally-value {
-		color: var(--error, #ef4444);
+		color: var(--bad);
 	}
 
 	.yield-efficiency-section {
@@ -400,7 +400,7 @@
 	.completion-bar-track {
 		width: 100%;
 		height: 10px;
-		background: var(--surface-2, rgba(255,255,255,0.08));
+		background: var(--surface-alt);
 		border-radius: 5px;
 		overflow: hidden;
 		margin-bottom: 0.4rem;

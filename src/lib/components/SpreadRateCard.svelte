@@ -581,7 +581,7 @@
 		transition: all 0.15s ease;
 	}
 	.override-toggle:hover {
-		background: color-mix(in srgb, var(--surface-2) 50%, transparent);
+		background: color-mix(in srgb, var(--surface-alt) 50%, transparent);
 		border-color: var(--text-muted);
 	}
 	.override-toggle:active {
@@ -632,7 +632,7 @@
 		min-height: var(--touch);
 		min-width: var(--touch);
 		padding: var(--sp-3) var(--sp-4);
-		background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+		background: color-mix(in srgb, var(--surface-alt) 80%, transparent);
 		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
 		border-radius: var(--radius-sm);
 		color: var(--warn);
@@ -643,7 +643,7 @@
 		flex-shrink: 0;
 	}
 	.clear-button:hover {
-		background: color-mix(in srgb, var(--surface-2) 100%, transparent);
+		background: var(--surface-alt);
 		border-color: var(--warn);
 	}
 	.clear-button:active {

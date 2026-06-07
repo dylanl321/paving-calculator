@@ -111,7 +111,7 @@
 		height: 20px;
 		padding: 0 6px;
 		margin-left: 6px;
-		background: var(--surface-2);
+		background: var(--surface-alt);
 		border: 1px solid var(--border);
 		border-radius: 10px;
 		font-size: 0.7rem;

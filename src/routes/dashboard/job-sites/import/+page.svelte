@@ -742,14 +742,14 @@
 	}
 
 	function routeSourceBadge(source: RoutePreview['source'] | undefined): { label: string; color: string } {
-		if (source === 'gdot_lrs') return { label: 'GDOT LRS', color: '#15803d' };
-		if (source === 'gdot_route') return { label: 'GDOT Authoritative', color: '#16a34a' };
-		if (source === 'osm_termini_route') return { label: 'OSM Routed', color: '#2563eb' };
-		if (source === 'osm_overpass') return { label: 'OSM Overpass', color: '#0891b2' };
-		if (source === 'geocode') return { label: 'Geocoded Pin', color: '#d97706' };
-		if (source === 'county_centroid') return { label: 'County Center', color: '#ea580c' };
-		if (source === 'manual') return { label: 'User Defined', color: '#7c3aed' };
-		return { label: 'No Route', color: '#6b7280' };
+		if (source === 'gdot_lrs') return { label: 'GDOT LRS', color: 'var(--good)' };
+		if (source === 'gdot_route') return { label: 'GDOT Authoritative', color: 'var(--good)' };
+		if (source === 'osm_termini_route') return { label: 'OSM Routed', color: 'var(--accent)' };
+		if (source === 'osm_overpass') return { label: 'OSM Overpass', color: 'var(--accent)' };
+		if (source === 'geocode') return { label: 'Geocoded Pin', color: 'var(--warn)' };
+		if (source === 'county_centroid') return { label: 'County Center', color: 'var(--warn)' };
+		if (source === 'manual') return { label: 'User Defined', color: 'var(--text-muted)' };
+		return { label: 'No Route', color: 'var(--text-muted)' };
 	}
 
 	const evidenceSummary = $derived.by(() => {
@@ -1678,7 +1678,7 @@
 						<h4>Route Preview</h4>
 						<p>{routePreview?.message ?? 'No route preview has been resolved yet.'}</p>
 						<div class="route-status-row">
-							<span class="route-source-badge" style="background:{routeSourceBadge(routePreview?.source).color}; color:#fff; padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:600">{routeSourceBadge(routePreview?.source).label}</span>
+							<span class="route-source-badge" style="background:{routeSourceBadge(routePreview?.source).color}; color:var(--accent-text); padding:2px 8px; border-radius:4px; font-size:0.75rem; font-weight:600">{routeSourceBadge(routePreview?.source).label}</span>
 							{#if parsed.route_designation}
 								<span>Parsed route: {parsed.route_designation}</span>
 							{/if}
@@ -2187,18 +2187,18 @@
 				aria-label="PDF import in progress"
 			>
 				<div class="paver-loader" aria-hidden="true">
-					<div class="paver-machine">
-						<div class="paver-cab"></div>
-						<div class="paver-bed"></div>
-						<div class="paver-screed"></div>
-						<div class="paver-wheel left"></div>
-						<div class="paver-wheel right"></div>
-					</div>
-					<div class="road-strip">
-						<span></span>
-						<span></span>
-						<span></span>
-					</div>
+					<svg class="paver-truck" viewBox="0 0 120 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+						<!-- dump body -->
+						<path d="M10 18 L70 18 L70 44 L10 44 Z" class="truck-body" />
+						<!-- cab -->
+						<path d="M70 26 L86 26 L94 38 L94 44 L70 44 Z" class="truck-cab" />
+						<!-- window -->
+						<path d="M73 30 L84 30 L89 38 L73 38 Z" class="truck-window" />
+						<!-- wheels -->
+						<circle cx="30" cy="48" r="8" class="truck-wheel" />
+						<circle cx="80" cy="48" r="8" class="truck-wheel" />
+					</svg>
+					<div class="road-strip"></div>
 				</div>
 
 				<div class="import-modal-copy">
@@ -2553,29 +2553,6 @@
 		margin-top: 16px;
 	}
 
-	.parse-progress {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		margin-top: 14px;
-		padding: 12px 14px;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text);
-	}
-
-	.parse-progress strong {
-		display: block;
-		font-size: 0.9rem;
-	}
-
-	.parse-progress p {
-		margin: 3px 0 0;
-		color: var(--text-muted);
-		font-size: 0.8rem;
-	}
-
 	.import-modal-backdrop {
 		position: fixed;
 		inset: 0;
@@ -2591,115 +2568,61 @@
 		width: min(520px, 100%);
 		padding: 24px;
 		border-radius: 10px;
-		border: 1px solid rgba(242, 192, 55, 0.28);
+		border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
 		background: var(--surface);
 		box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
 	}
 
 	.paver-loader {
 		position: relative;
-		height: 108px;
+		display: flex;
+		align-items: flex-end;
+		justify-content: center;
+		height: 104px;
 		margin-bottom: 18px;
 		overflow: hidden;
 		border-radius: 8px;
-		background:
-			linear-gradient(180deg, rgba(46, 59, 70, 0.35), rgba(20, 27, 33, 0.8)),
-			linear-gradient(90deg, rgba(242, 192, 55, 0.08), transparent 58%);
+		background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 78%, var(--bg)), var(--bg));
 		border: 1px solid var(--border);
 	}
 
-	.paver-machine {
-		position: absolute;
-		left: 50%;
-		bottom: 34px;
-		width: 142px;
-		height: 50px;
-		transform: translateX(-50%);
-		animation: paver-bob 1.7s ease-in-out infinite;
+	.paver-truck {
+		position: relative;
+		z-index: 1;
+		width: 120px;
+		height: 64px;
+		margin-bottom: 18px;
+		animation: paver-bob 1.6s ease-in-out infinite;
 	}
 
-	.paver-cab {
-		position: absolute;
-		left: 18px;
-		bottom: 26px;
-		width: 42px;
-		height: 28px;
-		border-radius: 5px 9px 2px 2px;
-		background: #f2c037;
-		box-shadow: inset -10px 0 rgba(0, 0, 0, 0.14);
+	.paver-truck .truck-body {
+		fill: var(--accent);
 	}
 
-	.paver-cab::after {
-		content: '';
-		position: absolute;
-		right: 7px;
-		top: 6px;
-		width: 16px;
-		height: 10px;
-		border-radius: 2px;
-		background: rgba(46, 59, 70, 0.75);
+	.paver-truck .truck-cab {
+		fill: color-mix(in srgb, var(--accent) 80%, black);
 	}
 
-	.paver-bed {
-		position: absolute;
-		left: 6px;
-		right: 18px;
-		bottom: 13px;
-		height: 24px;
-		border-radius: 4px;
-		background: #2e3b46;
-		border: 2px solid rgba(242, 192, 55, 0.55);
+	.paver-truck .truck-window {
+		fill: color-mix(in srgb, var(--bg) 70%, var(--text));
 	}
 
-	.paver-screed {
-		position: absolute;
-		right: 0;
-		bottom: 10px;
-		width: 42px;
-		height: 10px;
-		border-radius: 2px;
-		background: #cbd5e1;
-		transform: skewX(-16deg);
+	.paver-truck .truck-wheel {
+		fill: color-mix(in srgb, var(--text) 55%, var(--bg));
 	}
-
-	.paver-wheel {
-		position: absolute;
-		bottom: 0;
-		width: 24px;
-		height: 24px;
-		border-radius: 50%;
-		background: #111827;
-		border: 5px solid #475569;
-		animation: wheel-spin 0.9s linear infinite;
-	}
-
-	.paver-wheel.left { left: 28px; }
-	.paver-wheel.right { right: 42px; }
 
 	.road-strip {
 		position: absolute;
 		left: 0;
 		right: 0;
 		bottom: 0;
-		height: 30px;
-		background: #111827;
-		border-top: 3px solid rgba(242, 192, 55, 0.68);
-		overflow: hidden;
+		height: 22px;
+		background:
+			linear-gradient(90deg, var(--accent) 0 40%, transparent 40% 100%) 0 9px / 40px 4px repeat-x,
+			color-mix(in srgb, var(--bg) 88%, black);
+		border-top: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+		animation: road-lane-slide 0.7s linear infinite;
 	}
-
-	.road-strip span {
-		position: absolute;
-		top: 13px;
-		width: 58px;
-		height: 4px;
-		border-radius: 99px;
-		background: rgba(242, 192, 55, 0.95);
-		animation: lane-slide 1.15s linear infinite;
-	}
-
-	.road-strip span:nth-child(1) { left: -60px; }
-	.road-strip span:nth-child(2) { left: 100px; animation-delay: -0.38s; }
-	.road-strip span:nth-child(3) { left: 260px; animation-delay: -0.76s; }
 
 	.import-modal-copy {
 		text-align: center;
@@ -2908,8 +2831,8 @@
 
 	.evidence-ok {
 		color: var(--accent);
-		background: rgba(242, 192, 55, 0.1);
-		border: 1px solid rgba(242, 192, 55, 0.35);
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+		border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
 	}
 
 	.evidence-warn {
@@ -2949,11 +2872,10 @@
 		font-weight: 700;
 	}
 
-	.evidence-chips span.present,
-	.route-status-row .route-source {
+	.evidence-chips span.present {
 		color: var(--accent);
-		border-color: rgba(242, 192, 55, 0.35);
-		background: rgba(242, 192, 55, 0.08);
+		border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+		background: color-mix(in srgb, var(--accent) 8%, transparent);
 	}
 
 	.document-list {
@@ -3045,10 +2967,10 @@
 		width: fit-content;
 		margin-top: 8px !important;
 		padding: 5px 9px;
-		border: 1px solid rgba(242, 192, 55, 0.35);
+		border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
 		border-radius: 999px;
 		color: var(--text-muted);
-		background: rgba(242, 192, 55, 0.08);
+		background: color-mix(in srgb, var(--accent) 8%, transparent);
 		font-weight: 700;
 	}
 
@@ -3328,28 +3250,17 @@
 		animation: spin 0.8s linear infinite;
 	}
 
-	.spinner.small {
-		width: 22px;
-		height: 22px;
-		border-width: 2px;
-		flex-shrink: 0;
-	}
-
 	@keyframes spin {
 		to { transform: rotate(360deg); }
 	}
 
 	@keyframes paver-bob {
-		0%, 100% { transform: translateX(-50%) translateY(0); }
-		50% { transform: translateX(-50%) translateY(-3px); }
+		0%, 100% { transform: translateY(0); }
+		50% { transform: translateY(-3px); }
 	}
 
-	@keyframes wheel-spin {
-		to { transform: rotate(360deg); }
-	}
-
-	@keyframes lane-slide {
-		to { transform: translateX(620px); }
+	@keyframes road-lane-slide {
+		to { background-position: -40px 9px, 0 0; }
 	}
 
 	@keyframes active-step-pulse {
@@ -3630,7 +3541,7 @@
 		padding: 6px 10px;
 		border-radius: 8px;
 		border-left: 3px solid var(--accent);
-		background: rgba(242, 192, 55, 0.08);
+		background: color-mix(in srgb, var(--accent) 8%, transparent);
 	}
 
 	.reconcile-none {
@@ -3774,8 +3685,8 @@
 		min-height: 26px;
 		padding: 3px 10px;
 		border-radius: 999px;
-		background: rgba(242, 192, 55, 0.1);
-		border: 1px solid rgba(242, 192, 55, 0.35);
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+		border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
 		color: var(--accent);
 		font-size: 0.78rem;
 		font-weight: 700;

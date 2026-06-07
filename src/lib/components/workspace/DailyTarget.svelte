@@ -66,10 +66,10 @@
 	}
 
 	function getBarColor(): string {
-		if (!progress.tons_pct) return '#F59E0B';
-		if (progress.tons_pct >= 100) return '#10B981';
-		if ((progress.status as string | null) === 'behind') return '#EF4444';
-		return '#F59E0B';
+		if (!progress.tons_pct) return 'var(--warn)';
+		if (progress.tons_pct >= 100) return 'var(--good)';
+		if ((progress.status as string | null) === 'behind') return 'var(--bad)';
+		return 'var(--warn)';
 	}
 
 	$effect(() => {
@@ -166,7 +166,7 @@
 
 <style>
 	.daily-target {
-		background: var(--surface-2);
+		background: var(--surface-alt);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		padding: var(--sp-4);
@@ -273,9 +273,9 @@
 		text-align: center;
 		font-size: var(--fs-sm);
 		font-weight: var(--fw-bold);
-		color: #10B981;
-		background: color-mix(in srgb, #10B981 16%, transparent);
-		border: 1px solid color-mix(in srgb, #10B981 30%, transparent);
+		color: var(--good);
+		background: color-mix(in srgb, var(--good) 16%, transparent);
+		border: 1px solid color-mix(in srgb, var(--good) 30%, transparent);
 		border-radius: var(--radius-sm);
 	}
 

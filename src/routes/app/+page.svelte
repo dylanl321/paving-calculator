@@ -455,7 +455,7 @@
 	}
 
 	.project-context.warning {
-		border-color: color-mix(in srgb, var(--brand) 45%, var(--border));
+		border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
 	}
 
 	.project-main {
@@ -493,7 +493,7 @@
 		border-radius: 6px;
 		color: var(--text-muted);
 		font-size: var(--fs-sm);
-		background: var(--surface-2);
+		background: var(--surface-alt);
 	}
 
 	.project-facts b {
@@ -516,7 +516,7 @@
 	}
 
 	.project-link:hover {
-		border-color: var(--brand);
+		border-color: var(--accent);
 	}
 
 	/* ── Calc History Section ───────────────────────────────────────────── */
@@ -544,10 +544,10 @@
 		align-items: center;
 		min-height: 48px;
 		padding: 0 1.1rem;
-		background: var(--surface-2, #1a1a1a);
-		border: 1px solid var(--brand, #f59e0b);
+		background: var(--surface-alt);
+		border: 1px solid var(--accent);
 		border-radius: 999px;
-		color: var(--brand, #f59e0b);
+		color: var(--accent);
 		font-size: 0.875rem;
 		font-weight: 600;
 		cursor: pointer;
@@ -557,8 +557,8 @@
 
 	.recent-chip:hover,
 	.recent-chip:focus-visible {
-		background: var(--brand, #f59e0b);
-		color: var(--surface-1, #111);
+		background: var(--accent);
+		color: var(--accent-text);
 		outline: none;
 	}
 
@@ -569,10 +569,10 @@
 		width: 100%;
 		min-height: 48px;
 		padding: 0.75rem 1rem;
-		background: var(--surface-2, #1a1a1a);
-		border: 1px solid var(--border-subtle, #2e2e2e);
+		background: var(--surface-alt);
+		border: 1px solid var(--border);
 		border-radius: 8px;
-		color: var(--text, #f0f0f0);
+		color: var(--text);
 		font-size: 0.9rem;
 		font-weight: 600;
 		cursor: pointer;
@@ -580,8 +580,8 @@
 		transition: background 0.15s, border-color 0.15s;
 	}
 	.history-toggle:hover {
-		background: var(--surface-3, #242424);
-		border-color: var(--border, #444);
+		background: var(--surface-hover);
+		border-color: var(--border);
 	}
 
 	.history-panel {

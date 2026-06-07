@@ -146,6 +146,18 @@
       }
 
       m = new maplibregl.Map(initOptions);
+
+      // Some OpenFreeMap styles (e.g. `bright`) reference sprite images such as
+      // `wood-pattern` that the renderer can't always resolve, logging a noisy
+      // "Image could not be loaded" warning on every tile. Supply a 1×1
+      // transparent placeholder for any missing image so the warning is silenced
+      // without altering the basemap. Registered once; survives setStyle swaps.
+      m.on('styleimagemissing', (e) => {
+        const id = e.id;
+        if (!m || m.hasImage(id)) return;
+        m.addImage(id, { width: 1, height: 1, data: new Uint8Array(4) });
+      });
+
       if (navigationControl) {
         m.addControl(
           new maplibregl.NavigationControl({ showCompass: false, visualizePitch: false }),

@@ -1733,11 +1733,11 @@
 	}
 
 	.entry-type-blue {
-		border-left-color: #3b82f6;
+		border-left-color: var(--accent);
 	}
 
 	.entry-type-cyan {
-		border-left-color: #06b6d4;
+		border-left-color: color-mix(in srgb, var(--accent) 70%, var(--good));
 	}
 
 	.entry-type-gray {

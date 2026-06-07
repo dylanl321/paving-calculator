@@ -42,7 +42,7 @@
 		width: 20px;
 		height: 20px;
 		border-radius: 50%;
-		background: var(--surface-2);
+		background: var(--surface-alt);
 		border: 1px solid var(--border);
 		color: var(--text-muted);
 		font-size: var(--fs-xs);
