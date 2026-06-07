@@ -12,6 +12,7 @@
 import type { StructuredContract } from './structured-contract.js';
 import type { ParsedField } from './confidence.js';
 import type { ParsedGdotJobV2 } from './parse-gdot.js';
+import type { FieldConflict } from '../extraction/types.js';
 import { valuesAgree, cleanNumber } from './ai-project-extractor.js';
 
 // --------------------------------------------------------------------------
@@ -134,10 +135,14 @@ export function validateContract(contract: StructuredContract): StructuredContra
 				const measure = numOf(event?.measure);
 				if (measure == null) return;
 				anyMeasure = true;
-				if (lastMeasure != null && measure <= lastMeasure) {
+				// Real GDOT roadway logs legitimately list multiple events at the
+				// SAME milepost (e.g. END TURN LANE + BEGIN TURN LANE at 2.483), so
+				// equal measures are valid; only a true DECREASE indicates an
+				// out-of-order extraction worth flagging.
+				if (lastMeasure != null && measure < lastMeasure) {
 					pushWarning(
 						out,
-						`Segment ${label} event ${eventIndex + 1} measure ${measure} mi is not greater than the prior measure ${lastMeasure} mi; project-mile measures should strictly increase in event order.`
+						`Segment ${label} event ${eventIndex + 1} measure ${measure} mi is less than the prior measure ${lastMeasure} mi; project-mile measures should not decrease in event order.`
 					);
 				}
 				lastMeasure = measure;
@@ -185,40 +190,56 @@ function firstEventMeasure(
 }
 
 // --------------------------------------------------------------------------
-// Regex-vs-LLM cross-check
+// Regex-vs-LLM cross-check (AI-PRIMARY — validator flags, never overrides)
 // --------------------------------------------------------------------------
+
+/** Result of the cross-check: the (AI-primary) contract plus structured conflicts. */
+export interface CrossCheckResult {
+	contract: StructuredContract;
+	/** Structured AI-vs-validator disagreements (AI value kept; flagged for review). */
+	conflicts: FieldConflict[];
+}
 
 /**
  * Cross-check the LLM-structured contract against the deterministic regex parse
  * on route-critical scalar fields present in both (county, route designation,
- * gross length). FLAG, NEVER DROP — values are only ever swapped to the
- * deterministic value on disagreement, and a warning is always emitted.
+ * gross length). AI-PRIMARY: the AI value ALWAYS wins. The regex parser is a
+ * non-authoritative VALIDATOR — it never overrides.
  *
- * Rules (per the pipeline plan):
- *  - both present and AGREE  -> upgrade the contract field to 'high' confidence
- *    (value kept; source annotated "deterministic+llm").
- *  - both present and DISAGREE on a route-critical field -> prefer the
- *    deterministic (regex) value, keep confidence at most 'medium', and warn.
- *  - only one present -> leave as-is.
+ * Rules (plan Phase 5):
+ *  - both present and AGREE    -> upgrade the contract field to 'high' confidence
+ *    (value kept; source annotated "deterministic+llm"); no conflict.
+ *  - both present and DISAGREE -> KEEP the AI value, cap confidence at 'medium'
+ *    so the UI shows an amber "verify" flag, and emit a structured conflict
+ *    ({ field_path, ai_value, validator_value, resolution: 'needs_review' }).
+ *    NEVER swap to the deterministic value.
+ *  - only one present          -> leave as-is.
+ *
+ * A back-compat warning string is still appended for each disagreement so the
+ * pre-Phase-7 review UI (which parses `warnings`) keeps surfacing the conflict;
+ * the structured `conflicts[]` is the authoritative channel going forward.
  *
  * The input is shallow-copied (sub-objects that get updated are cloned) so the
- * caller's object is not mutated; the copy is returned.
+ * caller's object is not mutated; the copy is returned inside the result.
  */
 export function crossCheckWithRegex(
 	contract: StructuredContract,
 	regex: ParsedGdotJobV2
-): StructuredContract {
+): CrossCheckResult {
 	const out: StructuredContract = {
 		...contract,
 		warnings: [...(contract.warnings ?? [])],
 		county: contract.county ? { ...contract.county } : contract.county,
 		route: contract.route ? { ...contract.route } : contract.route
 	};
+	const conflicts: FieldConflict[] = [];
 
 	// county: contract.county.name vs regex.county
 	if (out.county) {
 		out.county.name = reconcileField(
 			out,
+			conflicts,
+			'county.name',
 			'county',
 			out.county.name,
 			regex.county?.value ?? null
@@ -229,6 +250,8 @@ export function crossCheckWithRegex(
 	if (out.route) {
 		out.route.designation = reconcileField(
 			out,
+			conflicts,
+			'route.designation',
 			'route designation',
 			out.route.designation,
 			regex.route_designation?.value ?? null
@@ -238,20 +261,27 @@ export function crossCheckWithRegex(
 	// gross_length_mi: contract.gross_length_mi vs regex.gross_length_mi
 	out.gross_length_mi = reconcileField(
 		out,
+		conflicts,
+		'gross_length_mi',
 		'gross length (mi)',
 		out.gross_length_mi,
 		regex.gross_length_mi?.value ?? null
 	);
 
-	return out;
+	return { contract: out, conflicts };
 }
 
 /**
  * Reconcile one route-critical scalar field between the LLM contract value and
- * the deterministic regex value. Returns the (possibly updated) ParsedField.
+ * the deterministic regex value. AI-PRIMARY: the AI value is ALWAYS kept. On
+ * agreement the confidence is upgraded; on disagreement the AI value is retained
+ * (confidence capped at 'medium' for an amber verify flag), a structured
+ * conflict is pushed, and a back-compat warning is appended.
  */
 function reconcileField<T extends string | number>(
 	contract: StructuredContract,
+	conflicts: FieldConflict[],
+	fieldPath: string,
 	fieldLabel: string,
 	llmField: ParsedField<T> | null | undefined,
 	regexValue: T | null
@@ -264,7 +294,7 @@ function reconcileField<T extends string | number>(
 	if (llmValue == null || regexValue == null) return fallback;
 
 	if (valuesAgree(llmValue, regexValue)) {
-		// Agreement upgrades confidence; value is retained.
+		// Agreement upgrades confidence; value is retained. No conflict.
 		return {
 			...fallback,
 			confidence: 'high',
@@ -272,19 +302,27 @@ function reconcileField<T extends string | number>(
 		};
 	}
 
-	// Disagreement on a route-critical field: prefer the deterministic value, cap
-	// confidence at 'medium', and warn (value retained note kept human-readable).
+	// Disagreement: KEEP the AI value (never override). Emit a structured conflict
+	// for the review UI and cap confidence at 'medium' so it renders amber.
+	conflicts.push({
+		field_path: fieldPath,
+		ai_value: llmValue,
+		validator_value: regexValue,
+		resolution: 'needs_review',
+		severity: 'warning'
+	});
+	// Back-compat warning for the pre-Phase-7 UI (still parses `warnings`). Phrased
+	// as AI-kept (the AI value now wins), not "deterministic value retained".
 	pushWarning(
 		contract,
-		`${fieldLabel} differs between deterministic parser (${String(regexValue)}) and LLM (${String(
+		`${fieldLabel} differs between deterministic parser (${String(regexValue)}) and AI (${String(
 			llmValue
-		)}); deterministic value retained.`
+		)}); AI value kept — verify.`
 	);
 	return {
-		value: regexValue,
+		...fallback,
 		confidence: fallback.confidence === 'high' ? 'medium' : fallback.confidence,
-		source: annotateSource(fallback.source, 'deterministic-preferred'),
-		raw: fallback.raw
+		source: annotateSource(fallback.source, 'ai-primary:verify')
 	};
 }
 

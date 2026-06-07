@@ -20,9 +20,13 @@
 
 	const isScreedMan = $derived(authStore.org?.role === 'screed_man');
 	const isLaborer = $derived(authStore.org?.role === 'laborer');
-	const projectContext = $derived(
-		data.jobContext && 'jobSite' in data.jobContext ? data.jobContext : null
-	);
+	const projectContext = $derived.by(() => {
+		const ctx = data.jobContext;
+		if (ctx && 'jobSite' in ctx && ctx.jobSite) {
+			return { ...ctx, jobSite: ctx.jobSite };
+		}
+		return null;
+	});
 	const jobContextError = $derived(
 		data.jobContext && 'error' in data.jobContext ? data.jobContext.error : null
 	);

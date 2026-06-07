@@ -41,33 +41,42 @@ function validateInputWaypoints(waypoints: unknown): Array<{ lat: number; lng: n
 	return waypoints;
 }
 
-async function loadAuthorizedJobSite(event: RequestEvent) {
+type AuthorizedJobSite =
+	| { ok: false; response: Response }
+	| {
+			ok: true;
+			db: DbHelper;
+			jobSite: NonNullable<Awaited<ReturnType<DbHelper['getJobSiteById']>>>;
+			user: Awaited<ReturnType<typeof requireAuth>>;
+	  };
+
+async function loadAuthorizedJobSite(event: RequestEvent): Promise<AuthorizedJobSite> {
 	const user = await requireAuth(event);
 	const db = new DbHelper(event.platform!.env.DB);
 	const jobSiteId = event.params.id!;
 	const jobSite = await db.getJobSiteById(jobSiteId);
 
 	if (!jobSite) {
-		return { response: json({ error: 'Job site not found' }, { status: 404 }) };
+		return { ok: false, response: json({ error: 'Job site not found' }, { status: 404 }) };
 	}
 
 	const role = await db.getUserRole(user.id, jobSite.org_id);
 	if (!role) {
-		return { response: json({ error: 'Access denied' }, { status: 403 }) };
+		return { ok: false, response: json({ error: 'Access denied' }, { status: 403 }) };
 	}
 
-	return { db, jobSite, user };
+	return { ok: true, db, jobSite, user };
 }
 
 export const GET: RequestHandler = async (event) => {
 	try {
 		const auth = await loadAuthorizedJobSite(event);
-		if ('response' in auth) return auth.response;
+		if (!auth.ok) return auth.response;
 
-		const route = await auth.db.getJobSiteRoute(event.params.id);
+		const route = await auth.db.getJobSiteRoute(event.params.id!);
 
 		return json({
-			waypoints: route ? parseRouteWaypoints(route.waypoints, event.params.id) : []
+			waypoints: route ? parseRouteWaypoints(route.waypoints, event.params.id!) : []
 		});
 	} catch (err) {
 		if (err instanceof Response) return err;
@@ -79,7 +88,7 @@ export const GET: RequestHandler = async (event) => {
 export const PUT: RequestHandler = async (event) => {
 	try {
 		const auth = await loadAuthorizedJobSite(event);
-		if ('response' in auth) return auth.response;
+		if (!auth.ok) return auth.response;
 
 		const body = (await event.request.json()) as RouteRequestBody;
 		const waypoints = validateInputWaypoints(body.waypoints);

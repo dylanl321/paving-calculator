@@ -8,46 +8,52 @@
  * into that flat shape so NOTHING downstream has to change yet (multi-segment
  * persistence is a separate, out-of-scope follow-up).
  *
- * Merge policy mirrors the existing AI-supplement rule: the structurer is a
- * medium-confidence source, so it only FILLS fields the deterministic regex
- * parse left null or low-confidence — it never overrides a medium/high
- * deterministic value. Bid items / production mixes are only adopted when the
- * deterministic parse found none. Pure (no I/O) so it is unit-testable without
- * the AI binding.
+ * Merge policy (plan Phase 5): AI-PRIMARY. The structurer is the authoritative
+ * source — whenever the contract has a value it OVERWRITES the deterministic V2
+ * field. The deterministic regex parse only FILLS fields the AI genuinely left
+ * absent (null/empty). Bid items / production mixes are adopted from the AI only
+ * when the deterministic parse found none (the regex tables stay authoritative
+ * when present, as they are structurally reliable). Pure (no I/O) so it is
+ * unit-testable without the AI binding.
  */
 
-import { field, mergeField, type ParsedField } from './confidence.js';
+import { field, type ParsedField } from './confidence.js';
 import type { ParsedGdotJobV2, ParsedBidItemV2, ParsedProductionMixV2 } from './parse-gdot.js';
 import type { StructuredContract, ContractSegment } from './structured-contract.js';
 
 const SRC = 'llm-structurer';
 
-/** Fill a V2 string field from a structured ParsedField, low/null only. */
+/**
+ * Fill a V2 string field from a structured ParsedField. AI-PRIMARY: when the
+ * contract has a value it OVERWRITES the V2 field (the AI is authoritative); the
+ * regex value is only kept when the AI is absent.
+ */
 function fillString(
 	v2: ParsedGdotJobV2,
 	key: keyof ParsedGdotJobV2,
 	incoming: ParsedField<string> | null | undefined
 ): void {
 	const value = incoming?.value;
-	if (value == null || value === '') return;
-	const current = v2[key] as ParsedField<string>;
-	const candidate =
-		incoming.confidence === 'high' ? field.high(value, SRC) : field.medium(value, SRC);
-	v2[key] = mergeField(current, candidate) as never;
+	if (incoming == null || value == null || value === '') return;
+	v2[key] = (incoming.confidence === 'high'
+		? field.high(value, SRC)
+		: field.medium(value, SRC)) as never;
 }
 
-/** Fill a V2 number field from a structured ParsedField, low/null only. */
+/**
+ * Fill a V2 number field from a structured ParsedField. AI-PRIMARY: the contract
+ * value OVERWRITES the V2 field when present; regex only kept when AI is absent.
+ */
 function fillNumber(
 	v2: ParsedGdotJobV2,
 	key: keyof ParsedGdotJobV2,
 	incoming: ParsedField<number> | null | undefined
 ): void {
 	const value = incoming?.value;
-	if (value == null || !Number.isFinite(value)) return;
-	const current = v2[key] as ParsedField<number>;
-	const candidate =
-		incoming.confidence === 'high' ? field.high(value, SRC) : field.medium(value, SRC);
-	v2[key] = mergeField(current, candidate) as never;
+	if (incoming == null || value == null || !Number.isFinite(value)) return;
+	v2[key] = (incoming.confidence === 'high'
+		? field.high(value, SRC)
+		: field.medium(value, SRC)) as never;
 }
 
 /**
@@ -99,8 +105,9 @@ export function mergeStructuredContractIntoV2(
 	if (rep) {
 		fillString(v2, 'begin_terminus', rep.begin_terminus);
 		fillString(v2, 'end_terminus', rep.end_terminus);
-		if ((v2.location_description.value == null || v2.location_description.confidence === 'low') && rep.name?.value) {
-			v2.location_description = mergeField(v2.location_description, field.medium(rep.name.value, SRC));
+		// AI-primary: the segment name overwrites the location description when present.
+		if (rep.name?.value) {
+			v2.location_description = field.medium(rep.name.value, SRC);
 		}
 	}
 

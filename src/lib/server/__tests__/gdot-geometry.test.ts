@@ -6,7 +6,9 @@ import {
 	fetchCountyBoundary,
 	fetchCountyCentroid,
 	resolveImportLocation,
-	buildImportRoutePreview
+	buildImportRoutePreview,
+	fetchProjectHubGeometry,
+	fetchProjectConstructionStatus
 } from '../gdot-geometry.js';
 
 type FetchResponse = { ok: boolean; json: () => Promise<unknown> };
@@ -456,8 +458,69 @@ describe('buildImportRoutePreview', () => {
 		expect(preview.projected_log_events).toEqual([]);
 	});
 
-	it('resolves 25185-style LRS route from plan mid-point and trims to project limits', async () => {
-		const lrsFindRoutesResponse = () => ({
+	it('reorients a backwards-digitized GPAS polyline using the begin-terminus anchor', async () => {
+		// GPAS returns the route digitized NORTH->SOUTH (waypoints[0] = north,
+		// high lat). The project's begin terminus is at the SOUTH end. Without
+		// geographic reconciliation, station-0 (project_start) would mirror to the
+		// north vertex. The begin-terminus geocode (Nominatim) provides the anchor.
+		const backwardsGpas = () => ({
+			features: [
+				{
+					attributes: { ROUTE_ID: 'SR13', ROAD_NAME: 'SR 13', COUNTY: 'HALL' },
+					geometry: {
+						paths: [
+							[
+								[-83.0, 34.5], // north (digitized first)
+								[-83.0, 34.4],
+								[-83.0, 34.3] // south
+							]
+						]
+					}
+				}
+			],
+			exceededTransferLimit: false
+		});
+
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: unknown): Promise<FetchResponse> => {
+				const url = String(input);
+				if (url.includes('GDOT_GPAS')) {
+					return { ok: true, json: async () => backwardsGpas() };
+				}
+				if (url.includes('nominatim')) {
+					const decoded = decodeURIComponent(url);
+					// Begin terminus -> south end (low lat); end terminus -> north.
+					// URLSearchParams encodes spaces as '+', so match a single token.
+					const isEnd = decoded.includes('NORTH');
+					return {
+						ok: true,
+						json: async () => [{ lat: isEnd ? '34.5' : '34.3', lon: '-83.0' }]
+					};
+				}
+				return { ok: true, json: async () => ({ features: [], result: { addressMatches: [] } }) };
+			})
+		);
+
+		const preview = await buildImportRoutePreview({
+			routeDesignation: 'SR 13',
+			county: 'Hall',
+			locationDescription: 'resurfacing',
+			beginTerminus: 'SOUTH END RD',
+			endTerminus: 'NORTH END RD',
+			totalLengthFt: null,
+			roadwayLogEvents: [
+				{ milepost: 0, station: 0, event_type: 'project_start', description: 'BEGIN' }
+			]
+		});
+
+		expect(preview.source).toBe('gdot_route');
+		// waypoints[0] should now be the SOUTH (begin-anchor) vertex, not the north.
+		expect(preview.waypoints[0].lat).toBeCloseTo(34.3, 5);
+		expect(preview.waypoints[preview.waypoints.length - 1].lat).toBeCloseTo(34.5, 5);
+	});
+
+	it('resolves 25185-style LRS route from plan mid-point and trims to project limits', async () => {		const lrsFindRoutesResponse = () => ({
 			features: [
 				{
 					attributes: {
@@ -530,5 +593,219 @@ describe('buildImportRoutePreview', () => {
 		expect(preview.route_source_detail?.routeCode).toBe('00001100');
 		expect(preview.waypoints.length).toBeGreaterThanOrEqual(2);
 		expect(preview.projected_log_events?.length).toBe(3);
+	});
+});
+
+// GDOT Project Hub responses (keyed by PI number). f=json -> attributes + paths.
+function projectHubGeometryResponse() {
+	return {
+		features: [
+			{
+				attributes: {
+					PROJECT_ID: 'M006412',
+					PROJECT_NAME: 'SR 7 ALT FROM MAGNOLIA STREET TO SMITHBRIAR DRIVE',
+					COUNTIES: 'Lowndes',
+					CITIES: 'Valdosta',
+					GDOT_DISTRICTS: '4',
+					PRIMARY_WORK_TYPE: 'Resurface & Maintenance',
+					STATUS: 'Under Construction'
+				},
+				geometry: {
+					paths: [
+						[
+							[-83.2915, 30.8739],
+							[-83.2880, 30.8500],
+							[-83.2805, 30.8341]
+						]
+					]
+				}
+			}
+		],
+		exceededTransferLimit: false
+	};
+}
+
+function hubStatusResponse(contractId = 'B1CBA2502795-0') {
+	return {
+		features: [
+			{
+				attributes: {
+					PROJ_ID: 'M006412',
+					CONTRACTOR_NAME: 'REAMES AND SON CONSTRUCTI',
+					CONTRACT_ID: contractId,
+					AWARD_DATE: Date.parse('2026-01-02T00:00:00Z'),
+					CURR_COMPLETION_DATE: Date.parse('2026-11-30T00:00:00Z'),
+					CONSTRUTION_STATUS_DERIVED: 'UNDER CONSTRUCTION'
+				}
+			}
+		],
+		exceededTransferLimit: false
+	};
+}
+
+describe('fetchProjectHubGeometry', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('returns null for empty input', async () => {
+		expect(await fetchProjectHubGeometry(null)).toBe(null);
+		expect(await fetchProjectHubGeometry('  ')).toBe(null);
+	});
+
+	it('returns the route LineString + parsed metadata for a PI number', async () => {
+		mockFetchOnce(() => projectHubGeometryResponse());
+		const res = await fetchProjectHubGeometry('M006412');
+		expect(res).not.toBe(null);
+		expect(res?.geometry.type).toBe('LineString');
+		expect(res?.geometry.coordinates.length).toBe(3);
+		expect(res?.info.projectName).toContain('SR 7 ALT');
+		expect(res?.info.counties).toBe('Lowndes');
+		expect(res?.info.city).toBe('Valdosta');
+		expect(res?.info.gdotDistrict).toBe('4');
+		expect(res?.info.workType).toBe('Resurface & Maintenance');
+	});
+
+	it('returns null when the project has no usable geometry', async () => {
+		mockFetchOnce(() => ({ features: [], exceededTransferLimit: false }));
+		expect(await fetchProjectHubGeometry('M000000')).toBe(null);
+	});
+
+	it('returns null (not throw) on a service error', async () => {
+		mockFetchOnce(() => {
+			throw new Error('network down');
+		});
+		expect(await fetchProjectHubGeometry('M006412')).toBe(null);
+	});
+});
+
+describe('fetchProjectConstructionStatus', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('parses contractor/contract_id and ISO dates', async () => {
+		mockFetchOnce(() => hubStatusResponse());
+		const res = await fetchProjectConstructionStatus('M006412');
+		expect(res?.contractId).toBe('B1CBA2502795-0');
+		expect(res?.contractor).toBe('REAMES AND SON CONSTRUCTI');
+		expect(res?.awardDate).toBe('2026-01-02');
+		expect(res?.completionDate).toBe('2026-11-30');
+		expect(res?.status).toBe('UNDER CONSTRUCTION');
+	});
+
+	it('returns null when there is no status record', async () => {
+		mockFetchOnce(() => ({ features: [], exceededTransferLimit: false }));
+		expect(await fetchProjectConstructionStatus('M000000')).toBe(null);
+	});
+});
+
+describe('resolveImportLocation with a PI number (Project Hub first)', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	// Mock that distinguishes the Project Hub layers from the rest of the chain.
+	function stubProjectHub(opts: { geometry?: boolean; status?: boolean } = {}) {
+		const { geometry = true, status = true } = opts;
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: unknown): Promise<FetchResponse> => {
+				const url = String(input);
+				if (url.includes('Project_Hub')) {
+					return {
+						ok: true,
+						json: async () =>
+							geometry ? projectHubGeometryResponse() : { features: [], exceededTransferLimit: false }
+					};
+				}
+				if (url.includes('Hub_Project_Search')) {
+					return {
+						ok: true,
+						json: async () =>
+							status ? hubStatusResponse() : { features: [], exceededTransferLimit: false }
+					};
+				}
+				// Any other source (LRS/GPAS/census) returns nothing.
+				return { ok: true, json: async () => ({ features: [], result: { addressMatches: [] } }) };
+			})
+		);
+	}
+
+	it('short-circuits to gdot_project_hub and never queries GPAS/LRS', async () => {
+		const fn = vi.fn(async (input: unknown): Promise<FetchResponse> => {
+			const url = String(input);
+			if (url.includes('Project_Hub')) {
+				return { ok: true, json: async () => projectHubGeometryResponse() };
+			}
+			if (url.includes('Hub_Project_Search')) {
+				return { ok: true, json: async () => hubStatusResponse() };
+			}
+			return { ok: true, json: async () => ({ features: [], result: { addressMatches: [] } }) };
+		});
+		vi.stubGlobal('fetch', fn);
+
+		const res = await resolveImportLocation({
+			routeDesignation: 'SR 7 ALT',
+			county: 'Lowndes',
+			locationDescription: 'resurfacing',
+			midpointEasting: 2572138.063,
+			midpointNorthing: 311698.517,
+			projectId: 'M006412'
+		});
+
+		expect(res.source).toBe('gdot_project_hub');
+		expect(res.locationPrecision).toBe('route');
+		expect(res.routeGeometry?.coordinates.length).toBe(3);
+		expect(res.projectHub?.contractId).toBe('B1CBA2502795-0');
+		expect(res.projectHub?.counties).toBe('Lowndes');
+		expect(res.projectHub?.awardDate).toBe('2026-01-02');
+		// The flaky GPAS route layer / LRS network must NOT have been queried.
+		const calledUrls = fn.mock.calls.map((c) => String(c[0]));
+		expect(calledUrls.some((u) => u.includes('GDOT_GPAS'))).toBe(false);
+		expect(calledUrls.some((u) => u.includes('GDOT_ROUTE_NETWORK'))).toBe(false);
+	});
+
+	it('still resolves geometry when the status layer is empty', async () => {
+		stubProjectHub({ geometry: true, status: false });
+		const res = await resolveImportLocation({
+			routeDesignation: null,
+			county: 'Lowndes',
+			locationDescription: null,
+			projectId: 'M006412'
+		});
+		expect(res.source).toBe('gdot_project_hub');
+		expect(res.projectHub?.projectName).toContain('SR 7 ALT');
+		expect(res.projectHub?.contractId ?? null).toBe(null);
+	});
+
+	it('falls through to the existing chain when the Project Hub has no geometry', async () => {
+		// Project Hub empty; GPAS route layer returns a line -> source gdot_route.
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (input: unknown): Promise<FetchResponse> => {
+				const url = String(input);
+				if (url.includes('Project_Hub') || url.includes('Hub_Project_Search')) {
+					return { ok: true, json: async () => ({ features: [], exceededTransferLimit: false }) };
+				}
+				if (url.includes('GDOT_GPAS')) {
+					return { ok: true, json: async () => arcgisLineResponse() };
+				}
+				return { ok: true, json: async () => ({ features: [], result: { addressMatches: [] } }) };
+			})
+		);
+		const res = await resolveImportLocation({
+			routeDesignation: 'SR 13',
+			county: 'Hall',
+			locationDescription: 'resurfacing',
+			projectId: 'M000000'
+		});
+		expect(res.source).toBe('gdot_route');
+		expect(res.routeGeometry).not.toBe(null);
+	});
+
+	it('does not query the Project Hub when no PI number is given', async () => {
+		const fn = mockFetchOnce(() => arcgisLineResponse());
+		await resolveImportLocation({
+			routeDesignation: 'SR 13',
+			county: 'Hall',
+			locationDescription: 'resurfacing'
+		});
+		const calledUrls = fn.mock.calls.map((c) => String(c[0]));
+		expect(calledUrls.some((u) => u.includes('Project_Hub'))).toBe(false);
 	});
 });

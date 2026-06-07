@@ -27,7 +27,7 @@
   export interface RoadwayLogEventMarker {
     id: string;
     milepost: number;
-    station: number;
+    station?: number;
     event_type: string;
     description: string;
     roadway_width_ft: number | null;
@@ -133,7 +133,7 @@
         }
       } catch { /* fall through */ }
     }
-    if (waypoints.length >= 2) {
+    if (waypoints.length >= 2 && ev.station != null) {
       return stationToCoordinate(ev.station, waypoints);
     }
     return null;
@@ -152,8 +152,15 @@
   function buildWidthSegments(evs: RoadwayLogEventMarker[], wpts: LatLng[]): WidthSegment[] {
     if (wpts.length < 2 || evs.length === 0) return [];
 
+    // Width-coded spans require station positions; events lacking a station
+    // (e.g. import-preview events placed by coordinate only) can't be sliced.
+    const stationed = evs.filter(
+      (e): e is RoadwayLogEventMarker & { station: number } => e.station != null
+    );
+    if (stationed.length === 0) return [];
+
     // Sort by station
-    const sorted = [...evs].sort((a, b) => a.station - b.station);
+    const sorted = [...stationed].sort((a, b) => a.station - b.station);
 
     // Build spans: from event[i].station to event[i+1].station, colored by event[i].width
     const segments: WidthSegment[] = [];
@@ -368,16 +375,23 @@
   }
 
   :global(.rwl-popup .maplibregl-popup-content) {
-    background: #1e293b;
-    color: #e2e8f0;
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md, 8px);
     padding: 10px 12px;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    box-shadow: var(--shadow-md, 0 4px 16px rgba(0,0,0,0.5));
   }
 
-  :global(.rwl-popup .maplibregl-popup-tip) {
-    border-top-color: #1e293b;
+  :global(.rwl-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip),
+  :global(.rwl-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip),
+  :global(.rwl-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip) {
+    border-top-color: var(--surface);
+  }
+  :global(.rwl-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip),
+  :global(.rwl-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip),
+  :global(.rwl-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip) {
+    border-bottom-color: var(--surface);
   }
 
   .rwl-legend {

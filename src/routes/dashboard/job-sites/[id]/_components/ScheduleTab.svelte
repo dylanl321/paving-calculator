@@ -44,7 +44,7 @@
 	let milestoneSaving = $state(false);
 
 	// Schedule suggestions state
-	let suggestionsResponse: SuggestionsResponse | null = $state(null);
+	let suggestionsResponse = $state<SuggestionsResponse | null>(null);
 	let loadingSuggestions = $state(false);
 	let suggestionsLoaded = $state(false);
 	let dismissedSuggestions = $state(new Set<number>());

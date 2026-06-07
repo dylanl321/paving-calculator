@@ -38,7 +38,8 @@ const DEFAULT_BATCH_SIZE = 1000;
 export async function fetchArcgisFeatures(
 	url: string,
 	params: Record<string, string> = {},
-	maxRecords = 5000
+	maxRecords = 5000,
+	timeoutMs = 8000
 ): Promise<FetchedFeature[]> {
 	const allFeatures: FetchedFeature[] = [];
 	let offset = 0;
@@ -58,7 +59,10 @@ export async function fetchArcgisFeatures(
 		const fetchUrl = `${url}?${queryParams.toString()}`;
 
 		try {
-			const response = await fetch(fetchUrl);
+			// Bound each request so a hanging/degraded ArcGIS endpoint fails fast
+			// instead of blocking the import for the platform's default socket
+			// timeout (minutes). Callers treat a throw as best-effort and degrade.
+			const response = await fetch(fetchUrl, { signal: AbortSignal.timeout(timeoutMs) });
 			if (!response.ok) {
 				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 			}

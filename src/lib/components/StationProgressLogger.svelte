@@ -322,6 +322,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+		min-width: 0;
 	}
 
 	.station-input-group label {
@@ -341,6 +342,8 @@
 	.station-input {
 		flex: 1;
 		min-width: 0;
+		width: 100%;
+		box-sizing: border-box;
 		min-height: 56px;
 		padding: 0 16px;
 		font-size: 1.25rem;
@@ -377,6 +380,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
+		min-width: 0;
 	}
 
 	.field-compact label,
@@ -390,6 +394,8 @@
 	}
 
 	.input-standard {
+		width: 100%;
+		box-sizing: border-box;
 		min-height: 48px;
 		padding: 0 12px;
 		font-size: 1rem;

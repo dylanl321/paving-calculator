@@ -29,9 +29,9 @@ in-process layers, then adds a Playwright layer on top.
 
 ---
 
-## 1. Vitest Workspace Config
+## 1. Vitest Projects Config
 
-File: `vitest.workspace.ts` (replaces `vitest.config.ts`)
+File: `vitest.config.ts` (root config; `test.projects` array — Vitest v4 replaced the old `vitest.workspace.ts`)
 
 ```ts
 // vitest.workspace.ts
@@ -543,7 +543,7 @@ Notes:
 
 ```
 paverate-base/
-  vitest.workspace.ts              -- replaces vitest.config.ts
+  vitest.config.ts                 -- root config with test.projects (v4)
   playwright.config.ts             -- E2E config
   tests/
     setup-d1.ts                    -- vitest globalSetup for integration project
@@ -649,7 +649,7 @@ of 401).
 
 `@testing-library/svelte` v5 supports Svelte 5 runes. However `$state(...)` and `$derived(...)`
 still require the Svelte compiler to run first. Vitest handles this via
-`@sveltejs/vite-plugin-svelte` in the component project's Vite config. The `vitest.workspace.ts`
+`@sveltejs/vite-plugin-svelte` in the component project's Vite config. The `vitest.config.ts`
 entry for `components` must include the plugin:
 
 ```ts

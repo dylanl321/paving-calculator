@@ -12,21 +12,23 @@ import {
 	type PdfPositionedTextPage
 } from '$lib/server/pdf/parse-gdot';
 import type { FieldConfidence } from '$lib/server/pdf/confidence';
-import { runLlmFallback, needsLlmFallback, buildLlmDiagnostic, appendLlmFallbackWarning, type WorkersAi, type LlmFallbackDiagnostic } from '$lib/server/pdf/llm-fallback';
+import { runLlmFallback, needsLlmFallback, buildLlmDiagnostic, appendLlmFallbackWarning, type WorkersAi, type LlmFallbackDiagnostic, type LlmFallbackResult } from '$lib/server/pdf/llm-fallback';
 import { buildImportRoutePreview, type ImportRoutePreview } from '$lib/server/gdot-geometry';
 import { classifyDocument, getUnrecognizedMessage, type DocumentClassification } from '$lib/server/pdf/classify-document';
 import { parseInspectionReport, type ParsedInspectionReport } from '$lib/server/pdf/parse-inspection';
 import { parseChangeOrder, type ParsedChangeOrder } from '$lib/server/pdf/parse-change-order';
 import {
-	runAiProjectExtraction,
 	type AiExtractionDiagnostic,
 	type EvidencePage
 } from '$lib/server/pdf/ai-project-extractor';
-import { structureContract, type StructureContractDiagnostic } from '$lib/server/pdf/structure-contract';
-import { validateContract, crossCheckWithRegex } from '$lib/server/pdf/validate-contract';
+import { type StructureContractDiagnostic } from '$lib/server/pdf/structure-contract';
+import { readBedrockConfig } from '$lib/server/pdf/bedrock-structurer';
 import { mergeStructuredContractIntoV2 } from '$lib/server/pdf/structured-contract-adapter';
+import { runExtraction } from '$lib/server/extraction/engine';
+import { pavingContractV1 } from '$lib/server/extraction/profiles/paving-contract-v1';
+import type { FieldMeta, FieldConflict } from '$lib/server/extraction/types';
 import { mapStructuredContractSegments, type MappedSegment } from '$lib/server/gdot-geometry';
-import type { StructuredContract } from '$lib/server/pdf/structured-contract';
+import type { StructuredContract, SegmentKind, SegmentPavement } from '$lib/server/pdf/structured-contract';
 
 const MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB per file
 
@@ -287,12 +289,71 @@ export interface ImportPdfResponse {
 	}>;
 	field_source: Record<string, string>;
 	parser_duration_ms: number;
+	/**
+	 * First-class per-field provenance + confidence keyed by dotted field path
+	 * (e.g. `county.name`, `route.designation`, `gross_length_mi`,
+	 * `segments[0].length_mi`). Replaces the brittle flat `field_confidence` /
+	 * `field_source` string maps (which remain populated for back-compat until the
+	 * Phase 7 review UI consumes `field_meta`). Each entry:
+	 * `{ confidence, source_pages, source_file, evidence_type }`.
+	 */
+	field_meta: Record<string, FieldMeta>;
+	/**
+	 * Structured AI-vs-validator disagreements (AI-primary: the AI value is kept,
+	 * each entry is `{ field_path, ai_value, validator_value, resolution, severity }`).
+	 * Replaces the warning-prose round-trip (`aiConflictFromWarning`) that only
+	 * matched single-word labels. The legacy warning strings remain in
+	 * `parsed.warnings` for back-compat until the Phase 7 UI consumes `conflicts`.
+	 */
+	conflicts: FieldConflict[];
 	/** Parsed daily inspection report data (populated when an inspection report is detected). */
 	inspection_report?: ParsedInspectionReport;
 	/** Parsed change order data (populated when a change order is detected). */
 	change_order?: ParsedChangeOrder;
 	/** Structured parsing report with extracted/missing fields and suggestions. */
 	parsing_report: ParsingReport;
+	/**
+	 * Structured-contract segments with their per-mile-range `pavement[]`
+	 * typical-section specs, surfaced for the Phase 7 Pavement review section.
+	 * The pavement scalars keep their {@link ParsedField} citation envelopes so
+	 * the review UI can show confidence + source page; the page flattens them to
+	 * plain values before persisting via `from-import`. Empty when the document
+	 * states no per-segment pavement data.
+	 */
+	segments: ImportContractSegment[];
+}
+
+/**
+ * One named segment surfaced to the review UI. Scalar identity fields are
+ * unwrapped to plain values; `pavement[]` keeps its {@link SegmentPavement}
+ * ParsedField envelopes (with per-field citations) so the review UI can render
+ * confidence + source page per value.
+ */
+export interface ImportContractSegment {
+	name: string | null;
+	kind: SegmentKind | null;
+	length_mi: number | null;
+	begin_terminus: string | null;
+	end_terminus: string | null;
+	pavement: SegmentPavement[];
+}
+
+/**
+ * Map the validated structured contract's segments to the client-facing
+ * {@link ImportContractSegment} shape: unwrap the scalar identity fields and
+ * carry each segment's `pavement[]` ParsedField envelopes through verbatim so
+ * the Phase 7 review UI sees per-field confidence + source page.
+ */
+function toImportSegments(contract: StructuredContract | null): ImportContractSegment[] {
+	if (!contract?.segments?.length) return [];
+	return contract.segments.map((seg) => ({
+		name: seg.name?.value ?? null,
+		kind: seg.kind?.value ?? null,
+		length_mi: seg.length_mi?.value ?? null,
+		begin_terminus: seg.begin_terminus?.value ?? null,
+		end_terminus: seg.end_terminus?.value ?? null,
+		pavement: Array.isArray(seg.pavement) ? seg.pavement : []
+	}));
 }
 
 function labelForPage(text: string, pageNumber: number): string {
@@ -338,10 +399,11 @@ function buildParsingReport(
 ): ParsingReport {
 	const type = classification?.type ?? 'unknown';
 	const confidence = classification?.confidence ?? 0;
-	const is_supported =
-		type === 'gdot_contract_summary' ||
-		type === 'gdot_job_setup' ||
-		type === 'gdot_roadway_log';
+	// Phase 1: the extraction engine ALWAYS runs (AI-primary over any layout), so
+	// the import no longer gates on a GDOT-type whitelist. We attempt extraction
+	// for every uploaded PDF; `is_supported` is reported true unless the document
+	// is completely unrecognized (it then just yields fewer extractable fields).
+	const is_supported = type !== 'unknown';
 
 	// Which fields did we successfully extract (non-null value, any confidence)?
 	const ALL_FIELDS = [
@@ -380,17 +442,8 @@ function buildParsingReport(
 	const suggestions: string[] = [];
 
 	if (type === 'unknown') {
-		suggestions.push('Try uploading the Contract Summary page from your GDOT bid package.');
-		suggestions.push('Ensure the PDF contains selectable text (not a scanned image).');
-	} else if (!is_supported) {
-		const supportSoon: Partial<Record<string, string>> = {
-			weight_ticket: 'Weight ticket import is coming soon — check back next release.',
-			material_certification: 'Material cert import is planned — upload alongside a contract summary for now.',
-			inspection_report: 'Inspection reports are not yet supported for import.',
-			change_order: 'Change order import is coming soon.',
-			daily_report: 'Daily report import is not yet supported.'
-		};
-		suggestions.push(supportSoon[type] ?? `${classification?.description ?? 'This document type'} is not yet supported.`);
+		suggestions.push('Upload a GDOT contract summary, job setup, or roadway-log PDF for the richest extraction.');
+		suggestions.push('Scanned PDFs are read via the vision path — re-upload from the import page so page images are rendered.');
 	} else {
 		// Supported type — suggest based on missing fields.
 		if (missing_fields.includes('Project Name') || missing_fields.includes('Job Number')) {
@@ -480,7 +533,8 @@ export async function POST(event: RequestEvent) {
 						page_number: page.page_number,
 						page_label: labelForPage(page.text, page.page_number),
 						text: page.text,
-						image: uploadedImage?.bytes
+						image: uploadedImage?.bytes,
+						image_mime_type: uploadedImage?.type
 					} satisfies EvidencePage;
 				});
 				evidencePagesByFile.push(evidencePages);
@@ -516,13 +570,65 @@ export async function POST(event: RequestEvent) {
 			} catch (err) {
 				console.error('PDF text extraction failed for', file.name, err);
 				const detail = err instanceof Error ? err.message : String(err);
-				return json(
-					{
-						error: `Could not read text from "${file.name}". It may be a scanned image or an unsupported PDF.`,
-						detail
-					},
-					{ status: 422 }
+				const fileIndex = files.indexOf(file);
+				// Phase 8 (scanned resilience): text extraction failed, but if the
+				// client rendered page images for this file we can still route those
+				// pages through the vision path instead of hard-failing. Build
+				// image-only evidence pages (empty text -> profile.selectPages marks
+				// them diagram/low-text -> Bedrock vision). Only 422 when NEITHER text
+				// NOR images are available.
+				const fileImages = upload.pageImages.filter(
+					(img) => img.pdf_index === fileIndex && img.filename === file.name
 				);
+				if (fileImages.length === 0) {
+					return json(
+						{
+							error: `Could not read "${file.name}". It has no selectable text and no page images were rendered, so it can't be processed. If it's a scanned PDF, re-upload it from the import page (which renders page images for the vision reader).`,
+							detail
+						},
+						{ status: 422 }
+					);
+				}
+				const imageOnlyPages = fileImages
+					.sort((a, b) => a.page_number - b.page_number)
+					.map(
+						(img) =>
+							({
+								pdf_index: fileIndex,
+								filename: file.name,
+								page_number: img.page_number,
+								page_label: `Sheet ${img.page_number}`,
+								text: '',
+								image: img.bytes,
+								image_mime_type: img.type
+							}) satisfies EvidencePage
+					);
+				allPageArrays.push([]);
+				texts.push('');
+				evidencePagesByFile.push(imageOnlyPages);
+				documents.push({ filename: file.name, source_key: key, type: 'unknown' });
+				documentInventory.push({
+					filename: file.name,
+					source_key: key,
+					type: 'unknown',
+					page_count: imageOnlyPages.length,
+					pages: imageOnlyPages.map((p) => ({ page_number: p.page_number, label: p.page_label })),
+					evidence: {
+						contract_summary: false,
+						job_setup: false,
+						cover_sheet: false,
+						index: false,
+						location_sketch: false,
+						roadway_log: false,
+						detailed_estimate: false
+					},
+					classification: {
+						type: 'scanned_image',
+						confidence: 0,
+						description: 'Scanned/Image PDF (vision path)',
+						ai_used: false
+					}
+				});
 			}
 		}
 
@@ -530,70 +636,72 @@ export async function POST(event: RequestEvent) {
 		const v2 = parseGdotDocumentsV2(texts, allPageArrays);
 		let parser_duration_ms = Date.now() - parserStart;
 
-		const projectImportCandidate = documentInventory.some((doc) => {
-			if (doc.type === 'contract_summary' || doc.type === 'job_setup') return true;
-			const classifiedType = doc.classification?.type;
-			return (
-				classifiedType === 'gdot_contract_summary' ||
-				classifiedType === 'gdot_job_setup' ||
-				classifiedType === 'gdot_roadway_log' ||
-				classifiedType === 'plan_sheet'
-			);
-		});
+		// The legacy flat-field AI extractor (runAiProjectExtraction) is SUPERSEDED
+		// by the LLM-primary structurer below: the structurer + adapter produce the
+		// same scalar fills (route/county/termini/bid_items/mixes) PLUS the
+		// multi-segment structure, in a single AI pass. We keep the diagnostic field
+		// for response back-compat, marked as superseded.
+		const ai_extraction: AiExtractionDiagnostic = {
+			attempted: false,
+			applied: false,
+			outcome: 'deterministic-fallback',
+			model: null,
+			duration_ms: 0,
+			reason: 'superseded-by-structurer'
+		};
 
-		const ai_extraction = projectImportCandidate
-			? await runAiProjectExtraction(ai, evidencePagesByFile.flat(), v2)
-			: ({
-					attempted: false,
-					applied: false,
-					outcome: 'deterministic-fallback',
-					model: null,
-					duration_ms: 0,
-					reason: 'not-project-import-document'
-				} satisfies AiExtractionDiagnostic);
-		parser_duration_ms += ai_extraction.duration_ms ?? 0;
-		if (ai_extraction.outcome === 'binding-unavailable') {
-			v2.warnings.push(
-				'AI extraction was not available in this environment; deterministic PDF parsing was used.'
-			);
-		} else if (ai_extraction.outcome === 'failed') {
-			v2.warnings.push(
-				`AI extraction could not complete (${ai_extraction.reason}); deterministic PDF parsing was used.`
-			);
-		}
-
-		// --- LLM-primary contract structurer (multi-segment) ---
-		// A stronger Workers AI model structures the page-labeled evidence into one
-		// strict StructuredContract (N disconnected segments). Deterministic code
-		// then validates it, cross-checks it against the regex parse, folds its
-		// scalar fields back into v2 (fill-null-only, never override deterministic
-		// medium/high), and maps each segment to its own centerline. Best-effort:
-		// a missing AI binding or unusable JSON leaves the deterministic result
-		// untouched. The flat ImportPdfResponse shape is preserved via the adapter.
+		// --- AI-PRIMARY contract structurer (multi-segment), via the engine ---
+		// The generic extraction engine, driven by the caller-selected
+		// `paving-contract-v1` profile, structures the page-labeled evidence
+		// (text + diagram page images) into one StructuredContract, validates it,
+		// AI-primary cross-checks it against the regex parse (flag-only conflicts),
+		// folds its scalar fields back into v2 (AI-primary), and maps each segment
+		// to its own centerline. NO format gating: the profile ALWAYS runs (Phase 1)
+		// — `detectDocumentType` is only an advisory hint, never a blocker. Best-
+		// effort: a missing AI binding or unusable JSON leaves the deterministic
+		// result untouched.
 		let structuredContract: StructuredContract | null = null;
 		let mappedSegments: MappedSegment[] = [];
-		const structureResult = projectImportCandidate
-			? await structureContract(ai, evidencePagesByFile.flat())
-			: {
-					contract: null,
-					diagnostic: {
-						attempted: false,
-						applied: false,
-						outcome: 'failed',
-						model: null,
-						duration_ms: 0,
-						reason: 'not-project-import-document',
-						segment_count: 0
-					} satisfies StructureContractDiagnostic
-				};
-		const structure_contract = structureResult.diagnostic;
+		let field_meta: Record<string, FieldMeta> = {};
+		let conflicts: FieldConflict[] = [];
+		// Bedrock (Claude Sonnet 4) is the primary structurer when a key is
+		// configured; it falls back to the Workers AI chain inside structureContract.
+		const bedrock = readBedrockConfig(event.platform.env as Record<string, unknown>);
+		const extraction = await runExtraction(pavingContractV1, evidencePagesByFile.flat(), {
+			bedrock,
+			ai,
+			validatorInput: v2
+		});
+		const structure_contract: StructureContractDiagnostic =
+			(extraction.diagnostics.structurer_diagnostic as StructureContractDiagnostic) ?? {
+				attempted: true,
+				applied: extraction.status === 'succeeded',
+				outcome: extraction.status === 'succeeded' ? 'applied' : 'failed',
+				engine: extraction.diagnostics.engine ?? null,
+				model: extraction.diagnostics.model ?? null,
+				duration_ms: extraction.diagnostics.duration_ms ?? 0,
+				reason: String(extraction.diagnostics.structurer_reason ?? ''),
+				segment_count: Number(extraction.diagnostics.segment_count ?? 0)
+			};
+		// The engine's validate stage already ran validateContract +
+		// crossCheckWithRegex; its result is the validated/cross-checked contract,
+		// and it surfaces first-class field_meta + structured conflicts.
+		structuredContract = extraction.result;
+		field_meta = extraction.field_meta;
+		conflicts = extraction.conflicts;
+		for (const w of extraction.warnings) {
+			if (w && !v2.warnings.includes(w)) v2.warnings.push(w);
+		}
 		parser_duration_ms += structure_contract.duration_ms ?? 0;
-		if (structureResult.contract) {
-			// validate (flag, never drop) -> cross-check vs regex -> merge into v2.
-			structuredContract = crossCheckWithRegex(
-				validateContract(structureResult.contract),
-				v2
+		if (structuredContract) {
+			// The AI engine processed the document, so the deterministic parser's
+			// advisory "could not recognize this as a GDOT…" note is misleading —
+			// drop it (regex is now a non-authoritative validator, Phase 1/5).
+			v2.warnings = v2.warnings.filter(
+				(w) => !/^Could not recognize this as a GDOT/i.test(w)
 			);
+			// Merge the validated/cross-checked contract's scalar fields into v2
+			// (AI-primary), then map each segment to its own centerline.
 			mergeStructuredContractIntoV2(v2, structuredContract);
 			try {
 				const mapped = await mapStructuredContractSegments(structuredContract);
@@ -619,17 +727,23 @@ export async function POST(event: RequestEvent) {
 			}
 		}
 
-		// Phase 2 (optional): supplement low-confidence geographic/identity fields
-		// with the Workers AI fallback. Best-effort — fills ONLY low/null fields,
-		// never overrides medium/high deterministic values, and degrades silently
-		// to the deterministic result on any error or unmet JSON Mode.
+		// Phase 2 (optional, ONLY when the structurer did not apply): supplement
+		// low-confidence geographic/identity fields with the narrow Workers AI
+		// fallback. When the structurer succeeded it has already filled these
+		// (null-only) via the adapter, so running the fallback too would be
+		// redundant AI work — skip it. This is the consolidation that keeps the
+		// import to a single heavy AI pass in the common case.
 		//
-		// Workers AI bindings are frequently NOT provided by the local `vite dev`
-		// platform proxy, so the fallback can no-op without any signal. We capture
-		// the outcome and surface it (diagnostic field + parsed.warnings) so the
-		// behaviour is observable rather than silent.
-		const attempted = needsLlmFallback(v2);
-		const fallback = await runLlmFallback(ai, v2);
+		// Best-effort: fills ONLY low/null fields, never overrides medium/high
+		// deterministic values, and degrades silently to the deterministic result
+		// on any error or unmet JSON Mode. Workers AI bindings are frequently NOT
+		// provided by the local `vite dev` platform proxy, so the fallback can
+		// no-op without any signal; we capture and surface the outcome.
+		const structurerApplied = structure_contract.outcome === 'applied';
+		const attempted = !structurerApplied && needsLlmFallback(v2);
+		const fallback = structurerApplied
+			? ({ applied: false, reason: 'superseded-by-structurer' } satisfies LlmFallbackResult)
+			: await runLlmFallback(ai, v2);
 		const llm_fallback = buildLlmDiagnostic(attempted, !!ai, fallback);
 		appendLlmFallbackWarning(v2.warnings, llm_fallback);
 
@@ -646,7 +760,8 @@ export async function POST(event: RequestEvent) {
 			midpointEasting: parsed.midpoint_easting ?? null,
 			midpointNorthing: parsed.midpoint_northing ?? null,
 			midpointZoneLabel: parsed.midpoint_zone_label ?? null,
-			grossLengthMi: parsed.gross_length_mi ?? null
+			grossLengthMi: parsed.gross_length_mi ?? null,
+			projectId: parsed.project_number ?? null
 		});
 		// Attach per-segment mapped centerlines (multi-segment pipeline) without
 		// disturbing the back-compat single-route preview fields above.
@@ -702,9 +817,12 @@ export async function POST(event: RequestEvent) {
 			documents_found: v2.documents_found,
 			field_source,
 			parser_duration_ms,
+			field_meta,
+			conflicts,
 			...(inspection_report !== undefined ? { inspection_report } : {}),
 			...(change_order !== undefined ? { change_order } : {}),
-			parsing_report
+			parsing_report,
+			segments: toImportSegments(structuredContract)
 		} satisfies ImportPdfResponse);
 	} catch (error) {
 		if (error instanceof Response) return error;

@@ -5,8 +5,16 @@
 	"compatibility_flags": ["nodejs_compat"],
 	"pages_build_output_dir": ".svelte-kit/cloudflare",
 	"vars": {
-		"SUPER_ADMIN_EMAILS": "dylan@paverate.com"
+		"SUPER_ADMIN_EMAILS": "dylan@paverate.com",
+		"BEDROCK_REGION": "us-east-1",
+		"BEDROCK_MODEL": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+		"BEDROCK_MAX_TOKENS": "8192"
 	},
+
+	// Bedrock structurer credential (NOT a var): set as a secret, never committed.
+	//   npx wrangler pages secret put AWS_BEARER_TOKEN_BEDROCK
+	// Must be a LONG-TERM Bedrock API key (short-term keys require SigV4, which a
+	// bare fetch from the Worker cannot do). BEDROCK_API_KEY is read as an alias.
 
 	"d1_databases": [
 		{

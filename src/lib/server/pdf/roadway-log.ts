@@ -29,7 +29,7 @@ export interface ParsedRoadwayLogEvent {
 const FT_PER_MILE = () => constant('CONST.FT_PER_MILE');
 const FT_PER_STATION = () => constant('CONST.FT_PER_STATION');
 
-function stationFromMilepost(milepost: number): number {
+export function stationFromMilepost(milepost: number): number {
 	return (milepost * FT_PER_MILE()) / FT_PER_STATION();
 }
 

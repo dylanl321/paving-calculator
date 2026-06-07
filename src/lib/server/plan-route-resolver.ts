@@ -40,19 +40,22 @@ export interface RouteSourceDetail {
 	calibrationOffsetMi: number;
 }
 
-export interface ResolvedPlanRoute {
+export interface ResolvedRouteBase {
 	lrsRoute: LrsRoute;
 	calibration: RouteCalibration;
+	detail: RouteSourceDetail;
+}
+
+export interface ResolvedPlanRoute extends ResolvedRouteBase {
 	trimmedGeometry: GeoJsonLineString;
 	trimmedWaypoints: Array<{ lat: number; lng: number }>;
-	detail: RouteSourceDetail;
 	trimFromM: number;
 	trimToM: number;
 }
 
 const MID_TOL_MI = 0.1;
 
-export async function resolveRouteFromPlan(input: PlanRouteInput): Promise<ResolvedPlanRoute | null> {
+export async function resolveRouteFromPlan(input: PlanRouteInput): Promise<ResolvedRouteBase | null> {
 	if (input.midpointEasting == null || input.midpointNorthing == null) return null;
 	if (!input.routeDesignation) return null;
 
@@ -128,7 +131,7 @@ export async function resolveRouteFromPlan(input: PlanRouteInput): Promise<Resol
 }
 
 export function applyProjectTrim(
-	base: { lrsRoute: LrsRoute; calibration: RouteCalibration; detail: RouteSourceDetail },
+	base: ResolvedRouteBase,
 	events: Array<{ milepost: number; event_type?: string }>,
 	grossLengthMi?: number | null
 ): ResolvedPlanRoute {

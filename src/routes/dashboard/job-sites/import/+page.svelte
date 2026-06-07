@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
-	import { config } from '$lib/config';
+	import { config, constant } from '$lib/config';
+	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import DocumentFeedback from '$lib/components/DocumentFeedback.svelte';
 	import {
@@ -17,157 +18,22 @@
 		type FieldConfidenceMap,
 		type FieldState
 	} from '$lib/utils/review-confidence';
-
-	interface ParsedBidItem {
-		line_number: string | null;
-		item_id: string | null;
-		description: string;
-		quantity: number | null;
-		unit: string | null;
-		unit_price: number | null;
-		bid_amount: number | null;
-		section: string | null;
-		is_alternate: boolean;
-		selected: boolean;
-	}
-
-	interface ParsedMix {
-		mix_name: string;
-		mix_type: string | null;
-		unit: string | null;
-		bid_quantity: number | null;
-		takeoff_tonnage: number | null;
-		quantity_per_day: number | null;
-		est_days: number | null;
-		contract_unit_price: number | null;
-	}
-
-	interface ParsedRoadwayLogEvent {
-		source_index: number | null;
-		page_number: number | null;
-		milepost: number;
-		station: number;
-		event_type: string;
-		description: string;
-		roadway_width_ft: number | null;
-		side: 'left' | 'right' | null;
-		surface: 'paved' | 'unpaved' | null;
-		is_reference: boolean;
-		confidence: 'high' | 'medium' | 'low';
-		raw_text: string;
-		sort_order: number;
-	}
-
-	interface PreviewRoadwayLogEvent {
-		id: string;
-		milepost: number;
-		event_type: string;
-		description: string;
-		roadway_width_ft: number | null;
-		is_reference: number;
-		confidence: string;
-		coordinate_geojson: string | null;
-	}
-
-	interface DocumentInventory {
-		filename: string;
-		source_key: string;
-		type: string;
-		page_count: number;
-		pages: Array<{ page_number: number; label: string }>;
-		evidence: {
-			contract_summary: boolean;
-			job_setup: boolean;
-			cover_sheet: boolean;
-			index: boolean;
-			location_sketch: boolean;
-			roadway_log: boolean;
-			detailed_estimate: boolean;
-		};
-	}
-
-	interface ParsedJob {
-		name: string | null;
-		job_number: string | null;
-		project_number: string | null;
-		contract_id: string | null;
-		county: string | null;
-		county_number: string | null;
-		work_type: string | null;
-		contract_type: string | null;
-		contract_amount: number | null;
-		retainage_pct: number | null;
-		est_start_date: string | null;
-		completion_date: string | null;
-		customer_name: string | null;
-		customer_address: string | null;
-		customer_contact: string | null;
-		customer_phone: string | null;
-		customer_email: string | null;
-		owner_name: string | null;
-		owner_address: string | null;
-		project_manager: string | null;
-		asphalt_supplier: string | null;
-		total_length_ft: number | null;
-		location_description: string | null;
-		route_designation: string | null;
-		midpoint_easting: number | null;
-		midpoint_northing: number | null;
-		midpoint_zone_label: string | null;
-		gross_length_mi: number | null;
-		begin_terminus: string | null;
-		end_terminus: string | null;
-		scopes: string[];
-		bid_items: ParsedBidItem[];
-		production_mixes: ParsedMix[];
-		roadway_log_events: ParsedRoadwayLogEvent[];
-		detected_documents: string[];
-		has_contract_summary: boolean;
-		has_job_setup: boolean;
-		warnings: string[];
-	}
-
-	interface ParsedTerminus {
-		type: 'intersection' | 'milepost' | 'landmark' | 'raw';
-		parsed_roads: string[];
-		milepost?: number;
-		landmark?: string;
-		offsetMiles?: number;
-		direction?: string;
-		summary: string;
-		raw: string;
-	}
-
-	interface RoutePreview {
-		source: 'gdot_lrs' | 'gdot_route' | 'osm_termini_route' | 'osm_overpass' | 'geocode' | 'county_centroid' | 'manual' | 'none';
-		location_precision: 'route' | 'point' | 'county' | 'none';
-		latitude: number | null;
-		longitude: number | null;
-		waypoints: Array<{ lat: number; lng: number }>;
-		county_boundary_geojson?: {
-			type: 'Feature';
-			properties?: { county?: string };
-			geometry: { type: 'Polygon'; coordinates: number[][][] };
-		} | null;
-		county_bounds?: [[number, number], [number, number]] | null;
-		message?: string;
-		lookup_warnings?: string[];
-		events_anchored?: boolean;
-		anchor_message?: string;
-		route_length_ft?: number | null;
-		expected_length_ft?: number | null;
-		projected_log_events?: PreviewRoadwayLogEvent[];
-		parsed_begin_terminus?: ParsedTerminus | null;
-		parsed_end_terminus?: ParsedTerminus | null;
-		route_source_detail?: {
-			crs: string;
-			routeCode: string;
-			county?: string;
-			mAtMidpoint: number;
-			offcenterM: number;
-			calibrationOffsetMi: number;
-		} | null;
-	}
+	import type {
+		ParsedBidItem,
+		ParsedMix,
+		ParsedRoadwayLogEvent,
+		PreviewRoadwayLogEvent,
+		DocumentInventory,
+		ParsedJob,
+		ParsedTerminus,
+		RoutePreview,
+		ImportPdfResponse,
+		FieldMeta,
+		FieldConflict,
+		ImportContractSegment,
+		ImportSegmentPavement,
+		ParsedFieldEnvelope
+	} from '$lib/types/import-pdf';
 
 	let step = $state<'upload' | 'parsing' | 'review' | 'creating'>('upload');
 	let files = $state<File[]>([]);
@@ -181,11 +47,38 @@
 	let parseStatus = $state('');
 	let renderedPageCount = $state(0);
 	let totalRenderPages = $state(0);
+	let parseStartedAt = $state<number | null>(null);
+	let parseNow = $state(Date.now());
 	let fieldConf = $state<FieldConfidenceMap>({});
 	let fieldSource = $state<Record<string, string>>({});
 	let parserDurationMs = $state<number | null>(null);
 	let routePreview = $state<RoutePreview | null>(null);
 	let routePreviewLoading = $state(false);
+	/** First-class per-field provenance + confidence keyed by dotted field path. */
+	let fieldMeta = $state<Record<string, FieldMeta>>({});
+	/** Structured AI-vs-validator disagreements (AI value kept). */
+	let conflicts = $state<FieldConflict[]>([]);
+	/** Structured-contract segments + their per-mile-range pavement specs. */
+	let segments = $state<ImportContractSegment[]>([]);
+
+	/**
+	 * Fallback map center for multi-segment imports where no single representative
+	 * route/midpoint was resolved (segments still carry real geometry). Uses the
+	 * first drawable segment's midpoint so the overlay map can still render.
+	 */
+	const segmentFallbackCenter = $derived.by<{ lat: number; lng: number } | null>(() => {
+		const segs = routePreview?.mapped_segments ?? [];
+		for (const s of segs) {
+			const coords = s.geometry?.coordinates;
+			if (coords && coords.length >= 2) {
+				const mid = coords[Math.floor(coords.length / 2)];
+				return { lat: mid[1], lng: mid[0] };
+			}
+		}
+		return null;
+	});
+	const previewLat = $derived(routePreview?.latitude ?? segmentFallbackCenter?.lat ?? null);
+	const previewLng = $derived(routePreview?.longitude ?? segmentFallbackCenter?.lng ?? null);
 	/** Diagnostic for whether the Workers AI fallback ran (observability). */
 	let llmFallback = $state<{
 		attempted: boolean;
@@ -270,6 +163,8 @@
 		parseStatus = 'Preparing upload';
 		renderedPageCount = 0;
 		totalRenderPages = 0;
+		parseStartedAt = Date.now();
+		parseNow = Date.now();
 
 		const formData = new FormData();
 		for (const f of files) {
@@ -287,37 +182,12 @@
 			});
 
 			parseStatus = 'Preparing review';
-			const data = await res.json() as {
-				parsed?: ParsedJob;
-				source_keys?: string[];
-				documents?: Array<{ filename: string; source_key: string; type: string }>;
-				document_inventory?: DocumentInventory[];
-				field_confidence?: FieldConfidenceMap;
-				route_preview?: RoutePreview;
-				llm_fallback?: { attempted: boolean; applied: boolean; reason: string; binding_available: boolean; outcome: 'applied' | 'not-needed' | 'binding-unavailable' | 'failed' };
-				ai_extraction?: { attempted: boolean; applied: boolean; outcome: 'applied' | 'deterministic-fallback' | 'binding-unavailable' | 'failed'; model: string | null; duration_ms: number | null; reason: string };
-				document_type?: string;
-				classification_confidence?: number;
-				classification_description?: string;
-				classification_message?: string;
-				documents_found?: Array<{
-					file_index: number;
-					sections: Array<{ type: string; pages: number[]; startPage: number; endPage: number; confidence: number; }>;
-				}>;
-				parsing_report?: {
-					detected_type: string | null;
-					confidence: number;
-					extractable_fields: string[];
-					missing_fields: string[];
-					suggestions: string[];
-					is_supported: boolean;
-				};
-				error?: string;
-			};
+			const data = (await res.json()) as ImportPdfResponse;
 
 			if (!res.ok) {
 				parseError = data.error || 'Failed to parse PDF';
 				parseStatus = '';
+				parseStartedAt = null;
 				step = 'upload';
 				return;
 			}
@@ -328,6 +198,9 @@
 			documentInventory = data.document_inventory ?? [];
 			fieldConf = data.field_confidence ?? {};
 			fieldSource = (data as Record<string, unknown>).field_source as Record<string, string> ?? {};
+			fieldMeta = data.field_meta ?? {};
+			conflicts = data.conflicts ?? [];
+			segments = data.segments ?? [];
 			parserDurationMs = typeof (data as Record<string, unknown>).parser_duration_ms === 'number' ? (data as Record<string, unknown>).parser_duration_ms as number : null;
 			routePreview = data.route_preview ?? null;
 			llmFallback = data.llm_fallback ?? null;
@@ -346,13 +219,16 @@
 			}
 			correctedFields = new Set();
 			confirmedFields = new Set();
+			resolvedConflicts = new Set();
 			parsingReport = data.parsing_report ?? null;
 			primaryFilename = files[0]?.name ?? '';
 			parseStatus = '';
+			parseStartedAt = null;
 			step = 'review';
 		} catch {
 			parseError = 'Network error — check your connection';
 			parseStatus = '';
+			parseStartedAt = null;
 			step = 'upload';
 		}
 	}
@@ -414,36 +290,303 @@
 		correctedFields = new Set([...correctedFields, fieldName]);
 	}
 
-	function aiConflictFromWarning(warning: string): {
-		field: string;
-		currentValue: string;
-		aiValue: string;
-	} | null {
-		const match = /^(\w+) differs between deterministic parser \((.*)\) and AI \((.*)\); deterministic value retained\.$/.exec(warning);
-		if (!match) return null;
-		return {
-			field: match[1],
-			currentValue: match[2],
-			aiValue: match[3]
-		};
+	/**
+	 * Maps a flat review-field key (V1 ParsedJob shape) to its dotted
+	 * `field_meta` path (structured-contract shape). Only the fields the
+	 * structurer emits provenance for are listed; others fall back to the flat
+	 * `field_confidence`/`field_source` maps.
+	 */
+	const FIELD_META_PATH: Record<string, string> = {
+		county: 'county.name',
+		county_number: 'county.fips',
+		route_designation: 'route.designation',
+		total_length_ft: 'gross_length_mi',
+		gross_length_mi: 'gross_length_mi'
+	};
+
+	/** Resolve the FieldMeta for a flat review-field key, when one exists. */
+	function getMeta(key: string): FieldMeta | null {
+		const path = FIELD_META_PATH[key] ?? key;
+		return fieldMeta[path] ?? null;
 	}
 
-	function useAiConflictValue(conflict: { field: string; aiValue: string }, warning: string) {
-		if (!parsed) return;
-		const key = conflict.field as keyof ParsedJob;
-		const current = parsed[key];
-		const nextValue =
-			typeof current === 'number'
-				? Number(conflict.aiValue.replace(/[$,\s]/g, ''))
-				: conflict.aiValue;
-		if (typeof current === 'number' && !Number.isFinite(nextValue as number)) return;
-		parsed = {
-			...parsed,
-			[key]: nextValue as never,
-			warnings: parsed.warnings.filter((w) => w !== warning)
-		};
-		markCorrected(conflict.field);
-		fieldSource = { ...fieldSource, [conflict.field]: 'AI alternative selected by user' };
+	/** Page-number → human label lookup, built from the document inventory. */
+	const pageLabelByNumber = $derived.by<Map<number, string>>(() => {
+		const map = new Map<number, string>();
+		for (const doc of documentInventory) {
+			for (const page of doc.pages) {
+				if (!map.has(page.page_number)) map.set(page.page_number, page.label);
+			}
+		}
+		return map;
+	});
+
+	/** Human evidence-type label for a field's provenance line. */
+	function evidenceTypeLabel(evidence: FieldMeta['evidence_type']): string {
+		if (evidence === 'vision') return 'read from diagram';
+		if (evidence === 'ocr') return 'OCR';
+		if (evidence === 'mixed') return 'text + diagram';
+		if (evidence === 'text') return 'text';
+		return '';
+	}
+
+	/**
+	 * One-line source provenance for a field, e.g. "from Page 10 (Typical
+	 * Section), read from diagram". Empty when no source page is known.
+	 */
+	function provenanceLabel(meta: FieldMeta | null): string {
+		if (!meta || meta.source_pages.length === 0) return '';
+		const pages = meta.source_pages;
+		const labels = pages.map((p) => {
+			const label = pageLabelByNumber.get(p);
+			return label ? `Page ${p} (${label})` : `Page ${p}`;
+		});
+		const evidence = evidenceTypeLabel(meta.evidence_type);
+		const from = `from ${labels.join(', ')}`;
+		return evidence ? `${from}, ${evidence}` : from;
+	}
+
+	/** True when a field's value was read by the vision model from a diagram. */
+	function isVisionSourced(meta: FieldMeta | null): boolean {
+		return meta?.evidence_type === 'vision';
+	}
+
+	/**
+	 * Effective confidence for a field: a manual correction always reads high,
+	 * otherwise prefer the first-class `field_meta` confidence and fall back to
+	 * the flat `field_confidence` map (then 'medium' when the server scored
+	 * neither). field_meta is the Phase 4 first-class source.
+	 */
+	function effectiveConfidence(key: string): FieldConfidence {
+		if (correctedFields.has(key)) return 'high';
+		return getMeta(key)?.confidence ?? fieldConf[key] ?? 'medium';
+	}
+
+	/**
+	 * Inverse of {@link FIELD_META_PATH}: maps a structured-contract dotted
+	 * `field_path` (as carried on a conflict) back to the flat ParsedJob key the
+	 * review form edits, so "use deterministic value" can write the value.
+	 */
+	const CONFLICT_FIELD_KEY: Record<string, keyof ParsedJob> = {
+		'county.name': 'county',
+		'county.fips': 'county_number',
+		'route.designation': 'route_designation',
+		gross_length_mi: 'gross_length_mi',
+		total_length_ft: 'total_length_ft'
+	};
+
+	/** Conflicts the user has resolved this session (by field_path). */
+	let resolvedConflicts = $state<Set<string>>(new Set());
+
+	/** Only the conflicts that still need a human decision and aren't dismissed. */
+	const openConflicts = $derived(
+		conflicts.filter((c) => c.resolution === 'needs_review' && !resolvedConflicts.has(c.field_path))
+	);
+
+	/** Human label for a conflict's field path (last dotted segment, spaced). */
+	function conflictLabel(fieldPath: string): string {
+		const last = fieldPath.split('.').pop() ?? fieldPath;
+		return last.replace(/_/g, ' ').replace(/\[(\d+)\]/g, ' $1');
+	}
+
+	/** Render a conflict value (string/number/null) for display. */
+	function conflictValue(value: unknown): string {
+		if (value == null || value === '') return '—';
+		return String(value);
+	}
+
+	/**
+	 * Apply the deterministic (validator) value for a conflict, overriding the
+	 * AI-primary value the form currently holds. The inverse of the old
+	 * "use AI value" affordance — AI is now primary, so this lets the reviewer
+	 * fall back to the validator's reading. Dismisses the conflict once applied.
+	 */
+	function useValidatorValue(conflict: FieldConflict) {
+		const key = CONFLICT_FIELD_KEY[conflict.field_path];
+		if (parsed && key) {
+			const current = (parsed as unknown as Record<string, unknown>)[key];
+			const next =
+				typeof current === 'number'
+					? Number(String(conflict.validator_value).replace(/[$,\s]/g, ''))
+					: (conflict.validator_value as string | number | null);
+			if (!(typeof current === 'number' && !Number.isFinite(next as number))) {
+				(parsed as unknown as Record<string, unknown>)[key] = next;
+				markCorrected(key as string);
+			}
+		}
+		dismissConflict(conflict.field_path);
+	}
+
+	/** Keep the AI (current) value and clear the conflict flag. */
+	function keepAiValue(conflict: FieldConflict) {
+		const key = CONFLICT_FIELD_KEY[conflict.field_path];
+		if (key) confirmField(key as string);
+		dismissConflict(conflict.field_path);
+	}
+
+	function dismissConflict(fieldPath: string) {
+		resolvedConflicts = new Set([...resolvedConflicts, fieldPath]);
+	}
+
+	// ── Pavement / Typical-Section review ────────────────────────────────────
+	// The structured contract surfaces per-segment `pavement[]` typical-section
+	// specs (lift thickness / mill depth / spread rate / mix / roadway width /
+	// applicability mile range). Each scalar arrives as a ParsedField envelope
+	// with its own confidence + source page (field_meta carries the same under a
+	// dotted path). Null values render as empty editable fields — never guessed.
+
+	/** True when any surfaced segment carries at least one pavement range. */
+	const hasPavement = $derived(segments.some((s) => s.pavement.length > 0));
+
+	/** The numeric pavement scalars rendered per range, in display order. */
+	const PAVEMENT_NUMBER_FIELDS: Array<{
+		key: 'lift_thickness_in' | 'mill_depth_in' | 'spread_rate_lbs_sy';
+		label: string;
+		step: string;
+	}> = [
+		{ key: 'lift_thickness_in', label: 'Lift Thickness (in)', step: '0.25' },
+		{ key: 'mill_depth_in', label: 'Mill Depth (in)', step: '0.25' },
+		{ key: 'spread_rate_lbs_sy', label: 'Spread Rate (lbs/yd²)', step: 'any' }
+	];
+
+	/** FieldMeta for a pavement scalar via its dotted field path. */
+	function pavementMeta(
+		segIdx: number,
+		pvIdx: number,
+		field: string
+	): FieldMeta | null {
+		return fieldMeta[`segments[${segIdx}].pavement[${pvIdx}].${field}`] ?? null;
+	}
+
+	/** Confidence for a pavement scalar (field_meta path, then the field's own envelope). */
+	function pavementConfidence(
+		env: ParsedFieldEnvelope<unknown> | null | undefined,
+		segIdx: number,
+		pvIdx: number,
+		field: string
+	): FieldConfidence {
+		return pavementMeta(segIdx, pvIdx, field)?.confidence ?? env?.confidence ?? 'medium';
+	}
+
+	/** Provenance line for a pavement scalar, preferring its own citation envelope. */
+	function pavementProvenance(
+		env: ParsedFieldEnvelope<unknown> | null | undefined,
+		segIdx: number,
+		pvIdx: number,
+		field: string
+	): string {
+		const meta = pavementMeta(segIdx, pvIdx, field);
+		if (meta) return provenanceLabel(meta);
+		if (env?.source_page != null) {
+			return provenanceLabel({
+				confidence: env.confidence,
+				source_pages: [env.source_page],
+				source_file: env.source_file ?? null,
+				evidence_type: env.evidence_type ?? null
+			});
+		}
+		return '';
+	}
+
+	/** Write a numeric edit back into the segment's pavement envelope. */
+	function setPavementNumber(
+		segIdx: number,
+		pvIdx: number,
+		field: 'lift_thickness_in' | 'mill_depth_in' | 'spread_rate_lbs_sy',
+		raw: string
+	) {
+		const next = parseFloat(raw);
+		segments[segIdx].pavement[pvIdx][field].value = Number.isFinite(next) ? next : null;
+		markCorrected(`segments[${segIdx}].pavement[${pvIdx}].${field}`);
+	}
+
+	/** Write a mix (string) edit back into the segment's pavement envelope. */
+	function setPavementMix(segIdx: number, pvIdx: number, raw: string) {
+		segments[segIdx].pavement[pvIdx].mix.value = raw.trim() === '' ? null : raw;
+		markCorrected(`segments[${segIdx}].pavement[${pvIdx}].mix`);
+	}
+
+	/** Write a roadway-width bound edit back into the segment's pavement envelope. */
+	function setPavementWidth(
+		segIdx: number,
+		pvIdx: number,
+		bound: 'min' | 'max',
+		raw: string
+	) {
+		const next = parseFloat(raw);
+		segments[segIdx].pavement[pvIdx].roadway_width_ft[bound].value = Number.isFinite(next)
+			? next
+			: null;
+		markCorrected(`segments[${segIdx}].pavement[${pvIdx}].roadway_width_ft.${bound}`);
+	}
+
+	/** Human label for a pavement range's applicability (mile range or "full segment"). */
+	function pavementRangeLabel(pv: ImportSegmentPavement): string {
+		const from = pv.applies_from_mi?.value;
+		const to = pv.applies_to_mi?.value;
+		if (from != null && to != null) return `Mile ${fmtNum(from, 3)} → ${fmtNum(to, 3)}`;
+		if (from != null) return `From mile ${fmtNum(from, 3)}`;
+		if (to != null) return `To mile ${fmtNum(to, 3)}`;
+		return 'Applies to the full segment';
+	}
+
+	/** The strongest (most-confident) citation across a pavement range's scalars. */
+	function rangeSourcePage(pv: ImportSegmentPavement): number | null {
+		const envs: Array<ParsedFieldEnvelope<unknown> | undefined> = [
+			pv.lift_thickness_in,
+			pv.mill_depth_in,
+			pv.spread_rate_lbs_sy,
+			pv.mix,
+			pv.roadway_width_ft?.min,
+			pv.roadway_width_ft?.max
+		];
+		for (const e of envs) {
+			if (e?.source_page != null) return e.source_page;
+		}
+		return null;
+	}
+
+	/** Lowest confidence across a pavement range's stated scalars (the cautious read). */
+	function rangeConfidence(pv: ImportSegmentPavement): 'high' | 'medium' | 'low' | null {
+		const order = { low: 0, medium: 1, high: 2 } as const;
+		let worst: 'high' | 'medium' | 'low' | null = null;
+		const envs = [pv.lift_thickness_in, pv.mill_depth_in, pv.spread_rate_lbs_sy, pv.mix];
+		for (const e of envs) {
+			if (e?.value == null) continue;
+			if (worst == null || order[e.confidence] < order[worst]) worst = e.confidence;
+		}
+		return worst;
+	}
+
+	/**
+	 * Flatten the reviewed/edited structured segments into the plain-value shape
+	 * `from-import` persists (its `ImportSegment[]` body). The structured contract
+	 * carries each pavement scalar as a ParsedField envelope; we unwrap to plain
+	 * values here (the page is the documented flattening point) — null values stay
+	 * null, never fabricated. Empty when no per-segment pavement was surfaced.
+	 */
+	function flattenSegmentsForImport() {
+		return segments
+			.filter((seg) => seg.pavement.length > 0)
+			.map((seg) => ({
+				name: seg.name ?? '',
+				kind: seg.kind,
+				begin_terminus: seg.begin_terminus,
+				end_terminus: seg.end_terminus,
+				length_mi: seg.length_mi,
+				pavement: seg.pavement.map((pv) => ({
+					lift_thickness_in: pv.lift_thickness_in?.value ?? null,
+					mill_depth_in: pv.mill_depth_in?.value ?? null,
+					spread_rate_lbs_sy: pv.spread_rate_lbs_sy?.value ?? null,
+					mix: pv.mix?.value ?? null,
+					width_ft_min: pv.roadway_width_ft?.min?.value ?? null,
+					width_ft_max: pv.roadway_width_ft?.max?.value ?? null,
+					applies_from_mi: pv.applies_from_mi?.value ?? null,
+					applies_to_mi: pv.applies_to_mi?.value ?? null,
+					source_page: rangeSourcePage(pv),
+					confidence: rangeConfidence(pv)
+				}))
+			}));
 	}
 
 	async function refreshRoutePreview() {
@@ -511,6 +654,8 @@
 					parsed,
 					source_keys: sourceKeys,
 					documents,
+					paving_setup: pavingSetup,
+					segments: flattenSegmentsForImport(),
 					route_override: reviewedRoute
 						? {
 								accepted: true,
@@ -551,11 +696,17 @@
 
 	function flipRoutePreview() {
 		if (!routePreview?.waypoints?.length) return;
+		// Reverse the route AND drop the baked marker coordinates so they no longer
+		// reflect the old (mirrored) direction. Mirrors the onRouteSave pattern:
+		// emptying projected_log_events makes the markers re-project from the
+		// reversed waypoints when the project is created (source 'manual' keeps the
+		// user-chosen direction through persistence).
 		routePreview = {
 			...routePreview,
 			source: 'manual',
 			location_precision: 'route',
 			waypoints: [...routePreview.waypoints].reverse(),
+			projected_log_events: [],
 			message: 'Route direction flipped. Save this route if the roadway log runs the opposite way.'
 		};
 	}
@@ -564,9 +715,30 @@
 		if (!preview) return 'No route anchor yet';
 		if (preview.events_anchored) return 'Roadway log markers will plot on this route';
 		if (preview.anchor_message === 'route-needs-trimming') return 'Trim this route to the project limits before plotting markers';
-		if (preview.anchor_message === 'route-too-short') return 'Route is shorter than the roadway log';
+		if (preview.anchor_message === 'route-too-short') return routeTooShortLabel(preview);
 		if (preview.anchor_message === 'missing-route') return 'No route available for roadway log markers';
 		return 'Roadway log markers will stay list-only until the route is confirmed';
+	}
+
+	// Builds a concrete, numeric explanation for the "route is shorter than the
+	// roadway log" case: actual route length vs the span implied by the furthest
+	// parsed milepost, the shortfall, and what to do about it. Falls back to the
+	// terse message only when the underlying numbers are unavailable.
+	function routeTooShortLabel(preview: RoutePreview): string {
+		const routeFt = preview.route_length_ft ?? null;
+		const logFt = preview.log_span_ft ?? null;
+		if (routeFt == null || logFt == null || logFt <= 0 || routeFt >= logFt) {
+			return 'Route is shorter than the roadway log';
+		}
+		const shortFt = logFt - routeFt;
+		const pct = Math.round((shortFt / logFt) * 100);
+		const logMi = logFt / constant('CONST.FT_PER_MILE');
+		return (
+			`Route is ${fmtNum(routeFt, 0)} ft but the roadway log spans ~${fmtNum(logFt, 0)} ft ` +
+			`(${fmtNum(logMi, 2)} mi of mileposts) — about ${fmtNum(shortFt, 0)} ft (${pct}%) short. ` +
+			`Mileposts past the route end can't be placed; extend or redraw the route, ` +
+			`or flip its direction, to cover the full log.`
+		);
 	}
 
 	function routeSourceBadge(source: RoutePreview['source'] | undefined): { label: string; color: string } {
@@ -722,6 +894,28 @@
 			.reduce((sum, it) => sum + (it.bid_amount ?? 0), 0) ?? 0
 	);
 
+	type ContractReconcile = {
+		status: 'match' | 'over' | 'under' | 'unknown';
+		deltaAbs: number;
+		deltaPct: number;
+	};
+
+	const contractReconcile = $derived.by((): ContractReconcile => {
+		const contract = parsed?.contract_amount ?? null;
+		if (contract == null) {
+			return { status: 'unknown', deltaAbs: 0, deltaPct: 0 };
+		}
+		const diff = bidTotal - contract;
+		const deltaAbs = Math.abs(diff);
+		const deltaPct = contract !== 0 ? (deltaAbs / contract) * 100 : 0;
+		// Presentation tolerance: ignore rounding noise — within $1 or 0.5% of the contract amount.
+		const tolerance = Math.max(1, contract * 0.005);
+		if (deltaAbs <= tolerance) {
+			return { status: 'match', deltaAbs, deltaPct };
+		}
+		return { status: diff > 0 ? 'over' : 'under', deltaAbs, deltaPct };
+	});
+
 	const groupedItems = $derived.by(() => {
 		if (!parsed) return new Map<string, ParsedBidItem[]>();
 		const map = new Map<string, ParsedBidItem[]>();
@@ -753,7 +947,23 @@
 	 */
 	const needsAttentionCount = $derived.by(() => {
 		if (!parsed) return 0;
-		return countNeedsAttention(fieldConf, reviewValues, correctedFields, confirmedFields);
+		return countNeedsAttention(mergedFieldConf, reviewValues, correctedFields, confirmedFields);
+	});
+
+	/**
+	 * Confidence map that drives the review states. First-class `field_meta`
+	 * (Phase 4) supplements the flat `field_confidence` map: where the structurer
+	 * emitted provenance for a field, its confidence wins; otherwise the flat map
+	 * value is kept. Keyed by the flat review-field key so the existing
+	 * needs-input / verify / ok logic consumes it unchanged.
+	 */
+	const mergedFieldConf = $derived.by<FieldConfidenceMap>(() => {
+		const merged: FieldConfidenceMap = { ...fieldConf };
+		for (const f of ALL_REVIEW_FIELDS) {
+			const meta = getMeta(f.key);
+			if (meta) merged[f.key] = meta.confidence;
+		}
+		return merged;
 	});
 
 	/**
@@ -761,12 +971,12 @@
 	 * so the indicator reflects their manual override.
 	 */
 	function getConf(fieldName: string): FieldConfidence {
-		return displayedConfidence(fieldName, fieldConf, correctedFields);
+		return displayedConfidence(fieldName, mergedFieldConf, correctedFields);
 	}
 
 	/** Resolved review state (needs-input | verify | ok) for a rendered field. */
 	function getState(fieldName: string): FieldState {
-		return fieldState(fieldName, fieldValue(fieldName), fieldConf, correctedFields, confirmedFields);
+		return fieldState(fieldName, fieldValue(fieldName), mergedFieldConf, correctedFields, confirmedFields);
 	}
 
 	/** Confirm a filled low-confidence field WITHOUT changing its value. */
@@ -782,6 +992,177 @@
 		}
 		confirmedFields = next;
 	}
+
+	$effect(() => {
+		if (step !== 'parsing') return;
+		const id = window.setInterval(() => {
+			parseNow = Date.now();
+		}, 1000);
+		return () => window.clearInterval(id);
+	});
+
+	const parseElapsedSeconds = $derived(
+		parseStartedAt == null ? 0 : Math.max(0, Math.floor((parseNow - parseStartedAt) / 1000))
+	);
+
+	const parsePhase = $derived.by(() => {
+		if (parseStatus.includes('Preparing')) return 0;
+		if (parseStatus.includes('Rendering')) return 1;
+		if (parseStatus.includes('Uploading')) {
+			if (parseElapsedSeconds < 12) return 2;
+			if (parseElapsedSeconds < 28) return 3;
+			if (parseElapsedSeconds < 45) return 4;
+			return 5;
+		}
+		if (parseStatus.includes('Preparing review')) return 6;
+		return 2;
+	});
+
+	const parsePhaseLabel = $derived.by(() => {
+		if (parsePhase === 0) return 'Preparing upload';
+		if (parsePhase === 1) return parseStatus || 'Rendering page evidence';
+		if (parsePhase === 2) return 'Reading PDF text and page evidence';
+		if (parsePhase === 3) return 'Running AI extraction on project fields and tables';
+		if (parsePhase === 4) return 'Comparing AI results with deterministic parser output';
+		if (parsePhase === 5) return 'Resolving route, county, and map preview';
+		return 'Preparing review';
+	});
+
+	const parsePhaseDetail = $derived.by(() => {
+		if (parsePhase === 1 && totalRenderPages > 0) {
+			return `${renderedPageCount} of ${totalRenderPages} pages rendered for AI evidence`;
+		}
+		if (parsePhase === 3) return 'This is usually the longest step for multi-page contract summaries.';
+		if (parsePhase === 4) return 'Conflicts will be shown on the review screen so you can choose the better value.';
+		if (parsePhase === 5) return 'External GDOT and geocoding services can add time here.';
+		return 'Keep this tab open while the import finishes.';
+	});
+
+	const parseSteps = $derived([
+		'Prepare',
+		'Render pages',
+		'Read PDF',
+		'AI extraction',
+		'Validate',
+		'Route lookup',
+		'Review'
+	]);
+
+	// ── Paving Setup (import review) ─────────────────────────────────────────
+	// Road Type, Number of Lanes, Lane Width, Target Thickness and Target Spread
+	// Rate are completeness-required config fields that contracts/plans don't
+	// reliably carry. The deterministic parser only extracts lane count / width /
+	// spread rate when a roadway-log sheet is present, and road type / target
+	// thickness are never in the document at all. So instead of leaving every
+	// imported project mysteriously incomplete, the user fills these here during
+	// review — pre-filled from parsed values where the document had them, and
+	// otherwise from the org's remembered defaults. Nothing is fabricated: when no
+	// value can be sourced the input is simply left empty for the user to enter.
+	interface PavingSetupForm {
+		road_type: string | null;
+		num_lanes: number | null;
+		lane_width_ft: number | null;
+		target_thickness_in: number | null;
+		target_spread_rate: number | null;
+	}
+
+	const PAVING_ROAD_TYPES: Array<{ value: string; label: string }> = [
+		{ value: 'highway', label: 'Highway' },
+		{ value: 'state_route', label: 'State Route' },
+		{ value: 'county_road', label: 'County Road' },
+		{ value: 'city_street', label: 'City Street' },
+		{ value: 'subdivision', label: 'Subdivision' },
+		{ value: 'parking_lot', label: 'Parking Lot' },
+		{ value: 'other', label: 'Other' }
+	];
+
+	let pavingSetup = $state<PavingSetupForm>({
+		road_type: null,
+		num_lanes: null,
+		lane_width_ft: null,
+		target_thickness_in: null,
+		target_spread_rate: null
+	});
+	let pavingSetupSeeded = $state(false);
+
+	/**
+	 * Map the parsed contract route_designation to a sensible default road type
+	 * (only when the document clearly implies one). Never guesses beyond the
+	 * naming convention — falls back to null so the user picks.
+	 */
+	function roadTypeFromDesignation(designation: string | null | undefined): string | null {
+		if (!designation) return null;
+		const d = designation.trim().toUpperCase();
+		if (/^I[- ]?\d/.test(d) || /\bINTERSTATE\b/.test(d)) return 'highway';
+		if (/^(SR|GA|US)[- ]?\d/.test(d) || /\bSTATE ROUTE\b/.test(d) || /\bUS \d/.test(d)) return 'state_route';
+		if (/^(CR|CO)[- ]?\d/.test(d) || /\bCOUNTY (ROAD|RD)\b/.test(d)) return 'county_road';
+		return null;
+	}
+
+	/**
+	 * Seed the Paving Setup form once review is reached: parsed roadway-log values
+	 * first, then org-remembered defaults, then a thickness→spread-rate derivation
+	 * (THICK_MULT lbs/SY per inch) so the active mix has a starting spread target.
+	 */
+	function seedPavingSetup() {
+		if (pavingSetupSeeded || !parsed) return;
+		const p = parsed as unknown as Record<string, unknown>;
+		const orgDefaults = orgSettingsStore.resolvedDefaults as Record<string, unknown>;
+
+		const parsedNum = (key: string): number | null => {
+			const v = p[key];
+			return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
+		};
+
+		const laneWidth =
+			parsedNum('lane_width_ft') ??
+			(typeof orgDefaults.roadWidthFt === 'number' ? orgDefaults.roadWidthFt : null) ??
+			config.defaults.roadWidthFt ??
+			null;
+		const thickness =
+			typeof orgDefaults.liftThicknessIn === 'number' && orgDefaults.liftThicknessIn > 0
+				? orgDefaults.liftThicknessIn
+				: null;
+		const spread =
+			parsedNum('spread_rate_lbs_sy') ??
+			(thickness != null ? Math.round(thickness * constant('CONST.THICK_MULT')) : null);
+		// Variable-depth mill-and-fill jobs (e.g. SR 7 ALT) state a spread rate but
+		// no fixed lift thickness. When we have a real parsed/derived spread rate
+		// but no org-default thickness, back-derive thickness from spread via the
+		// same THICK_MULT relationship so the field reflects the document instead
+		// of asking the user blank. Not fabricated — it's the inverse of the
+		// spread = thickness * THICK_MULT derivation used above.
+		const thicknessSeed =
+			thickness ??
+			(spread != null ? Math.round((spread / constant('CONST.THICK_MULT')) * 10) / 10 : null);
+
+		pavingSetup = {
+			road_type: roadTypeFromDesignation(parsed.route_designation),
+			num_lanes: parsedNum('num_lanes'),
+			lane_width_ft: laneWidth,
+			target_thickness_in: thicknessSeed,
+			target_spread_rate: spread
+		};
+		pavingSetupSeeded = true;
+	}
+
+	$effect(() => {
+		if (step === 'review' && parsed && !pavingSetupSeeded) {
+			seedPavingSetup();
+		}
+	});
+
+	const pavingSetupComplete = $derived(
+		Boolean(pavingSetup.road_type) &&
+			pavingSetup.num_lanes != null &&
+			pavingSetup.num_lanes > 0 &&
+			pavingSetup.lane_width_ft != null &&
+			pavingSetup.lane_width_ft > 0 &&
+			pavingSetup.target_thickness_in != null &&
+			pavingSetup.target_thickness_in > 0 &&
+			pavingSetup.target_spread_rate != null &&
+			pavingSetup.target_spread_rate > 0
+	);
 </script>
 
 <svelte:head>
@@ -849,25 +1230,24 @@
 			<button class="btn btn-primary parse-btn" onclick={uploadAndParse} disabled={step === 'parsing'}>
 				{step === 'parsing' ? 'Parsing…' : 'Upload & Parse'}
 			</button>
-
-			{#if step === 'parsing'}
-				<div class="parse-progress" role="status" aria-live="polite">
-					<div class="spinner small"></div>
-					<div>
-						<strong>{parseStatus || 'Processing PDFs'}</strong>
-						<p>
-							{#if totalRenderPages > 0 && renderedPageCount < totalRenderPages}
-								{renderedPageCount} of {totalRenderPages} pages rendered for AI evidence
-							{:else}
-								Server extraction is running deterministic checks, AI extraction, and route lookup.
-							{/if}
-						</p>
-					</div>
-				</div>
-			{/if}
 		{/if}
 
 	{:else if step === 'review' && parsed}
+		{#snippet fieldVisionIndicator(key: string)}
+			{@const meta = getMeta(key)}
+			{#if isVisionSourced(meta)}
+				<span class="vision-field-icon" title="AI read this from a diagram image (vision)" aria-label="read from diagram">&#x1F441;</span>
+			{:else if fieldSource[key]?.includes('llm') || fieldSource[key]?.includes('ai:')}
+				<span class="ai-field-icon" title="Value filled by AI extraction" aria-label="AI filled">&#x2736;</span>
+			{/if}
+		{/snippet}
+		{#snippet fieldProvenance(key: string)}
+			{@const meta = getMeta(key)}
+			{@const provenance = provenanceLabel(meta)}
+			{#if provenance}
+				<span class="field-provenance">{provenance}</span>
+			{/if}
+		{/snippet}
 		<div class="page-header">
 			<h2 class="page-title">Review Import</h2>
 			<p class="page-subtitle">Verify the parsed data before creating the project.</p>
@@ -1072,24 +1452,51 @@
 			</section>
 		{/if}
 
+		{#if openConflicts.length > 0}
+			<div class="conflicts-panel">
+				<div class="conflicts-head">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+						<line x1="12" y1="9" x2="12" y2="13"></line>
+						<line x1="12" y1="17" x2="12.01" y2="17"></line>
+					</svg>
+					<span>
+						<strong>{openConflicts.length} value{openConflicts.length === 1 ? '' : 's'} to verify</strong>
+						— the AI reading is kept as primary; review where the deterministic parser disagreed.
+					</span>
+				</div>
+				{#each openConflicts as conflict (conflict.field_path)}
+					<div class="conflict-review">
+						<div class="conflict-info">
+							<strong>{conflictLabel(conflict.field_path)}</strong>
+							<span class="conflict-ai">AI value (kept): {conflictValue(conflict.ai_value)}</span>
+							<span class="conflict-validator">Parser read: {conflictValue(conflict.validator_value)}</span>
+						</div>
+						<div class="conflict-actions">
+							<button
+								type="button"
+								class="btn btn-ghost btn-small"
+								onclick={() => useValidatorValue(conflict)}
+								disabled={!CONFLICT_FIELD_KEY[conflict.field_path]}
+								title={CONFLICT_FIELD_KEY[conflict.field_path]
+									? 'Replace the AI value with the deterministic parser value'
+									: 'This field is reviewed in its own section below'}
+							>
+								Use parser value
+							</button>
+							<button type="button" class="btn btn-ghost btn-small conflict-keep" onclick={() => keepAiValue(conflict)}>
+								Keep AI value
+							</button>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+
 		{#if parsed.warnings.length > 0}
 			<div class="warnings">
 				{#each parsed.warnings as w}
-					{@const conflict = aiConflictFromWarning(w)}
-					{#if conflict}
-						<div class="warning-item conflict-review">
-							<div>
-								<strong>{conflict.field.replace(/_/g, ' ')}</strong>
-								<span>Parser kept: {conflict.currentValue}</span>
-								<span>AI suggested: {conflict.aiValue}</span>
-							</div>
-							<button class="btn btn-ghost btn-small" onclick={() => useAiConflictValue(conflict, w)}>
-								Use AI value
-							</button>
-						</div>
-					{:else}
-						<div class="warning-item">{w}</div>
-					{/if}
+					<div class="warning-item">{w}</div>
 				{/each}
 			</div>
 		{/if}
@@ -1164,9 +1571,7 @@
 							{:else}
 								<span class="conf-dot conf-high" title={sourceLabel(f.key) ? 'High confidence • Source: ' + sourceLabel(f.key) : 'High confidence'} aria-label="high confidence"></span>
 							{/if}
-							{#if fieldSource[f.key]?.includes('llm') || fieldSource[f.key]?.includes('ai:')}
-								<span class="ai-field-icon" title="Value filled by AI extraction" aria-label="AI filled">&#x2736;</span>
-							{/if}
+							{@render fieldVisionIndicator(f.key)}
 							{#if state === 'verify'}
 								<button type="button" class="confirm-field-btn" title="Looks right" aria-label="Confirm {f.label}" onclick={() => confirmField(f.key)}>✓</button>
 							{/if}
@@ -1195,6 +1600,7 @@
 								class:input-low={state === 'needs-input'}
 							/>
 						{/if}
+						{@render fieldProvenance(f.key)}
 					</div>
 				{/each}
 			</div>
@@ -1246,9 +1652,7 @@
 							{:else}
 								<span class="conf-dot conf-high" title={sourceLabel(f.key) ? 'High confidence • Source: ' + sourceLabel(f.key) : 'High confidence'} aria-label="high confidence"></span>
 							{/if}
-							{#if fieldSource[f.key]?.includes('llm') || fieldSource[f.key]?.includes('ai:')}
-								<span class="ai-field-icon" title="Value filled by AI extraction" aria-label="AI filled">&#x2736;</span>
-							{/if}
+							{@render fieldVisionIndicator(f.key)}
 							{#if state === 'verify'}
 								<button type="button" class="confirm-field-btn" title="Looks right" aria-label="Confirm {f.label}" onclick={() => confirmField(f.key)}>✓</button>
 							{/if}
@@ -1263,6 +1667,7 @@
 							}}
 							class:input-low={state === 'needs-input'}
 						/>
+						{@render fieldProvenance(f.key)}
 					</div>
 				{/each}
 			</div>
@@ -1327,7 +1732,7 @@
 					}}>Clear &amp; redraw manually</button>
 					<p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">After creating the project, draw the route on the map.</p>
 				{/if}
-				{#if routePreview?.latitude != null && routePreview.longitude != null && browser}
+				{#if previewLat != null && previewLng != null && routePreview != null && parsed != null && browser}
 					{#await import('$lib/components/RouteAlignmentMap.svelte')}
 						<div class="map-mini-loading">Loading route preview...</div>
 					{:then { default: RouteAlignmentMap }}
@@ -1336,12 +1741,13 @@
 								id: 'import-preview',
 								name: parsed.name ?? 'Import preview',
 								status: 'active',
-								latitude: routePreview.latitude,
-								longitude: routePreview.longitude,
+								latitude: previewLat,
+								longitude: previewLng,
 								location_description: parsed.location_description
 							}}
 							initialWaypoints={routePreview.waypoints}
 							roadwayLogEvents={routePreview.projected_log_events ?? []}
+							segments={routePreview.mapped_segments ?? []}
 							locationPrecision={routePreview.location_precision}
 							countyBoundaryGeojson={routePreview.county_boundary_geojson ?? null}
 							countyBounds={routePreview.county_bounds ?? null}
@@ -1357,7 +1763,7 @@
 									latitude: center?.lat ?? routePreview!.latitude,
 									longitude: center?.lng ?? routePreview!.longitude,
 									message: 'Edited route preview will be used when the project is created.',
-									events_anchored: waypoints.length >= 2 && (parsed.roadway_log_events?.length ?? 0) > 0,
+									events_anchored: waypoints.length >= 2 && (parsed?.roadway_log_events?.length ?? 0) > 0,
 									anchor_message: 'anchored-manual-route',
 									projected_log_events: []
 								};
@@ -1394,9 +1800,7 @@
 							{:else}
 								<span class="conf-dot conf-high" title={sourceLabel(f.key) ? 'High confidence • Source: ' + sourceLabel(f.key) : 'High confidence'} aria-label="high confidence"></span>
 							{/if}
-							{#if fieldSource[f.key]?.includes('llm') || fieldSource[f.key]?.includes('ai:')}
-								<span class="ai-field-icon" title="Value filled by AI extraction" aria-label="AI filled">&#x2736;</span>
-							{/if}
+							{@render fieldVisionIndicator(f.key)}
 							{#if state === 'verify'}
 								<button type="button" class="confirm-field-btn" title="Looks right" aria-label="Confirm {f.label}" onclick={() => confirmField(f.key)}>✓</button>
 							{/if}
@@ -1411,6 +1815,7 @@
 							}}
 							class:input-low={state === 'needs-input'}
 						/>
+						{@render fieldProvenance(f.key)}
 					</div>
 				{/each}
 			</div>
@@ -1424,6 +1829,232 @@
 						<span class="scope-tag">{scope.replace(/_/g, ' ')}</span>
 					{/each}
 				</div>
+			</section>
+		{/if}
+
+		<section class="review-section paving-setup-section">
+			<h3>
+				Paving Setup
+				{#if !pavingSetupComplete}
+					<span class="setup-needs-badge" title="Fill these so the project opens complete">Needed for setup</span>
+				{/if}
+			</h3>
+			<p class="paving-setup-hint">
+				Contracts rarely state these. We pre-fill from the document and your org defaults where we
+				can — confirm or adjust so the new project isn't flagged incomplete.
+				{#if hasPavement}
+					Per-segment typical-section specs were detected — review them in the
+					<strong>Pavement / Typical Section</strong> section below; these project-level values
+					are the single-spec fallback.
+				{/if}
+			</p>
+
+			<div class="paving-setup-field">
+				<span class="paving-setup-label">Road Type</span>
+				<div class="road-type-grid" class:setup-empty={!pavingSetup.road_type}>
+					{#each PAVING_ROAD_TYPES as rt}
+						<button
+							type="button"
+							class="road-type-card"
+							class:active={pavingSetup.road_type === rt.value}
+							onclick={() => (pavingSetup.road_type = rt.value)}
+						>
+							{rt.label}
+						</button>
+					{/each}
+				</div>
+			</div>
+
+			<div class="paving-setup-grid">
+				<div class="paving-setup-field">
+					<label for="paving-num-lanes">Number of Lanes</label>
+					<input
+						id="paving-num-lanes"
+						type="number"
+						min="1"
+						step="1"
+						placeholder="e.g. 2"
+						bind:value={pavingSetup.num_lanes}
+						class:input-low={pavingSetup.num_lanes == null || pavingSetup.num_lanes <= 0}
+					/>
+				</div>
+				<div class="paving-setup-field">
+					<label for="paving-lane-width">Lane Width (ft)</label>
+					<input
+						id="paving-lane-width"
+						type="number"
+						min="1"
+						step="0.5"
+						placeholder="e.g. 12"
+						bind:value={pavingSetup.lane_width_ft}
+						class:input-low={pavingSetup.lane_width_ft == null || pavingSetup.lane_width_ft <= 0}
+					/>
+				</div>
+				<div class="paving-setup-field">
+					<label for="paving-thickness">Target Thickness (in)</label>
+					<input
+						id="paving-thickness"
+						type="number"
+						min="0"
+						step="0.25"
+						placeholder="e.g. 1.5"
+						bind:value={pavingSetup.target_thickness_in}
+						oninput={() => {
+							if (
+								pavingSetup.target_thickness_in != null &&
+								pavingSetup.target_thickness_in > 0 &&
+								(pavingSetup.target_spread_rate == null || pavingSetup.target_spread_rate <= 0)
+							) {
+								pavingSetup.target_spread_rate = Math.round(
+									pavingSetup.target_thickness_in * constant('CONST.THICK_MULT')
+								);
+							}
+						}}
+						class:input-low={pavingSetup.target_thickness_in == null || pavingSetup.target_thickness_in <= 0}
+					/>
+				</div>
+				<div class="paving-setup-field">
+					<label for="paving-spread">Target Spread Rate (lbs/yd²)</label>
+					<input
+						id="paving-spread"
+						type="number"
+						min="0"
+						step="any"
+						placeholder="e.g. 165"
+						bind:value={pavingSetup.target_spread_rate}
+						class:input-low={pavingSetup.target_spread_rate == null || pavingSetup.target_spread_rate <= 0}
+					/>
+				</div>
+			</div>
+		</section>
+
+		{#if hasPavement}
+			<section class="review-section pavement-section">
+				<h3>Pavement / Typical Section</h3>
+				<p class="section-hint">
+					Per-segment typical-section specs read from the plans. Each value shows its
+					confidence and source page — confirm or edit. Blank values weren't stated in the
+					document; fill them only if you have the figure.
+				</p>
+				{#each segments as seg, segIdx}
+					{#if seg.pavement.length > 0}
+						<div class="pavement-segment">
+							<div class="pavement-segment-head">
+								<strong>{seg.name ?? `Segment ${segIdx + 1}`}</strong>
+								{#if seg.length_mi != null}
+									<span class="pavement-seg-len">{fmtNum(seg.length_mi, 3)} mi</span>
+								{/if}
+							</div>
+							{#each seg.pavement as pv, pvIdx}
+								{@const mixConf = pavementConfidence(pv.mix, segIdx, pvIdx, 'mix')}
+								{@const mixProv = pavementProvenance(pv.mix, segIdx, pvIdx, 'mix')}
+								{@const wConf = pavementConfidence(pv.roadway_width_ft?.min, segIdx, pvIdx, 'roadway_width_ft.min')}
+								{@const wProv = pavementProvenance(pv.roadway_width_ft?.min, segIdx, pvIdx, 'roadway_width_ft.min')}
+								<div class="pavement-range">
+									<div class="pavement-range-head">
+										<span class="pavement-range-label">{pavementRangeLabel(pv)}</span>
+									</div>
+									<div class="pavement-grid">
+										{#each PAVEMENT_NUMBER_FIELDS as pf}
+											{@const env = pv[pf.key]}
+											{@const conf = pavementConfidence(env, segIdx, pvIdx, pf.key)}
+											{@const provenance = pavementProvenance(env, segIdx, pvIdx, pf.key)}
+											{@const visioned = isVisionSourced(pavementMeta(segIdx, pvIdx, pf.key))}
+											<div class="pavement-field">
+												<div class="field-label-row">
+													<label for="pv-{segIdx}-{pvIdx}-{pf.key}">{pf.label}</label>
+													{#if conf === 'low'}
+														<span class="conf-dot conf-low-dot" title="Low confidence — verify" aria-label="low confidence"></span>
+													{:else if conf === 'medium'}
+														<span class="conf-dot conf-medium" title="Medium confidence — verify" aria-label="medium confidence"></span>
+													{:else}
+														<span class="conf-dot conf-high" title="High confidence" aria-label="high confidence"></span>
+													{/if}
+													{#if visioned}
+														<span class="vision-field-icon" title="AI read this from a diagram image (vision)" aria-label="read from diagram">&#x1F441;</span>
+													{/if}
+												</div>
+												<input
+													id="pv-{segIdx}-{pvIdx}-{pf.key}"
+													type="number"
+													min="0"
+													step={pf.step}
+													value={env?.value ?? null}
+													oninput={(e) => setPavementNumber(segIdx, pvIdx, pf.key, (e.target as HTMLInputElement).value)}
+												/>
+												{#if provenance}
+													<span class="field-provenance">{provenance}</span>
+												{/if}
+											</div>
+										{/each}
+
+										<div class="pavement-field">
+											<div class="field-label-row">
+												<label for="pv-{segIdx}-{pvIdx}-mix">Mix</label>
+												{#if mixConf === 'low'}
+													<span class="conf-dot conf-low-dot" title="Low confidence — verify" aria-label="low confidence"></span>
+												{:else if mixConf === 'medium'}
+													<span class="conf-dot conf-medium" title="Medium confidence — verify" aria-label="medium confidence"></span>
+												{:else}
+													<span class="conf-dot conf-high" title="High confidence" aria-label="high confidence"></span>
+												{/if}
+												{#if isVisionSourced(pavementMeta(segIdx, pvIdx, 'mix'))}
+													<span class="vision-field-icon" title="AI read this from a diagram image (vision)" aria-label="read from diagram">&#x1F441;</span>
+												{/if}
+											</div>
+											<input
+												id="pv-{segIdx}-{pvIdx}-mix"
+												type="text"
+												value={pv.mix?.value ?? ''}
+												oninput={(e) => setPavementMix(segIdx, pvIdx, (e.target as HTMLInputElement).value)}
+											/>
+											{#if mixProv}
+												<span class="field-provenance">{mixProv}</span>
+											{/if}
+										</div>
+
+										<div class="pavement-field pavement-width">
+											<div class="field-label-row">
+												<label for="pv-{segIdx}-{pvIdx}-wmin">Roadway Width (ft)</label>
+												{#if wConf === 'low'}
+													<span class="conf-dot conf-low-dot" title="Low confidence — verify" aria-label="low confidence"></span>
+												{:else if wConf === 'medium'}
+													<span class="conf-dot conf-medium" title="Medium confidence — verify" aria-label="medium confidence"></span>
+												{:else}
+													<span class="conf-dot conf-high" title="High confidence" aria-label="high confidence"></span>
+												{/if}
+											</div>
+											<div class="pavement-width-inputs">
+												<input
+													id="pv-{segIdx}-{pvIdx}-wmin"
+													type="number"
+													min="0"
+													step="0.5"
+													placeholder="min"
+													value={pv.roadway_width_ft?.min?.value ?? null}
+													oninput={(e) => setPavementWidth(segIdx, pvIdx, 'min', (e.target as HTMLInputElement).value)}
+												/>
+												<span class="pavement-width-sep">–</span>
+												<input
+													id="pv-{segIdx}-{pvIdx}-wmax"
+													type="number"
+													min="0"
+													step="0.5"
+													placeholder="max"
+													value={pv.roadway_width_ft?.max?.value ?? null}
+													oninput={(e) => setPavementWidth(segIdx, pvIdx, 'max', (e.target as HTMLInputElement).value)}
+												/>
+											</div>
+											{#if wProv}
+												<span class="field-provenance">{wProv}</span>
+											{/if}
+										</div>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				{/each}
 			</section>
 		{/if}
 
@@ -1471,6 +2102,20 @@
 				<span class="bid-total">{fmtDollars(bidTotal)}</span>
 			</h3>
 
+			{#if contractReconcile.status === 'match'}
+				<p class="reconcile reconcile-match">
+					Matches parsed contract amount {fmtDollars(parsed.contract_amount)}.
+				</p>
+			{:else if contractReconcile.status === 'over' || contractReconcile.status === 'under'}
+				<p class="reconcile reconcile-diff">
+					Bid items total {fmtDollars(bidTotal)} is {fmtDollars(contractReconcile.deltaAbs)}
+					{contractReconcile.status === 'under' ? 'under' : 'over'} the parsed contract amount
+					{fmtDollars(parsed.contract_amount)} ({fmtNum(contractReconcile.deltaPct)}%).
+				</p>
+			{:else}
+				<p class="reconcile reconcile-none">No contract total parsed to reconcile against.</p>
+			{/if}
+
 			{#each groupedItems as [section, items]}
 				<div class="bid-section">
 					<h4 class="section-name">{section}</h4>
@@ -1517,7 +2162,7 @@
 		</section>
 
 		<div class="review-actions">
-			<button class="btn btn-ghost" onclick={() => { step = 'upload'; files = []; parsed = null; routePreview = null; documentsFound = []; aiExtraction = null; llmFallback = null; }}>
+			<button class="btn btn-ghost" onclick={() => { step = 'upload'; files = []; parsed = null; routePreview = null; documentsFound = []; aiExtraction = null; llmFallback = null; fieldMeta = {}; conflicts = []; segments = []; resolvedConflicts = new Set(); }}>
 				Start Over
 			</button>
 			<button class="btn btn-primary" onclick={createProject} disabled={!parsed.name}>
@@ -1529,6 +2174,49 @@
 		<div class="creating-state">
 			<div class="spinner"></div>
 			<p>{schematicProgress || 'Creating project…'}</p>
+		</div>
+	{/if}
+
+	{#if step === 'parsing'}
+		<div class="import-modal-backdrop" role="presentation">
+			<div
+				class="import-modal"
+				role="dialog"
+				aria-modal="true"
+				aria-live="polite"
+				aria-label="PDF import in progress"
+			>
+				<div class="paver-loader" aria-hidden="true">
+					<div class="paver-machine">
+						<div class="paver-cab"></div>
+						<div class="paver-bed"></div>
+						<div class="paver-screed"></div>
+						<div class="paver-wheel left"></div>
+						<div class="paver-wheel right"></div>
+					</div>
+					<div class="road-strip">
+						<span></span>
+						<span></span>
+						<span></span>
+					</div>
+				</div>
+
+				<div class="import-modal-copy">
+					<p class="modal-kicker">Importing project PDFs</p>
+					<h3>{parsePhaseLabel}</h3>
+					<p>{parsePhaseDetail}</p>
+					<span class="elapsed-time">{parseElapsedSeconds}s elapsed</span>
+				</div>
+
+				<div class="import-steps" aria-hidden="true">
+					{#each parseSteps as label, i}
+						<div class="import-step" class:done={i < parsePhase} class:active={i === parsePhase}>
+							<span></span>
+							<small>{label}</small>
+						</div>
+					{/each}
+				</div>
+			</div>
 		</div>
 	{/if}
 </div>
@@ -1888,6 +2576,226 @@
 		font-size: 0.8rem;
 	}
 
+	.import-modal-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 1000;
+		display: grid;
+		place-items: center;
+		padding: 20px;
+		background: rgba(10, 16, 20, 0.72);
+		backdrop-filter: blur(3px);
+	}
+
+	.import-modal {
+		width: min(520px, 100%);
+		padding: 24px;
+		border-radius: 10px;
+		border: 1px solid rgba(242, 192, 55, 0.28);
+		background: var(--surface);
+		box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+	}
+
+	.paver-loader {
+		position: relative;
+		height: 108px;
+		margin-bottom: 18px;
+		overflow: hidden;
+		border-radius: 8px;
+		background:
+			linear-gradient(180deg, rgba(46, 59, 70, 0.35), rgba(20, 27, 33, 0.8)),
+			linear-gradient(90deg, rgba(242, 192, 55, 0.08), transparent 58%);
+		border: 1px solid var(--border);
+	}
+
+	.paver-machine {
+		position: absolute;
+		left: 50%;
+		bottom: 34px;
+		width: 142px;
+		height: 50px;
+		transform: translateX(-50%);
+		animation: paver-bob 1.7s ease-in-out infinite;
+	}
+
+	.paver-cab {
+		position: absolute;
+		left: 18px;
+		bottom: 26px;
+		width: 42px;
+		height: 28px;
+		border-radius: 5px 9px 2px 2px;
+		background: #f2c037;
+		box-shadow: inset -10px 0 rgba(0, 0, 0, 0.14);
+	}
+
+	.paver-cab::after {
+		content: '';
+		position: absolute;
+		right: 7px;
+		top: 6px;
+		width: 16px;
+		height: 10px;
+		border-radius: 2px;
+		background: rgba(46, 59, 70, 0.75);
+	}
+
+	.paver-bed {
+		position: absolute;
+		left: 6px;
+		right: 18px;
+		bottom: 13px;
+		height: 24px;
+		border-radius: 4px;
+		background: #2e3b46;
+		border: 2px solid rgba(242, 192, 55, 0.55);
+	}
+
+	.paver-screed {
+		position: absolute;
+		right: 0;
+		bottom: 10px;
+		width: 42px;
+		height: 10px;
+		border-radius: 2px;
+		background: #cbd5e1;
+		transform: skewX(-16deg);
+	}
+
+	.paver-wheel {
+		position: absolute;
+		bottom: 0;
+		width: 24px;
+		height: 24px;
+		border-radius: 50%;
+		background: #111827;
+		border: 5px solid #475569;
+		animation: wheel-spin 0.9s linear infinite;
+	}
+
+	.paver-wheel.left { left: 28px; }
+	.paver-wheel.right { right: 42px; }
+
+	.road-strip {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		height: 30px;
+		background: #111827;
+		border-top: 3px solid rgba(242, 192, 55, 0.68);
+		overflow: hidden;
+	}
+
+	.road-strip span {
+		position: absolute;
+		top: 13px;
+		width: 58px;
+		height: 4px;
+		border-radius: 99px;
+		background: rgba(242, 192, 55, 0.95);
+		animation: lane-slide 1.15s linear infinite;
+	}
+
+	.road-strip span:nth-child(1) { left: -60px; }
+	.road-strip span:nth-child(2) { left: 100px; animation-delay: -0.38s; }
+	.road-strip span:nth-child(3) { left: 260px; animation-delay: -0.76s; }
+
+	.import-modal-copy {
+		text-align: center;
+	}
+
+	.modal-kicker {
+		margin: 0 0 6px;
+		color: var(--accent);
+		font-size: 0.78rem;
+		font-weight: 800;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
+
+	.import-modal-copy h3 {
+		margin: 0;
+		font-size: 1.12rem;
+	}
+
+	.import-modal-copy p:not(.modal-kicker) {
+		margin: 8px auto 0;
+		max-width: 390px;
+		color: var(--text-muted);
+		font-size: 0.88rem;
+		line-height: 1.45;
+	}
+
+	.elapsed-time {
+		display: inline-flex;
+		margin-top: 12px;
+		padding: 4px 9px;
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		color: var(--text-muted);
+		font-size: 0.78rem;
+		font-weight: 700;
+	}
+
+	.import-steps {
+		display: grid;
+		grid-template-columns: repeat(7, minmax(0, 1fr));
+		gap: 6px;
+		margin-top: 20px;
+	}
+
+	.import-step {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 5px;
+		min-width: 0;
+		color: var(--text-muted);
+	}
+
+	.import-step span {
+		width: 100%;
+		height: 4px;
+		border-radius: 99px;
+		background: var(--border);
+	}
+
+	.import-step small {
+		font-size: 0.68rem;
+		font-weight: 700;
+		line-height: 1.1;
+		text-align: center;
+		overflow-wrap: anywhere;
+	}
+
+	.import-step.done span,
+	.import-step.active span {
+		background: var(--accent);
+	}
+
+	.import-step.active {
+		color: var(--accent);
+	}
+
+	.import-step.active span {
+		animation: active-step-pulse 1s ease-in-out infinite;
+	}
+
+	@media (max-width: 520px) {
+		.import-modal {
+			padding: 18px;
+		}
+
+		.import-steps {
+			gap: 4px;
+		}
+
+		.import-step small {
+			display: none;
+		}
+	}
+
 	/* Review */
 	.warnings {
 		margin-bottom: 16px;
@@ -2018,6 +2926,14 @@
 		gap: 6px;
 	}
 
+	.evidence-chips {
+		margin-bottom: 12px;
+	}
+
+	.evidence-chips + .section-hint {
+		margin-top: 0;
+	}
+
 	.evidence-chips span,
 	.route-status-row span,
 	.page-labels span {
@@ -2099,6 +3015,10 @@
 		justify-content: space-between;
 		gap: 12px;
 		margin-bottom: 12px;
+	}
+
+	.route-preview-head h3 {
+		margin: 0 0 4px;
 	}
 
 	.route-preview-actions {
@@ -2218,31 +3138,6 @@
 		border-radius: var(--radius);
 		font-size: 0.85rem;
 		margin-bottom: 8px;
-	}
-
-	.conflict-review {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-		color: var(--text);
-	}
-
-	.conflict-review div {
-		display: flex;
-		flex-direction: column;
-		gap: 3px;
-		min-width: 0;
-	}
-
-	.conflict-review strong {
-		color: var(--accent);
-		text-transform: capitalize;
-	}
-
-	.conflict-review span {
-		color: var(--text-muted);
-		overflow-wrap: anywhere;
 	}
 
 	.btn-small {
@@ -2444,6 +3339,24 @@
 		to { transform: rotate(360deg); }
 	}
 
+	@keyframes paver-bob {
+		0%, 100% { transform: translateX(-50%) translateY(0); }
+		50% { transform: translateX(-50%) translateY(-3px); }
+	}
+
+	@keyframes wheel-spin {
+		to { transform: rotate(360deg); }
+	}
+
+	@keyframes lane-slide {
+		to { transform: translateX(620px); }
+	}
+
+	@keyframes active-step-pulse {
+		0%, 100% { opacity: 0.55; }
+		50% { opacity: 1; }
+	}
+
 	.ai-field-icon {
 		color: #a78bfa;
 		font-size: 0.7rem;
@@ -2591,5 +3504,335 @@
 		color: #22c55e;
 		font-weight: 700;
 		font-size: 0.75rem;
+	}
+
+	/* Paving Setup review section */
+	.paving-setup-hint {
+		margin: 0 0 16px;
+		font-size: 0.85rem;
+		color: var(--text-muted);
+		max-width: 60ch;
+	}
+
+	.setup-needs-badge {
+		display: inline-block;
+		margin-left: 8px;
+		padding: 2px 8px;
+		background: #f59e0b;
+		color: #fff;
+		border-radius: 999px;
+		font-size: 0.65rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.3px;
+		vertical-align: middle;
+	}
+
+	.paving-setup-field {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		margin-bottom: 14px;
+	}
+
+	.paving-setup-label,
+	.paving-setup-field label {
+		font-size: 0.78rem;
+		font-weight: 600;
+		color: var(--text-muted);
+	}
+
+	.road-type-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+		gap: 8px;
+	}
+
+	.road-type-grid.setup-empty {
+		padding: 6px;
+		border: 1px solid #f59e0b;
+		border-radius: var(--radius);
+	}
+
+	.road-type-card {
+		min-height: 48px;
+		padding: 10px 12px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text);
+		font-size: 0.85rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: border-color 0.15s, background 0.15s;
+	}
+
+	.road-type-card:hover {
+		border-color: var(--accent);
+	}
+
+	.road-type-card.active {
+		border-color: var(--accent);
+		background: color-mix(in srgb, var(--accent) 14%, var(--bg));
+		color: var(--text);
+	}
+
+	.paving-setup-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 14px;
+	}
+
+	@media (min-width: 560px) {
+		.paving-setup-grid {
+			grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+		}
+	}
+
+	.paving-setup-field input {
+		min-height: 48px;
+		padding: 10px 12px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text);
+		font-size: 0.95rem;
+	}
+
+	.paving-setup-field input.input-low {
+		border-color: #f59e0b;
+	}
+
+	.paving-setup-field input.input-low:focus {
+		outline: none;
+		border-color: var(--accent);
+	}
+
+	.reconcile {
+		margin: 4px 0 0;
+		font-size: 0.8rem;
+		line-height: 1.4;
+		font-weight: 500;
+	}
+
+	.reconcile-match {
+		color: var(--text-muted);
+	}
+
+	.reconcile-match::before {
+		content: '✓ ';
+		color: var(--accent);
+		font-weight: 700;
+	}
+
+	.reconcile-diff {
+		color: var(--text);
+		padding: 6px 10px;
+		border-radius: 8px;
+		border-left: 3px solid var(--accent);
+		background: rgba(242, 192, 55, 0.08);
+	}
+
+	.reconcile-none {
+		color: var(--text-muted);
+		font-style: italic;
+	}
+
+	/* ── Phase 7: field provenance, structured conflicts, pavement review ── */
+
+	/* Per-field source-page provenance line ("from Page 10 (Typical Section), text") */
+	.field-provenance {
+		display: block;
+		margin-top: 4px;
+		font-size: 0.7rem;
+		line-height: 1.3;
+		color: var(--text-muted);
+	}
+
+	/* "AI read this from a diagram image" (vision) indicator */
+	.vision-field-icon {
+		color: var(--accent);
+		font-size: 0.78rem;
+		line-height: 1;
+		flex-shrink: 0;
+	}
+
+	/* Structured conflicts panel (replaces the old warning-prose parse) */
+	.conflicts-panel {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		background: rgba(234, 179, 8, 0.07);
+		border: 1px solid rgba(234, 179, 8, 0.35);
+		border-left-width: 4px;
+		border-radius: var(--radius);
+		padding: 12px 16px;
+		margin-bottom: 16px;
+	}
+
+	.conflicts-head {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		font-size: 0.88rem;
+		color: var(--text);
+	}
+
+	.conflicts-head svg {
+		flex-shrink: 0;
+		color: #eab308;
+		margin-top: 1px;
+	}
+
+	.conflict-review {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 10px 12px;
+		background: var(--bg);
+		border: 1px solid rgba(234, 179, 8, 0.3);
+		border-radius: 8px;
+		color: var(--text);
+	}
+
+	.conflict-info {
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+		min-width: 0;
+	}
+
+	.conflict-info strong {
+		color: var(--accent);
+		text-transform: capitalize;
+	}
+
+	.conflict-ai {
+		color: var(--text);
+		overflow-wrap: anywhere;
+	}
+
+	.conflict-validator {
+		color: var(--text-muted);
+		overflow-wrap: anywhere;
+	}
+
+	.conflict-actions {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		flex-shrink: 0;
+	}
+
+	.conflict-keep {
+		opacity: 0.85;
+	}
+
+	/* Pavement / Typical-Section review section */
+	.pavement-segment {
+		margin-bottom: 16px;
+		padding: 12px 14px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+	}
+
+	.pavement-segment-head {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		margin-bottom: 10px;
+	}
+
+	.pavement-segment-head strong {
+		font-size: 0.95rem;
+	}
+
+	.pavement-seg-len {
+		color: var(--accent);
+		font-size: 0.8rem;
+		font-weight: 700;
+	}
+
+	.pavement-range {
+		padding: 10px 0;
+		border-top: 1px dashed var(--border);
+	}
+
+	.pavement-range:first-of-type {
+		border-top: none;
+	}
+
+	.pavement-range-head {
+		margin-bottom: 8px;
+	}
+
+	.pavement-range-label {
+		display: inline-flex;
+		align-items: center;
+		min-height: 26px;
+		padding: 3px 10px;
+		border-radius: 999px;
+		background: rgba(242, 192, 55, 0.1);
+		border: 1px solid rgba(242, 192, 55, 0.35);
+		color: var(--accent);
+		font-size: 0.78rem;
+		font-weight: 700;
+	}
+
+	.pavement-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 12px;
+	}
+
+	@media (min-width: 560px) {
+		.pavement-grid {
+			grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+		}
+	}
+
+	.pavement-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0;
+	}
+
+	.pavement-field input {
+		min-height: 48px;
+		padding: 10px 12px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		color: var(--text);
+		font-size: 0.95rem;
+	}
+
+	.pavement-field input:focus {
+		outline: none;
+		border-color: var(--accent);
+	}
+
+	.pavement-width-inputs {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.pavement-width-inputs input {
+		min-width: 0;
+		flex: 1;
+	}
+
+	.pavement-width-sep {
+		color: var(--text-muted);
+		font-weight: 700;
+	}
+
+	/* Low-confidence dot for pavement review (amber, not the red needs-input badge) */
+	.conf-dot.conf-low-dot {
+		background: #eab308;
+		box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.2);
 	}
 </style>

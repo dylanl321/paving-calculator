@@ -440,6 +440,19 @@ describe('Roadway-Log spec extraction', () => {
 		expect(parseGdotDocuments([logText]).spread_rate_lbs_sy).toBe(135);
 	});
 
+	it('extracts spread rate written as "LBS PER SQUARE YARD" (typical-section wording)', () => {
+		// Real GDOT typical sections / logs say "165 LBS PER SQUARE YARD", not
+		// "POUNDS" — the parser must read both wordings (regression for SR 7 ALT).
+		const lbsLog =
+			'Contract Schedule\nContract ID: T-LBS\nCounties: Lowndes\nNET LENGTH OF PROJECT 2.920 MILES\n' +
+			'2.920 MILES OF MILLING AND PLANT MIX RESURFACING ON SR 7 ALT (NOTICE)\n' +
+			'LOG ROADWAY WIDTH\n' +
+			'BEGIN FULL WIDTH VARIABLE DEPTH MILLING (1 1/2 INCHES TYPICAL) AND AS DIRECTED BY ENGINEER\n' +
+			'BEGIN FULL WIDTH 165 LBS PER SQUARE YARD 12.5 MM RESURFACING\n' +
+			'Total Bid: $1,000,000.00\n';
+		expect(parseGdotDocuments([lbsLog]).spread_rate_lbs_sy).toBe(165);
+	});
+
 	it('extracts milling depth as a decimal from a fraction (1 1/4 -> 1.25)', () => {
 		expect(parseGdotDocuments([logText]).milling_depth_in).toBeCloseTo(1.25, 5);
 	});

@@ -168,10 +168,11 @@ describe('runLlmFallback - error fallthrough', () => {
 
 describe('DEFAULT_LLM_MODEL', () => {
 	it('is an active (non-deprecated) JSON-Mode model', () => {
-		// Sourced from the central llm-config PRIMARY_LLM_MODEL — the strongest
-		// JSON-Mode-listed instruct model (verified against the live Cloudflare
-		// docs). Must NOT be the deprecated @cf/meta/llama-3.1-8b-instruct.
-		expect(DEFAULT_LLM_MODEL).toBe('@cf/meta/llama-3.3-70b-instruct-fp8-fast');
+		// The narrow gap-fill fallback uses the lightweight GAP_FILL_LLM_MODEL (a
+		// fast JSON-Mode-listed model) — the frontier structurer primary
+		// (@cf/moonshotai/kimi-k2.5) is reserved for full contract structuring.
+		// Must NOT be the deprecated @cf/meta/llama-3.1-8b-instruct.
+		expect(DEFAULT_LLM_MODEL).toBe('@cf/meta/llama-3.1-8b-instruct-fast');
 		expect(DEFAULT_LLM_MODEL).not.toBe('@cf/meta/llama-3.1-8b-instruct');
 	});
 });

@@ -27,12 +27,13 @@ const MILESTONES = [
 	{ pct: 100, name: 'Project Complete' }
 ];
 
-export const GET: RequestHandler = async ({ params, locals, platform }) => {
+export const GET: RequestHandler = async (event) => {
+	const { params, locals, platform } = event;
 	if (!locals.user) {
 		throw error(401, 'Unauthorized');
 	}
 
-	const user = await requireAuth({ locals, platform });
+	const user = await requireAuth(event);
 	const db = new DbHelper(platform!.env.DB);
 
 	// Get job site and verify ownership

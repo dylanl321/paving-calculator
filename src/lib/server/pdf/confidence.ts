@@ -9,6 +9,29 @@
 export type FieldConfidence = 'high' | 'medium' | 'low';
 
 /**
+ * What kind of evidence a field was extracted from. Lets the review UI label a
+ * field's provenance ("from Page 7 (Typical Section), text" vs "vision") and
+ * lets the extraction engine assemble top-level `field_meta` from per-field
+ * citations rather than guessing source pages after the fact.
+ */
+export type EvidenceType = 'text' | 'vision' | 'ocr' | 'mixed';
+
+/**
+ * Optional per-field citation: WHERE the value came from in the source package.
+ * Designed INTO the extraction schema (Phase 0) so source pages are carried, not
+ * guessed. Every member is optional so existing callers that don't set citations
+ * keep producing fields with `citation: undefined`.
+ */
+export interface FieldCitation {
+	/** 1-based page number within the source document the value was read from. */
+	source_page?: number | null;
+	/** Source document filename / R2 key the value was read from. */
+	source_file?: string | null;
+	/** What kind of evidence the value was extracted from. */
+	evidence_type?: EvidenceType | null;
+}
+
+/**
  * A single extracted field with provenance.
  *
  * - value:      the extracted value, or null if extraction failed.
@@ -20,38 +43,67 @@ export type FieldConfidence = 'high' | 'medium' | 'low';
  * - source: human-readable description of the extraction method (useful for
  *   debugging and as context for the Phase 2 LLM fallback prompt).
  * - raw:    the original matched text before normalization.
+ * - source_page/source_file/evidence_type: optional citation envelope describing
+ *   WHERE the value came from. Populated by the LLM-primary structurer from the
+ *   model's per-field citations; left undefined by deterministic/regex callers.
+ *   The extraction engine assembles these into the top-level `field_meta`.
  */
 export interface ParsedField<T> {
 	value: T | null;
 	confidence: FieldConfidence;
 	source: string;
 	raw?: string;
+	source_page?: number | null;
+	source_file?: string | null;
+	evidence_type?: EvidenceType | null;
 }
 
-/** Convenience constructors for the three confidence levels. */
+/**
+ * Spread an optional citation onto a ParsedField. Returns an empty object when
+ * no citation (or an all-empty citation) is supplied, so the produced field has
+ * no citation keys at all — keeping the back-compat shape identical to before.
+ */
+function citationFields(citation?: FieldCitation | null): Partial<FieldCitation> {
+	if (citation == null) return {};
+	const out: Partial<FieldCitation> = {};
+	if (citation.source_page != null) out.source_page = citation.source_page;
+	if (citation.source_file != null) out.source_file = citation.source_file;
+	if (citation.evidence_type != null) out.evidence_type = citation.evidence_type;
+	return out;
+}
+
+/**
+ * Convenience constructors for the three confidence levels. Each accepts an
+ * OPTIONAL trailing `citation` so the structurer can stamp per-field source
+ * pages; omitting it produces the exact same field shape as before.
+ */
 export const field = {
-	high: <T>(value: T, source: string, raw?: string): ParsedField<T> => ({
+	high: <T>(value: T, source: string, raw?: string, citation?: FieldCitation | null): ParsedField<T> => ({
 		value,
 		confidence: 'high',
 		source,
-		raw
+		raw,
+		...citationFields(citation)
 	}),
-	medium: <T>(value: T, source: string, raw?: string): ParsedField<T> => ({
+	medium: <T>(value: T, source: string, raw?: string, citation?: FieldCitation | null): ParsedField<T> => ({
 		value,
 		confidence: 'medium',
 		source,
-		raw
+		raw,
+		...citationFields(citation)
 	}),
-	low: <T>(value: T, source: string, raw?: string): ParsedField<T> => ({
+	low: <T>(value: T, source: string, raw?: string, citation?: FieldCitation | null): ParsedField<T> => ({
 		value,
 		confidence: 'low',
 		source,
-		raw
+		raw,
+		...citationFields(citation)
 	}),
-	missing: <T>(source: string): ParsedField<T> => ({
+	missing: <T>(source: string, citation?: FieldCitation | null): ParsedField<T> => ({
 		value: null,
 		confidence: 'low',
-		source
+		source,
+		...citationFields(citation)
 	})
 };
 

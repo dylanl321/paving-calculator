@@ -32,6 +32,7 @@ export interface JobSite {
 	location_description: string | null;
 	gdot_county?: string | null;
 	gdot_district?: string | null;
+	est_start_date?: string | null;
 }
 
 export interface JobSiteConfig {

@@ -11,6 +11,8 @@ export interface CalcHistoryEntry {
 	result: string;
 	summary: string;
 	timestamp: number;
+	inputs?: Record<string, number | string | null | undefined>;
+	outputs?: Record<string, number | string | null | undefined>;
 }
 
 function loadEntries(): CalcHistoryEntry[] {

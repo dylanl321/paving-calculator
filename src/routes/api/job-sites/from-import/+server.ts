@@ -9,13 +9,15 @@ import { resolveImportLocation, type LocationPrecision, type ResolvedLocation } 
 import { lookupGdotBoundaries } from '$lib/server/gdot-boundaries';
 import {
 	assessRoadwayLogAnchoring,
-	orientWaypointsForAnchors
+	orientWaypointsForAnchors,
+	reconcileWaypointDirection
 } from '$lib/server/roadway-log-anchoring';
 import { buildLogSegments } from '$lib/server/roadway-log-segments';
 import {
 	buildSegmentRows,
 	lineCentroid as segmentLineCentroid,
-	type ImportSegment
+	type ImportSegment,
+	type SegmentPavementRow
 } from '$lib/server/import-segments';
 import {
 	calibrationToRouteMeasure,
@@ -44,6 +46,20 @@ interface FromImportRequest {
 	segments?: ImportSegment[];
 	source_keys?: string[];
 	documents?: Array<{ filename: string; source_key: string; type: string }>;
+	/**
+	 * Completeness-required paving config the user fills/confirms on the import
+	 * review screen (contracts don't reliably carry these): road type, lane count,
+	 * lane width, target thickness, target spread rate. Pre-filled client-side from
+	 * parsed values + org defaults; persisted here so the new project opens with a
+	 * complete setup instead of being flagged incomplete with no explanation.
+	 */
+	paving_setup?: {
+		road_type?: string | null;
+		num_lanes?: number | null;
+		lane_width_ft?: number | null;
+		target_thickness_in?: number | null;
+		target_spread_rate?: number | null;
+	};
 	route_override?: {
 		accepted: boolean;
 		latitude: number | null;
@@ -94,6 +110,27 @@ function validWaypoint(wp: unknown): wp is { lat: number; lng: number } {
 		validNum((wp as { lat?: unknown }).lat) &&
 		validNum((wp as { lng?: unknown }).lng)
 	);
+}
+
+const LOCATION_SOURCES: ResolvedLocation['source'][] = [
+	'gdot_project_hub',
+	'gdot_lrs',
+	'gdot_route',
+	'osm_termini_route',
+	'osm_overpass',
+	'geocode',
+	'county_centroid',
+	'manual',
+	'none'
+];
+
+function normalizeLocationSource(
+	value: string | null | undefined,
+	fallback: ResolvedLocation['source']
+): ResolvedLocation['source'] {
+	return LOCATION_SOURCES.includes(value as ResolvedLocation['source'])
+		? (value as ResolvedLocation['source'])
+		: fallback;
 }
 
 function precisionForSource(
@@ -236,7 +273,9 @@ function buildRoadSectionsFromLogSegments(
 
 /**
  * Insert one road_sections row, including the multi-segment columns added in
- * migration 0078 (segment_group/treatment/measure_axis/termini/geometry_confidence).
+ * migration 0078 (segment_group/treatment/measure_axis/termini/geometry_confidence)
+ * and the denormalized pavement defaults added in migration 0079
+ * (target_thickness_in/target_spread_rate/mill_depth_in/width_ft).
  * Mirrors the upsertJobSiteConfig core/optional split: if the optional columns
  * don't exist yet on the shared remote D1 (migration not applied), retry with
  * only the core columns so the import still succeeds.
@@ -260,6 +299,10 @@ async function insertRoadSection(
 		begin_terminus: string | null;
 		end_terminus: string | null;
 		geometry_confidence: string | null;
+		target_thickness_in: number | null;
+		target_spread_rate: number | null;
+		mill_depth_in: number | null;
+		width_ft: number | null;
 		notes: string | null;
 		sort_order: number;
 		created_at: number;
@@ -272,8 +315,10 @@ async function insertRoadSection(
 				`INSERT INTO road_sections
 				(id, job_site_id, name, lane, station_start, station_end, status, geometry_geojson,
 				 planned_length_ft, production_mix_id, segment_group, treatment, measure_axis,
-				 begin_terminus, end_terminus, geometry_confidence, notes, sort_order, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				 begin_terminus, end_terminus, geometry_confidence,
+				 target_thickness_in, target_spread_rate, mill_depth_in, width_ft,
+				 notes, sort_order, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			)
 			.bind(
 				row.id,
@@ -292,6 +337,10 @@ async function insertRoadSection(
 				row.begin_terminus,
 				row.end_terminus,
 				row.geometry_confidence,
+				row.target_thickness_in,
+				row.target_spread_rate,
+				row.mill_depth_in,
+				row.width_ft,
 				row.notes,
 				row.sort_order,
 				row.created_at,
@@ -327,6 +376,63 @@ async function insertRoadSection(
 }
 
 /**
+ * Insert the pavement_structure child rows for one road_sections row. This child
+ * table is the single source of truth for per-mile-range specs. Wrapped in a
+ * try/catch so a lagging remote D1 (migration 0080 not yet applied) can't 500
+ * the import: a missing table/column degrades to "no child rows persisted" while
+ * the denormalized road_sections defaults (written above) still carry the
+ * representative spec. Returns the number of child rows written.
+ */
+async function insertPavementStructure(
+	db: D1Database,
+	roadSectionId: string,
+	pavement: SegmentPavementRow[],
+	now: number
+): Promise<number> {
+	if (!pavement.length) return 0;
+	let written = 0;
+	for (const p of pavement) {
+		const id = 'pav_' + crypto.randomUUID().replace(/-/g, '').slice(0, 10);
+		try {
+			await db
+				.prepare(
+					`INSERT INTO pavement_structure
+					(id, road_section_id, applies_from_mi, applies_to_mi, lift_thickness_in,
+					 mill_depth_in, spread_rate_lbs_sy, width_ft_min, width_ft_max, mix,
+					 source_page, confidence, sort_order, created_at, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				)
+				.bind(
+					id,
+					roadSectionId,
+					p.applies_from_mi,
+					p.applies_to_mi,
+					p.lift_thickness_in,
+					p.mill_depth_in,
+					p.spread_rate_lbs_sy,
+					p.width_ft_min,
+					p.width_ft_max,
+					p.mix,
+					p.source_page,
+					p.confidence,
+					p.sort_order,
+					now,
+					now
+				)
+				.run();
+			written++;
+		} catch (err) {
+			// Table/column may not exist yet on a lagging remote D1; the
+			// denormalized road_sections defaults still carry the representative
+			// spec, so skip child persistence rather than fail the whole import.
+			if (!/no such (table|column)/i.test(String(err))) throw err;
+			break;
+		}
+	}
+	return written;
+}
+
+/**
  * Persist N disconnected import segments as road_sections rows. Each segment
  * uses its OWN geometry and its own station axis (local streets each start at
  * station 0 - they share no route). Returns the number of rows written.
@@ -359,11 +465,19 @@ async function persistImportSegments(
 			begin_terminus: row.begin_terminus,
 			end_terminus: row.end_terminus,
 			geometry_confidence: row.geometry_confidence,
+			target_thickness_in: row.target_thickness_in,
+			target_spread_rate: row.target_spread_rate,
+			mill_depth_in: row.mill_depth_in,
+			width_ft: row.width_ft,
 			notes: null,
 			sort_order: row.sort_order,
 			created_at: now,
 			updated_at: now
 		});
+		// Child pavement_structure rows are the single source of truth for the
+		// per-mile-range specs; the denormalized columns above are derived from
+		// them. Persisted best-effort (a lagging remote D1 can't 500 the import).
+		await insertPavementStructure(db, id, row.pavement, now);
 	}
 	return rows.length;
 }
@@ -496,6 +610,31 @@ export async function POST(event: RequestEvent) {
 		const projectStartEvent = parsedRoadwayLogEvents.find((ev) => ev.event_type === 'project_start');
 		const projectEndEvent = parsedRoadwayLogEvents.find((ev) => ev.event_type === 'project_end');
 
+		// User-reviewed paving setup from the import screen. These four
+		// completeness-required fields (road type, lane count, target thickness,
+		// target spread rate) plus lane width aren't reliably in the documents, so
+		// the user confirms/fills them during review. The reviewed value wins over
+		// the parsed roadway-log value (it's been seen by a human); we fall back to
+		// the parsed value when the user left a field blank.
+		const setup = body.paving_setup ?? {};
+
+		// road_type is a closed enum on the config; only accept a known value.
+		const ROAD_TYPES = new Set<NonNullable<DbJobSiteConfig['road_type']>>([
+			'highway',
+			'state_route',
+			'county_road',
+			'city_street',
+			'subdivision',
+			'parking_lot',
+			'other'
+		]);
+		const reviewedRoadType = ((): DbJobSiteConfig['road_type'] => {
+			const v = str(setup.road_type);
+			return v && ROAD_TYPES.has(v as NonNullable<DbJobSiteConfig['road_type']>)
+				? (v as DbJobSiteConfig['road_type'])
+				: null;
+		})();
+
 		const configPatch: Partial<DbJobSiteConfig> = {
 			total_length_ft: num(parsed.total_length_ft),
 			mix_type: primaryMix ? str(primaryMix.mix_name) : null,
@@ -510,10 +649,12 @@ export async function POST(event: RequestEvent) {
 			end_terminus: str(parsed.end_terminus),
 			begin_station: num(projectStartEvent?.station),
 			end_station: num(projectEndEvent?.station),
-			// Roadway-Log derived specs (only when the log sheet was parseable).
-			lane_width_ft: num(parsed.lane_width_ft),
-			num_lanes: num(parsed.num_lanes),
-			target_spread_rate: num(parsed.spread_rate_lbs_sy)
+			// Reviewed paving setup (user value first, then Roadway-Log derived).
+			road_type: reviewedRoadType,
+			lane_width_ft: num(setup.lane_width_ft) ?? num(parsed.lane_width_ft),
+			num_lanes: num(setup.num_lanes) ?? num(parsed.num_lanes),
+			target_thickness_in: num(setup.target_thickness_in),
+			target_spread_rate: num(setup.target_spread_rate) ?? num(parsed.spread_rate_lbs_sy)
 		};
 		if (Object.values(configPatch).some((v) => v !== null && v !== undefined)) {
 			await db.upsertJobSiteConfig(jobSite.id, configPatch);
@@ -589,7 +730,8 @@ export async function POST(event: RequestEvent) {
 						midpointEasting: num(parsed.midpoint_easting),
 						midpointNorthing: num(parsed.midpoint_northing),
 						midpointZoneLabel: str(parsed.midpoint_zone_label),
-						grossLengthMi: num(parsed.gross_length_mi)
+						grossLengthMi: num(parsed.gross_length_mi),
+						projectId: str(parsed.project_number)
 					});
 			const resolved: ResolvedLocation = hasOverrideRoute
 				? {
@@ -599,7 +741,7 @@ export async function POST(event: RequestEvent) {
 							type: 'LineString' as const,
 							coordinates: overrideWaypoints.map((wp) => [wp.lng, wp.lat] as [number, number])
 						},
-						source: override!.source || 'manual',
+						source: normalizeLocationSource(override!.source, 'manual'),
 						locationPrecision: override!.location_precision ?? 'route',
 						countyBoundary: null,
 						lookupWarnings: []
@@ -633,25 +775,73 @@ export async function POST(event: RequestEvent) {
 					resolved.longitude
 				).catch(() => ({ county: null, district: null }));
 
+				// Project Hub (matched by PI number) is the most authoritative source
+				// for county/district when present — prefer it over the coordinate
+				// lookup and the parsed PDF value.
+				const hub = resolved.projectHub;
 				await db.updateJobSite(jobSite.id, {
 					latitude: resolved.latitude,
 					longitude: resolved.longitude,
 					location_source: locationSource,
 					location_precision: locationPrecision,
-					gdot_county: county ?? str(parsed.county),
-					gdot_district: district
+					gdot_county: hub?.counties ?? county ?? str(parsed.county),
+					gdot_district: hub?.gdotDistrict ?? district
 				});
+			}
+
+			// Contract-id cross-check + metadata fill from the GDOT Project Hub.
+			// The hub's CONTRACT_ID anchors the project identity against the parsed
+			// PDF; contractor/award/completion fill the contract meta only when the
+			// parsed value was null (never override a parsed value).
+			if (resolved.projectHub) {
+				const hub = resolved.projectHub;
+				const parsedContractId = str(parsed.contract_id);
+				if (hub.contractId && parsedContractId) {
+					if (hub.contractId.trim().toUpperCase() === parsedContractId.trim().toUpperCase()) {
+						console.log(
+							`[from-import] Confirmed GDOT project ${str(parsed.project_number) ?? ''} / contract ${hub.contractId}`
+						);
+					} else {
+						console.warn(
+							`[from-import] contract_id mismatch: PDF "${parsedContractId}" vs GDOT Project Hub "${hub.contractId}" (PI ${str(parsed.project_number) ?? '?'})`
+						);
+					}
+				}
+				const metaFill: JobSiteContractMeta = {};
+				if (parsedContractId == null && hub.contractId) metaFill.contract_id = hub.contractId;
+				if (str(parsed.est_start_date) == null && hub.awardDate) metaFill.est_start_date = hub.awardDate;
+				if (str(parsed.completion_date) == null && hub.completionDate)
+					metaFill.completion_date = hub.completionDate;
+				if (Object.keys(metaFill).length > 0) {
+					await db.setJobSiteContractMeta(jobSite.id, metaFill);
+				}
 			}
 
 			// When we have the actual route polyline, store it as the route
 			// waypoints and split it into stationed road sections.
 			if (resolved.routeGeometry && resolved.routeGeometry.coordinates.length >= 2) {
 				// Route waypoints are stored as {lat,lng} (GeoJSON is [lng,lat]).
-				const waypoints = orientWaypointsForAnchors(
-					resolved.routeGeometry.coordinates.map(([lng, lat]) => ({ lat, lng })),
-					configPatch.begin_station,
-					configPatch.end_station
+				// Reconcile the polyline's geographic direction so station 0 / the
+				// lowest milepost lands at the geographic begin. A user-confirmed
+				// manual override already encodes the intended direction, so leave it
+				// as-is; the LRS path is already direction-correct (it bakes event
+				// coords via the calibrated measure axis below, not station→along).
+				const rawWaypoints = resolved.routeGeometry.coordinates.map(
+					([lng, lat]) => ({ lat, lng })
 				);
+				const waypoints =
+					hasOverrideRoute || (resolved.lrsRoute && resolved.calibration)
+						? orientWaypointsForAnchors(
+								rawWaypoints,
+								configPatch.begin_station,
+								configPatch.end_station
+							)
+						: reconcileWaypointDirection(rawWaypoints, {
+								beginAnchor: resolved.beginAnchor,
+								endAnchor: resolved.endAnchor,
+								beginStation: configPatch.begin_station,
+								endStation: configPatch.end_station
+							});
 				const line = {
 					type: 'LineString' as const,
 					coordinates: waypoints.map((wp) => [wp.lng, wp.lat] as [number, number])

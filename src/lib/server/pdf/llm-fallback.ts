@@ -28,14 +28,14 @@
 
 import { field, mergeField, type FieldConfidence } from './confidence.js';
 import type { ParsedGdotJobV2 } from './parse-gdot.js';
-import { PRIMARY_LLM_MODEL } from './llm-config.js';
+import { GAP_FILL_LLM_MODEL } from './llm-config.js';
 
 /**
  * Default model for the legacy gap-fill fallback. Sourced from the central
- * {@link PRIMARY_LLM_MODEL} config (verified JSON-Mode-listed model) so the
- * model id is never hardcoded here. Override per call if needed.
+ * {@link GAP_FILL_LLM_MODEL} config — a fast JSON-Mode-listed model, since this
+ * narrow scalar top-up doesn't need the frontier structurer. Override per call.
  */
-export const DEFAULT_LLM_MODEL = PRIMARY_LLM_MODEL;
+export const DEFAULT_LLM_MODEL = GAP_FILL_LLM_MODEL;
 
 /** Minimal shape of the env.AI binding we depend on (avoids a hard Ai type dep). */
 export interface WorkersAi {
@@ -263,6 +263,10 @@ export function appendLlmFallbackWarning(
 		);
 		return;
 	}
+
+	// The narrow gap-fill is intentionally skipped when the primary structurer
+	// already produced the contract — that is success, not a failure, so stay silent.
+	if (diag.reason === 'superseded-by-structurer') return;
 
 	// outcome === 'failed': a model call was made but errored / returned no JSON.
 	warnings.push(

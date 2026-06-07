@@ -15,7 +15,7 @@
 
 import { fetchArcgisFeatures } from './dot/arcgis-fetch.js';
 import type { GeoJsonLineString } from '$lib/types/dot';
-import { assessRoadwayLogAnchoring } from './roadway-log-anchoring.js';
+import { assessRoadwayLogAnchoring, reconcileWaypointDirection, type GeographicAnchor } from './roadway-log-anchoring.js';
 import { feetToCoordinate, polylineLengthFt, stationToFeet } from '$lib/services/mapUtils';
 import { routeAlongRoads } from '$lib/services/roadSnap';
 import { parseTerminus, type ParsedTerminus } from './terminus-parser.js';
@@ -36,6 +36,14 @@ export type { RouteSourceDetail };
 
 const GDOT_GPAS_LAYER5 =
 	'https://maps.georgia.gov/arcgis/rest/services/GDOT/GDOT_GPAS/MapServer/5/query';
+// GDOT Project Hub (Public Outreach), keyed by the PI / PROJECT_ID the PDF gives
+// us. Layer 0 carries the project route LineString + authoritative project
+// metadata (name, counties, cities, district, work type); the Hub_Project_Search
+// status layer carries contractor / contract id / award + completion dates.
+const GDOT_PROJECT_HUB_LAYER =
+	'https://enterprisegis.dot.ga.gov/hosting/rest/services/GDOT_Public_Outreach/Project_Hub/MapServer/0/query';
+const GDOT_HUB_SEARCH_STATUS =
+	'https://enterprisegis.dot.ga.gov/hosting/rest/services/GDOT_Public_Outreach/Hub_Project_Search/MapServer/2/query';
 const CENSUS_ONELINE =
 	'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress';
 const NOMINATIM_SEARCH = 'https://nominatim.openstreetmap.org/search';
@@ -263,7 +271,119 @@ export async function fetchGdotRouteGeometry(
 	}
 }
 
-/** Approximate centroid (midpoint of the path) of a LineString as [lat, lng]. */
+/** Authoritative project metadata from the GDOT Project Hub (keyed by PI number). */
+export interface ProjectHubInfo {
+	projectName: string | null;
+	counties: string | null;
+	city: string | null;
+	gdotDistrict: string | null;
+	workType: string | null;
+	status: string | null;
+	contractId: string | null;
+	contractor: string | null;
+	awardDate: string | null;
+	completionDate: string | null;
+}
+
+/** Convert an ESRI epoch-millis date value to an ISO date string (YYYY-MM-DD). */
+function esriDateToIso(v: unknown): string | null {
+	if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+	try {
+		return new Date(v).toISOString().slice(0, 10);
+	} catch {
+		return null;
+	}
+}
+
+function attrString(attrs: Record<string, unknown>, key: string): string | null {
+	const v = attrs[key];
+	if (v == null) return null;
+	const s = String(v).trim();
+	return s === '' ? null : s;
+}
+
+/**
+ * Resolve a GDOT project's route geometry + metadata from the Project Hub by its
+ * PI number (PROJECT_ID). This is the most authoritative, reliable geometry
+ * source when a PI number is present (the flaky GPAS Layer 5 is the fallback).
+ * Returns the longest matching LineString plus the project metadata, or null on
+ * no-match / error (best-effort, logged).
+ */
+export async function fetchProjectHubGeometry(
+	projectId: string | null
+): Promise<{ geometry: GeoJsonLineString; info: Partial<ProjectHubInfo> } | null> {
+	const pid = projectId?.trim();
+	if (!pid) return null;
+	try {
+		const features = await fetchArcgisFeatures(
+			GDOT_PROJECT_HUB_LAYER,
+			{
+				where: `PROJECT_ID = '${sqlEscape(pid)}'`,
+				outFields: 'PROJECT_ID,PROJECT_NAME,COUNTIES,GDOT_DISTRICTS,CITIES,PRIMARY_WORK_TYPE,STATUS'
+			},
+			50
+		);
+		const withGeom = features.filter(
+			(f): f is typeof f & { geometry: GeoJsonLineString } =>
+				f.geometry != null && f.geometry.coordinates.length >= 2
+		);
+		if (withGeom.length === 0) return null;
+		// Prefer the longest single path (most complete route).
+		withGeom.sort((a, b) => b.geometry.coordinates.length - a.geometry.coordinates.length);
+		const best = withGeom[0];
+		const a = best.attributes ?? {};
+		return {
+			geometry: best.geometry,
+			info: {
+				projectName: attrString(a, 'PROJECT_NAME'),
+				counties: attrString(a, 'COUNTIES'),
+				city: attrString(a, 'CITIES'),
+				gdotDistrict: attrString(a, 'GDOT_DISTRICTS'),
+				workType: attrString(a, 'PRIMARY_WORK_TYPE'),
+				status: attrString(a, 'STATUS')
+			}
+		};
+	} catch (err) {
+		console.error('[gdot-geometry] project hub geometry fetch failed:', err);
+		return null;
+	}
+}
+
+/**
+ * Resolve a GDOT project's construction/contract status (contractor, contract
+ * id, award + completion dates) from the Hub_Project_Search status layer by PI
+ * number (PROJ_ID). Attribute-only (no geometry). Null on no-match / error.
+ */
+export async function fetchProjectConstructionStatus(
+	projectId: string | null
+): Promise<Partial<ProjectHubInfo> | null> {
+	const pid = projectId?.trim();
+	if (!pid) return null;
+	try {
+		const features = await fetchArcgisFeatures(
+			GDOT_HUB_SEARCH_STATUS,
+			{
+				where: `PROJ_ID = '${sqlEscape(pid)}'`,
+				returnGeometry: 'false',
+				outFields:
+					'PROJ_ID,CONTRACTOR_NAME,CONTRACT_ID,AWARD_DATE,CURR_COMPLETION_DATE,CONSTRUTION_STATUS_DERIVED'
+			},
+			50
+		);
+		if (features.length === 0) return null;
+		const a = features[0].attributes ?? {};
+		return {
+			contractId: attrString(a, 'CONTRACT_ID'),
+			contractor: attrString(a, 'CONTRACTOR_NAME'),
+			awardDate: esriDateToIso(a['AWARD_DATE']),
+			completionDate: esriDateToIso(a['CURR_COMPLETION_DATE']),
+			status: attrString(a, 'CONSTRUTION_STATUS_DERIVED')
+		};
+	} catch (err) {
+		console.error('[gdot-geometry] project construction status fetch failed:', err);
+		return null;
+	}
+}
 export function lineStringCentroid(line: GeoJsonLineString): [number, number] | null {
 	const coords = line.coordinates;
 	if (!coords || coords.length === 0) return null;
@@ -312,22 +432,35 @@ export interface ResolvedLocation {
 	routeGeometry: GeoJsonLineString | null;
 	/** How the coordinates were obtained, for diagnostics. */
 	source:
+		| 'gdot_project_hub'
 		| 'gdot_lrs'
 		| 'gdot_route'
 		| 'osm_termini_route'
 		| 'osm_overpass'
 		| 'geocode'
 		| 'county_centroid'
+		| 'manual'
 		| 'none';
 	locationPrecision: LocationPrecision;
 	countyBoundary: CountyBoundary | null;
 	lookupWarnings: string[];
 	parsed_begin_terminus?: ParsedTerminus | null;
 	parsed_end_terminus?: ParsedTerminus | null;
+	/**
+	 * Resolved geographic anchor for the begin/end terminus, when geocodable.
+	 * Used to orient a non-LRS route polyline so station 0 / lowest milepost
+	 * lands at the geographic begin (the polyline's digitized direction is
+	 * otherwise arbitrary). Null when the terminus can't be geocoded — never a
+	 * fabricated point.
+	 */
+	beginAnchor?: GeographicAnchor | null;
+	endAnchor?: GeographicAnchor | null;
 	/** LRS route with M-values when resolved via plan mid-point. */
 	lrsRoute?: LrsRoute | null;
 	calibration?: RouteCalibration | null;
 	routeSourceDetail?: RouteSourceDetail | null;
+	/** GDOT Project Hub metadata when matched by PI number (source 'gdot_project_hub'). */
+	projectHub?: ProjectHubInfo | null;
 }
 
 interface RoadwayLogEventPreview {
@@ -365,6 +498,12 @@ export interface ImportRoutePreview {
 	anchor_message?: string;
 	route_length_ft?: number | null;
 	expected_length_ft?: number | null;
+	/**
+	 * Distance (ft) the route must cover to plot every roadway-log marker
+	 * (furthest milepost along the log's station axis). Used to render an
+	 * informative "route is N ft short" message instead of a bare warning.
+	 */
+	log_span_ft?: number | null;
 	projected_log_events?: RoadwayLogEventPreview[];
 	parsed_begin_terminus?: ParsedTerminus | null;
 	parsed_end_terminus?: ParsedTerminus | null;
@@ -376,6 +515,8 @@ export interface ImportRoutePreview {
 	 * back-compat with the existing review UI.
 	 */
 	mapped_segments?: MappedSegment[];
+	/** GDOT Project Hub metadata when matched by PI number (source 'gdot_project_hub'). */
+	project_hub?: ProjectHubInfo | null;
 }
 
 /**
@@ -470,13 +611,27 @@ export async function buildImportRoutePreview(opts: {
 	midpointNorthing?: number | null;
 	midpointZoneLabel?: string | null;
 	grossLengthMi?: number | null;
+	projectId?: string | null;
 }): Promise<ImportRoutePreview> {
 	const resolved = await resolveImportLocation(opts);
 	const parsedBegin = parseTerminus(opts.beginTerminus);
 	const parsedEnd = parseTerminus(opts.endTerminus);
-	const waypoints = resolved.routeGeometry
+	// Reconcile the resolved polyline's geographic direction BEFORE projecting
+	// markers, so station 0 / the lowest milepost lands at the geographic begin.
+	// The LRS path is already direction-correct (calibrated measure axis) and is
+	// projected separately below, so this only affects the non-LRS polyline path.
+	const rawWaypoints = resolved.routeGeometry
 		? resolved.routeGeometry.coordinates.map(([lng, lat]) => ({ lat, lng }))
 		: [];
+	const waypoints =
+		resolved.lrsRoute && resolved.calibration
+			? rawWaypoints
+			: reconcileWaypointDirection(rawWaypoints, {
+					beginAnchor: resolved.beginAnchor,
+					endAnchor: resolved.endAnchor,
+					beginStation: firstEventStation(opts.roadwayLogEvents ?? []),
+					endStation: lastEventStation(opts.roadwayLogEvents ?? [])
+				});
 	const anchoring = assessRoadwayLogAnchoring({
 		waypoints,
 		events: opts.roadwayLogEvents ?? [],
@@ -495,7 +650,14 @@ export async function buildImportRoutePreview(opts: {
 				: [];
 
 	let message: string;
-	if (resolved.source === 'gdot_lrs') {
+	if (resolved.source === 'gdot_project_hub') {
+		const hub = resolved.projectHub;
+		const name = hub?.projectName ? `: ${hub.projectName}` : '';
+		const contract = hub?.contractId ? ` (contract ${hub.contractId})` : '';
+		message = `Matched the GDOT project record by PI number${name}${contract}; route geometry${
+			hub?.contractId || hub?.contractor ? ' + contract metadata' : ''
+		} loaded. Confirm or edit on the map.`;
+	} else if (resolved.source === 'gdot_lrs') {
 		message =
 			'GDOT LRS route matched from the plan mid-point and trimmed to project limits. Confirm the alignment or flip/edit on the map.';
 	} else if (resolved.source === 'gdot_route') {
@@ -532,10 +694,12 @@ export async function buildImportRoutePreview(opts: {
 		anchor_message: anchoring.reason,
 		route_length_ft: anchoring.routeLengthFt,
 		expected_length_ft: anchoring.expectedLengthFt,
+		log_span_ft: anchoring.logSpanFt,
 		projected_log_events: projectedLogEvents,
 		parsed_begin_terminus: parsedBegin,
 		parsed_end_terminus: parsedEnd,
-		route_source_detail: resolved.routeSourceDetail ?? null
+		route_source_detail: resolved.routeSourceDetail ?? null,
+		project_hub: resolved.projectHub ?? null
 	};
 }
 
@@ -564,8 +728,58 @@ export async function resolveImportLocation(opts: {
 	midpointNorthing?: number | null;
 	midpointZoneLabel?: string | null;
 	grossLengthMi?: number | null;
+	projectId?: string | null;
 }): Promise<ResolvedLocation> {
 	const lookupWarnings: string[] = [];
+
+	// FIRST source: GDOT Project Hub keyed by PI number. Most authoritative and
+	// reliable — returns the project route LineString + project/contract metadata.
+	// Short-circuits the rest of the chain on a usable geometry.
+	const projectId = opts.projectId?.trim() || null;
+	if (projectId) {
+		try {
+			const [hub, status] = await Promise.all([
+				fetchProjectHubGeometry(projectId),
+				fetchProjectConstructionStatus(projectId)
+			]);
+			if (hub && hub.geometry.coordinates.length >= 2) {
+				const centroid = lineStringCentroid(hub.geometry);
+				const info: ProjectHubInfo = {
+					projectName: hub.info.projectName ?? null,
+					counties: hub.info.counties ?? null,
+					city: hub.info.city ?? null,
+					gdotDistrict: hub.info.gdotDistrict ?? null,
+					workType: hub.info.workType ?? null,
+					status: status?.status ?? hub.info.status ?? null,
+					contractId: status?.contractId ?? null,
+					contractor: status?.contractor ?? null,
+					awardDate: status?.awardDate ?? null,
+					completionDate: status?.completionDate ?? null
+				};
+				const { beginAnchor, endAnchor } = await resolveTerminusAnchors({
+					routeDesignation: opts.routeDesignation,
+					county: hub.info.counties ?? opts.county,
+					beginTerminus: opts.beginTerminus,
+					endTerminus: opts.endTerminus
+				});
+				return {
+					latitude: centroid ? centroid[0] : null,
+					longitude: centroid ? centroid[1] : null,
+					routeGeometry: hub.geometry,
+					source: 'gdot_project_hub',
+					locationPrecision: 'route',
+					countyBoundary: null,
+					lookupWarnings,
+					beginAnchor,
+					endAnchor,
+					projectHub: info
+				};
+			}
+		} catch (err) {
+			console.error('[gdot-geometry] project hub resolution failed (non-fatal):', err);
+			lookupWarnings.push('GDOT Project Hub lookup failed; falling back to route/midpoint resolution.');
+		}
+	}
 
 	const canTryLrs =
 		opts.routeDesignation &&
@@ -579,8 +793,8 @@ export async function resolveImportLocation(opts: {
 			const planRoute = await resolveRouteFromPlanWithEvents(
 				{
 					routeDesignation: opts.routeDesignation,
-					midpointEasting: opts.midpointEasting,
-					midpointNorthing: opts.midpointNorthing,
+					midpointEasting: opts.midpointEasting ?? null,
+					midpointNorthing: opts.midpointNorthing ?? null,
 					midpointZoneLabel: opts.midpointZoneLabel,
 					grossLengthMi: opts.grossLengthMi,
 					countyNumber: opts.countyNumber
@@ -615,6 +829,12 @@ export async function resolveImportLocation(opts: {
 	if (routeGeometry) {
 		const centroid = lineStringCentroid(routeGeometry);
 		if (centroid) {
+			const { beginAnchor, endAnchor } = await resolveTerminusAnchors({
+				routeDesignation: opts.routeDesignation,
+				county: opts.county,
+				beginTerminus: opts.beginTerminus,
+				endTerminus: opts.endTerminus
+			});
 			return {
 				latitude: centroid[0],
 				longitude: centroid[1],
@@ -622,7 +842,9 @@ export async function resolveImportLocation(opts: {
 				source: 'gdot_route',
 				locationPrecision: 'route',
 				countyBoundary: null,
-				lookupWarnings
+				lookupWarnings,
+				beginAnchor,
+				endAnchor
 			};
 		}
 	}
@@ -658,6 +880,12 @@ export async function resolveImportLocation(opts: {
 		if (overpassGeometry) {
 			const centroid = lineStringCentroid(overpassGeometry);
 			if (centroid) {
+				const { beginAnchor, endAnchor } = await resolveTerminusAnchors({
+					routeDesignation: opts.routeDesignation,
+					county: opts.county,
+					beginTerminus: opts.beginTerminus,
+					endTerminus: opts.endTerminus
+				});
 				return {
 					latitude: centroid[0],
 					longitude: centroid[1],
@@ -665,7 +893,9 @@ export async function resolveImportLocation(opts: {
 					source: 'osm_overpass',
 					locationPrecision: 'route',
 					countyBoundary: null,
-					lookupWarnings
+					lookupWarnings,
+					beginAnchor,
+					endAnchor
 				};
 			}
 		}
@@ -721,8 +951,7 @@ export async function resolveImportLocation(opts: {
 	};
 }
 
-async function geocodeOsm(query: string): Promise<{ lat: number; lng: number } | null> {
-	const params = new URLSearchParams({
+async function geocodeOsm(query: string): Promise<{ lat: number; lng: number } | null> {	const params = new URLSearchParams({
 		q: query,
 		format: 'jsonv2',
 		limit: '1',
@@ -795,6 +1024,32 @@ async function geocodeTerminus(opts: {
 	return null;
 }
 
+/**
+ * Best-effort resolve begin/end terminus coordinates to use as geographic
+ * direction anchors for a non-LRS route polyline. Returns nulls on failure
+ * (never fabricates a point). Both termini are geocoded concurrently.
+ */
+async function resolveTerminusAnchors(opts: {
+	routeDesignation: string | null;
+	county: string | null;
+	beginTerminus?: string | null;
+	endTerminus?: string | null;
+}): Promise<{ beginAnchor: GeographicAnchor | null; endAnchor: GeographicAnchor | null }> {
+	const [begin, end] = await Promise.all([
+		geocodeTerminus({
+			terminus: opts.beginTerminus,
+			routeDesignation: opts.routeDesignation,
+			county: opts.county
+		}),
+		geocodeTerminus({
+			terminus: opts.endTerminus,
+			routeDesignation: opts.routeDesignation,
+			county: opts.county
+		})
+	]);
+	return { beginAnchor: begin, endAnchor: end };
+}
+
 export async function fetchOsmTerminiRoute(opts: {
 	routeDesignation: string | null;
 	county: string | null;
@@ -834,6 +1089,26 @@ export async function fetchOsmTerminiRoute(opts: {
 		},
 		lookupWarnings
 	};
+}
+
+/**
+ * Station (ft-as-station) of the project's begin event: the `project_start`
+ * marker if present, else the lowest-station event. Used as a fallback
+ * direction signal when no geographic anchor is available.
+ */
+function firstEventStation(events: RoadwayLogEventForPreview[]): number | null {
+	if (events.length === 0) return null;
+	const start = events.find((e) => e.event_type === 'project_start');
+	if (start) return start.station;
+	return events.reduce((min, e) => Math.min(min, e.station), Infinity);
+}
+
+/** Station of the project's end event: `project_end` if present, else the highest-station event. */
+function lastEventStation(events: RoadwayLogEventForPreview[]): number | null {
+	if (events.length === 0) return null;
+	const end = events.find((e) => e.event_type === 'project_end');
+	if (end) return end.station;
+	return events.reduce((max, e) => Math.max(max, e.station), -Infinity);
 }
 
 function projectRoadwayLogEventsLrs(
@@ -1068,12 +1343,12 @@ async function mapSegmentViaTermini(
 export async function mapStructuredContractSegments(
 	contract: StructuredContract
 ): Promise<MappedSegments> {
-	const segments: MappedSegment[] = [];
-	const lookupWarnings: string[] = [];
-
-	for (const segment of contract.segments ?? []) {
-		// Base ImportSegment-contract fields, copied straight from the structured
-		// segment so the output conforms field-for-field regardless of outcome.
+	// Resolve every segment concurrently: each is an independent road needing its
+	// own (network-bound) LRS / OSRM lookups, and doing them serially made a
+	// multi-segment import (e.g. 7 city streets) take N times longer than needed.
+	// Promise.all preserves input order, and each segment is wrapped so one
+	// failure never aborts the rest; no coordinate is ever fabricated.
+	const mapOneSegment = async (segment: ContractSegment): Promise<MappedSegment> => {
 		const base = {
 			name: fieldValue(segment.name),
 			kind: fieldValue(segment.kind),
@@ -1089,44 +1364,42 @@ export async function mapStructuredContractSegments(
 			if (canResolveSegmentViaLrs(contract, segment)) {
 				const { geometry, warnings } = await mapSegmentViaLrs(contract, segment);
 				if (geometry) {
-					segments.push({
+					return {
 						...base,
 						geometry,
 						geometry_confidence: 'high',
 						source: 'gdot_lrs',
 						lookup_warnings: warnings,
 						low_confidence_termini: []
-					});
-					continue;
+					};
 				}
 				// LRS produced nothing usable — fall back to termini road-snap.
 				const fallback = await mapSegmentViaTermini(contract, segment);
-				segments.push({
+				return {
 					...base,
 					geometry: fallback.geometry,
 					geometry_confidence: geometryConfidence(fallback.geometry, fallback.lowConfidenceTermini),
 					source: fallback.geometry ? 'osm_termini_route' : 'none',
 					lookup_warnings: [...warnings, ...fallback.warnings],
 					low_confidence_termini: fallback.lowConfidenceTermini
-				});
-				continue;
+				};
 			}
 
 			const { geometry, warnings, lowConfidenceTermini } = await mapSegmentViaTermini(
 				contract,
 				segment
 			);
-			segments.push({
+			return {
 				...base,
 				geometry,
 				geometry_confidence: geometryConfidence(geometry, lowConfidenceTermini),
 				source: geometry ? 'osm_termini_route' : 'none',
 				lookup_warnings: warnings,
 				low_confidence_termini: lowConfidenceTermini
-			});
+			};
 		} catch (err) {
 			console.error('[gdot-geometry] segment mapping failed:', err);
-			segments.push({
+			return {
 				...base,
 				geometry: null,
 				geometry_confidence: 'low',
@@ -1135,11 +1408,12 @@ export async function mapStructuredContractSegments(
 					`Geometry resolution threw for segment "${base.name ?? 'unnamed'}"; left unmapped.`
 				],
 				low_confidence_termini: []
-			});
+			};
 		}
-	}
+	};
 
-	return { segments, lookup_warnings: lookupWarnings };
+	const segments = await Promise.all((contract.segments ?? []).map(mapOneSegment));
+	return { segments, lookup_warnings: [] };
 }
 
 /**

@@ -228,9 +228,12 @@ const FT_PER_MILE = () => constant('CONST.FT_PER_MILE');
  *   "2-12 FT TRAVEL LANES"                  -> num_lanes + lane_width_ft
  */
 function parseRoadwayLog(text: string, result: ParsedGdotJob): void {
-	// Spread rate: "135 POUNDS PER SQUARE YARD"
+	// Spread rate: "135 POUNDS PER SQUARE YARD" or "165 LBS PER SQUARE YARD".
+	// GDOT typical-section diagrams and roadway logs use "LBS" while some logs
+	// spell out "POUNDS"; accept both (and the "LB"/"#" shorthands) so a wording
+	// variant doesn't drop a value the document plainly states.
 	if (result.spread_rate_lbs_sy == null) {
-		const m = text.match(/(\d{2,3})\s+POUNDS\s+PER\s+SQUARE\s+YARD/i);
+		const m = text.match(/(\d{2,3})\s*(?:POUNDS|LBS?|#)\s+PER\s+SQUARE\s+YARD/i);
 		if (m) result.spread_rate_lbs_sy = toNumber(m[1]);
 	}
 

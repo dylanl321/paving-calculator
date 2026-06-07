@@ -199,11 +199,16 @@
 			<h3>Location &amp; Route</h3>
 			<p>Define the stretch of real road this project uses, then mark the exact paving limits.</p>
 		</div>
-		{#if hasLocation}
-			<button type="button" class="link-btn" onclick={() => (showLocationSearch = !showLocationSearch)}>
-				{showLocationSearch ? 'Cancel' : hasExactLocation ? 'Change Location' : 'Set Exact Location'}
-			</button>
-		{/if}
+		<div class="panel-head-actions">
+			{#if hasLocation || hasRoute}
+				<a class="link-btn" href={`/dashboard/map?job=${jobSite.id}`}>Open full map</a>
+			{/if}
+			{#if hasLocation}
+				<button type="button" class="link-btn" onclick={() => (showLocationSearch = !showLocationSearch)}>
+					{showLocationSearch ? 'Cancel' : hasExactLocation ? 'Change Location' : 'Set Exact Location'}
+				</button>
+			{/if}
+		</div>
 	</div>
 
 	<div class="setup-guide" aria-label="Route setup progress">
@@ -387,6 +392,13 @@
 	.panel-head h3,
 	.terminus-head h4 {
 		margin: 0;
+	}
+
+	.panel-head-actions {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		flex-shrink: 0;
 	}
 
 	.panel-head p,

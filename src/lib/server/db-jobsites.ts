@@ -260,7 +260,43 @@ export interface DbRoadSection {
 	begin_terminus?: string | null;
 	end_terminus?: string | null;
 	geometry_confidence?: 'high' | 'medium' | 'low' | null;
+	/**
+	 * Denormalized pavement defaults (migration 0079) DERIVED from the
+	 * pavement_structure child rows (the single source of truth) — the section's
+	 * representative/predominant spec, for cheap reads. Never edited independently.
+	 */
+	target_thickness_in?: number | null;
+	target_spread_rate?: number | null;
+	mill_depth_in?: number | null;
+	width_ft?: number | null;
 	notes: string | null;
+	sort_order: number;
+	created_at: number;
+	updated_at: number;
+}
+
+/**
+ * A pavement_structure child row (migration 0080) — THE SINGLE SOURCE OF TRUTH
+ * for a road section's per-mile-range typical-section specs. A section can carry
+ * MORE than one row when its typical section changes over its length
+ * (applies_from_mi / applies_to_mi partitions it). The denormalized columns on
+ * {@link DbRoadSection} are derived from these rows, never an independent source.
+ * Every spec value is nullable: an absent typical-section value is NULL (never
+ * invented).
+ */
+export interface DbPavementStructure {
+	id: string;
+	road_section_id: string;
+	applies_from_mi: number | null;
+	applies_to_mi: number | null;
+	lift_thickness_in: number | null;
+	mill_depth_in: number | null;
+	spread_rate_lbs_sy: number | null;
+	width_ft_min: number | null;
+	width_ft_max: number | null;
+	mix: string | null;
+	source_page: number | null;
+	confidence: 'high' | 'medium' | 'low' | null;
 	sort_order: number;
 	created_at: number;
 	updated_at: number;

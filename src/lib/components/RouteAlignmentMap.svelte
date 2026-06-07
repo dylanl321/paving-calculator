@@ -21,6 +21,7 @@
 	interface RoadwayLogEvent {
 		id: string;
 		milepost: number;
+		station?: number;
 		event_type: string;
 		description: string;
 		roadway_width_ft: number | null;
@@ -40,6 +41,22 @@
 
 	type LocationPrecision = 'route' | 'point' | 'county' | 'none';
 
+	type GeoJsonLineString = {
+		type: 'LineString';
+		coordinates: [number, number][];
+	};
+
+	/**
+	 * A real, resolved per-segment centerline from the import pipeline (GDOT LRS /
+	 * ArcGIS). These are the actual disconnected segments of the imported Roadway
+	 * Log — distinct from the single editable `waypoints` alignment.
+	 */
+	interface ImportedSegment {
+		name: string | null;
+		geometry: GeoJsonLineString | null;
+		geometry_confidence: 'high' | 'medium' | 'low' | string;
+	}
+
 	type CountyBoundaryGeojson = {
 		type: 'Feature';
 		properties?: { county?: string };
@@ -55,6 +72,8 @@
 		numLanes?: number | null;
 		laneWidthFt?: number | null;
 		roadwayLogEvents?: RoadwayLogEvent[];
+		/** Real resolved per-segment centerlines from the import (overlay only, read-only). */
+		segments?: ImportedSegment[];
 		locationPrecision?: LocationPrecision | null;
 		countyBoundaryGeojson?: CountyBoundaryGeojson | null;
 		countyBounds?: [[number, number], [number, number]] | null;
@@ -69,6 +88,7 @@
 		numLanes = null,
 		laneWidthFt = null,
 		roadwayLogEvents = [],
+		segments = [],
 		locationPrecision = null,
 		countyBoundaryGeojson = null,
 		countyBounds = null,
@@ -92,6 +112,7 @@
 	let snapping = $state(false);
 	let snapError = $state('');
 	let showRoadwayLog = $state(true);
+	let showSegments = $state(true);
 	let controlMarkers: MapLibreMarker[] = [];
 	let previousInitialWaypoints = initialWaypoints;
 
@@ -110,8 +131,37 @@
 	);
 	const pinned = $derived(site.latitude != null && site.longitude != null);
 	const countyOnly = $derived(effectivePrecision === 'county' && !!countyBoundaryGeojson);
-	const hasMapContext = $derived(pinned || !!countyBoundaryGeojson);
+
+	const countyBoundaryFeature = $derived<GeoJSON.Feature | null>(
+		countyBoundaryGeojson
+			? {
+					type: 'Feature',
+					properties: countyBoundaryGeojson.properties ?? null,
+					geometry: countyBoundaryGeojson.geometry
+				}
+			: null
+	);
+
+	/** Imported segments that resolved to a real centerline (overlay candidates). */
+	const drawableSegments = $derived(
+		segments.filter(
+			(s): s is ImportedSegment & { geometry: GeoJsonLineString } =>
+				s.geometry != null && s.geometry.coordinates.length >= 2
+		)
+	);
+	const hasSegments = $derived(drawableSegments.length > 0);
+
+	const hasMapContext = $derived(pinned || !!countyBoundaryGeojson || hasSegments);
 	const hasRoadwayLog = $derived(roadwayLogEvents.length > 0);
+
+	const SEGMENT_COLORS: Record<string, string> = {
+		high: '#22c55e',
+		medium: '#38bdf8',
+		low: '#f97316'
+	};
+	function segmentColor(confidence: string): string {
+		return SEGMENT_COLORS[confidence] ?? SEGMENT_COLORS.medium;
+	}
 
 	const totalLengthFt = $derived(polylineLengthFt(waypoints));
 
@@ -122,7 +172,7 @@
 		return `<div style="min-width:160px;font-family:system-ui,sans-serif">
 				<strong style="font-size:0.95rem">${site.name}</strong><br>
 				<span style="display:inline-block;margin:4px 0;padding:2px 8px;border-radius:999px;background:${color};color:#fff;font-size:0.7rem;font-weight:700;text-transform:uppercase">${statusLabel}</span>
-				${site.location_description ? `<br><span style="font-size:0.8rem;color:#666">${site.location_description}</span>` : ''}
+				${site.location_description ? `<br><span style="font-size:0.8rem;color:#94a3b8">${site.location_description}</span>` : ''}
 			</div>`;
 	});
 
@@ -349,10 +399,10 @@
 			onready={handleMapReady}
 		>
 			{#snippet layers()}
-				{#if countyBoundaryGeojson}
+				{#if countyBoundaryGeojson && countyBoundaryFeature}
 					<MapGeoJSON
 						id="county-boundary-{site.id}"
-						geojson={countyBoundaryGeojson}
+						geojson={countyBoundaryFeature}
 						layerType="fill"
 						styleFunction={() => ({
 							color: '#f2c037',
@@ -371,6 +421,25 @@
 						label={site.name.charAt(0)}
 						popupHtml={sitePopupHtml}
 					/>
+				{/if}
+
+				{#if showSegments}
+					{#each drawableSegments as seg, i (i)}
+						<MapGeoJSON
+							id="import-segment-{site.id}-{i}"
+							geojson={{
+								type: 'Feature',
+								properties: {},
+								geometry: seg.geometry
+							}}
+							layerType="line"
+							styleFunction={() => ({
+								color: segmentColor(seg.geometry_confidence),
+								width: 4,
+								opacity: 0.9
+							})}
+						/>
+					{/each}
 				{/if}
 
 				{#if waypoints.length >= 2}
@@ -442,6 +511,32 @@
 				</svg>
 				{drawMode ? 'Stop Editing' : 'Edit Route'}
 			</button>
+
+			{#if hasSegments}
+				<button
+					type="button"
+					class="map-btn"
+					class:active={showSegments}
+					onclick={() => (showSegments = !showSegments)}
+					title={showSegments ? 'Hide imported segments' : 'Show imported segments'}
+				>
+					<svg
+						width="18"
+						height="18"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<polyline points="4 7 9 4 15 7 20 4 20 17 15 20 9 17 4 20 4 7"></polyline>
+						<line x1="9" y1="4" x2="9" y2="17"></line>
+						<line x1="15" y1="7" x2="15" y2="20"></line>
+					</svg>
+					Segments
+				</button>
+			{/if}
 
 			{#if hasRoadwayLog}
 				<button
@@ -578,6 +673,15 @@
 				{/if}
 			{/if}
 		</div>
+
+		{#if showSegments && hasSegments}
+			<div class="segment-legend">
+				<span class="seg-legend-title">{drawableSegments.length} imported segment{drawableSegments.length === 1 ? '' : 's'}</span>
+				<span class="seg-key"><i style="background:{SEGMENT_COLORS.high}"></i>High</span>
+				<span class="seg-key"><i style="background:{SEGMENT_COLORS.medium}"></i>Medium</span>
+				<span class="seg-key"><i style="background:{SEGMENT_COLORS.low}"></i>Low</span>
+			</div>
+		{/if}
 
 		{#if waypoints.length > 0}
 			<div class="route-stats">
@@ -769,6 +873,45 @@
 		font-size: 0.95rem;
 		font-weight: 700;
 		color: var(--accent);
+	}
+
+	.segment-legend {
+		position: absolute;
+		bottom: 12px;
+		right: 12px;
+		z-index: 500;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 4px 12px;
+		max-width: calc(100% - 24px);
+		padding: 8px 12px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+		font-size: 0.72rem;
+		color: var(--text);
+	}
+
+	.seg-legend-title {
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.4px;
+		color: var(--text-muted);
+	}
+
+	.seg-key {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+	}
+
+	.seg-key i {
+		width: 14px;
+		height: 4px;
+		border-radius: 2px;
+		display: inline-block;
 	}
 
 	.crosshair {

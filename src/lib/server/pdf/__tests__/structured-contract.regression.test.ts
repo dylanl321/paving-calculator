@@ -73,7 +73,8 @@ function segment(opts: {
 		end_terminus:
 			opts.end == null ? field.missing<string>('fixture') : field.medium(opts.end, 'fixture'),
 		measure_axis: field.medium(opts.axis, 'fixture'),
-		events: opts.events ?? []
+		events: opts.events ?? [],
+		pavement: []
 	};
 }
 
@@ -259,15 +260,23 @@ describe('SR 7 ALT (25186) mainline + ramp fixture', () => {
 // --------------------------------------------------------------------------
 
 describe('validateContract flags but never drops', () => {
-	it('flags a non-monotonic measure on a project_mile segment without removing the event', () => {
+	it('flags a decreasing measure on a project_mile segment without removing the event', () => {
 		const bad = sr7AltContract();
-		// Inject an out-of-order measure (1.0 after 1.2) into the mainline.
+		// Inject an out-of-order (decreasing) measure (1.0 after 1.2) into the mainline.
 		bad.segments[0].events.splice(2, 0, event('reference', 1.0, 'OUT OF ORDER REFERENCE'));
 		const before = bad.segments[0].events.length;
 		const validated = validateContract(bad);
-		expect(validated.warnings.some((w) => /not greater than the prior measure/i.test(w))).toBe(true);
+		expect(validated.warnings.some((w) => /less than the prior measure/i.test(w))).toBe(true);
 		// Event count is unchanged — flagged, not dropped.
 		expect(validated.segments[0].events).toHaveLength(before);
+	});
+
+	it('allows repeated equal measures (multiple events at the same milepost)', () => {
+		const c = sr7AltContract();
+		// Two events at the same milepost is legitimate in real GDOT logs.
+		c.segments[0].events.splice(2, 0, event('width_change', 1.2, 'BEGIN TURN LANE', 60));
+		const validated = validateContract(c);
+		expect(validated.warnings.some((w) => /less than the prior measure/i.test(w))).toBe(false);
 	});
 
 	it('flags an out-of-band segment length without altering the value', () => {
@@ -310,7 +319,7 @@ function regexResultWith(overrides: Partial<Record<string, ParsedField<string | 
 	return v2;
 }
 
-describe('crossCheckWithRegex', () => {
+describe('crossCheckWithRegex (AI-primary; validator flags only)', () => {
 	it('upgrades an agreeing route-critical field to high confidence', () => {
 		const c = sr7AltContract();
 		const regex = regexResultWith({
@@ -318,29 +327,41 @@ describe('crossCheckWithRegex', () => {
 			route_designation: field.high('SR 7 ALT', 'deterministic'),
 			gross_length_mi: field.high(2.86, 'deterministic')
 		});
-		const checked = crossCheckWithRegex(c, regex);
+		const { contract: checked, conflicts } = crossCheckWithRegex(c, regex);
 		expect(checked.county.name.confidence).toBe('high');
 		expect(checked.route!.designation.confidence).toBe('high');
 		expect(checked.gross_length_mi.confidence).toBe('high');
+		// Agreement is not a conflict.
+		expect(conflicts).toHaveLength(0);
 	});
 
-	it('prefers the deterministic value and warns when a route-critical field disagrees', () => {
+	it('KEEPS the AI value and emits a structured conflict when a route-critical field disagrees', () => {
 		const c = sr7AltContract();
 		const regex = regexResultWith({
 			county: field.high('Echols', 'deterministic') // disagrees with fixture "Lowndes"
 		});
-		const checked = crossCheckWithRegex(c, regex);
-		expect(checked.county.name.value).toBe('Echols');
-		expect(checked.warnings.some((w) => /county differs between deterministic parser/i.test(w))).toBe(
-			true
-		);
+		const { contract: checked, conflicts } = crossCheckWithRegex(c, regex);
+		// AI-primary: the AI value ("Lowndes") is RETAINED, never overridden.
+		expect(checked.county.name.value).toBe('Lowndes');
+		// A structured conflict is raised for the review UI (amber verify flag).
+		const conflict = conflicts.find((cf) => cf.field_path === 'county.name');
+		expect(conflict).toBeDefined();
+		expect(conflict!.ai_value).toBe('Lowndes');
+		expect(conflict!.validator_value).toBe('Echols');
+		expect(conflict!.resolution).toBe('needs_review');
+		expect(conflict!.severity).toBe('warning');
+		// A back-compat warning is still appended for the pre-Phase-7 UI.
+		expect(
+			checked.warnings.some((w: string) => /county.* differs between deterministic parser/i.test(w))
+		).toBe(true);
 	});
 
 	it('leaves a field untouched when only one side has a value', () => {
 		const c = sr7AltContract();
 		const regex = regexResultWith({}); // empty -> regex county null
-		const checked = crossCheckWithRegex(c, regex);
+		const { contract: checked, conflicts } = crossCheckWithRegex(c, regex);
 		expect(checked.county.name.value).toBe('Lowndes');
+		expect(conflicts).toHaveLength(0);
 	});
 });
 

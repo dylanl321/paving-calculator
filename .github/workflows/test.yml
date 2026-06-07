@@ -53,7 +53,6 @@ jobs:
         # as logic coverage improves. (Was 80, never met on this codebase.)
         run: >-
           npx vitest run
-          --config vitest.workspace.ts
           --project unit
           --coverage
           --coverage.thresholds.lines=25
@@ -90,7 +89,6 @@ jobs:
         # endpoints; lib-scoped coverage is modest). Ratchet up over time.
         run: >-
           npx vitest run
-          --config vitest.workspace.ts
           --project integration
           --coverage
           --coverage.thresholds.lines=11
@@ -128,7 +126,6 @@ jobs:
         # must still pass); raise only if components are pointed at lib coverage.
         run: >-
           npx vitest run
-          --config vitest.workspace.ts
           --project components
           --coverage
           --coverage.thresholds.lines=0

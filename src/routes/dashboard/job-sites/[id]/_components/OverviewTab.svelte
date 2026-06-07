@@ -85,6 +85,16 @@
 	);
 	const hasCountyContext = $derived(locationPrecision === 'county' && !!data.countyBoundary);
 
+	const countyBoundaryFeature = $derived<GeoJSON.Feature | null>(
+		data.countyBoundary
+			? {
+					type: 'Feature',
+					properties: data.countyBoundary.geojson.properties ?? null,
+					geometry: data.countyBoundary.geojson.geometry
+				}
+			: null
+	);
+
 	function isEmpty(value: any): boolean {
 		return value === null || value === undefined || value === '' || value === 0;
 	}
@@ -784,17 +794,19 @@
 						>
 							{#snippet layers()}
 								{#await import('$lib/components/map-v2/MapGeoJSON.svelte') then { default: MapGeoJSON }}
-									<MapGeoJSON
-										id="progress-county-context"
-										geojson={data.countyBoundary.geojson}
-										layerType="fill"
-										styleFunction={() => ({
-											color: '#f2c037',
-											width: 2,
-											opacity: 0.85,
-											fillOpacity: 0.16
-										})}
-									/>
+									{#if countyBoundaryFeature}
+										<MapGeoJSON
+											id="progress-county-context"
+											geojson={countyBoundaryFeature}
+											layerType="fill"
+											styleFunction={() => ({
+												color: '#f2c037',
+												width: 2,
+												opacity: 0.85,
+												fillOpacity: 0.16
+											})}
+										/>
+									{/if}
 								{/await}
 							{/snippet}
 						</MapView>

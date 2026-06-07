@@ -29,6 +29,29 @@
 
 	const projectSummary = $derived(data.summary as typeof data.summary & { total_days?: number });
 
+	// Auto-derived project context (read-only) — surface config so the user
+	// never re-enters per-day what the project already defines.
+	const cfg = $derived((data.siteConfig as any)?.config ?? null);
+	const projectContext = $derived.by(() => {
+		if (!cfg) return [] as { label: string; value: string }[];
+		const items: { label: string; value: string }[] = [];
+		if (cfg.mix_type) items.push({ label: 'Mix', value: String(cfg.mix_type) });
+		if (cfg.target_spread_rate != null)
+			items.push({ label: 'Target rate', value: `${cfg.target_spread_rate} lbs/SY` });
+		if (cfg.target_thickness_in != null)
+			items.push({ label: 'Thickness', value: `${cfg.target_thickness_in}"` });
+		if (cfg.lane_width_ft != null)
+			items.push({ label: 'Lane width', value: `${cfg.lane_width_ft} ft` });
+		if (cfg.total_length_ft != null)
+			items.push({ label: 'Total length', value: formatFeet(cfg.total_length_ft) });
+		return items;
+	});
+
+	// Progressive disclosure — keep secondary tools collapsed by default so the
+	// page reads top-to-bottom as: today's context → record a pass → entries.
+	let showQc = $state(false);
+	let showActions = $state(false);
+
 	// Reactive object for CompletenessBar from today store
 	const todayState = $derived({
 		weather_temp_f: today.weatherTempF,
@@ -149,7 +172,7 @@
 			notes: currentLog.notes
 		};
 		try {
-			await api.put(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}`, updates);
+			await api.patch(`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}`, updates);
 			await loadLogDetails();
 			toastStore.success('Log updated');
 		} catch (err: any) {
@@ -250,7 +273,7 @@
 
 		try {
 			if (editingEntry) {
-				await api.put(
+				await api.patch(
 					`/api/job-sites/${data.jobSite.id}/logs/${currentLog.id}/entries/${editingEntry.id}`,
 					payload
 				);
@@ -757,89 +780,80 @@
 						Close Out Day
 					</button>
 				{/if}
-				<button
-					class="btn-secondary btn-pdf"
-					onclick={() => exportLogPDF()}
-					disabled={pdfExporting}
-					title="Download daily production PDF"
-				>
-					<FileDown size={18} />
-					{pdfExporting ? 'Generating...' : 'PDF'}
-				</button>
-				<button
-					class="btn-secondary btn-sign"
-					onclick={() => (showSignatureModal = true)}
-					disabled={pdfExporting}
-					title="Sign and export PDF"
-				>
-					<svg
-						width="18"
-						height="18"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						stroke-linecap="round"
-						stroke-linejoin="round"
+				<div class="more-actions">
+					<button
+						class="btn-secondary more-actions-toggle"
+						aria-expanded={showActions}
+						onclick={() => (showActions = !showActions)}
 					>
-						<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+						<svg
+							width="18"
+							height="18"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						>
+							<circle cx="12" cy="12" r="1"></circle>
+							<circle cx="19" cy="12" r="1"></circle>
+							<circle cx="5" cy="12" r="1"></circle>
+						</svg>
+						More
+					</button>
+					{#if showActions}
+						<div class="more-actions-menu" role="menu">
+							<button class="more-action-item" onclick={() => { exportLogPDF(); showActions = false; }} disabled={pdfExporting}>
+								<FileDown size={18} />
+								{pdfExporting ? 'Generating…' : 'Download PDF'}
+							</button>
+							<button class="more-action-item" onclick={() => { showSignatureModal = true; showActions = false; }} disabled={pdfExporting}>
+								<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+								</svg>
+								Sign &amp; Export
+							</button>
+							<button class="more-action-item" onclick={() => { showSummary = true; showActions = false; }}>
+								<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+									<line x1="9" y1="9" x2="15" y2="9"></line>
+									<line x1="9" y1="15" x2="15" y2="15"></line>
+								</svg>
+								Day Summary
+							</button>
+							<button class="more-action-item" onclick={() => { showComparison = !showComparison; showActions = false; }}>
+								<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<rect x="3" y="3" width="7" height="7"></rect>
+									<rect x="14" y="3" width="7" height="7"></rect>
+									<rect x="14" y="14" width="7" height="7"></rect>
+									<rect x="3" y="14" width="7" height="7"></rect>
+								</svg>
+								{showComparison ? 'Hide comparison' : 'Compare days'}
+							</button>
+							<a class="more-action-item" href="/dashboard/job-sites/{data.jobSite.id}/log/history">
+								<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+									<line x1="16" y1="2" x2="16" y2="6"></line>
+									<line x1="8" y1="2" x2="8" y2="6"></line>
+									<line x1="3" y1="10" x2="21" y2="10"></line>
+								</svg>
+								Full history
+							</a>
+						</div>
+					{/if}
+				</div>
+			{:else}
+				<a href="/dashboard/job-sites/{data.jobSite.id}/log/history" class="btn-secondary">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+						<line x1="16" y1="2" x2="16" y2="6"></line>
+						<line x1="8" y1="2" x2="8" y2="6"></line>
+						<line x1="3" y1="10" x2="21" y2="10"></line>
 					</svg>
-					Sign & Export
-				</button>
-			<button class="btn-secondary" onclick={() => (showSummary = true)}>
-				<svg
-					width="18"
-					height="18"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-				>
-					<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-					<line x1="9" y1="9" x2="15" y2="9"></line>
-					<line x1="9" y1="15" x2="15" y2="15"></line>
-				</svg>
-				Day Summary
-			</button>
-			<button class="btn-secondary" onclick={() => (showComparison = !showComparison)}>
-				<svg
-					width="18"
-					height="18"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="2"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-				>
-					<rect x="3" y="3" width="7" height="7"></rect>
-					<rect x="14" y="3" width="7" height="7"></rect>
-					<rect x="14" y="14" width="7" height="7"></rect>
-					<rect x="3" y="14" width="7" height="7"></rect>
-				</svg>
-				{showComparison ? 'Hide' : 'Compare'} Days
-			</button>
+					History
+				</a>
 			{/if}
-			<a href="/dashboard/job-sites/{data.jobSite.id}/log/history" class="btn-secondary">
-			<svg
-				width="18"
-				height="18"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-			>
-				<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-				<line x1="16" y1="2" x2="16" y2="6"></line>
-				<line x1="8" y1="2" x2="8" y2="6"></line>
-				<line x1="3" y1="10" x2="21" y2="10"></line>
-			</svg>
-			History
-		</a>
 		</div>
 	</div>
 
@@ -850,6 +864,21 @@
 	{#if !isHistoricalView}
 		<div class="completeness-bar-wrapper">
 			<CompletenessBar data={todayState} />
+		</div>
+	{/if}
+
+	{#if projectContext.length > 0}
+		<div class="project-context" aria-label="Project settings (read only)">
+			<span class="project-context-label">Project</span>
+			<div class="project-context-chips">
+				{#each projectContext as item}
+					<span class="context-chip">
+						<span class="context-chip-label">{item.label}</span>
+						<span class="context-chip-value">{item.value}</span>
+					</span>
+				{/each}
+			</div>
+			<a class="project-context-edit" href="/dashboard/job-sites/{data.jobSite.id}?tab=config">Edit</a>
 		</div>
 	{/if}
 
@@ -948,7 +977,10 @@
 		</div>
 
 		<section class="section">
-			<h3>Site Conditions</h3>
+			<div class="section-intro">
+				<h3>Site Conditions</h3>
+				<p class="section-hint">Logged once per day. Auto-filled from weather when available.</p>
+			</div>
 			<div class="conditions-grid">
 				<div class="field-compact">
 					<label for="temp">Temp (°F)</label>
@@ -997,22 +1029,6 @@
 			</div>
 		{/if}
 
-		<ComplianceGauge
-			entries={entries}
-			targetSpreadRate={(data.siteConfig as any)?.config?.target_spread_rate ?? null}
-			courseType={(data.siteConfig as any)?.config?.course_type ?? null}
-			overrides={orgSettingsStore.overrides}
-		/>
-
-		{#if currentLog}
-			<NuclearGaugeLog
-				logId={currentLog.id}
-				jobSiteId={data.jobSite.id}
-				targetDensityPcf={(data.siteConfig as any)?.config?.target_density_pcf ?? null}
-				targetThicknessIn={(data.siteConfig as any)?.config?.target_thickness_in ?? null}
-			/>
-		{/if}
-
 		{#if currentLog && !isHistoricalView}
 			<StationProgressLogger
 				jobSiteId={data.jobSite.id}
@@ -1021,6 +1037,54 @@
 				onLogged={loadLogDetails}
 			/>
 		{/if}
+
+		<section class="section qc-section">
+			<button
+				class="qc-toggle"
+				aria-expanded={showQc}
+				onclick={() => (showQc = !showQc)}
+			>
+				<span class="qc-toggle-label">
+					<Droplets size={18} />
+					Quality Control
+					<span class="qc-toggle-sub">Spread-rate compliance &amp; nuclear density</span>
+				</span>
+				<svg
+					class="qc-chevron"
+					class:open={showQc}
+					width="20"
+					height="20"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+				>
+					<polyline points="6 9 12 15 18 9"></polyline>
+				</svg>
+			</button>
+
+			{#if showQc}
+				<div class="qc-body">
+					<ComplianceGauge
+						entries={entries}
+						targetSpreadRate={(data.siteConfig as any)?.config?.target_spread_rate ?? null}
+						courseType={(data.siteConfig as any)?.config?.course_type ?? null}
+						overrides={orgSettingsStore.overrides}
+					/>
+
+					{#if currentLog}
+						<NuclearGaugeLog
+							logId={currentLog.id}
+							jobSiteId={data.jobSite.id}
+							targetDensityPcf={(data.siteConfig as any)?.config?.target_density_pcf ?? null}
+							targetThicknessIn={(data.siteConfig as any)?.config?.target_thickness_in ?? null}
+						/>
+					{/if}
+				</div>
+			{/if}
+		</section>
 
 		<section class="section">
 			<div class="section-header">
@@ -1426,15 +1490,6 @@
 		gap: 8px;
 		align-items: center;
 		flex-shrink: 0;
-	}
-
-	.btn-pdf,
-	.btn-sign {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		min-height: 48px;
-		padding: 0 14px;
 	}
 
 	.page-title {
@@ -2070,6 +2125,198 @@
 
 	.completeness-bar-wrapper {
 		margin-bottom: 24px;
+	}
+
+	/* Read-only project context strip */
+	.project-context {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		flex-wrap: wrap;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 12px 16px;
+		margin-bottom: 16px;
+	}
+
+	.project-context-label {
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--text-muted);
+		flex-shrink: 0;
+	}
+
+	.project-context-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.context-chip {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 6px;
+		padding: 4px 10px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		white-space: nowrap;
+	}
+
+	.context-chip-label {
+		font-size: 0.72rem;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	.context-chip-value {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--text);
+	}
+
+	.project-context-edit {
+		flex-shrink: 0;
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: var(--accent);
+		text-decoration: none;
+		padding: 6px 4px;
+	}
+
+	.project-context-edit:hover {
+		text-decoration: underline;
+	}
+
+	/* More-actions overflow menu */
+	.more-actions {
+		position: relative;
+	}
+
+	.more-actions-toggle {
+		padding: 0 14px;
+	}
+
+	.more-actions-menu {
+		position: absolute;
+		top: calc(100% + 6px);
+		right: 0;
+		z-index: 50;
+		min-width: 220px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+		padding: 6px;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.more-action-item {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		width: 100%;
+		min-height: 48px;
+		padding: 0 12px;
+		background: none;
+		border: none;
+		border-radius: var(--radius);
+		color: var(--text);
+		font-size: 0.9rem;
+		font-weight: 500;
+		text-align: left;
+		text-decoration: none;
+		cursor: pointer;
+		transition: background 0.15s;
+	}
+
+	.more-action-item:hover:not(:disabled) {
+		background: var(--surface-alt);
+	}
+
+	.more-action-item:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	/* Section intro */
+	.section-intro {
+		margin-bottom: 16px;
+	}
+
+	.section-intro h3 {
+		margin: 0 0 2px;
+		font-size: 1.2rem;
+	}
+
+	.section-hint {
+		margin: 0;
+		font-size: 0.82rem;
+		color: var(--text-muted);
+	}
+
+	/* Collapsible QC section */
+	.qc-section {
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		padding: 0;
+		overflow: hidden;
+	}
+
+	.qc-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		width: 100%;
+		min-height: 56px;
+		padding: 14px 18px;
+		background: none;
+		border: none;
+		color: var(--text);
+		cursor: pointer;
+		text-align: left;
+	}
+
+	.qc-toggle-label {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		font-size: 1.05rem;
+		font-weight: 600;
+		flex-wrap: wrap;
+	}
+
+	.qc-toggle-sub {
+		font-size: 0.78rem;
+		font-weight: 400;
+		color: var(--text-muted);
+	}
+
+	.qc-chevron {
+		flex-shrink: 0;
+		color: var(--text-muted);
+		transition: transform 0.2s;
+	}
+
+	.qc-chevron.open {
+		transform: rotate(180deg);
+	}
+
+	.qc-body {
+		padding: 0 18px 18px;
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
 	}
 
 	.entry-form-grid {

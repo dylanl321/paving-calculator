@@ -45,8 +45,16 @@ export type RoadStatus = keyof typeof STATUS_COLORS;
 /**
  * OpenFreeMap style URLs — free, no API key, OpenMapTiles schema.
  * Fallback: MapTiler free tier (requires MAPTILER_KEY env var).
+ *
+ * `sunlight` intentionally maps to the same high-contrast `bright` basemap as
+ * `light`: in direct sun the brightest, highest-contrast basemap is the most
+ * legible, so the sunlight theme reuses `bright` rather than introducing a
+ * washed-out variant.
  */
 export const TILE_STYLES = {
-  dark:  'https://tiles.openfreemap.org/styles/dark',
-  light: 'https://tiles.openfreemap.org/styles/bright',
+  dark:     'https://tiles.openfreemap.org/styles/dark',
+  light:    'https://tiles.openfreemap.org/styles/bright',
+  sunlight: 'https://tiles.openfreemap.org/styles/bright',
 } as const;
+
+export type ThemeStyleKey = keyof typeof TILE_STYLES;
