@@ -29,8 +29,8 @@ describe('getViewForRole', () => {
 		expect(getViewForRole('member')).toBe('full');
 	});
 
-	it('operator gets full view', () => {
-		expect(getViewForRole('operator')).toBe('full');
+	it('operator gets field view (UX role field_crew)', () => {
+		expect(getViewForRole('operator')).toBe('field');
 	});
 
 	it('inspector gets full view', () => {

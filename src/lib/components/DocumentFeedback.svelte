@@ -34,6 +34,9 @@
 	let selectedType = $state('');
 	let submitting = $state(false);
 	let submitted = $state(false);
+	// One-time snapshot of the prop into editable UI state (the panel can be
+	// toggled after mount); it should not re-derive from `report`.
+	// svelte-ignore state_referenced_locally
 	let expanded = $state(!report.is_supported);
 
 	async function submitFeedback() {

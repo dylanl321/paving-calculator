@@ -100,7 +100,7 @@
 	.guide-card:hover {
 		border-color: var(--accent);
 		transform: translateY(-2px);
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+		box-shadow: var(--shadow-md);
 	}
 
 	.guide-header {

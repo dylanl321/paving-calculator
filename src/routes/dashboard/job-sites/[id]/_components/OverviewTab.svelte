@@ -813,7 +813,7 @@
 					</div>
 					<div class="empty-state-mini county-context-note">
 						<p>{data.countyBoundary.county} County is known. Draw or load the exact road alignment to see progress visualization.</p>
-						<button type="button" class="btn-secondary" onclick={() => onGoToTab('work_zones')}>
+						<button type="button" class="btn-secondary" onclick={() => onGoToTab('work_schedule')}>
 							Go to Map Tab
 						</button>
 					</div>
@@ -821,7 +821,7 @@
 			{:else}
 				<div class="empty-state-mini">
 					<p>Draw a route alignment to see progress visualization</p>
-					<button type="button" class="btn-secondary" onclick={() => onGoToTab('work_zones')}>
+					<button type="button" class="btn-secondary" onclick={() => onGoToTab('work_schedule')}>
 						Go to Map Tab
 					</button>
 				</div>
@@ -876,7 +876,7 @@
 <section class="panel location-panel">
 	<div class="panel-head">
 		<h3>Location & Route</h3>
-		<button type="button" class="link-btn" onclick={() => onGoToTab('work_zones')}>
+		<button type="button" class="link-btn" onclick={() => onGoToTab('location')}>
 			{data.jobSite.latitude != null ? 'Open map' : 'Set location'}
 		</button>
 	</div>
@@ -930,7 +930,7 @@
 				</div>
 			</div>
 		{/if}
-		<button type="button" class="btn-secondary" onclick={() => onGoToTab('work_zones')}>
+		<button type="button" class="btn-secondary" onclick={() => onGoToTab('location')}>
 			Open Location &amp; Route
 		</button>
 	{:else}
@@ -938,7 +938,7 @@
 			No location set yet. Open the Location &amp; Route tab to drop the project pin, draw the road
 			route and lay down paving.
 		</p>
-		<button type="button" class="btn-primary" onclick={() => onGoToTab('work_zones')}>
+		<button type="button" class="btn-primary" onclick={() => onGoToTab('location')}>
 			Set Location &amp; Route
 		</button>
 	{/if}
@@ -1226,13 +1226,6 @@
 		border-radius: var(--radius);
 	}
 
-	.gdot-info-section h4 {
-		margin: 0 0 12px;
-		font-size: 0.95rem;
-		font-weight: 700;
-		color: var(--text);
-	}
-
 	.gdot-spec-list {
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
@@ -1249,13 +1242,6 @@
 		align-items: baseline;
 		gap: 10px;
 		margin-bottom: 10px;
-	}
-
-	.progress-map-head h4 {
-		margin: 0;
-		font-size: 0.95rem;
-		font-weight: 700;
-		color: var(--text);
 	}
 
 	.progress-map-sub {
@@ -1294,7 +1280,7 @@
 	}
 
 	.lr-value.lr-done {
-		color: #22c55e;
+		color: var(--good);
 	}
 
 	.lr-value.lr-remaining {
@@ -1312,13 +1298,6 @@
 		justify-content: space-between;
 		gap: 12px;
 		margin-bottom: 12px;
-	}
-
-	.photos-head h4 {
-		margin: 0;
-		font-size: 0.95rem;
-		font-weight: 700;
-		color: var(--text);
 	}
 
 	.loading-text {
@@ -1452,18 +1431,11 @@
 		margin-top: 12px;
 	}
 
-	.plant-form h5 {
-		margin: 0 0 12px;
-		font-size: 0.9rem;
-		font-weight: 600;
-		color: var(--text);
-	}
-
 	.plant-saved {
 		margin-top: 8px;
 		padding: 8px;
-		background: rgba(34, 197, 94, 0.1);
-		color: var(--good, #22c55e);
+		background: color-mix(in srgb, var(--good) 10%, transparent);
+		color: var(--good);
 		border-radius: var(--radius);
 		font-size: 0.85rem;
 		text-align: center;
@@ -1508,13 +1480,6 @@
 		border-radius: var(--radius);
 	}
 
-	.route-designation-section h4 {
-		margin: 0 0 12px;
-		font-size: 0.9rem;
-		color: var(--text);
-		font-weight: 600;
-	}
-
 	.route-badge {
 		display: inline-block;
 		padding: 8px 16px;
@@ -1530,18 +1495,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
-	}
-
-	.route-info-rows .info-row {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: 0.85rem;
-	}
-
-	.route-info-rows .info-label {
-		font-weight: 600;
-		color: var(--text-muted);
 	}
 
 	/* Road Progress Layer section */
@@ -1596,10 +1549,6 @@
 		gap: 8px;
 	}
 
-	.rpl-detail-head strong {
-		font-size: 0.95rem;
-	}
-
 	.rpl-close {
 		background: none;
 		border: none;
@@ -1627,29 +1576,13 @@
 		gap: 8px;
 	}
 
-	.rpl-dl-row dt {
-		min-width: 80px;
-		font-size: 0.75rem;
-		color: var(--text-muted);
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.4px;
-		padding-top: 2px;
-	}
-
-	.rpl-dl-row dd {
-		font-size: 0.85rem;
-		color: var(--text);
-		margin: 0;
-	}
-
 	.rpl-status-badge {
 		display: inline-block;
 		padding: 2px 8px;
 		border-radius: 999px;
 		font-size: 0.72rem;
 		font-weight: 700;
-		color: #fff;
+		color: var(--accent-text);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 	}
@@ -1674,12 +1607,6 @@
 		background: var(--surface);
 		border: 1px dashed var(--border);
 		border-radius: var(--radius);
-	}
-
-	.terminus-load p {
-		margin: 0;
-		font-size: 0.9rem;
-		color: var(--text-muted);
 	}
 
 	@media (max-width: 640px) {

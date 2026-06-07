@@ -15,6 +15,8 @@
  */
 
 export { default as MapView }              from './MapView.svelte';
+export { default as MapStatus }            from './MapStatus.svelte';
+export { default as ProjectMapWorkspace }  from './ProjectMapWorkspace.svelte';
 export { default as MapMarker }            from './MapMarker.svelte';
 export { default as MapPolyline }          from './MapPolyline.svelte';
 export { default as MapPolygon }           from './MapPolygon.svelte';

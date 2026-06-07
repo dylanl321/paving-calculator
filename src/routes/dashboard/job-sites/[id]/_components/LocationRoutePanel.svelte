@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import JobSiteLocationPicker from '$lib/components/JobSiteLocationPicker.svelte';
+	import ProjectMapWorkspace, {
+		type WorkspaceMode
+	} from '$lib/components/map-v2/ProjectMapWorkspace.svelte';
 	import { polylineLengthFt, stationToFeet } from '$lib/services/mapUtils';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { formatFeet } from '$lib/utils/format';
@@ -45,11 +48,20 @@
 		onRouteSaved?: (waypoints: RouteWaypoint[]) => void;
 	} = $props();
 
+	// Snapshot props once into editable form/UI state (intentional one-time seed).
+	// svelte-ignore state_referenced_locally
 	let showLocationSearch = $state(jobSite.latitude == null || jobSite.longitude == null);
 	let locationSaving = $state(false);
 	let loadingRoute = $state(false);
+	// svelte-ignore state_referenced_locally
 	let pickerLat = $state<number | null>(jobSite.latitude ?? null);
+	// svelte-ignore state_referenced_locally
 	let pickerLng = $state<number | null>(jobSite.longitude ?? null);
+	let workspaceMode = $state<WorkspaceMode>('view');
+
+	const fullMapHref = $derived(
+		`/dashboard/map?job=${jobSite.id}${workspaceMode === 'view' ? '' : `&mode=${workspaceMode}`}`
+	);
 
 	const hasLocation = $derived(jobSite.latitude != null && jobSite.longitude != null);
 	const locationPrecision = $derived<LocationPrecision>(
@@ -201,7 +213,7 @@
 		</div>
 		<div class="panel-head-actions">
 			{#if hasLocation || hasRoute}
-				<a class="link-btn" href={`/dashboard/map?job=${jobSite.id}`}>Open full map</a>
+				<a class="link-btn" href={fullMapHref}>Open full map</a>
 			{/if}
 			{#if hasLocation}
 				<button type="button" class="link-btn" onclick={() => (showLocationSearch = !showLocationSearch)}>
@@ -269,30 +281,22 @@
 			<p class="saving">Saving...</p>
 		{/if}
 	{:else if browser}
-		{#await import('$lib/components/RouteAlignmentMap.svelte')}
-			<div class="map-mini-loading">Loading route map...</div>
-		{:then { default: RouteAlignmentMap }}
-			<RouteAlignmentMap
-				site={{
-					id: jobSite.id,
-					name: jobSite.name,
-					status: jobSite.status as 'active' | 'completed' | 'archived',
-					latitude: jobSite.latitude,
-					longitude: jobSite.longitude,
-					location_description: jobSite.location_description
-				}}
-				initialWaypoints={routeWaypoints}
-				{roadwayLogEvents}
-				{numLanes}
-				{laneWidthFt}
-				locationPrecision={locationPrecision}
-				countyBoundaryGeojson={countyBoundary?.geojson ?? null}
-				countyBounds={countyBoundary?.bounds ?? null}
-				countyName={jobSite.gdot_county ?? countyBoundary?.county ?? null}
-				height="420px"
-				onRouteSave={saveRoute}
-			/>
-		{/await}
+		<ProjectMapWorkspace
+			siteId={jobSite.id}
+			waypoints={routeWaypoints}
+			{numLanes}
+			{laneWidthFt}
+			totalLengthFt={routeLengthFt}
+			{roadwayLogEvents}
+			bind:beginStation={configForm.begin_station}
+			bind:endStation={configForm.end_station}
+			beginLabel={configForm.begin_terminus}
+			endLabel={configForm.end_terminus}
+			height="440px"
+			bind:mode={workspaceMode}
+			onRouteSave={saveRoute}
+			onTerminusPick={(field, station) => saveTerminus(field, station)}
+		/>
 
 		<div class="route-meta">
 			<span>Pin: {jobSite.latitude?.toFixed(5)}, {jobSite.longitude?.toFixed(5)}</span>
@@ -302,6 +306,7 @@
 			{#if hasProjectLimits}
 				<span>Project limits: {formatFeet(projectLimitLengthFt)}</span>
 			{/if}
+			<a class="link-btn" href={fullMapHref}>Open full map</a>
 			<button type="button" class="link-btn-sm" onclick={() => handleLocationChange(null, null)}>
 				Clear
 			</button>
@@ -325,28 +330,6 @@
 						{loadingRoute ? 'Loading...' : `Load ${configForm.route_designation} road line`}
 					</button>
 				{/if}
-			</div>
-		{/if}
-
-		{#if hasRoute}
-			<div class="terminus-block">
-				<div class="terminus-head">
-					<h4>Project Start &amp; End</h4>
-					<span>Pick the limits of work along the saved road line.</span>
-				</div>
-				{#await import('$lib/components/map-v2/TerminusPicker.svelte')}
-					<div class="map-mini-loading">Loading terminus picker...</div>
-				{:then { default: TerminusPicker }}
-					<TerminusPicker
-						waypoints={routeWaypoints}
-						bind:beginStation={configForm.begin_station}
-						bind:endStation={configForm.end_station}
-						beginLabel={configForm.begin_terminus}
-						endLabel={configForm.end_terminus}
-						height="300px"
-						onPick={(field, station) => saveTerminus(field, station)}
-					/>
-				{/await}
 			</div>
 		{/if}
 
@@ -529,7 +512,6 @@
 	}
 
 	.route-load,
-	.terminus-block,
 	.roadway-log-block {
 		margin-top: 16px;
 	}

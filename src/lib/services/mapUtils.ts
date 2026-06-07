@@ -14,6 +14,7 @@ import length from '@turf/length';
 import lineOffset from '@turf/line-offset';
 import lineSlice from '@turf/line-slice';
 import along from '@turf/along';
+import buffer from '@turf/buffer';
 import nearestPointOnLine from '@turf/nearest-point-on-line';
 import { lineString, point } from '@turf/helpers';
 import type { Feature, LineString, Position } from 'geojson';
@@ -213,6 +214,53 @@ export function sliceRouteByStations(
 	const coords = sliced.geometry.coordinates.map((c) => [c[0], c[1]] as [number, number]);
 	if (coords.length < 2) return null;
 	return { type: 'LineString', coordinates: coords };
+}
+
+/**
+ * Build a road-corridor POLYGON for a work zone: slice the route centerline
+ * between two stations, then buffer that slice by half the corridor width to
+ * both sides. Roads-only by design — the corridor is generated FROM the snapped
+ * route slice, never hand-drawn vertices.
+ *
+ * Returns a GeoJSON Polygon (coordinates as [lng,lat] per RFC 7946) ready to
+ * store in the existing `geometry_geojson` field — no schema change. Returns
+ * null when the route is too short to slice or the width is non-positive.
+ */
+export function routeCorridorPolygon(
+	waypoints: LatLng[],
+	startStation: number,
+	endStation: number,
+	widthFt: number
+): { type: 'Polygon'; coordinates: [number, number][][] } | null {
+	if (widthFt <= 0) return null;
+	const slice = sliceRouteByStations(waypoints, startStation, endStation);
+	if (!slice) return null;
+
+	const halfWidthMeters = feetToMeters(widthFt) / 2;
+	const buffered = buffer(lineString(slice.coordinates), halfWidthMeters / 1000, {
+		units: 'kilometers'
+	});
+	if (!buffered) return null;
+
+	const geom = buffered.geometry;
+	if (geom.type === 'Polygon') {
+		return { type: 'Polygon', coordinates: geom.coordinates as [number, number][][] };
+	}
+	if (geom.type === 'MultiPolygon') {
+		// Collapse to the largest ring set so storage stays a single Polygon.
+		const polys = geom.coordinates as [number, number][][][];
+		let best = polys[0];
+		let bestLen = 0;
+		for (const poly of polys) {
+			const len = poly[0]?.length ?? 0;
+			if (len > bestLen) {
+				bestLen = len;
+				best = poly;
+			}
+		}
+		return best ? { type: 'Polygon', coordinates: best } : null;
+	}
+	return null;
 }
 
 /**

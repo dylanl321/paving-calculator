@@ -290,8 +290,21 @@
 	</div>
 
 	{#if showAddFromTemplateModal}
-		<div class="modal-overlay" onclick={() => { showAddFromTemplateModal = false; }}>
-			<div class="modal-card" onclick={(e) => e.stopPropagation()}>
+		<div
+			class="modal-overlay"
+			role="presentation"
+			onclick={() => { showAddFromTemplateModal = false; }}
+			onkeydown={(e) => { if (e.key === 'Escape') showAddFromTemplateModal = false; }}
+		>
+			<div
+				class="modal-card"
+				role="dialog"
+				aria-modal="true"
+				aria-label="Add from Template"
+				tabindex="-1"
+				onclick={(e) => e.stopPropagation()}
+				onkeydown={(e) => e.stopPropagation()}
+			>
 				<div class="modal-header">
 					<h4>Add from Template</h4>
 					<button
@@ -337,8 +350,21 @@
 	{/if}
 
 	{#if showSaveAsTemplateModal}
-		<div class="modal-overlay" onclick={() => { showSaveAsTemplateModal = false; }}>
-			<div class="modal-card" onclick={(e) => e.stopPropagation()}>
+		<div
+			class="modal-overlay"
+			role="presentation"
+			onclick={() => { showSaveAsTemplateModal = false; }}
+			onkeydown={(e) => { if (e.key === 'Escape') showSaveAsTemplateModal = false; }}
+		>
+			<div
+				class="modal-card"
+				role="dialog"
+				aria-modal="true"
+				aria-label="Save as Template"
+				tabindex="-1"
+				onclick={(e) => e.stopPropagation()}
+				onkeydown={(e) => e.stopPropagation()}
+			>
 				<div class="modal-header">
 					<h4>Save as Template</h4>
 					<button

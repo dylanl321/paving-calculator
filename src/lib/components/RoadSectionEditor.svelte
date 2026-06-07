@@ -3,46 +3,19 @@
 	 * RoadSectionEditor — map-v2 version using MapLibre GL JS.
 	 * Replaces old Leaflet-based MapContainer/MapPolyline/MapMarker version.
 	 */
-	import { browser } from '$app/environment';
-	import { MapView, MapPolyline, MapMarker } from '$lib/components/map-v2';
+	import { MapView } from '$lib/components/map-v2';
 	import {
-		coordinateToStation,
-		stationToCoordinate,
-		sliceRouteByStations,
-		lineStringLengthFt,
-		polylineLengthFt
-	} from '$lib/services/mapUtils';
-	import { validatePlannedSegment } from '$lib/services/roadSectionPlanning';
-	import { confirmStore } from '$lib/stores/confirm.svelte';
-	import { toastStore } from '$lib/stores/toast.svelte';
-	import type { Map as MapLibreMap } from 'maplibre-gl';
+		SectionEditController,
+		type SectionEditApi,
+		type RoadSection,
+		type SectionRoadwayLogEvent as RoadwayLogEvent,
+		type AutoSplitSegment
+	} from '$lib/components/map-v2/editors';
+	import { lineStringLengthFt, polylineLengthFt } from '$lib/services/mapUtils';
 
 	interface Waypoint {
 		lat: number;
 		lng: number;
-	}
-
-	interface RoadSection {
-		id: string;
-		name: string;
-		lane: string;
-		station_start: number | null;
-		station_end: number | null;
-		status: 'active' | 'completed' | 'skipped';
-		geometry_geojson: string | null;
-		production_mix_id?: string | null;
-		layer_label?: string | null;
-		planned_length_ft?: number | null;
-		notes: string | null;
-		sort_order: number;
-	}
-
-	interface RoadwayLogEvent {
-		id: string;
-		station: number;
-		event_type: string;
-		roadway_width_ft: number | null;
-		description: string;
 	}
 
 	interface Props {
@@ -63,22 +36,21 @@
 		roadwayLogEvents = []
 	}: Props = $props();
 
-	let sections = $state<RoadSection[]>([]);
-	let mapInstance = $state<MapLibreMap | null>(null);
-	let drawMode = $state<'idle' | 'pick-start' | 'pick-end' | 'plan-start'>('idle');
-	/** Station offset of the pending section start, set on the first click. */
-	let tempStartStation: number | null = $state(null);
-	let flashMessage = $state('');
-	let flashTimer: ReturnType<typeof setTimeout> | null = null;
-	let nextSectionNumber = $state(1);
-	let editingSectionId: string | null = $state(null);
+	let sectionApi = $state<SectionEditApi | null>(null);
+	let showAutoSplitModal = $state(false);
+	let autoSplitPreview = $state<AutoSplitSegment[]>([]);
+
+	// Planned-segment form inputs (handed to the controller when the user taps Start + Length).
 	let plannedLengthFt = $state<number | null>(null);
 	let plannedLayerLabel = $state('');
 	let plannedMixId = $state('');
-	let cursorStation = $state<number | null>(null);
-	let cursorPosition = $state<{ x: number; y: number } | null>(null);
-	let showAutoSplitModal = $state(false);
-	let autoSplitPreview = $state<Array<{ start: number; end: number; name: string; width: number | null }>>([]);
+
+	// Mirror controller state for the chrome.
+	const sections = $derived<RoadSection[]>(sectionApi?.sections ?? []);
+	const drawMode = $derived(sectionApi?.drawMode ?? 'idle');
+	const flashMessage = $derived(sectionApi?.flashMessage ?? '');
+	const cursorStation = $derived(sectionApi?.cursorStation ?? null);
+	const cursorPosition = $derived(sectionApi?.cursorPosition ?? null);
 
 	const hasRoute = $derived(waypoints.length >= 2);
 
@@ -97,7 +69,7 @@
 
 	const canAutoSplit = $derived(relevantLogEvents.length > 0);
 
-	// Compute overlaps and gaps
+	// Compute overlaps (display-only)
 	const overlaps = $derived(() => {
 		const result: Array<{ a: RoadSection; b: RoadSection; start: number; end: number }> = [];
 		for (let i = 0; i < sections.length; i++) {
@@ -121,316 +93,33 @@
 		return result;
 	});
 
-	const gaps = $derived(() => {
-		const routeFt = totalLengthFt ?? polylineLengthFt(waypoints);
-		if (routeFt === 0 || sections.length === 0) return [];
-		const sorted = sections
-			.filter((s) => s.station_start != null && s.station_end != null)
-			.slice()
-			.sort((a, b) => a.station_start! - b.station_start!);
-		const result: Array<{ start: number; end: number }> = [];
-		// Gap before first section
-		if (sorted[0].station_start! > 0) {
-			result.push({ start: 0, end: sorted[0].station_start! });
-		}
-		// Gaps between sections
-		for (let i = 0; i < sorted.length - 1; i++) {
-			const gapStart = sorted[i].station_end!;
-			const gapEnd = sorted[i + 1].station_start!;
-			if (gapStart < gapEnd) {
-				result.push({ start: gapStart, end: gapEnd });
-			}
-		}
-		// Gap after last section
-		const lastEnd = sorted[sorted.length - 1].station_end!;
-		if (lastEnd < routeFt) {
-			result.push({ start: lastEnd, end: routeFt });
-		}
-		return result;
-	});
 
-	$effect(() => {
-		if (browser && siteId) {
-			loadSections();
-		}
-	});
+	// Map click/cursor wiring and section CRUD now live in SectionEditController.
 
-	// Wire up MapLibre click handler whenever map instance changes.
-	// Roads-only: every click snaps to the route centerline (a station), so a
-	// section can only ever start/end ON the road — no free off-road points.
-	$effect(() => {
-		if (!mapInstance) return;
-		const m = mapInstance;
-		function onMapClick(e: { lngLat: { lat: number; lng: number } }) {
-			if (drawMode === 'idle') return;
-			const station = coordinateToStation(
-				{ lat: e.lngLat.lat, lng: e.lngLat.lng },
-				waypoints
-			);
-			if (station === null) {
-				flash('Tap closer to the road');
-				return;
-			}
-			if (drawMode === 'plan-start') {
-				createPlannedSection(station);
-				tempStartStation = null;
-				drawMode = 'idle';
-			} else if (drawMode === 'pick-start') {
-				tempStartStation = station;
-				flash(`Start set at station ${Math.round(station)} ft (${(station / 5280).toFixed(2)} mi)`);
-				drawMode = 'pick-end';
-			} else if (drawMode === 'pick-end' && tempStartStation !== null) {
-				createSection(tempStartStation, station);
-				tempStartStation = null;
-				drawMode = 'idle';
-			}
-		}
-		function onMouseMove(e: MouseEvent & { lngLat: { lat: number; lng: number } }) {
-			if (drawMode !== 'pick-start' && drawMode !== 'pick-end') {
-				cursorStation = null;
-				cursorPosition = null;
-				return;
-			}
-			const station = coordinateToStation(
-				{ lat: e.lngLat.lat, lng: e.lngLat.lng },
-				waypoints
-			);
-			if (station !== null) {
-				cursorStation = station;
-				cursorPosition = { x: e.clientX, y: e.clientY };
-			} else {
-				cursorStation = null;
-				cursorPosition = null;
-			}
-		}
-		// @ts-ignore — MapLibre event typing
-		m.on('click', onMapClick);
-		// @ts-ignore
-		m.on('mousemove', onMouseMove);
-		return () => {
-			// @ts-ignore
-			m.off('click', onMapClick);
-			// @ts-ignore
-			m.off('mousemove', onMouseMove);
-		};
-	});
-
-	function flash(msg: string) {
-		flashMessage = msg;
-		if (flashTimer) clearTimeout(flashTimer);
-		flashTimer = setTimeout(() => {
-			flashMessage = '';
-		}, 1400);
-	}
-
-	// Update map cursor based on draw mode
-	$effect(() => {
-		if (!mapInstance) return;
-		mapInstance.getCanvas().style.cursor = drawMode !== 'idle' ? 'crosshair' : '';
-	});
-
-	async function loadSections() {
-		try {
-			const res = await fetch(`/api/job-sites/${siteId}/sections`);
-			if (res.ok) {
-				const data = (await res.json()) as { sections: RoadSection[] };
-				sections = data.sections || [];
-				nextSectionNumber = sections.length + 1;
-			}
-		} catch (err) {
-			console.error('Failed to load sections:', err);
-		}
-	}
-
+	// Chrome buttons delegate to the controller's exposed actions.
 	function startAddSection() {
-		if (!hasRoute) {
-			toastStore.error('Define the route alignment first');
-			return;
-		}
-		drawMode = 'pick-start';
-		tempStartStation = null;
-		editingSectionId = null;
+		sectionApi?.startAddSection();
 	}
 
 	function startPlannedSegment() {
-		if (!hasRoute) {
-			toastStore.error('Define the route alignment first');
-			return;
-		}
-		if (!plannedLengthFt || plannedLengthFt <= 0) {
-			toastStore.error('Enter a planned length in feet');
-			return;
-		}
-		drawMode = 'plan-start';
-		tempStartStation = null;
-		editingSectionId = null;
+		sectionApi?.startPlannedSegment({
+			lengthFt: plannedLengthFt,
+			layerLabel: plannedLayerLabel,
+			mixId: plannedMixId
+		});
 	}
 
+
 	function openAutoSplitModal() {
-		const events = relevantLogEvents;
-		if (events.length === 0) {
-			toastStore.error('No width_change or operation_change events found');
-			return;
-		}
-		// Build section previews between consecutive event stations
-		const preview: Array<{ start: number; end: number; name: string; width: number | null }> = [];
-		for (let i = 0; i < events.length - 1; i++) {
-			const start = events[i].station;
-			const end = events[i + 1].station;
-			const name = events[i].description || `Section ${i + 1}`;
-			const width = events[i].roadway_width_ft;
-			preview.push({ start, end, name, width });
-		}
-		// Last event to end of route
-		const routeFt = totalLengthFt ?? polylineLengthFt(waypoints);
-		if (events[events.length - 1].station < routeFt) {
-			preview.push({
-				start: events[events.length - 1].station,
-				end: routeFt,
-				name: events[events.length - 1].description || `Section ${events.length}`,
-				width: events[events.length - 1].roadway_width_ft
-			});
-		}
+		const preview = sectionApi?.buildAutoSplitPreview() ?? [];
+		if (preview.length === 0) return;
 		autoSplitPreview = preview;
 		showAutoSplitModal = true;
 	}
 
-	async function confirmAutoSplit() {
+	function confirmAutoSplit() {
 		showAutoSplitModal = false;
-		let created = 0;
-		for (const seg of autoSplitPreview) {
-			const geometry = sliceRouteByStations(waypoints, seg.start, seg.end);
-			if (!geometry) continue;
-			const newSection = {
-				name: seg.name,
-				lane: '1',
-				station_start: seg.start,
-				station_end: seg.end,
-				status: 'active' as const,
-				geometry_geojson: JSON.stringify(geometry),
-				notes: seg.width ? `Width: ${seg.width} ft` : null,
-				sort_order: sections.length + created
-			};
-			try {
-				const res = await fetch(`/api/job-sites/${siteId}/sections`, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify(newSection)
-				});
-				if (res.ok) {
-					const createdSection = (await res.json()) as RoadSection;
-					sections = [...sections, createdSection];
-					created++;
-				}
-			} catch (err) {
-				console.error('Failed to create section:', err);
-			}
-		}
-		if (created > 0) {
-			nextSectionNumber = sections.length + 1;
-			toastStore.success(`Created ${created} section(s) from log events`);
-		} else {
-			toastStore.error('Failed to create sections');
-		}
-	}
-
-	/**
-	 * Create a road section between two stations. The geometry is sliced from the
-	 * route centerline so the section line always lies on the road.
-	 */
-	async function createSection(startStation: number, endStation: number) {
-		if (Math.abs(endStation - startStation) < 1e-6) {
-			toastStore.error('Section start and end are the same point');
-			return;
-		}
-		const lo = Math.min(startStation, endStation);
-		const hi = Math.max(startStation, endStation);
-		const geometry = sliceRouteByStations(waypoints, lo, hi);
-		if (!geometry) {
-			toastStore.error('Could not build section on the road');
-			return;
-		}
-
-		const newSection = {
-			name: `Section ${nextSectionNumber}`,
-			lane: '1',
-			station_start: lo,
-			station_end: hi,
-			status: 'active' as const,
-			geometry_geojson: JSON.stringify(geometry),
-			notes: null,
-			sort_order: sections.length
-		};
-
-		try {
-			const res = await fetch(`/api/job-sites/${siteId}/sections`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(newSection)
-			});
-
-			if (res.ok) {
-				const created = (await res.json()) as RoadSection;
-				sections = [...sections, created];
-				nextSectionNumber++;
-				toastStore.success('Section created');
-			} else {
-				toastStore.error('Failed to create section');
-			}
-		} catch (err) {
-			console.error('Failed to create section:', err);
-			toastStore.error('Failed to create section');
-		}
-	}
-
-	async function createPlannedSection(startStation: number) {
-		const routeFt = totalLengthFt ?? polylineLengthFt(waypoints);
-		const planned = validatePlannedSegment(startStation, plannedLengthFt ?? 0, routeFt);
-		if (planned.error || planned.stationEnd == null) {
-			toastStore.error(planned.error ?? 'Could not create planned segment');
-			return;
-		}
-
-		const geometry = sliceRouteByStations(waypoints, startStation, planned.stationEnd);
-		if (!geometry) {
-			toastStore.error('Could not build planned segment on the road');
-			return;
-		}
-
-		const layer = plannedLayerLabel.trim() || null;
-		const newSection = {
-			name: `${layer ?? 'Planned'} ${nextSectionNumber}`,
-			lane: '1',
-			station_start: startStation,
-			station_end: planned.stationEnd,
-			status: 'active' as const,
-			geometry_geojson: JSON.stringify(geometry),
-			production_mix_id: plannedMixId.trim() || null,
-			layer_label: layer,
-			planned_length_ft: plannedLengthFt,
-			notes: null,
-			sort_order: sections.length
-		};
-
-		try {
-			const res = await fetch(`/api/job-sites/${siteId}/sections`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(newSection)
-			});
-
-			if (res.ok) {
-				const created = (await res.json()) as RoadSection;
-				sections = [...sections, created];
-				nextSectionNumber++;
-				toastStore.success('Planned segment created');
-			} else {
-				toastStore.error('Failed to create planned segment');
-			}
-		} catch (err) {
-			console.error('Failed to create planned segment:', err);
-			toastStore.error('Failed to create planned segment');
-		}
+		void sectionApi?.confirmAutoSplit(autoSplitPreview);
 	}
 
 	function formatStation(station: number | null): string {
@@ -440,60 +129,12 @@
 		return `${whole}+${String(frac).padStart(2, '0')}`;
 	}
 
-	async function updateSection(id: string, updates: Partial<RoadSection>) {
-		try {
-			const res = await fetch(`/api/job-sites/${siteId}/sections/${id}`, {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(updates)
-			});
-
-			if (res.ok) {
-				const updated = (await res.json()) as RoadSection;
-				sections = sections.map((s) => (s.id === id ? updated : s));
-				toastStore.success('Section updated');
-			} else {
-				toastStore.error('Failed to update section');
-			}
-		} catch (err) {
-			toastStore.error('Failed to update section');
-			console.error('Failed to update section:', err);
-		}
+	function updateSection(id: string, updates: Partial<RoadSection>) {
+		void sectionApi?.updateSection(id, updates);
 	}
 
-	async function deleteSection(id: string) {
-		const confirmed = await confirmStore.ask({
-			title: 'Delete Section',
-			message: 'Delete this road section? This cannot be undone.',
-			confirmLabel: 'Delete',
-			destructive: true
-		});
-		if (!confirmed) return;
-
-		try {
-			const res = await fetch(`/api/job-sites/${siteId}/sections/${id}`, {
-				method: 'DELETE'
-			});
-
-			if (res.ok) {
-				sections = sections.filter((s) => s.id !== id);
-			}
-		} catch (err) {
-			console.error('Failed to delete section:', err);
-		}
-	}
-
-	function getSectionGeometry(section: RoadSection): [number, number][] | null {
-		if (!section.geometry_geojson) return null;
-		try {
-			const geom = JSON.parse(section.geometry_geojson);
-			if (geom.type === 'LineString' && Array.isArray(geom.coordinates)) {
-				return geom.coordinates.map((c: number[]) => [c[1], c[0]]);
-			}
-		} catch {
-			return null;
-		}
-		return null;
+	function deleteSection(id: string) {
+		void sectionApi?.deleteSection(id);
 	}
 
 	/** Length of a section's stored LineString geometry in feet. */
@@ -524,14 +165,6 @@
 		waypoints.length > 0 ? [waypoints[0].lat, waypoints[0].lng] : [33.749, -84.388]
 	);
 
-	const routePoints = $derived<[number, number][]>(
-		waypoints.map((w) => [w.lat, w.lng])
-	);
-
-	const tempStartCoord = $derived<[number, number] | null>(
-		tempStartStation !== null ? stationToCoordinate(tempStartStation, waypoints) : null
-	);
-
 	const instructionText = $derived(
 		flashMessage
 			? flashMessage
@@ -547,70 +180,16 @@
 
 <div class="road-section-editor" style="--editor-height: {height}">
 	<div class="map-panel">
-		<MapView
-			center={mapCenter}
-			zoom={15}
-			height="100%"
-			bind:map={mapInstance}
-		>
+		<MapView center={mapCenter} zoom={15} height="100%">
 			{#snippet layers()}
-				{#if waypoints.length > 1}
-					<MapPolyline
-						id="route-waypoints"
-						coordinates={routePoints}
-						color="#f59e0b"
-						width={4}
-						opacity={0.85}
-					/>
-				{/if}
-
-				{#each sections as section, i (section.id)}
-					{@const geometry = getSectionGeometry(section)}
-					{#if geometry}
-						<MapPolyline
-							id="section-{section.id}"
-							coordinates={geometry}
-							color={STATUS_COLORS[section.status]}
-							width={5}
-							opacity={0.9}
-						/>
-
-						<MapMarker
-							lat={geometry[0][0]}
-							lng={geometry[0][1]}
-							color={STATUS_COLORS[section.status]}
-						/>
-
-						<MapMarker
-							lat={geometry[geometry.length - 1][0]}
-							lng={geometry[geometry.length - 1][1]}
-							color={STATUS_COLORS[section.status]}
-						/>
-					{/if}
-				{/each}
-
-				{#if tempStartCoord}
-					<MapMarker
-						lat={tempStartCoord[0]}
-						lng={tempStartCoord[1]}
-						color="#f59e0b"
-						status="active"
-					/>
-				{/if}
-
-				{#each gaps() as gap (gap.start + '-' + gap.end)}
-					{@const gapGeometry = sliceRouteByStations(waypoints, gap.start, gap.end)}
-					{#if gapGeometry}
-						<MapPolyline
-							id="gap-{gap.start}-{gap.end}"
-							coordinates={gapGeometry.coordinates.map((c) => [c[1], c[0]])}
-							color="#6b7280"
-							width={3}
-							opacity={0.5}
-							dashArray={[4, 4]}
-						/>
-					{/if}
-				{/each}
+				<SectionEditController
+					{siteId}
+					{waypoints}
+					{totalLengthFt}
+					{roadwayLogEvents}
+					active={true}
+					bind:api={sectionApi}
+				/>
 			{/snippet}
 		</MapView>
 
@@ -775,7 +354,11 @@
 </div>
 
 {#if showAutoSplitModal}
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="modal-backdrop" onclick={() => (showAutoSplitModal = false)}>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="modal-content" onclick={(e) => e.stopPropagation()}>
 			<h3>Auto-create sections from log events</h3>
 			<p class="modal-hint">

@@ -6,33 +6,34 @@
 	import { api } from '$lib/utils/api-error';
 	import type { PageData } from './$types';
 	import './_components/job-site.css';
-	import {
-		roadTypeLabels,
-		scopeOfWorkLabels,
-		tackTypeLabels,
-		type ConfigForm
-	} from './_components/shared';
-	import OverviewTab from './_components/OverviewTab.svelte';
-	import LocationRoutePanel from './_components/LocationRoutePanel.svelte';
-	import ConfigurationTab from './_components/ConfigurationTab.svelte';
-	import VerificationTab from './_components/VerificationTab.svelte';
-	import EquipmentTab from './_components/EquipmentTab.svelte';
-	import CalculationsTab from './_components/CalculationsTab.svelte';
-	import DailyLogTab from './_components/DailyLogTab.svelte';
-	import WorkZonesTab from './_components/WorkZonesTab.svelte';
-	import ScheduleTab from './_components/ScheduleTab.svelte';
-	import ActivityTab from './_components/ActivityTab.svelte';
-	import { haversineFeet, polylineLengthFt } from '$lib/services/mapUtils';
-	import FeatureDiscovery from '$lib/components/FeatureDiscovery.svelte';
+	import { type ConfigForm } from './_components/shared';
+	import CommandTab from './_components/CommandTab.svelte';
+	import PlanTab from './_components/PlanTab.svelte';
+	import ProductionTab from './_components/ProductionTab.svelte';
+	import ResourcesTab from './_components/ResourcesTab.svelte';
+	import RecordsTab from './_components/RecordsTab.svelte';
+	import { polylineLengthFt } from '$lib/services/mapUtils';
 	import { calcContext } from '$lib/stores/calcContext.svelte';
-	import { fmt, fmtDollars } from './_components/shared';
+	import { fmt } from './_components/shared';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import Breadcrumbs from '$lib/components/ui/Breadcrumbs.svelte';
+	import Card from '$lib/components/ui/Card.svelte';
+	import Button from '$lib/components/ui/Button.svelte';
+	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
+	import StatTile from '$lib/components/ui/StatTile.svelte';
+	import ProjectContextBar from '$lib/components/ProjectContextBar.svelte';
 
 	let { data }: { data: PageData } = $props();
 
-	let activeTab = $state('overview');
+	let activeTab = $state('command');
+	// Intentional one-time snapshots of loaded data into editable form state;
+	// these should NOT re-derive from `data` on every change.
+	// svelte-ignore state_referenced_locally
 	let jobSiteState = $state({ ...data.jobSite });
 	let statusSaving = $state(false);
+	// svelte-ignore state_referenced_locally
 	let routeWaypointsState = $state([...data.routeWaypoints]);
+	// svelte-ignore state_referenced_locally
 	let lengthSource = $state<'route' | 'manual'>(
 		data.routeWaypoints?.length >= 2 && !data.config?.total_length_ft ? 'route' : 'manual'
 	);
@@ -128,14 +129,6 @@
 		}
 	}
 
-	const roadTypeLabel = $derived(
-		configForm.road_type ? roadTypeLabels[configForm.road_type] : null
-	);
-	const scopeLabel = $derived(
-		configForm.scope_of_work ? scopeOfWorkLabels[configForm.scope_of_work] : null
-	);
-	const tackLabel = $derived(configForm.tack_type ? tackTypeLabels[configForm.tack_type] : null);
-
 	const totalAreaSqYd = $derived.by(() => {
 		const len = configForm.total_length_ft;
 		const lanes = configForm.num_lanes;
@@ -187,29 +180,55 @@
 		return null;
 	});
 
-	const configComplete = $derived(
-		Boolean(
-			configForm.road_type &&
-				configForm.total_length_ft &&
-				configForm.num_lanes &&
-				configForm.mix_type &&
-				configForm.target_spread_rate
-		)
-	);
-
-	// Route-derived length (feet) along the drawn waypoints; falls back to the
-	// configured total length when no route is drawn.
-	const routeLengthFt = $derived.by(() => {
-		const wps = routeWaypointsState;
-		if (wps && wps.length >= 2) {
-			let ft = 0;
-			for (let i = 0; i < wps.length - 1; i++) {
-				ft += haversineFeet(wps[i].lat, wps[i].lng, wps[i + 1].lat, wps[i + 1].lng);
-			}
-			return ft;
+	// Setup completeness — same required-field model as the old Overview, surfaced
+	// here so the context bar, Command hub and Plan tab share one score.
+	const setupCompleteness = $derived.by(() => {
+		const requiredConfig = [
+			'road_type',
+			'num_lanes',
+			'lane_width_ft',
+			'total_length_ft',
+			'scope_of_work',
+			'mix_type',
+			'target_thickness_in',
+			'target_spread_rate'
+		];
+		const requiredSite = ['name', 'status'];
+		const labels: Record<string, string> = {
+			road_type: 'Road Type',
+			num_lanes: 'Number of Lanes',
+			lane_width_ft: 'Lane Width',
+			total_length_ft: 'Total Length',
+			scope_of_work: 'Scope of Work',
+			mix_type: 'Mix Type',
+			target_thickness_in: 'Target Thickness',
+			target_spread_rate: 'Target Spread Rate',
+			name: 'Job Name',
+			status: 'Status'
+		};
+		const isEmpty = (v: unknown) => v === null || v === undefined || v === '' || v === 0;
+		const missing: string[] = [];
+		let filled = 0;
+		for (const f of requiredConfig) {
+			if (isEmpty((configForm as unknown as Record<string, unknown>)[f])) missing.push(labels[f] ?? f);
+			else filled++;
 		}
-		return configForm.total_length_ft ?? null;
+		for (const f of requiredSite) {
+			if (isEmpty((jobSiteState as unknown as Record<string, unknown>)[f])) missing.push(labels[f] ?? f);
+			else filled++;
+		}
+		const total = requiredConfig.length + requiredSite.length;
+		const score = Math.round((filled / total) * 100);
+		return { score, missing };
 	});
+
+	const tabs = $derived([
+		{ id: 'command', label: 'Command' },
+		{ id: 'plan', label: 'Plan' },
+		{ id: 'production', label: 'Production' },
+		{ id: 'resources', label: 'Resources', count: equipmentList.length || null },
+		{ id: 'records', label: 'Records' }
+	]);
 </script>
 
 <svelte:head>
@@ -218,29 +237,27 @@
 
 <div class="dashboard job-site-page">
 	<div class="breadcrumb">
-		<a href="/dashboard">Projects</a>
-		<svg
-			width="16"
-			height="16"
-			viewBox="0 0 24 24"
-			fill="none"
-			stroke="currentColor"
-			stroke-width="2"
-			stroke-linecap="round"
-			stroke-linejoin="round"
-		>
-			<polyline points="9 18 15 12 9 6"></polyline>
-		</svg>
-		<span>Project</span>
+		<Breadcrumbs
+			crumbs={[
+				{ label: 'Projects', href: '/dashboard/projects' },
+				{ label: jobSiteState.name }
+			]}
+		/>
 	</div>
 
-	<div class="page-header">
-		<div class="page-header-main">
-			<h2 class="page-title">{jobSiteState.name}</h2>
+	<ProjectContextBar
+		name={jobSiteState.name}
+		status={jobSiteState.status}
+		contractValue={configForm.total_contract_value}
+		routeDesignation={configForm.route_designation}
+		county={jobSiteState.gdot_county ?? configForm.route_county}
+		setupScore={setupCompleteness.score}
+	/>
+
+	<PageHeader title={jobSiteState.name} as="h2">
+		{#snippet children()}
 			<div class="page-meta">
-				<span class="status-badge status-{jobSiteState.status.toLowerCase()}">
-					{jobSiteState.status}
-				</span>
+				<StatusBadge status={jobSiteState.status} />
 				{#if jobSiteState.location_description}
 					<span class="meta-location">
 						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -251,217 +268,119 @@
 					</span>
 				{/if}
 			</div>
-		</div>
-		<div class="page-actions">
-			{#if jobSiteState.status === 'active'}
-				<button
-					class="btn-ghost-action"
-					onclick={() => updateProjectStatus('completed')}
-					disabled={statusSaving}
-				>
-					Mark Complete
-				</button>
-				<button
-					class="btn-ghost-action btn-archive"
-					onclick={() => updateProjectStatus('archived')}
-					disabled={statusSaving}
-				>
-					Archive
-				</button>
-			{:else}
-				<button
-					class="btn-ghost-action"
-					onclick={() => updateProjectStatus('active')}
-					disabled={statusSaving}
-				>
-					Reactivate
-				</button>
-			{/if}
-			<a class="btn-ghost-action" href="/dashboard/job-sites/{jobSiteState.id}/log">
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-					<polyline points="14 2 14 8 20 8"></polyline>
-				</svg>
-				Today's Log
-			</a>
-			<button class="btn-primary" onclick={handleNewCalculation}>
-				<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<rect x="4" y="2" width="16" height="20" rx="2"></rect>
-					<line x1="8" y1="6" x2="16" y2="6"></line>
-					<line x1="8" y1="10" x2="16" y2="10"></line>
-				</svg>
-				Open Calculator
-			</button>
-		</div>
-	</div>
+		{/snippet}
+		{#snippet actions()}
+			<div class="header-actions">
+				{#if jobSiteState.status === 'active'}
+					<Button variant="ghost" size="sm" onclick={() => updateProjectStatus('completed')} disabled={statusSaving}>
+						Mark Complete
+					</Button>
+					<Button variant="ghost" size="sm" onclick={() => updateProjectStatus('archived')} disabled={statusSaving}>
+						Archive
+					</Button>
+				{:else}
+					<Button variant="ghost" size="sm" onclick={() => updateProjectStatus('active')} disabled={statusSaving}>
+						Reactivate
+					</Button>
+				{/if}
+				<Button variant="ghost" size="sm" href="/dashboard/job-sites/{jobSiteState.id}/log">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+						<polyline points="14 2 14 8 20 8"></polyline>
+					</svg>
+					Today's Log
+				</Button>
+				<Button size="sm" onclick={handleNewCalculation}>
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="4" y="2" width="16" height="20" rx="2"></rect>
+						<line x1="8" y1="6" x2="16" y2="6"></line>
+						<line x1="8" y1="10" x2="16" y2="10"></line>
+					</svg>
+					Open Calculator
+				</Button>
+			</div>
+		{/snippet}
+	</PageHeader>
 
 	<div class="desktop-layout">
 		<div class="desktop-main">
 			<nav class="tabs">
-				<button class="tab" class:active={activeTab === 'overview'} onclick={() => (activeTab = 'overview')}>
-					Overview
-				</button>
-				<button
-					class="tab"
-					class:active={activeTab === 'location'}
-					onclick={() => (activeTab = 'location')}
-				>
-					Location &amp; Route
-				</button>
-				<button
-					class="tab"
-					class:active={activeTab === 'work_zones'}
-					onclick={() => (activeTab = 'work_zones')}
-				>
-					Work Zones
-				</button>
-				<button
-					class="tab"
-					class:active={activeTab === 'daily_log'}
-					onclick={() => (activeTab = 'daily_log')}
-				>
-					Daily Log
-				</button>
-				<button
-					class="tab"
-					class:active={activeTab === 'milestones'}
-					onclick={() => (activeTab = 'milestones')}
-				>
-					Schedule
-				</button>
-				<button
-					class="tab"
-					class:active={activeTab === 'configuration'}
-					onclick={() => (activeTab = 'configuration')}
-				>
-					Configuration
-				</button>
-				<button
-					class="tab"
-					class:active={activeTab === 'verification'}
-					onclick={() => (activeTab = 'verification')}
-				>
-					Verification
-				</button>
-				<button
-					class="tab"
-					class:active={activeTab === 'equipment'}
-					onclick={() => (activeTab = 'equipment')}
-				>
-					Equipment{#if equipmentList.length}<span class="tab-count">{equipmentList.length}</span>{/if}
-				</button>
-				<button
-					class="tab"
-					class:active={activeTab === 'activity'}
-					onclick={() => (activeTab = 'activity')}
-				>
-					Activity
-				</button>
-				<button
-					class="tab"
-					class:active={activeTab === 'calculations'}
-					onclick={() => (activeTab = 'calculations')}
-				>
-					Calculations{#if data.calculations.length}<span class="tab-count">{data.calculations.length}</span>{/if}
-				</button>
+				{#each tabs as tab (tab.id)}
+					<button
+						class="tab"
+						class:active={activeTab === tab.id}
+						onclick={() => (activeTab = tab.id)}
+					>
+						{tab.label}{#if tab.count}<span class="tab-count">{tab.count}</span>{/if}
+					</button>
+				{/each}
 			</nav>
 
-			{#if activeTab === 'overview'}
-		<FeatureDiscovery
-			feature="route"
-			condition={!routeWaypointsState || routeWaypointsState.length === 0}
-		/>
-
-		<OverviewTab
-			data={{
-				...data,
-				jobSite: jobSiteState,
-				routeWaypoints: routeWaypointsState,
-				countyBoundary: data.countyBoundary
-			}}
-			{configForm}
-			{totalAreaSqYd}
-			{estTonnage}
-			{estCostByTon}
-			{estCostBySY}
-			{estCostByMile}
-			{costSummary}
-			{configComplete}
-			{milestonePct}
-			equipmentCount={equipmentList.length}
-			{roadTypeLabel}
-			{scopeLabel}
-			{tackLabel}
-			{lengthSource}
-			onGoToTab={(tab) => (activeTab = tab)}
-		/>
-	{:else if activeTab === 'location'}
-		<section class="section">
-			<LocationRoutePanel
-				jobSite={jobSiteState}
-				routeWaypoints={routeWaypointsState}
-				roadwayLogEvents={data.roadwayLogEvents}
-				countyBoundary={data.countyBoundary}
-				{configForm}
-				numLanes={configForm.num_lanes}
-				laneWidthFt={configForm.lane_width_ft}
-				onLocationSaved={(coords) => {
-					jobSiteState = { ...jobSiteState, ...coords };
-				}}
-				onRouteSaved={(waypoints) => {
-					routeWaypointsState = [...waypoints];
-				}}
-			/>
-		</section>
-	{:else if activeTab === 'configuration'}
-		<ConfigurationTab
-			jobSiteId={jobSiteState.id}
-			bind:configForm
-			{estTonnage}
-			lat={jobSiteState.latitude}
-			lng={jobSiteState.longitude}
-			onLengthManualEdit={handleLengthManualEdit}
-		/>
-	{:else if activeTab === 'verification'}
-		<VerificationTab jobSiteId={jobSiteState.id} {configForm} onGoToTab={(tab) => (activeTab = tab)} />
-	{:else if activeTab === 'equipment'}
-		<EquipmentTab jobSiteId={jobSiteState.id} jobSiteName={jobSiteState.name} bind:equipmentList />
-	{:else if activeTab === 'calculations'}
-		<CalculationsTab calculations={data.calculations} onNewCalculation={handleNewCalculation} />
-	{:else if activeTab === 'daily_log'}
-		<DailyLogTab jobSiteId={jobSiteState.id} />
-	{:else if activeTab === 'work_zones'}
-		<WorkZonesTab
-			jobSite={jobSiteState}
-			routeWaypoints={routeWaypointsState}
-			countyBoundary={data.countyBoundary}
-			numLanes={configForm.num_lanes}
-			laneWidthFt={configForm.lane_width_ft}
-			totalLengthFt={routeLengthFt}
-			{configForm}
-			onLocationSaved={(coords) => {
-				jobSiteState = { ...jobSiteState, ...coords };
-			}}
-			onRouteSaved={(waypoints) => {
-				routeWaypointsState = [...waypoints];
-			}}
-		/>
-	{:else if activeTab === 'milestones'}
-		<ScheduleTab
-			jobSiteId={jobSiteState.id}
-			bind:milestones
-			totalTonnage={data.config?.total_tonnage ?? null}
-			estStartDate={jobSiteState.est_start_date ?? null}
-		/>
-	{:else if activeTab === 'activity'}
-		<ActivityTab jobSiteId={jobSiteState.id} />
-	{/if}
+			{#if activeTab === 'command'}
+				<CommandTab
+					data={{
+						...data,
+						jobSite: jobSiteState,
+						routeWaypoints: routeWaypointsState,
+						countyBoundary: data.countyBoundary
+					}}
+					{configForm}
+					{totalAreaSqYd}
+					{estTonnage}
+					{costSummary}
+					{milestonePct}
+					equipmentCount={equipmentList.length}
+					setupScore={setupCompleteness.score}
+					missingFields={setupCompleteness.missing}
+					onGoToTab={(tab) => (activeTab = tab)}
+				/>
+			{:else if activeTab === 'plan'}
+				<PlanTab
+					jobSite={jobSiteState}
+					jobSiteId={jobSiteState.id}
+					routeWaypoints={routeWaypointsState}
+					roadwayLogEvents={data.roadwayLogEvents}
+					countyBoundary={data.countyBoundary}
+					bind:configForm
+					bind:milestones
+					{estTonnage}
+					totalTonnage={data.config?.total_tonnage ?? null}
+					estStartDate={jobSiteState.est_start_date ?? null}
+					setupScore={setupCompleteness.score}
+					missingFields={setupCompleteness.missing}
+					onLengthManualEdit={handleLengthManualEdit}
+					onLocationSaved={(coords) => {
+						jobSiteState = { ...jobSiteState, ...coords };
+					}}
+					onRouteSaved={(waypoints) => {
+						routeWaypointsState = [...waypoints];
+					}}
+				/>
+			{:else if activeTab === 'production'}
+				<ProductionTab
+					jobSiteId={jobSiteState.id}
+					calculations={data.calculations}
+					onNewCalculation={handleNewCalculation}
+				/>
+			{:else if activeTab === 'resources'}
+				<ResourcesTab
+					jobSiteId={jobSiteState.id}
+					jobSiteName={jobSiteState.name}
+					bind:equipmentList
+					assignments={data.assignments}
+				/>
+			{:else if activeTab === 'records'}
+				<RecordsTab
+					jobSiteId={jobSiteState.id}
+					{configForm}
+					onGoToTab={(tab) => (activeTab = tab)}
+				/>
+			{/if}
 		</div>
 
 		<aside class="desktop-sidebar">
 			{#if jobSiteState.latitude != null && jobSiteState.longitude != null}
-				<section class="sidebar-panel">
-					<h3 class="sidebar-title">Map Preview</h3>
+				<Card title="Map Preview" padding="sm">
 					<div class="sidebar-map">
 						{#await import('$lib/components/JobSiteMap.svelte')}
 							<div class="map-loading">Loading map...</div>
@@ -479,74 +398,51 @@
 							/>
 						{/await}
 					</div>
-				</section>
+				</Card>
 			{/if}
 
-			<section class="sidebar-panel">
-				<h3 class="sidebar-title">Key Stats</h3>
-				<dl class="sidebar-stats">
-					<div class="stat-row">
-						<dt>Total Area</dt>
-						<dd>{totalAreaSqYd ? `${fmt(totalAreaSqYd)} yd²` : '—'}</dd>
-					</div>
-					<div class="stat-row">
-						<dt>Est. Tonnage</dt>
-						<dd>{estTonnage ? `${fmt(estTonnage, 1)} t` : '—'}</dd>
-					</div>
+			<Card title="Key Stats">
+				<div class="sidebar-stats">
+					<StatTile label="Total Area" value={totalAreaSqYd ? fmt(totalAreaSqYd) : '—'} unit={totalAreaSqYd ? 'yd²' : undefined} />
+					<StatTile label="Est. Tonnage" value={estTonnage ? fmt(estTonnage, 1) : '—'} unit={estTonnage ? 't' : undefined} />
 					{#if costSummary}
-						<div class="stat-row">
-							<dt>Cost</dt>
-							<dd>{fmtDollars(costSummary.value)}</dd>
-						</div>
+						<StatTile label={costSummary.method} value={`$${fmt(costSummary.value, 0)}`} accent />
 					{/if}
-					<div class="stat-row">
-						<dt>Progress</dt>
-						<dd>{milestonePct != null ? `${milestonePct}%` : '—'}</dd>
-					</div>
-				</dl>
-			</section>
+					<StatTile label="Progress" value={milestonePct != null ? milestonePct : '—'} unit={milestonePct != null ? '%' : undefined} />
+				</div>
+			</Card>
 
-			<section class="sidebar-panel sidebar-actions">
-				{#if jobSiteState.status === 'active'}
-					<button
-						class="sidebar-btn sidebar-btn-secondary"
-						onclick={() => updateProjectStatus('completed')}
-						disabled={statusSaving}
-					>
-						Mark Complete
-					</button>
-					<button
-						class="sidebar-btn sidebar-btn-archive"
-						onclick={() => updateProjectStatus('archived')}
-						disabled={statusSaving}
-					>
-						Archive Project
-					</button>
-				{:else}
-					<button
-						class="sidebar-btn sidebar-btn-secondary"
-						onclick={() => updateProjectStatus('active')}
-						disabled={statusSaving}
-					>
-						Reactivate Project
-					</button>
-				{/if}
-				<a class="sidebar-btn sidebar-btn-secondary" href="/dashboard/job-sites/{jobSiteState.id}/log">
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-						<polyline points="14 2 14 8 20 8"></polyline>
-					</svg>
-					Today's Log
-				</a>
-				<button class="sidebar-btn sidebar-btn-primary" onclick={handleNewCalculation}>
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<rect x="4" y="2" width="16" height="20" rx="2"></rect>
-						<line x1="8" y1="6" x2="16" y2="6"></line>
-						<line x1="8" y1="10" x2="16" y2="10"></line>
-					</svg>
-					Open Calculator
-				</button>
-			</section>
+			<Card padding="sm">
+				<div class="sidebar-actions">
+					{#if jobSiteState.status === 'active'}
+						<Button variant="ghost" block onclick={() => updateProjectStatus('completed')} disabled={statusSaving}>
+							Mark Complete
+						</Button>
+						<Button variant="ghost" block onclick={() => updateProjectStatus('archived')} disabled={statusSaving}>
+							Archive Project
+						</Button>
+					{:else}
+						<Button variant="ghost" block onclick={() => updateProjectStatus('active')} disabled={statusSaving}>
+							Reactivate Project
+						</Button>
+					{/if}
+					<Button variant="ghost" block href="/dashboard/job-sites/{jobSiteState.id}/log">
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+							<polyline points="14 2 14 8 20 8"></polyline>
+						</svg>
+						Today's Log
+					</Button>
+					<Button block onclick={handleNewCalculation}>
+						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<rect x="4" y="2" width="16" height="20" rx="2"></rect>
+							<line x1="8" y1="6" x2="16" y2="6"></line>
+							<line x1="8" y1="10" x2="16" y2="10"></line>
+						</svg>
+						Open Calculator
+					</Button>
+				</div>
+			</Card>
 		</aside>
 	</div>
 </div>
@@ -589,20 +485,6 @@
 		}
 	}
 
-	.sidebar-panel {
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		padding: 16px;
-	}
-
-	.sidebar-title {
-		margin: 0 0 12px;
-		font-size: 0.9rem;
-		font-weight: 700;
-		color: var(--text);
-	}
-
 	.sidebar-map {
 		border-radius: var(--radius);
 		overflow: hidden;
@@ -617,138 +499,20 @@
 	}
 
 	.sidebar-stats {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: var(--sp-3, 12px);
 		margin: 0;
-	}
-
-	.stat-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: 8px 0;
-		border-bottom: 1px solid var(--border);
-	}
-
-	.stat-row:last-child {
-		border-bottom: none;
-	}
-
-	.stat-row dt {
-		font-size: 0.85rem;
-		color: var(--text-muted);
-		font-weight: 500;
-	}
-
-	.stat-row dd {
-		margin: 0;
-		font-size: 0.9rem;
-		font-weight: 700;
-		color: var(--text);
 	}
 
 	.sidebar-actions {
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
-		padding: 12px;
-	}
-
-	.sidebar-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
-		min-height: 48px;
-		padding: 0 16px;
-		border-radius: var(--radius);
-		font-size: 0.9rem;
-		font-weight: 600;
-		cursor: pointer;
-		text-decoration: none;
-		transition: all 0.2s;
-		border: none;
-		width: 100%;
-	}
-
-	.sidebar-btn-secondary {
-		background: var(--surface);
-		color: var(--text);
-		border: 1px solid var(--border);
-	}
-
-	.sidebar-btn-secondary:hover {
-		border-color: var(--accent);
-		color: var(--accent);
-	}
-
-	.sidebar-btn-archive {
-		background: var(--surface-alt);
-		color: var(--text-muted);
-		border: 1px solid var(--border);
-	}
-
-	.sidebar-btn-archive:hover {
-		border-color: var(--warn);
-		color: var(--warn);
-	}
-
-	.sidebar-btn-primary {
-		background: var(--accent);
-		color: var(--accent-text);
-		border: 1px solid var(--accent);
-	}
-
-	.sidebar-btn-primary:hover {
-		opacity: 0.9;
-	}
-
-	.sidebar-btn:disabled,
-	.btn-ghost-action:disabled {
-		opacity: 0.55;
-		cursor: not-allowed;
 	}
 
 	.breadcrumb {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: 0.85rem;
-		color: var(--text-muted);
 		margin-bottom: 16px;
-	}
-
-	.breadcrumb a {
-		color: var(--text-muted);
-		transition: color 0.2s;
-	}
-
-	.breadcrumb a:hover {
-		color: var(--accent);
-	}
-
-	.breadcrumb svg {
-		width: 14px;
-		height: 14px;
-	}
-
-	.page-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		gap: 16px;
-		margin-bottom: 20px;
-		flex-wrap: wrap;
-	}
-
-	.page-header-main {
-		min-width: 0;
-	}
-
-	.page-title {
-		font-size: 1.75rem;
-		margin: 0 0 8px;
 	}
 
 	.page-meta {
@@ -756,6 +520,7 @@
 		align-items: center;
 		gap: 12px;
 		flex-wrap: wrap;
+		margin-top: var(--sp-2, 8px);
 	}
 
 	.meta-location {
@@ -766,72 +531,16 @@
 		color: var(--text-muted);
 	}
 
-	.page-actions {
+	.header-actions {
 		display: flex;
 		gap: 10px;
 		flex-wrap: wrap;
 	}
 
 	@media (min-width: 1024px) {
-		.page-actions {
+		.header-actions {
 			display: none;
 		}
-	}
-
-	.btn-ghost-action {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		min-height: 48px;
-		padding: 0 16px;
-		background: var(--surface);
-		color: var(--text);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		font-size: 0.9rem;
-		font-weight: 600;
-		cursor: pointer;
-		text-decoration: none;
-		transition: border-color 0.2s, color 0.2s;
-	}
-
-	.btn-ghost-action:hover {
-		border-color: var(--accent);
-		color: var(--accent);
-	}
-
-	.btn-archive {
-		color: var(--text-muted);
-	}
-
-	.btn-archive:hover {
-		border-color: var(--warn);
-		color: var(--warn);
-	}
-
-	.status-badge {
-		padding: 6px 12px;
-		border-radius: 999px;
-		font-size: 0.7rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-		white-space: nowrap;
-	}
-
-	.status-active {
-		background: var(--good);
-		color: var(--accent-text);
-	}
-
-	.status-completed {
-		background: var(--text-muted);
-		color: var(--bg);
-	}
-
-	.status-archived {
-		background: var(--surface-hover);
-		color: var(--text-muted);
 	}
 
 	.tabs {
@@ -850,11 +559,10 @@
 		display: none;
 	}
 
-	/* On wider screens there's room for every tab, so let them wrap instead of
-	   forcing a single scrolling row. */
+	/* On wider screens all 5 tabs fit comfortably on one row; never wrap. */
 	@media (min-width: 900px) {
 		.tabs {
-			flex-wrap: wrap;
+			flex-wrap: nowrap;
 			overflow-x: visible;
 		}
 	}
@@ -938,14 +646,12 @@
 	}
 
 	@media (max-width: 640px) {
-		.page-actions {
+		.header-actions {
 			width: 100%;
 		}
 
-		.page-actions .btn-primary,
-		.page-actions .btn-ghost-action {
+		.header-actions :global(.btn) {
 			flex: 1;
-			justify-content: center;
 		}
 	}
 </style>

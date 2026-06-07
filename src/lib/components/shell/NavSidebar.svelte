@@ -7,7 +7,7 @@
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import { navCollapsedStore } from '$lib/stores/navCollapsed.svelte';
 	import { fade } from 'svelte/transition';
-	import { navItems, type NavItem } from './navConfig';
+	import { navItems, isItemVisible, type NavItem, type NavAuthContext } from './navConfig';
 	import NavMobileBar from './NavMobileBar.svelte';
 	import NavSidebarFooter from './NavSidebarFooter.svelte';
 	import NavList from './NavList.svelte';
@@ -21,28 +21,18 @@
 	const brandLogo = $derived(orgSettingsStore.logoUrl ?? '/icons/icon-192.png');
 	const brandName = $derived(orgSettingsStore.orgName ?? config.app.name);
 
-	function isItemVisible(item: NavItem): boolean {
-		// screed_man sees only the standalone calculator link
-		if (authStore.org?.role === 'screed_man') {
-			return item.href === '/app';
-		}
-		if (item.authed && !authStore.isAuthenticated) return false;
-		if (item.adminConsole) {
-			return authStore.canAccessAdmin;
-		}
-		if (item.adminOnly) {
-			const role = authStore.org?.role;
-			return role === 'admin' || role === 'owner';
-		}
-		return true;
-	}
+	const authContext = $derived<NavAuthContext>({
+		role: authStore.org?.role,
+		isAuthenticated: authStore.isAuthenticated,
+		canAccessAdmin: authStore.canAccessAdmin
+	});
 
 	const visibleItems = $derived(
 		navItems
-			.filter(isItemVisible)
+			.filter((item) => isItemVisible(item, authContext))
 			.map((item) => ({
 				...item,
-				children: item.children?.filter(isItemVisible) ?? undefined
+				children: item.children?.filter((child) => isItemVisible(child, authContext)) ?? undefined
 			}))
 	);
 

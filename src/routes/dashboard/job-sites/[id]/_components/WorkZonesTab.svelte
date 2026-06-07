@@ -62,45 +62,23 @@
 				siteId={jobSite.id}
 				lat={jobSite.latitude!}
 				lng={jobSite.longitude!}
+				waypoints={routeWaypoints}
+				{numLanes}
+				{laneWidthFt}
 			/>
 		{/await}
-
-		<div class="sections-block">
-			<div class="sections-heading">
-				<h4>Sections — where paving occurs</h4>
-				<p>Mark start/end points along the route to track completed vs. remaining length.</p>
-			</div>
-			{#await import('$lib/components/RoadSectionEditor.svelte')}
-				<div class="map-mini-loading">Loading sections...</div>
-			{:then { default: RoadSectionEditor }}
-				<RoadSectionEditor
-					siteId={jobSite.id}
-					waypoints={routeWaypoints}
-					{numLanes}
-					{totalLengthFt}
-				/>
-			{/await}
-		</div>
 	{/if}
 </section>
 
 <style>
-	.sections-block {
-		margin-top: 24px;
-	}
-
-	.sections-heading {
-		margin-bottom: 12px;
-	}
-
-	.sections-heading h4 {
-		margin: 0 0 4px;
-		font-size: 1.05rem;
-	}
-
-	.sections-heading p {
-		margin: 0;
-		font-size: 0.85rem;
+	.map-mini-loading {
+		padding: 60px 20px;
+		text-align: center;
 		color: var(--text-muted);
+		font-size: 0.85rem;
+		background: var(--surface-alt, var(--surface));
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md, 12px);
+		margin-top: 12px;
 	}
 </style>

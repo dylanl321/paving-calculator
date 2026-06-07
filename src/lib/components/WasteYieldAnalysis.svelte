@@ -338,28 +338,28 @@
 	}
 
 	.stat-planned {
-		background: color-mix(in srgb, #fbbf24 8%, transparent);
-		border-color: color-mix(in srgb, #fbbf24 25%, transparent);
+		background: color-mix(in srgb, var(--warn) 8%, transparent);
+		border-color: color-mix(in srgb, var(--warn) 25%, transparent);
 	}
 
 	.stat-delivered {
-		background: color-mix(in srgb, #3b82f6 8%, transparent);
-		border-color: color-mix(in srgb, #3b82f6 25%, transparent);
+		background: color-mix(in srgb, var(--accent) 8%, transparent);
+		border-color: color-mix(in srgb, var(--accent) 25%, transparent);
 	}
 
 	.stat-rejected {
-		background: color-mix(in srgb, #ef4444 8%, transparent);
-		border-color: color-mix(in srgb, #ef4444 25%, transparent);
+		background: color-mix(in srgb, var(--bad) 8%, transparent);
+		border-color: color-mix(in srgb, var(--bad) 25%, transparent);
 	}
 
 	.stat-field-waste {
-		background: color-mix(in srgb, #fbbf24 8%, transparent);
-		border-color: color-mix(in srgb, #fbbf24 25%, transparent);
+		background: color-mix(in srgb, var(--warn) 8%, transparent);
+		border-color: color-mix(in srgb, var(--warn) 25%, transparent);
 	}
 
 	.stat-net {
-		background: color-mix(in srgb, #22c55e 8%, transparent);
-		border-color: color-mix(in srgb, #22c55e 25%, transparent);
+		background: color-mix(in srgb, var(--good) 8%, transparent);
+		border-color: color-mix(in srgb, var(--good) 25%, transparent);
 	}
 
 	.stat-label {
@@ -403,23 +403,23 @@
 	}
 
 	.waste-bar-accepted {
-		background: #22c55e;
+		background: var(--good);
 		transition: width 0.3s ease;
 	}
 
 	.waste-bar-rejected {
-		background: #ef4444;
+		background: var(--bad);
 		transition: width 0.3s ease;
 	}
 
 	.no-rejections {
 		padding: var(--sp-3);
 		text-align: center;
-		color: #22c55e;
+		color: var(--good);
 		font-size: var(--fs-md);
 		font-weight: var(--fw-semibold);
-		background: color-mix(in srgb, #22c55e 8%, transparent);
-		border: 1px solid color-mix(in srgb, #22c55e 25%, transparent);
+		background: color-mix(in srgb, var(--good) 8%, transparent);
+		border: 1px solid color-mix(in srgb, var(--good) 25%, transparent);
 		border-radius: var(--radius-md);
 		margin-bottom: var(--sp-4);
 	}
@@ -445,21 +445,21 @@
 	}
 
 	.over-under-good {
-		background: color-mix(in srgb, #22c55e 8%, transparent);
-		border-color: color-mix(in srgb, #22c55e 25%, transparent);
-		color: #22c55e;
+		background: color-mix(in srgb, var(--good) 8%, transparent);
+		border-color: color-mix(in srgb, var(--good) 25%, transparent);
+		color: var(--good);
 	}
 
 	.over-under-warn {
-		background: color-mix(in srgb, #fbbf24 8%, transparent);
-		border-color: color-mix(in srgb, #fbbf24 25%, transparent);
-		color: #fbbf24;
+		background: color-mix(in srgb, var(--warn) 8%, transparent);
+		border-color: color-mix(in srgb, var(--warn) 25%, transparent);
+		color: var(--warn);
 	}
 
 	.over-under-bad {
-		background: color-mix(in srgb, #ef4444 8%, transparent);
-		border-color: color-mix(in srgb, #ef4444 25%, transparent);
-		color: #ef4444;
+		background: color-mix(in srgb, var(--bad) 8%, transparent);
+		border-color: color-mix(in srgb, var(--bad) 25%, transparent);
+		color: var(--bad);
 	}
 
 	.daily-breakdown-section {
@@ -531,15 +531,15 @@
 	}
 
 	.variance-good {
-		color: #22c55e;
+		color: var(--good);
 	}
 
 	.variance-warn {
-		color: #fbbf24;
+		color: var(--warn);
 	}
 
 	.variance-bad {
-		color: #ef4444;
+		color: var(--bad);
 	}
 
 	@media (max-width: 460px) {

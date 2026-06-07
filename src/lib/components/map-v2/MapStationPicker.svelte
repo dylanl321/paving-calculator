@@ -3,10 +3,9 @@
 	 * MapStationPicker — map-v2 version of the Leaflet MapStationPicker.
 	 * Uses MapLibre GL JS via MapView. Tap on the route to snap to a station.
 	 */
-	import { MapView, MapPolyline, MapMarker } from '$lib/components/map-v2';
-	import { coordinateToStation, stationToCoordinate } from '$lib/services/mapUtils';
+	import { MapView } from '$lib/components/map-v2';
+	import { TerminusEditController, type TerminusEditApi } from '$lib/components/map-v2/editors';
 	import { formatStation } from '$lib/services/gpsStation';
-	import type { Map as MapLibreMap } from 'maplibre-gl';
 
 	interface Waypoint {
 		lat: number;
@@ -30,13 +29,13 @@
 	}: Props = $props();
 
 	type ActiveField = 'start' | 'end' | null;
-	let activeField = $state<ActiveField>('start');
-	let flashMessage = $state('');
-	let flashTimer: ReturnType<typeof setTimeout> | null = null;
-	let mapInstance = $state<MapLibreMap | null>(null);
+	let terminusApi = $state<TerminusEditApi | null>(null);
 
-	// Polyline points from waypoints
-	const routePoints = $derived(waypoints.map((w) => [w.lat, w.lng] as [number, number]));
+	// The controller speaks begin/end; this picker speaks start/end. Map between.
+	const activeField = $derived<ActiveField>(
+		terminusApi == null ? 'start' : terminusApi.activeField === 'begin' ? 'start' : terminusApi.activeField
+	);
+	const flashMessage = $derived(terminusApi?.flashMessage ?? '');
 
 	// Compute map bounds from waypoints
 	const mapBounds = $derived.by(() => {
@@ -48,18 +47,6 @@
 			[Math.max(...lats), Math.max(...lngs)]
 		] as [[number, number], [number, number]];
 	});
-
-	// Snapped coordinates for start/end markers
-	const startCoord = $derived(
-		stationStart != null && waypoints.length >= 2
-			? stationToCoordinate(stationStart, waypoints)
-			: null
-	);
-	const endCoord = $derived(
-		stationEnd != null && waypoints.length >= 2
-			? stationToCoordinate(stationEnd, waypoints)
-			: null
-	);
 
 	// Station summary text
 	const summaryText = $derived.by(() => {
@@ -76,35 +63,19 @@
 		return 'Tap a field button to continue';
 	});
 
-	function flash(msg: string) {
-		flashMessage = msg;
-		if (flashTimer) clearTimeout(flashTimer);
-		flashTimer = setTimeout(() => {
-			flashMessage = '';
-		}, 1200);
+	function toggleField(field: 'start' | 'end') {
+		const target = field === 'start' ? 'begin' : 'end';
+		terminusApi?.setActiveField(activeField === field ? null : target);
 	}
 
-	function handleMapReady(map: MapLibreMap) {
-		mapInstance = map;
-		map.on('click', (e) => {
-			if (!activeField) return;
-			const coord = { lat: e.lngLat.lat, lng: e.lngLat.lng };
-			const station = coordinateToStation(coord, waypoints);
-			if (station === null) {
-				flash('Tap closer to the route');
-				return;
-			}
-			if (activeField === 'start') {
-				stationStart = station;
-				onPick?.('start', station);
-				activeField = 'end';
-			} else {
-				stationEnd = station;
-				onPick?.('end', station);
-				activeField = null;
-			}
-		});
+	function clearStations() {
+		terminusApi?.clear();
 	}
+
+	function handlePick(field: 'begin' | 'end', station: number) {
+		onPick?.(field === 'begin' ? 'start' : 'end', station);
+	}
+
 </script>
 
 {#if waypoints.length < 2}
@@ -119,7 +90,7 @@
 			<button
 				type="button"
 				class="toggle-btn {activeField === 'start' ? 'toggle-btn--active' : ''}"
-				onclick={() => { activeField = activeField === 'start' ? null : 'start'; }}
+				onclick={() => toggleField('start')}
 			>
 				<span class="toggle-dot toggle-dot--start"></span>
 				Set Start
@@ -131,7 +102,7 @@
 			<button
 				type="button"
 				class="toggle-btn {activeField === 'end' ? 'toggle-btn--active' : ''}"
-				onclick={() => { activeField = activeField === 'end' ? null : 'end'; }}
+				onclick={() => toggleField('end')}
 			>
 				<span class="toggle-dot toggle-dot--end"></span>
 				Set End
@@ -141,11 +112,7 @@
 			</button>
 
 			{#if stationStart != null || stationEnd != null}
-				<button
-					type="button"
-					class="clear-btn"
-					onclick={() => { stationStart = null; stationEnd = null; activeField = 'start'; }}
-				>
+				<button type="button" class="clear-btn" onclick={clearStations}>
 					Clear
 				</button>
 			{/if}
@@ -153,36 +120,18 @@
 
 		<!-- Map with overlay pill -->
 		<div class="map-wrap" style="height: {height}">
-			<MapView bounds={mapBounds} {height} onready={handleMapReady}>
+			<MapView bounds={mapBounds} {height}>
 				{#snippet layers()}
-					<!-- Route alignment polyline in amber -->
-					<MapPolyline
-						id="station-route"
-						coordinates={routePoints}
-						color="#f59e0b"
-						width={4}
-						opacity={0.9}
+					<TerminusEditController
+						{waypoints}
+						bind:beginStation={stationStart}
+						bind:endStation={stationEnd}
+						beginColor="#f59e0b"
+						endColor="#3b82f6"
+						active={true}
+						onPick={handlePick}
+						bind:api={terminusApi}
 					/>
-					<!-- Start station marker (amber) -->
-					{#if startCoord}
-						<MapMarker
-							lat={startCoord[0]}
-							lng={startCoord[1]}
-							color="#f59e0b"
-							label="S"
-							popupHtml="<b>Start: {formatStation(stationStart!)}</b>"
-						/>
-					{/if}
-					<!-- End station marker (blue) -->
-					{#if endCoord}
-						<MapMarker
-							lat={endCoord[0]}
-							lng={endCoord[1]}
-							color="#3b82f6"
-							label="E"
-							popupHtml="<b>End: {formatStation(stationEnd!)}</b>"
-						/>
-					{/if}
 				{/snippet}
 			</MapView>
 

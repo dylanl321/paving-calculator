@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
 	import { tick } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
 	import { authStore } from '$lib/stores/auth.svelte';
+	import { navItems, isItemVisible, type NavItem, type NavAuthContext } from './navConfig';
 	import {
 		Calculator,
 		BookOpen,
@@ -13,64 +13,43 @@
 		Upload,
 		Users,
 		Settings,
-		Map,
+		Map as MapIcon,
 		Search,
-		ArrowRight,
-		CornerDownLeft
+		CornerDownLeft,
+		FolderKanban,
+		Building2,
+		GraduationCap,
+		ShieldCheck
 	} from 'lucide-svelte';
-
-	interface NavItem {
-		href: string;
-		label: string;
-		icon: string;
-		authed?: boolean;
-		adminOnly?: boolean;
-		owns?: string[];
-		children?: NavItem[];
-	}
-
-	const allNavItems: NavItem[] = [
-		{
-			href: '/dashboard',
-			label: 'Projects',
-			icon: 'layout',
-			authed: true,
-			owns: ['/dashboard/job-sites'],
-			children: [
-				{ href: '/dashboard/map', label: 'Map', icon: 'map', authed: true },
-				{ href: '/dashboard/team', label: 'Team', icon: 'users', authed: true },
-				{ href: '/dashboard/settings', label: 'Settings', icon: 'settings', authed: true }
-			]
-		},
-		{ href: '/app', label: 'Quick Calc', icon: 'calc' },
-		{ href: '/reference', label: 'Reference', icon: 'book' },
-		{ href: '/dashboard/guides', label: 'Guides', icon: 'guide', authed: true },
-		{ href: '/dashboard/import', label: 'Import', icon: 'upload', authed: true },
-		{ href: '/dashboard/activity', label: 'Activity', icon: 'clock', authed: true, adminOnly: true }
-	];
 
 	function flattenItems(items: NavItem[]): NavItem[] {
 		return items.flatMap((item) => [item, ...flattenItems(item.children ?? [])]);
 	}
 
-	function isItemVisible(item: NavItem): boolean {
-		if (authStore.org?.role === 'screed_man') {
-			return item.href === '/app';
-		}
-		if (item.authed && !authStore.isAuthenticated) return false;
-		if (item.adminOnly) {
-			const role = authStore.org?.role;
-			return role === 'admin' || role === 'owner';
-		}
-		return true;
-	}
+	const authContext = $derived<NavAuthContext>({
+		role: authStore.org?.role,
+		isAuthenticated: authStore.isAuthenticated,
+		canAccessAdmin: authStore.canAccessAdmin
+	});
 
 	let open = $state(false);
 	let query = $state('');
 	let selectedIdx = $state(0);
 	let inputEl = $state<HTMLInputElement | null>(null);
 
-	const visibleFlat = $derived(flattenItems(allNavItems).filter(isItemVisible));
+	// Flatten the shared nav tree and run every entry (parents + children)
+	// through the SAME visibility predicate the sidebar uses, so gated links
+	// (admin, field-only) never leak into ⌘K. A parent whose group is hidden
+	// also hides its children. Deduplicate by href (group parents can share an
+	// href with a child) keeping the most specific (last) label.
+	const visibleFlat = $derived.by(() => {
+		const flat = flattenItems(
+			navItems.filter((item) => isItemVisible(item, authContext))
+		).filter((item) => isItemVisible(item, authContext));
+		const byHref = new Map<string, NavItem>();
+		for (const item of flat) byHref.set(item.href, item);
+		return [...byHref.values()];
+	});
 
 	const filtered = $derived(
 		query.trim() === ''
@@ -198,11 +177,19 @@
 								{:else if item.icon === 'clock'}
 									<Clock size={18} />
 								{:else if item.icon === 'map'}
-									<Map size={18} />
+									<MapIcon size={18} />
 								{:else if item.icon === 'users'}
 									<Users size={18} />
 								{:else if item.icon === 'settings'}
 									<Settings size={18} />
+								{:else if item.icon === 'folder'}
+									<FolderKanban size={18} />
+								{:else if item.icon === 'org'}
+									<Building2 size={18} />
+								{:else if item.icon === 'learn'}
+									<GraduationCap size={18} />
+								{:else if item.icon === 'shield-check'}
+									<ShieldCheck size={18} />
 								{/if}
 							</span>
 							<span class="cmd-item-label">{item.label}</span>

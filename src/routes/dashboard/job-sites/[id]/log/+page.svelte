@@ -24,6 +24,7 @@
 	import SignatureModal from '$lib/components/SignatureModal.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { api } from '$lib/utils/api-error';
+	import ProjectContextBar from '$lib/components/ProjectContextBar.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -32,6 +33,32 @@
 	// Auto-derived project context (read-only) — surface config so the user
 	// never re-enters per-day what the project already defines.
 	const cfg = $derived((data.siteConfig as any)?.config ?? null);
+
+	// Persistent project context bar — shares the same wayfinding strip as the
+	// project detail page. Values degrade to nothing when absent.
+	const ctxTodayLogState = $derived.by(() => {
+		const log = data.todayLog;
+		if (!log) return 'Not started';
+		return (log as { closed_at?: number | null }).closed_at ? 'Closed' : 'Logging';
+	});
+	const ctxSetupScore = $derived.by(() => {
+		if (!cfg) return null;
+		const required = [
+			'road_type',
+			'num_lanes',
+			'lane_width_ft',
+			'total_length_ft',
+			'scope_of_work',
+			'mix_type',
+			'target_thickness_in',
+			'target_spread_rate'
+		];
+		const isEmpty = (v: unknown) => v === null || v === undefined || v === '' || v === 0;
+		let filled = 0;
+		for (const f of required) if (!isEmpty(cfg[f])) filled++;
+		// +2 for name/status, which always exist on a loaded project.
+		return Math.round(((filled + 2) / (required.length + 2)) * 100);
+	});
 	const projectContext = $derived.by(() => {
 		if (!cfg) return [] as { label: string; value: string }[];
 		const items: { label: string; value: string }[] = [];
@@ -662,6 +689,17 @@
 		</svg>
 		<span>Daily Log</span>
 	</div>
+
+	<ProjectContextBar
+		name={data.jobSite.name}
+		status={data.jobSite.status}
+		href="/dashboard/job-sites/{data.jobSite.id}"
+		contractValue={cfg?.total_contract_value ?? null}
+		routeDesignation={cfg?.route_designation ?? null}
+		county={cfg?.route_county ?? null}
+		todayLogState={ctxTodayLogState}
+		setupScore={ctxSetupScore}
+	/>
 
 	{#if data.logs && data.logs.length > 0}
 		<div class="date-nav">
@@ -1864,7 +1902,7 @@
 		color: var(--accent-text);
 		border: none;
 		border-radius: 50%;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+		box-shadow: var(--shadow-md);
 		cursor: pointer;
 		display: flex;
 		align-items: center;
@@ -2009,7 +2047,7 @@
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		padding: 12px;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+		box-shadow: var(--shadow-md);
 		z-index: 100;
 		margin-top: 4px;
 	}
@@ -2212,7 +2250,7 @@
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
-		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+		box-shadow: var(--shadow-lg);
 		padding: 6px;
 		display: flex;
 		flex-direction: column;

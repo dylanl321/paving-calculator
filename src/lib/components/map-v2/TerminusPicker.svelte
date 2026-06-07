@@ -9,10 +9,9 @@
 	 * framed around named termini (Begin/End) and emits both the station offset
 	 * and the snapped [lat, lng] coordinate.
 	 */
-	import { MapView, MapPolyline, MapMarker } from '$lib/components/map-v2';
-	import { coordinateToStation, stationToCoordinate } from '$lib/services/mapUtils';
+	import { MapView } from '$lib/components/map-v2';
+	import { TerminusEditController, type TerminusEditApi } from '$lib/components/map-v2/editors';
 	import { formatStation } from '$lib/services/gpsStation';
-	import type { Map as MapLibreMap } from 'maplibre-gl';
 	import type { ParsedTerminus } from '$lib/server/terminus-parser.js';
 
 	interface Waypoint {
@@ -51,13 +50,12 @@
 	}: Props = $props();
 
 	type ActiveField = 'begin' | 'end' | null;
-	let activeField = $state<ActiveField>('begin');
-	let flashMessage = $state('');
-	let flashTimer: ReturnType<typeof setTimeout> | null = null;
-	let mapInstance = $state<MapLibreMap | null>(null);
+	let terminusApi = $state<TerminusEditApi | null>(null);
+
+	const activeField = $derived<ActiveField>(terminusApi?.activeField ?? 'begin');
+	const flashMessage = $derived(terminusApi?.flashMessage ?? '');
 
 	const hasRoute = $derived(waypoints.length >= 2);
-	const routePoints = $derived(waypoints.map((w) => [w.lat, w.lng] as [number, number]));
 
 	const mapBounds = $derived.by(() => {
 		if (waypoints.length === 0) return undefined;
@@ -68,18 +66,6 @@
 			[Math.max(...lats), Math.max(...lngs)]
 		] as [[number, number], [number, number]];
 	});
-
-	const beginCoord = $derived(
-		beginStation != null && hasRoute ? stationToCoordinate(beginStation, waypoints) : null
-	);
-	const endCoord = $derived(
-		endStation != null && hasRoute ? stationToCoordinate(endStation, waypoints) : null
-	);
-
-	const routeStartStation = $derived(hasRoute ? coordinateToStation(waypoints[0], waypoints) : null);
-	const routeEndStation = $derived(
-		hasRoute ? coordinateToStation(waypoints[waypoints.length - 1], waypoints) : null
-	);
 
 	const summaryText = $derived.by(() => {
 		if (beginStation == null || endStation == null) return '';
@@ -94,52 +80,18 @@
 		return 'Choose Start or End, then tap the road';
 	});
 
-	function flash(msg: string) {
-		flashMessage = msg;
-		if (flashTimer) clearTimeout(flashTimer);
-		flashTimer = setTimeout(() => {
-			flashMessage = '';
-		}, 1400);
+	function toggleField(field: 'begin' | 'end') {
+		terminusApi?.setActiveField(activeField === field ? null : field);
 	}
 
-	function setTerminus(field: 'begin' | 'end', lat: number, lng: number): boolean {
-		const station = coordinateToStation({ lat, lng }, waypoints);
-		if (station === null) {
-			flash('Tap closer to the road');
-			return false;
-		}
-		// Snap back to the centerline so the marker always sits ON the road.
-		const snapped = stationToCoordinate(station, waypoints);
-		if (field === 'begin') {
-			beginStation = station;
-			activeField = 'end';
-		} else {
-			endStation = station;
-			activeField = null;
-		}
-		if (snapped) onPick?.(field, station, snapped);
-		return true;
+	function clearTermini() {
+		terminusApi?.clear();
 	}
 
 	function useFullRoute() {
-		if (!hasRoute || routeStartStation == null || routeEndStation == null) return;
-		beginStation = routeStartStation;
-		endStation = routeEndStation;
-		activeField = null;
-		onPick?.('begin', routeStartStation, [waypoints[0].lat, waypoints[0].lng]);
-		onPick?.('end', routeEndStation, [
-			waypoints[waypoints.length - 1].lat,
-			waypoints[waypoints.length - 1].lng
-		]);
+		terminusApi?.useFullRoute();
 	}
 
-	function handleMapReady(map: MapLibreMap) {
-		mapInstance = map;
-		map.on('click', (e) => {
-			if (!activeField) return;
-			setTerminus(activeField, e.lngLat.lat, e.lngLat.lng);
-		});
-	}
 </script>
 
 {#if !hasRoute}
@@ -158,7 +110,7 @@
 			<button
 				type="button"
 				class="toggle-btn {activeField === 'begin' ? 'toggle-btn--active' : ''}"
-				onclick={() => { activeField = activeField === 'begin' ? null : 'begin'; }}
+				onclick={() => toggleField('begin')}
 			>
 				<span class="toggle-dot toggle-dot--begin"></span>
 				Set Start
@@ -170,7 +122,7 @@
 			<button
 				type="button"
 				class="toggle-btn {activeField === 'end' ? 'toggle-btn--active' : ''}"
-				onclick={() => { activeField = activeField === 'end' ? null : 'end'; }}
+				onclick={() => toggleField('end')}
 			>
 				<span class="toggle-dot toggle-dot--end"></span>
 				Set End
@@ -180,11 +132,7 @@
 			</button>
 
 			{#if beginStation != null || endStation != null}
-				<button
-					type="button"
-					class="clear-btn"
-					onclick={() => { beginStation = null; endStation = null; activeField = 'begin'; }}
-				>
+				<button type="button" class="clear-btn" onclick={clearTermini}>
 					Clear
 				</button>
 			{/if}
@@ -220,33 +168,18 @@
 		{/if}
 
 		<div class="map-wrap" style="height: {height}">
-			<MapView bounds={mapBounds} {height} onready={handleMapReady}>
+			<MapView bounds={mapBounds} {height}>
 				{#snippet layers()}
-					<MapPolyline
-						id="terminus-route"
-						coordinates={routePoints}
-						color="#f59e0b"
-						width={4}
-						opacity={0.9}
+					<TerminusEditController
+						{waypoints}
+						bind:beginStation
+						bind:endStation
+						beginColor="#f2c037"
+						endColor="#3b82f6"
+						active={true}
+						{onPick}
+						bind:api={terminusApi}
 					/>
-					{#if beginCoord}
-						<MapMarker
-							lat={beginCoord[0]}
-							lng={beginCoord[1]}
-							color="#f2c037"
-							label="S"
-							popupHtml="<b>Start: {formatStation(beginStation!)}</b>"
-						/>
-					{/if}
-					{#if endCoord}
-						<MapMarker
-							lat={endCoord[0]}
-							lng={endCoord[1]}
-							color="#3b82f6"
-							label="E"
-							popupHtml="<b>End: {formatStation(endStation!)}</b>"
-						/>
-					{/if}
 				{/snippet}
 			</MapView>
 

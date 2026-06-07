@@ -1,15 +1,8 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
-import type { DbJobSite } from '$lib/server/db';
-
-interface LiveSite {
-	id: string;
-	today_tons: number;
-	today_loads: number;
-	today_log_open: boolean;
-	crew_name: string | null;
-	crew_color: string | null;
-}
+import { loadEnrichedProjects } from '$lib/loaders/project-summaries';
+import { getUxRole } from '$lib/uxRole';
+import { EMPTY_PORTFOLIO, type Portfolio } from './_home/types';
 
 export const load: PageLoad = async ({ fetch, url }) => {
 	try {
@@ -20,84 +13,42 @@ export const load: PageLoad = async ({ fetch, url }) => {
 
 		const authData = (await authRes.json()) as {
 			user: unknown;
-			org: unknown;
+			org: { name?: string; role?: string | null } | null;
 		};
 
-		const jobSitesRes = await fetch('/api/job-sites', { credentials: 'include' });
-		if (!jobSitesRes.ok) {
-			throw new Error('Failed to fetch job sites');
+		const role = authData.org?.role ?? '';
+		const uxRole = getUxRole(role);
+
+		// Field crew is redirected by the layout guard; if one still lands here we
+		// only need a minimal card, so skip the (owner/admin-scoped) data fetches.
+		if (uxRole === 'field_crew') {
+			return {
+				user: authData.user,
+				org: authData.org,
+				role,
+				uxRole,
+				projects: [],
+				portfolio: EMPTY_PORTFOLIO,
+				verified: url.searchParams.get('verified'),
+				verifyError: url.searchParams.get('verify_error')
+			};
 		}
 
-		const jobSitesData: { job_sites: DbJobSite[] } = await jobSitesRes.json();
-
-		// Best-effort live status enrichment (crew, today's tons/loads, live status).
-		// map-sites is owner/admin-only and only covers sites with coordinates; degrade gracefully.
-		let liveSites: LiveSite[] = [];
-		try {
-			const mapRes = await fetch('/api/org/map-sites', { credentials: 'include' });
-			if (mapRes.ok) {
-				const mapData = (await mapRes.json()) as { sites?: LiveSite[] };
-				liveSites = mapData.sites ?? [];
-			}
-		} catch {
-			liveSites = [];
-		}
-		const liveById = new Map(liveSites.map((s) => [s.id, s]));
-
-		// Best-effort completeness fetch
-		let completenessData: { sites?: Array<{ id: string; score: number; status: string }> } = {};
-		try {
-			const completenessRes = await fetch('/api/org/completeness', { credentials: 'include' });
-			if (completenessRes.ok) {
-				completenessData = await completenessRes.json();
-			}
-		} catch {
-			// Graceful degradation
-		}
-		const completenessById = new Map((completenessData.sites ?? []).map((s) => [s.id, s]));
-
-		// Best-effort last-activity fetch (latest daily_logs.created_at per site)
-		let lastActivityData: { sites?: Array<{ id: string; last_activity: number | null }> } = {};
-		try {
-			const lastActivityRes = await fetch('/api/org/last-activity', { credentials: 'include' });
-			if (lastActivityRes.ok) {
-				lastActivityData = await lastActivityRes.json();
-			}
-		} catch {
-			// Graceful degradation
-		}
-		const lastActivityById = new Map(
-			(lastActivityData.sites ?? []).map((s) => [s.id, s.last_activity])
-		);
-
-		// Get calculation counts for each job site
-		const jobSitesWithCounts = await Promise.all(
-			jobSitesData.job_sites.map(async (site) => {
-				const calcRes = await fetch(`/api/calculations?job_site_id=${site.id}`, {
-					credentials: 'include'
-				});
-				const calcData = (await calcRes.json()) as { calculations?: unknown[] };
-				const live = liveById.get(site.id);
-				const completeness = completenessById.get(site.id);
-				return {
-					...site,
-					calculation_count: calcData.calculations?.length || 0,
-					today_tons: live?.today_tons ?? null,
-					today_loads: live?.today_loads ?? null,
-					today_log_open: live?.today_log_open ?? false,
-					crew_name: live?.crew_name ?? null,
-					crew_color: live?.crew_color ?? null,
-					completeness_score: completeness?.score ?? null,
-					completeness_status: completeness?.status ?? null,
-					last_activity: lastActivityById.get(site.id) ?? null
-				};
-			})
-		);
+		// The overview needs live status (tons/logging/crew) and completeness, but
+		// not the per-site calculation counts the full roster used — skip them.
+		// Portfolio rollups + enriched projects are independent best-effort fetches.
+		const [projects, portfolio] = await Promise.all([
+			loadEnrichedProjects(fetch, { includeCalcCounts: false }).catch(() => []),
+			fetchPortfolio(fetch)
+		]);
 
 		return {
 			user: authData.user,
 			org: authData.org,
-			jobSites: jobSitesWithCounts,
+			role,
+			uxRole,
+			projects,
+			portfolio,
 			verified: url.searchParams.get('verified'),
 			verifyError: url.searchParams.get('verify_error')
 		};
@@ -106,3 +57,15 @@ export const load: PageLoad = async ({ fetch, url }) => {
 		throw redirect(302, '/login');
 	}
 };
+
+/** Best-effort typed fetch of the org portfolio rollup; degrades to empty. */
+async function fetchPortfolio(fetchFn: typeof fetch): Promise<Portfolio> {
+	try {
+		const res = await fetchFn('/api/org/portfolio', { credentials: 'include' });
+		if (!res.ok) return EMPTY_PORTFOLIO;
+		const data = (await res.json()) as Portfolio;
+		return data ?? EMPTY_PORTFOLIO;
+	} catch {
+		return EMPTY_PORTFOLIO;
+	}
+}

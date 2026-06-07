@@ -2400,7 +2400,7 @@
 		height: 16px;
 		border-radius: 50%;
 		background: var(--bad);
-		color: #fff;
+		color: var(--accent-text);
 		font-size: 0.65rem;
 		font-weight: 800;
 		line-height: 1;
@@ -2602,7 +2602,7 @@
 		border-radius: 10px;
 		border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
 		background: var(--surface);
-		box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+		box-shadow: var(--shadow-lg);
 	}
 
 	.paver-loader {
@@ -2769,9 +2769,9 @@
 		gap: 0.5rem;
 		padding: 0.5rem 0.75rem;
 		border-radius: 6px;
-		background: rgba(59, 130, 246, 0.1);
-		border: 1px solid rgba(59, 130, 246, 0.3);
-		color: #93c5fd;
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+		border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+		color: var(--accent);
 		font-size: 0.8125rem;
 		margin-bottom: 0.75rem;
 	}
@@ -2796,8 +2796,8 @@
 		display: inline-block;
 		padding: 0.1em 0.4em;
 		border-radius: 4px;
-		background: rgba(139, 92, 246, 0.2);
-		color: #c4b5fd;
+		background: color-mix(in srgb, var(--accent) 20%, transparent);
+		color: var(--accent);
 		font-size: 0.75rem;
 		font-weight: 600;
 		margin-left: 0.25rem;
@@ -3301,7 +3301,7 @@
 	}
 
 	.ai-field-icon {
-		color: #a78bfa;
+		color: var(--accent);
 		font-size: 0.7rem;
 		line-height: 1;
 		flex-shrink: 0;
@@ -3428,15 +3428,15 @@
 		align-items: center;
 		gap: 6px;
 		padding: 6px 12px;
-		background: rgba(59, 130, 246, 0.08);
-		border: 1px solid rgba(59, 130, 246, 0.3);
+		background: color-mix(in srgb, var(--accent) 8%, transparent);
+		border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
 		border-radius: 999px;
 		font-size: 0.8rem;
 	}
 
 	.multi-doc-type {
 		font-weight: 700;
-		color: #93c5fd;
+		color: var(--accent);
 	}
 
 	.multi-doc-pages {
@@ -3462,7 +3462,7 @@
 		margin-left: 8px;
 		padding: 2px 8px;
 		background: var(--warn);
-		color: #fff;
+		color: var(--accent-text);
 		border-radius: 999px;
 		font-size: 0.65rem;
 		font-weight: 700;

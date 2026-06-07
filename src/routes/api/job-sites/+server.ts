@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbCrewHelper } from '$lib/server/db-crews';
+import type { ProjectSummary } from '$lib/server/db-jobsites';
 import { requireAuth } from '$lib/server/auth';
 import { recordAudit } from '$lib/server/audit';
 import { deliverWebhook } from '$lib/server/webhooks';
@@ -29,17 +30,26 @@ export async function GET(event: RequestEvent) {
 		}
 
 		return json({
-			job_sites: jobSites.map((site) => ({
-				id: site.id,
-				org_id: site.org_id,
-				name: site.name,
-				location_description: site.location_description,
-				latitude: site.latitude,
-				longitude: site.longitude,
-				status: site.status,
-				created_at: site.created_at,
-				updated_at: site.updated_at
-			}))
+			job_sites: jobSites.map(
+				(site): ProjectSummary => ({
+					id: site.id,
+					org_id: site.org_id,
+					name: site.name,
+					location_description: site.location_description,
+					latitude: site.latitude,
+					longitude: site.longitude,
+					status: site.status,
+					contract_amount: site.contract_amount,
+					est_start_date: site.est_start_date,
+					completion_date: site.completion_date,
+					customer_name: site.customer_name,
+					job_number: site.job_number,
+					project_number: site.project_number,
+					work_type: site.work_type,
+					created_at: site.created_at,
+					updated_at: site.updated_at
+				})
+			)
 		});
 	} catch (error) {
 		if (error instanceof Response) return error;

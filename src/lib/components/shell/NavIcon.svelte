@@ -9,7 +9,10 @@
 		Users,
 		Settings,
 		Map,
-		ShieldCheck
+		ShieldCheck,
+		FolderKanban,
+		Building2,
+		GraduationCap
 	} from 'lucide-svelte';
 
 	let { icon }: { icon: string } = $props();
@@ -35,4 +38,10 @@
 	<Settings size={22} />
 {:else if icon === 'shield-check'}
 	<ShieldCheck size={22} />
+{:else if icon === 'folder'}
+	<FolderKanban size={22} />
+{:else if icon === 'org'}
+	<Building2 size={22} />
+{:else if icon === 'learn'}
+	<GraduationCap size={22} />
 {/if}

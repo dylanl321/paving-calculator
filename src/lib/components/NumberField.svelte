@@ -148,6 +148,7 @@
 		color: var(--text);
 		/* Hide native browser spinners — we provide our own */
 		-moz-appearance: textfield;
+		appearance: textfield;
 	}
 
 	input[type='number']::-webkit-inner-spin-button,

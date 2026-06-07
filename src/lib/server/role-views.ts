@@ -1,31 +1,37 @@
 // Role-based view mapping for dashboard routing
 // Server-side module - can be imported from server files and +page.server.ts
 
+import { getUxRole } from '$lib/uxRole';
+
 export type RoleView = 'full' | 'field' | 'office';
 
 /**
  * Maps a role to its corresponding view level.
- * - screed_man, laborer -> 'field' (simplified field view)
- * - office -> 'office' (office-focused view)
- * - owner, admin, foreman, member, operator, inspector -> 'full' (full dashboard)
+ *
+ * The field-vs-non-field split for RECOGNIZED roles is DERIVED from the single
+ * source of truth (`getUxRole` in `$lib/uxRole`): any recognized role whose UX
+ * role is 'field_crew' gets the simplified 'field' view. This is why `operator`
+ * now maps to 'field' (previously 'full') — operator is part of Field Crew.
+ *
+ * Unknown roles intentionally fall back to 'full' here (matching this module's
+ * long-standing default + redirect behavior), even though `getUxRole` defaults
+ * unknown roles to 'field_crew' for its own least-privileged landing. We keep
+ * the field decision scoped to the known field DB roles so unrecognized roles
+ * (and `member`) keep the existing full-dashboard behavior.
+ *
+ * - screed_man, laborer, operator -> 'field'  (UX role field_crew)
+ * - office                        -> 'office'
+ * - owner, admin, foreman, member, inspector, unknown -> 'full'
  */
 export function getViewForRole(role: string): RoleView {
-	switch (role) {
-		case 'screed_man':
-		case 'laborer':
-			return 'field';
-		case 'office':
-			return 'office';
-		case 'owner':
-		case 'admin':
-		case 'foreman':
-		case 'member':
-		case 'operator':
-		case 'inspector':
-			return 'full';
-		default:
-			return 'full';
+	const FIELD_DB_ROLES = new Set(['operator', 'laborer', 'screed_man']);
+	if (FIELD_DB_ROLES.has(role) && getUxRole(role) === 'field_crew') {
+		return 'field';
 	}
+	if (role === 'office') {
+		return 'office';
+	}
+	return 'full';
 }
 
 // Alias: getDefaultView for compatibility with task spec

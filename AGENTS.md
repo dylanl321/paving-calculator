@@ -6,7 +6,8 @@
 - Do not provide a list of changes in responses.
 - Never create fake/sample data or data generators; treat all data as real or captured by real systems.
 - Never ask the user to restart development servers.
-- For UI work, keep coloring clean, simple, and non-invasive; lean on the brand slate + single yellow accent rather than heavy/decorative color.
+- For UI work, keep coloring clean, simple, and non-invasive; lean on the brand slate + single yellow accent rather than heavy/decorative color. The user also rejects over-complex CSS art (e.g. a loader built from ~10 stacked absolutely-positioned divs with skews/insets) — prefer a clean single inline SVG over fragile pixel-positioned div stacks.
+- Take the stance of a UI designer making PaveRate feel like a purposeful, interactive PROFESSIONAL SUITE, not "just another web tool": every page must have one obvious purpose and clear visual hierarchy, not a flat "mishmash of datapoints." The user pushes back HARD when a UI task lands as a structural/IA-only refactor (route splits, nav grouping, shared components) that produces "no noticeable changes" / no felt difference — fixing IA/plumbing is NOT the deliverable; the visual/interaction redesign (real landing page, scannable layout, equal-sized cards on a grid, per-page purpose) is. When asked to redesign, deliver visible design change, and audit honestly against screenshots rather than defending what shipped.
 - Keep the codebase unified: do not leave unused, duplicated, or over-complex code from multi-agent history; consolidate and remove dead code rather than piling on new files.
 - Prefer reframing/inventorying what already exists over adding new features; when asked to "reimagine," audit current capabilities and decide keep/reframe/change rather than building more.
 - Keep PaveRate branding visible even when an org sets a custom logo (orgs can customize name/logo/default values, but PaveRate identity stays present).

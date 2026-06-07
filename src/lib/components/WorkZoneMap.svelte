@@ -1,23 +1,56 @@
 <script lang="ts">
 	/**
-	 * WorkZoneMap — map-v2 version using MapLibre GL JS.
-	 * Replaces old Leaflet-based MapContainer/MapPolygon/MapDrawing version.
+	 * WorkZoneMap — work zones as a route STATION-RANGE corridor, NOT free
+	 * per-vertex polygons. A zone is defined by a begin/end station picked on the
+	 * road (snapped via coordinateToStation); the displayed/stored polygon is a
+	 * road-corridor buffered from the route slice between the two stations
+	 * (routeCorridorPolygon). Roads-only by design — there is no off-road drawing.
+	 *
+	 * The corridor is generated INTO the existing `geometry_geojson` field and the
+	 * POST .../work-zones payload is unchanged (no API/schema change).
 	 */
 	import { onMount } from 'svelte';
-	import { MapView, MapPolygon, MapMarker } from '$lib/components/map-v2';
+	import { MapView, MapPolygon, MapPolyline, MapMarker, MapStatus } from '$lib/components/map-v2';
+	import Button from '$lib/components/ui/Button.svelte';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
+	import {
+		coordinateToStation,
+		stationToCoordinate,
+		sliceRouteByStations,
+		routeCorridorPolygon
+	} from '$lib/services/mapUtils';
+	import { formatStation } from '$lib/services/gpsStation';
 	import type { Map as MapLibreMap } from 'maplibre-gl';
+
+	interface Waypoint {
+		lat: number;
+		lng: number;
+	}
 
 	interface Props {
 		orgId: string;
 		siteId: string;
 		lat: number;
 		lng: number;
+		/** Saved route centerline ([lat,lng]); zones are station ranges along it. */
+		waypoints?: Waypoint[];
+		/** Lane count + width set the default corridor band width. */
+		numLanes?: number | null;
+		laneWidthFt?: number | null;
 		readonly?: boolean;
 	}
 
-	let { orgId, siteId, lat, lng, readonly = false }: Props = $props();
+	let {
+		orgId,
+		siteId,
+		lat,
+		lng,
+		waypoints = [],
+		numLanes = null,
+		laneWidthFt = null,
+		readonly = false
+	}: Props = $props();
 
 	interface WorkZone {
 		id: number;
@@ -50,13 +83,26 @@
 	let error = $state<string | null>(null);
 	let mapInstance = $state<MapLibreMap | null>(null);
 
-	// Drawing state
-	let drawingMode = $state(false);
-	let selectedType = $state<'paving' | 'milling' | 'tack' | 'base' | 'other' | null>(null);
-	let drawnPoints = $state<[number, number][]>([]); // [lng, lat] pairs for drawing
+	const hasRoute = $derived(waypoints.length >= 2);
+
+	// Default corridor band width (ft): lane count × lane width, fallback 24 ft.
+	const defaultBandWidthFt = $derived(
+		numLanes && laneWidthFt && numLanes > 0 && laneWidthFt > 0 ? numLanes * laneWidthFt : 24
+	);
+
+	// Station-range picking state.
+	let pickMode = $state<'idle' | 'pick-start' | 'pick-end'>('idle');
+	let beginStation = $state<number | null>(null);
+	let endStation = $state<number | null>(null);
+	// Seed the band width from lane geometry; reset live in startZone().
+	// svelte-ignore state_referenced_locally
+	let bandWidthFt = $state<number>(defaultBandWidthFt);
+	let selectedType = $state<'paving' | 'milling' | 'tack' | 'base' | 'other'>('paving');
 	let showZoneForm = $state(false);
-	let drawnGeoJson = $state<string | null>(null);
 	let selectedZone = $state<WorkZone | null>(null);
+	let saving = $state(false);
+	let flashMessage = $state('');
+	let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
 	let zoneForm = $state({
 		name: '',
@@ -64,12 +110,61 @@
 		notes: ''
 	});
 
-	let saving = $state(false);
+	const routePoints = $derived<[number, number][]>(waypoints.map((w) => [w.lat, w.lng]));
 
-	// Preview polygon coords for in-progress drawing [lat, lng]
-	const previewCoords = $derived<[number, number][]>(
-		drawnPoints.map((p) => [p[1], p[0]])
+	const beginCoord = $derived<[number, number] | null>(
+		beginStation != null && hasRoute ? stationToCoordinate(beginStation, waypoints) : null
 	);
+	const endCoord = $derived<[number, number] | null>(
+		endStation != null && hasRoute ? stationToCoordinate(endStation, waypoints) : null
+	);
+
+	// Live corridor preview between the two picked stations.
+	const previewPolygon = $derived.by<[number, number][] | null>(() => {
+		if (beginStation == null || endStation == null) return null;
+		const poly = routeCorridorPolygon(waypoints, beginStation, endStation, bandWidthFt);
+		if (!poly) return null;
+		return poly.coordinates[0].map((c) => [c[1], c[0]] as [number, number]);
+	});
+
+	// The slice line (centerline of the pending zone) for clarity while picking.
+	const previewLine = $derived.by<[number, number][] | null>(() => {
+		if (beginStation == null || endStation == null) return null;
+		const slice = sliceRouteByStations(waypoints, beginStation, endStation);
+		if (!slice) return null;
+		return slice.coordinates.map((c) => [c[1], c[0]] as [number, number]);
+	});
+
+	const rangeSummary = $derived.by(() => {
+		if (beginStation == null || endStation == null) return '';
+		const distFt = Math.abs(endStation - beginStation) * 100;
+		return `${formatStation(beginStation)} → ${formatStation(endStation)} · ${distFt.toFixed(0)} ft · ${Math.round(bandWidthFt)} ft wide`;
+	});
+
+	function flash(msg: string) {
+		flashMessage = msg;
+		if (flashTimer) clearTimeout(flashTimer);
+		flashTimer = setTimeout(() => (flashMessage = ''), 1600);
+	}
+
+	function parseZoneCoords(geoJsonStr: string | null): [number, number][] {
+		if (!geoJsonStr) return [];
+		try {
+			const parsed = JSON.parse(geoJsonStr);
+			if (parsed.type === 'Polygon' && Array.isArray(parsed.coordinates)) {
+				return parsed.coordinates[0].map((c: number[]) => [c[1], c[0]] as [number, number]);
+			}
+			let feature = null;
+			if (parsed.type === 'FeatureCollection' && parsed.features?.length > 0) feature = parsed.features[0];
+			else if (parsed.type === 'Feature') feature = parsed;
+			if (feature?.geometry?.type === 'Polygon') {
+				return feature.geometry.coordinates[0].map((c: number[]) => [c[1], c[0]] as [number, number]);
+			}
+		} catch (err) {
+			console.error('Failed to parse work-zone GeoJSON:', err);
+		}
+		return [];
+	}
 
 	async function loadZones() {
 		loading = true;
@@ -78,9 +173,7 @@
 			const res = await fetch(`/api/org/${orgId}/job-sites/${siteId}/work-zones`, {
 				credentials: 'include'
 			});
-			if (!res.ok) {
-				throw new Error('Failed to load work zones');
-			}
+			if (!res.ok) throw new Error('Failed to load work zones');
 			const data: { work_zones: WorkZone[] } = await res.json();
 			zones = data.work_zones || [];
 		} catch (err) {
@@ -90,68 +183,70 @@
 		}
 	}
 
-	function startDrawing(type: 'paving' | 'milling' | 'tack' | 'base' | 'other') {
-		if (readonly) return;
+	function startZone(type: 'paving' | 'milling' | 'tack' | 'base' | 'other') {
+		if (readonly || !hasRoute) return;
 		selectedType = type;
-		drawingMode = true;
-		drawnPoints = [];
-		drawnGeoJson = null;
+		beginStation = null;
+		endStation = null;
+		bandWidthFt = defaultBandWidthFt;
 		showZoneForm = false;
-		if (mapInstance) {
-			mapInstance.getCanvas().style.cursor = 'crosshair';
-		}
+		pickMode = 'pick-start';
+		if (mapInstance) mapInstance.getCanvas().style.cursor = 'crosshair';
+		flash('Tap the road to set the zone START');
 	}
 
-	function finishDrawing() {
-		if (drawnPoints.length < 3) {
-			toastStore.error('Draw at least 3 points to create a polygon');
-			return;
-		}
-		// Close polygon
-		const closed = [...drawnPoints, drawnPoints[0]];
-		const geojson = JSON.stringify({
-			type: 'FeatureCollection',
-			features: [{
-				type: 'Feature',
-				geometry: {
-					type: 'Polygon',
-					coordinates: [closed]
-				},
-				properties: {}
-			}]
-		});
-		drawnGeoJson = geojson;
-		drawingMode = false;
-		showZoneForm = true;
-		zoneForm.zone_type = selectedType!;
-		zoneForm.name = '';
-		zoneForm.notes = '';
-		if (mapInstance) {
-			mapInstance.getCanvas().style.cursor = '';
-		}
-	}
-
-	function cancelDrawing() {
-		drawingMode = false;
-		selectedType = null;
-		drawnPoints = [];
-		drawnGeoJson = null;
+	function cancelZone() {
+		pickMode = 'idle';
+		beginStation = null;
+		endStation = null;
 		showZoneForm = false;
-		if (mapInstance) {
-			mapInstance.getCanvas().style.cursor = '';
-		}
+		if (mapInstance) mapInstance.getCanvas().style.cursor = '';
 	}
 
 	function handleMapReady(map: MapLibreMap) {
 		mapInstance = map;
 		map.on('click', (e) => {
-			if (!drawingMode) return;
-			drawnPoints = [...drawnPoints, [e.lngLat.lng, e.lngLat.lat]];
+			if (pickMode === 'idle') return;
+			const station = coordinateToStation({ lat: e.lngLat.lat, lng: e.lngLat.lng }, waypoints);
+			if (station === null) {
+				flash('Tap closer to the road');
+				return;
+			}
+			if (pickMode === 'pick-start') {
+				beginStation = station;
+				pickMode = 'pick-end';
+				flash(`Start at ${formatStation(station)} — tap the zone END`);
+			} else if (pickMode === 'pick-end') {
+				endStation = station;
+				pickMode = 'idle';
+				if (mapInstance) mapInstance.getCanvas().style.cursor = '';
+				openZoneForm();
+			}
 		});
 	}
 
+	function openZoneForm() {
+		if (beginStation == null || endStation == null) return;
+		if (Math.abs(endStation - beginStation) < 1e-6) {
+			flash('Start and end are the same point');
+			beginStation = null;
+			endStation = null;
+			pickMode = 'pick-start';
+			return;
+		}
+		zoneForm.zone_type = selectedType;
+		zoneForm.name = '';
+		zoneForm.notes = '';
+		showZoneForm = true;
+	}
+
 	async function saveZone() {
-		if (!drawnGeoJson || !zoneForm.name) return;
+		if (beginStation == null || endStation == null || !zoneForm.name) return;
+		const corridor = routeCorridorPolygon(waypoints, beginStation, endStation, bandWidthFt);
+		if (!corridor) {
+			toastStore.error('Could not build the corridor on the road');
+			return;
+		}
 		saving = true;
 		try {
 			const res = await fetch(`/api/org/${orgId}/job-sites/${siteId}/work-zones`, {
@@ -161,17 +256,14 @@
 				body: JSON.stringify({
 					name: zoneForm.name,
 					zone_type: zoneForm.zone_type,
-					geometry_geojson: drawnGeoJson,
+					geometry_geojson: JSON.stringify(corridor),
 					color: ZONE_TYPE_COLORS[zoneForm.zone_type],
 					notes: zoneForm.notes || null
 				})
 			});
-			if (!res.ok) {
-				toastStore.error('Failed to create work zone');
-				throw new Error('Failed to create work zone');
-			}
+			if (!res.ok) throw new Error('Failed to create work zone');
 			await loadZones();
-			cancelDrawing();
+			cancelZone();
 			toastStore.success('Work zone created');
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to save zone';
@@ -190,10 +282,7 @@
 				credentials: 'include',
 				body: JSON.stringify({ status })
 			});
-			if (!res.ok) {
-				toastStore.error('Failed to update zone status');
-				throw new Error('Failed to update zone status');
-			}
+			if (!res.ok) throw new Error('Failed to update zone status');
 			await loadZones();
 			toastStore.success('Zone status updated');
 		} catch (err) {
@@ -218,10 +307,7 @@
 				method: 'DELETE',
 				credentials: 'include'
 			});
-			if (!res.ok) {
-				toastStore.error('Failed to delete zone');
-				throw new Error('Failed to delete zone');
-			}
+			if (!res.ok) throw new Error('Failed to delete zone');
 			await loadZones();
 			selectedZone = null;
 			toastStore.success('Zone deleted');
@@ -233,26 +319,12 @@
 		}
 	}
 
-	function parseGeoJsonCoords(geoJsonStr: string | null): [number, number][] {
-		if (!geoJsonStr) return [];
-		try {
-			const parsed = JSON.parse(geoJsonStr);
-			let feature = null;
-			if (parsed.type === 'FeatureCollection' && parsed.features.length > 0) {
-				feature = parsed.features[0];
-			} else if (parsed.type === 'Feature') {
-				feature = parsed;
-			} else if (parsed.type === 'Polygon') {
-				return parsed.coordinates[0].map((c: number[]) => [c[1], c[0]] as [number, number]);
-			}
-			if (feature?.geometry?.type === 'Polygon') {
-				return feature.geometry.coordinates[0].map((c: number[]) => [c[1], c[0]] as [number, number]);
-			}
-		} catch (err) {
-			console.error('Failed to parse GeoJSON:', err);
-		}
-		return [];
-	}
+	const STATUS_COLOR: Record<string, string> = {
+		complete: '#22c55e',
+		active: '#f2c037',
+		hold: '#ef4444',
+		pending: '#94a3b8'
+	};
 
 	onMount(() => {
 		loadZones();
@@ -260,146 +332,150 @@
 </script>
 
 <div class="work-zone-map">
-	{#if loading}
-		<div class="loading-state">Loading work zones...</div>
-	{:else if error}
-		<div class="error-state">{error}</div>
-	{/if}
+	{#if !hasRoute}
+		<MapStatus
+			kind="empty"
+			title="No route yet"
+			message="Draw or import the road alignment first — work zones are station ranges along the route."
+			height="320px"
+		/>
+	{:else}
+		{#if error}
+			<MapStatus kind="error" message={error} height="auto" />
+		{/if}
 
-	<div class="map-container">
-		<MapView
-			center={[lat, lng]}
-			zoom={15}
-			height="500px"
-			onready={handleMapReady}
-		>
-			{#snippet layers()}
-				{#each zones as zone (zone.id)}
-					{@const coords = parseGeoJsonCoords(zone.geometry_geojson)}
-					{#if coords.length > 0}
+		<div class="map-container">
+			<MapView center={[lat, lng]} zoom={15} height="500px" onready={handleMapReady}>
+				{#snippet layers()}
+					<MapPolyline id="wz-route" coordinates={routePoints} color="#f59e0b" width={3} opacity={0.7} />
+
+					{#each zones as zone (zone.id)}
+						{@const coords = parseZoneCoords(zone.geometry_geojson)}
+						{#if coords.length > 0}
+							<MapPolygon
+								id="zone-{zone.id}"
+								coordinates={coords}
+								color={zone.color || ZONE_TYPE_COLORS[zone.zone_type]}
+								opacity={0.7}
+								fillOpacity={0.25}
+							/>
+						{/if}
+					{/each}
+
+					{#if previewPolygon}
 						<MapPolygon
-							id="zone-{zone.id}"
-							coordinates={coords}
-							color={zone.color || ZONE_TYPE_COLORS[zone.zone_type]}
-							opacity={0.7}
-							fillOpacity={0.25}
+							id="wz-preview"
+							coordinates={previewPolygon}
+							color={ZONE_TYPE_COLORS[selectedType]}
+							opacity={0.9}
+							fillOpacity={0.2}
 						/>
 					{/if}
-				{/each}
-				<!-- In-progress drawing preview -->
-				{#if drawingMode && previewCoords.length >= 3}
-					<MapPolygon
-						id="drawing-preview"
-						coordinates={previewCoords}
-						color="#8b5cf6"
-						opacity={0.9}
-						fillOpacity={0.15}
-					/>
-				{/if}
-				<!-- Drawing point markers -->
-				{#if drawingMode}
-					{#each drawnPoints as pt, i (i)}
-						<MapMarker
-							lat={pt[1]}
-							lng={pt[0]}
-							color="#8b5cf6"
-							label={String(i + 1)}
-						/>
-					{/each}
-				{/if}
-			{/snippet}
-		</MapView>
+					{#if previewLine}
+						<MapPolyline id="wz-preview-line" coordinates={previewLine} color={ZONE_TYPE_COLORS[selectedType]} width={4} opacity={0.95} />
+					{/if}
+					{#if beginCoord}
+						<MapMarker lat={beginCoord[0]} lng={beginCoord[1]} color={ZONE_TYPE_COLORS[selectedType]} label="S" />
+					{/if}
+					{#if endCoord}
+						<MapMarker lat={endCoord[0]} lng={endCoord[1]} color={ZONE_TYPE_COLORS[selectedType]} label="E" />
+					{/if}
+				{/snippet}
+			</MapView>
 
-		{#if drawingMode}
-			<div class="draw-overlay">
-				<span>Tap to add points ({drawnPoints.length} added)</span>
-				<button class="draw-done-btn" onclick={finishDrawing} disabled={drawnPoints.length < 3}>
-					Done ({drawnPoints.length} pts)
-				</button>
-				<button class="draw-cancel-btn" onclick={cancelDrawing}>Cancel</button>
-			</div>
-		{/if}
-	</div>
-
-	{#if !readonly}
-		<div class="toolbar">
-			{#each Object.entries(ZONE_TYPE_LABELS) as [type, label]}
-				<button
-					class="zone-type-btn"
-					class:active={selectedType === type}
-					onclick={() => startDrawing(type as 'paving' | 'milling' | 'tack' | 'base' | 'other')}
-					style="--zone-color: {ZONE_TYPE_COLORS[type]}"
-					disabled={drawingMode}
-				>
-					<span class="zone-dot" style="background:{ZONE_TYPE_COLORS[type]}"></span>
-					{label}
-				</button>
-			{/each}
-		</div>
-	{/if}
-
-	{#if showZoneForm}
-		<div class="zone-form-panel">
-			<h4>New Work Zone</h4>
-			<div class="form-row">
-				<label class="form-label" for="zone-name">Zone Name</label>
-				<input
-					id="zone-name"
-					class="form-input"
-					type="text"
-					placeholder="e.g. North Approach"
-					bind:value={zoneForm.name}
-				/>
-			</div>
-			<div class="form-row">
-				<label class="form-label" for="zone-notes">Notes (optional)</label>
-				<textarea
-					id="zone-notes"
-					class="form-input form-textarea"
-					placeholder="Any notes about this zone..."
-					bind:value={zoneForm.notes}
-				></textarea>
-			</div>
-			<div class="form-actions">
-				<button class="btn-save" onclick={saveZone} disabled={saving || !zoneForm.name}>
-					{saving ? 'Saving...' : 'Save Zone'}
-				</button>
-				<button class="btn-cancel" onclick={cancelDrawing}>Cancel</button>
-			</div>
-		</div>
-	{/if}
-
-	{#if zones.length > 0}
-		<div class="zone-list">
-			{#each zones as zone (zone.id)}
-				<div class="zone-item" class:selected={selectedZone?.id === zone.id}>
-					<div
-						class="zone-item-header"
-						role="button"
-						tabindex="0"
-						onclick={() => selectedZone = selectedZone?.id === zone.id ? null : zone}
-						onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectedZone = selectedZone?.id === zone.id ? null : zone; } }}
-					>
-						<span class="zone-dot-sm" style="background:{zone.color || ZONE_TYPE_COLORS[zone.zone_type]}"></span>
-						<span class="zone-item-name">{zone.name}</span>
-						<span class="zone-type-badge">{ZONE_TYPE_LABELS[zone.zone_type]}</span>
-						<span class="zone-status-badge" style="--s-color:{zone.status === 'complete' ? '#22c55e' : zone.status === 'active' ? '#f2c037' : zone.status === 'hold' ? '#ef4444' : '#94a3b8'}">
-							{zone.status}
-						</span>
-					</div>
-					{#if selectedZone?.id === zone.id}
-						<div class="zone-item-actions">
-							{#if !readonly}
-								<button onclick={() => updateZoneStatus(zone.id, 'active')} class="status-btn" disabled={zone.status === 'active' || saving}>Active</button>
-								<button onclick={() => updateZoneStatus(zone.id, 'complete')} class="status-btn complete" disabled={zone.status === 'complete' || saving}>Complete</button>
-								<button onclick={() => updateZoneStatus(zone.id, 'hold')} class="status-btn hold" disabled={zone.status === 'hold' || saving}>Hold</button>
-								<button onclick={() => deleteZone(zone.id)} class="status-btn delete" disabled={saving}>Delete</button>
-							{/if}
-						</div>
+			{#if pickMode !== 'idle' || flashMessage}
+				<div class="pick-pill" class:pick-pill--flash={!!flashMessage}>
+					{#if flashMessage}
+						{flashMessage}
+					{:else if pickMode === 'pick-start'}
+						Tap the road to set the zone START
+					{:else}
+						Tap the road to set the zone END
 					{/if}
 				</div>
-			{/each}
+			{/if}
+
+			{#if pickMode !== 'idle'}
+				<div class="pick-cancel">
+					<Button variant="ghost" size="sm" onclick={cancelZone}>Cancel</Button>
+				</div>
+			{/if}
 		</div>
+
+		{#if !readonly}
+			<div class="toolbar">
+				{#each Object.entries(ZONE_TYPE_LABELS) as [type, label] (type)}
+					<Button
+						variant={selectedType === type && pickMode !== 'idle' ? 'primary' : 'secondary'}
+						size="sm"
+						disabled={pickMode !== 'idle'}
+						onclick={() => startZone(type as 'paving' | 'milling' | 'tack' | 'base' | 'other')}
+					>
+						<span class="zone-dot" style="background:{ZONE_TYPE_COLORS[type]}"></span>
+						{label}
+					</Button>
+				{/each}
+			</div>
+		{/if}
+
+		{#if showZoneForm}
+			<div class="zone-form-panel">
+				<h4>New Work Zone</h4>
+				{#if rangeSummary}<p class="range-summary">{rangeSummary}</p>{/if}
+				<div class="form-row">
+					<label class="form-label" for="zone-name">Zone Name</label>
+					<input id="zone-name" class="form-input" type="text" placeholder="e.g. North Approach" bind:value={zoneForm.name} />
+				</div>
+				<div class="form-row">
+					<label class="form-label" for="zone-width">Corridor width (ft)</label>
+					<input id="zone-width" class="form-input" type="number" min="1" step="1" bind:value={bandWidthFt} />
+				</div>
+				<div class="form-row">
+					<label class="form-label" for="zone-notes">Notes (optional)</label>
+					<textarea id="zone-notes" class="form-input form-textarea" placeholder="Any notes about this zone…" bind:value={zoneForm.notes}></textarea>
+				</div>
+				<div class="form-actions">
+					<Button variant="primary" onclick={saveZone} disabled={saving || !zoneForm.name}>
+						{saving ? 'Saving…' : 'Save Zone'}
+					</Button>
+					<Button variant="ghost" onclick={cancelZone}>Cancel</Button>
+				</div>
+			</div>
+		{/if}
+
+		{#if zones.length > 0}
+			<div class="zone-list">
+				{#each zones as zone (zone.id)}
+					<div class="zone-item" class:selected={selectedZone?.id === zone.id}>
+						<div
+							class="zone-item-header"
+							role="button"
+							tabindex="0"
+							onclick={() => (selectedZone = selectedZone?.id === zone.id ? null : zone)}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									selectedZone = selectedZone?.id === zone.id ? null : zone;
+								}
+							}}
+						>
+							<span class="zone-dot-sm" style="background:{zone.color || ZONE_TYPE_COLORS[zone.zone_type]}"></span>
+							<span class="zone-item-name">{zone.name}</span>
+							<span class="zone-type-badge">{ZONE_TYPE_LABELS[zone.zone_type]}</span>
+							<span class="zone-status-badge" style="--s-color:{STATUS_COLOR[zone.status]}">{zone.status}</span>
+						</div>
+						{#if selectedZone?.id === zone.id && !readonly}
+							<div class="zone-item-actions">
+								<Button variant="secondary" size="sm" onclick={() => updateZoneStatus(zone.id, 'active')} disabled={zone.status === 'active' || saving}>Active</Button>
+								<Button variant="secondary" size="sm" onclick={() => updateZoneStatus(zone.id, 'complete')} disabled={zone.status === 'complete' || saving}>Complete</Button>
+								<Button variant="secondary" size="sm" onclick={() => updateZoneStatus(zone.id, 'hold')} disabled={zone.status === 'hold' || saving}>Hold</Button>
+								<Button variant="danger" size="sm" onclick={() => deleteZone(zone.id)} disabled={saving}>Delete</Button>
+							</div>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		{/if}
 	{/if}
 </div>
 
@@ -410,105 +486,44 @@
 		gap: 12px;
 	}
 
-	.loading-state,
-	.error-state {
-		padding: 12px 16px;
-		background: var(--surface);
-		border-radius: var(--radius);
-		color: var(--text-muted);
-		font-size: 0.875rem;
-	}
-
-	.error-state {
-		color: #ef4444;
-	}
-
 	.map-container {
 		position: relative;
 		border-radius: var(--radius-md, 12px);
 		overflow: hidden;
 	}
 
-	.draw-overlay {
+	.pick-pill {
 		position: absolute;
 		bottom: 16px;
 		left: 50%;
 		transform: translateX(-50%);
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 8px 14px;
-		background: rgba(0, 0, 0, 0.8);
-		border-radius: 24px;
 		z-index: 400;
-		color: #fff;
+		padding: 6px 14px;
+		border-radius: 20px;
+		background: color-mix(in srgb, var(--text) 80%, transparent);
+		color: var(--surface);
 		font-size: 0.8rem;
 		font-weight: 600;
-		backdrop-filter: blur(4px);
 		white-space: nowrap;
+		pointer-events: none;
 	}
 
-	.draw-done-btn {
-		min-height: 32px;
-		padding: 0 12px;
-		background: #22c55e;
-		border: none;
-		border-radius: 6px;
-		color: #000;
-		font-size: 0.78rem;
-		font-weight: 700;
-		cursor: pointer;
+	.pick-pill--flash {
+		background: var(--bad);
+		color: var(--accent-text);
 	}
 
-	.draw-done-btn:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
-	}
-
-	.draw-cancel-btn {
-		min-height: 32px;
-		padding: 0 12px;
-		background: rgba(255, 255, 255, 0.15);
-		border: 1px solid rgba(255, 255, 255, 0.3);
-		border-radius: 6px;
-		color: #fff;
-		font-size: 0.78rem;
-		font-weight: 600;
-		cursor: pointer;
+	.pick-cancel {
+		position: absolute;
+		top: 12px;
+		right: 12px;
+		z-index: 400;
 	}
 
 	.toolbar {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px;
-	}
-
-	.zone-type-btn {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		min-height: 40px;
-		padding: 0 14px;
-		background: var(--surface);
-		border: 2px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text-muted);
-		font-size: 0.85rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: border-color 0.15s, color 0.15s, background 0.15s;
-	}
-
-	.zone-type-btn.active,
-	.zone-type-btn:hover:not(:disabled) {
-		border-color: var(--zone-color);
-		color: var(--text);
-		background: color-mix(in srgb, var(--zone-color) 12%, var(--surface));
-	}
-
-	.zone-type-btn:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
 	}
 
 	.zone-dot {
@@ -526,9 +541,16 @@
 	}
 
 	.zone-form-panel h4 {
-		margin: 0 0 12px;
+		margin: 0 0 8px;
 		font-size: 0.95rem;
 		color: var(--text);
+	}
+
+	.range-summary {
+		margin: 0 0 12px;
+		font-size: 0.82rem;
+		font-weight: 600;
+		color: var(--accent);
 	}
 
 	.form-row {
@@ -546,7 +568,7 @@
 
 	.form-input {
 		padding: 10px 12px;
-		background: var(--input-bg, var(--surface-alt, #1a2530));
+		background: var(--surface-alt, var(--surface));
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
 		color: var(--text);
@@ -562,34 +584,6 @@
 	.form-actions {
 		display: flex;
 		gap: 8px;
-	}
-
-	.btn-save {
-		flex: 1;
-		min-height: 44px;
-		background: var(--accent);
-		border: none;
-		border-radius: var(--radius);
-		color: #000;
-		font-size: 0.9rem;
-		font-weight: 700;
-		cursor: pointer;
-	}
-
-	.btn-save:disabled {
-		opacity: 0.4;
-		cursor: not-allowed;
-	}
-
-	.btn-cancel {
-		min-height: 44px;
-		padding: 0 16px;
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		color: var(--text-muted);
-		font-size: 0.9rem;
-		cursor: pointer;
 	}
 
 	.zone-list {
@@ -631,21 +625,26 @@
 		font-size: 0.9rem;
 		font-weight: 600;
 		color: var(--text);
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.zone-type-badge {
 		font-size: 0.72rem;
 		color: var(--text-muted);
-		background: var(--surface-alt, rgba(255,255,255,0.05));
+		background: var(--surface-alt, color-mix(in srgb, var(--text) 5%, transparent));
 		padding: 2px 7px;
 		border-radius: 4px;
+		white-space: nowrap;
 	}
 
 	.zone-status-badge {
 		font-size: 0.72rem;
 		font-weight: 700;
-		color: var(--s-color, #94a3b8);
-		background: color-mix(in srgb, var(--s-color, #94a3b8) 12%, transparent);
+		color: var(--s-color, var(--text-muted));
+		background: color-mix(in srgb, var(--s-color, var(--text-muted)) 12%, transparent);
 		padding: 2px 7px;
 		border-radius: 4px;
 		text-transform: capitalize;
@@ -658,40 +657,5 @@
 		border-top: 1px solid var(--border);
 		flex-wrap: wrap;
 	}
-
-	.status-btn {
-		min-height: 36px;
-		padding: 0 12px;
-		background: var(--surface-alt, rgba(255,255,255,0.05));
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		color: var(--text-muted);
-		font-size: 0.8rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: background 0.15s, color 0.15s;
-	}
-
-	.status-btn:disabled {
-		opacity: 0.35;
-		cursor: not-allowed;
-	}
-
-	.status-btn.complete {
-		color: #22c55e;
-		border-color: #22c55e;
-	}
-
-	.status-btn.hold {
-		color: #ef4444;
-		border-color: #ef4444;
-	}
-
-	.status-btn.delete {
-		color: #ef4444;
-	}
-
-	.status-btn.delete:not(:disabled):hover {
-		background: rgba(239, 68, 68, 0.12);
-	}
 </style>
+

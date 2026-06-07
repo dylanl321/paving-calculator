@@ -1,17 +1,13 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	import {
 		MapView,
 		MapGeoJSON,
 		MapMarker,
-		MapPolyline,
-		MapPolygon,
 		RoadwayLogLayer
 	} from '$lib/components/map-v2';
-	import { polylineLengthFt, laneCorridorPolygon, feetToMeters } from '$lib/services/mapUtils';
-	import { buildRoadAlignment, snapToNearestRoad } from '$lib/services/roadSnap';
-	import type { Map as MapLibreMap, Marker as MapLibreMarker } from 'maplibre-gl';
+	import { RouteEditController, type RouteEditApi } from '$lib/components/map-v2/editors';
+	import { polylineLengthFt } from '$lib/services/mapUtils';
 
 	interface Waypoint {
 		lat: number;
@@ -97,24 +93,22 @@
 		onRouteSave
 	}: Props = $props();
 
-	let mapInstance = $state<MapLibreMap | null>(null);
+	let routeApi = $state<RouteEditApi | null>(null);
 	/**
-	 * Road-following alignment that gets saved. On first load this is the stored
-	 * route; while drawing it is rebuilt from snapped control points so the line
-	 * always lies on real roads.
+	 * Mirror of the controller's current road-following alignment. Kept here so the
+	 * wrapper chrome (length stat, guide text, roadway-log anchoring) can react.
+	 * Seeded from the stored route so stats render before the first edit.
 	 */
 	// svelte-ignore state_referenced_locally
 	let waypoints = $state<Waypoint[]>([...initialWaypoints]);
-	/** User-clicked control points (already snapped to the nearest road). */
-	let controlPoints = $state<Waypoint[]>([]);
-	let drawMode = $state(false);
-	let saving = $state(false);
-	let snapping = $state(false);
-	let snapError = $state('');
 	let showRoadwayLog = $state(true);
 	let showSegments = $state(true);
-	let controlMarkers: MapLibreMarker[] = [];
-	let previousInitialWaypoints = initialWaypoints;
+
+	const drawMode = $derived(routeApi?.drawMode ?? false);
+	const saving = $derived(routeApi?.saving ?? false);
+	const snapping = $derived(routeApi?.snapping ?? false);
+	const snapError = $derived(routeApi?.snapError ?? '');
+	const controlPointCount = $derived(routeApi?.controlPoints.length ?? 0);
 
 	const isMobile = $derived(
 		browser && typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
@@ -176,9 +170,6 @@
 			</div>`;
 	});
 
-	const routePoints = $derived<[number, number][]>(waypoints.map((wp) => [wp.lat, wp.lng]));
-	const firstWaypoint = $derived(waypoints.length >= 2 ? waypoints[0] : null);
-	const lastWaypoint = $derived(waypoints.length >= 2 ? waypoints[waypoints.length - 1] : null);
 	const guideText = $derived.by(() => {
 		if (countyOnly && waypoints.length < 2) {
 			return `${countyName ?? countyBoundaryGeojson?.properties?.county ?? 'County'} is known, but the exact road is not confirmed yet. Load or draw the road line.`;
@@ -202,168 +193,29 @@
 		countyOnly && waypoints.length < 2 ? countyBounds : null
 	);
 
-	const bufferCoords = $derived.by<[number, number][]>(() => {
-		if (waypoints.length < 2 || !numLanes || !laneWidthFt || numLanes <= 0 || laneWidthFt <= 0)
-			return [];
-		const totalWidthMeters = feetToMeters(numLanes * laneWidthFt);
-		return laneCorridorPolygon(waypoints, totalWidthMeters);
-	});
-
-	function handleMapReady(map: MapLibreMap) {
-		mapInstance = map;
-		map.on('click', (e) => {
-			if (drawMode && !isMobile) {
-				addControlPoint(e.lngLat.lat, e.lngLat.lng);
-			}
-		});
+	function onRouteChange(next: Waypoint[]) {
+		waypoints = next;
 	}
 
+	// Chrome buttons delegate to the controller's exposed actions.
 	function toggleDrawMode() {
-		drawMode = !drawMode;
-		if (drawMode && controlPoints.length === 0 && waypoints.length >= 2) {
-			const mid = waypoints[Math.floor(waypoints.length / 2)];
-			controlPoints = [waypoints[0], mid, waypoints[waypoints.length - 1]];
-		}
-		if (mapInstance) {
-			mapInstance.getCanvas().style.cursor = drawMode ? 'crosshair' : '';
-		}
+		routeApi?.toggleDrawMode();
 	}
-
-	$effect(() => {
-		if (initialWaypoints !== previousInitialWaypoints) {
-			previousInitialWaypoints = initialWaypoints;
-			waypoints = [...initialWaypoints];
-			controlPoints = [];
-		}
-	});
-
-	/**
-	 * Add a clicked point: snap it to the nearest real road, then rebuild the
-	 * road-following alignment. Roads-only by design — a click that isn't near a
-	 * road is rejected rather than dropping an off-road waypoint.
-	 */
-	async function addControlPoint(lat: number, lng: number) {
-		snapError = '';
-		snapping = true;
-		try {
-			const snapped = await snapToNearestRoad(lat, lng);
-			if (!snapped) {
-				snapError = 'Could not snap to a road there — tap on a road.';
-				return;
-			}
-			controlPoints = [...controlPoints, { lat: snapped.lat, lng: snapped.lng }];
-			await rebuildAlignment();
-		} finally {
-			snapping = false;
-		}
-	}
-
-	/** Rebuild the saved alignment so it follows real roads between control points. */
-	async function rebuildAlignment() {
-		if (controlPoints.length === 0) {
-			waypoints = [];
-			return;
-		}
-		const aligned = await buildRoadAlignment(controlPoints);
-		waypoints = aligned.map(([lat, lng]) => ({ lat, lng }));
-	}
-
 	function addPointAtCenter() {
-		if (!mapInstance || !drawMode) return;
-		const center = mapInstance.getCenter();
-		void addControlPoint(center.lat, center.lng);
+		routeApi?.addPointAtCenter();
 	}
-
 	function undoLastPoint() {
-		if (controlPoints.length === 0) return;
-		controlPoints = controlPoints.slice(0, -1);
-		void rebuildAlignment();
+		routeApi?.undoLastPoint();
 	}
-
 	function clearRoute() {
-		controlPoints = [];
-		waypoints = [];
-		snapError = '';
+		routeApi?.clearRoute();
 	}
-
 	function flipRoute() {
-		waypoints = [...waypoints].reverse();
-		controlPoints = [...controlPoints].reverse();
+		routeApi?.flipRoute();
 	}
-
-	function clearControlMarkers() {
-		for (const marker of controlMarkers) marker.remove();
-		controlMarkers = [];
+	function saveRoute() {
+		void routeApi?.saveRoute();
 	}
-
-	$effect(() => {
-		const map = mapInstance;
-		const points = controlPoints;
-		if (!browser || !map || !drawMode) {
-			clearControlMarkers();
-			return;
-		}
-
-		const activeMap = map;
-		let cancelled = false;
-		async function renderMarkers() {
-			clearControlMarkers();
-			const { Marker } = await import('maplibre-gl');
-			if (cancelled) return;
-			controlMarkers = points.map((cp, i) => {
-				const el = document.createElement('button');
-				el.type = 'button';
-				el.className = 'route-control-point';
-				el.textContent = String(i + 1);
-				const marker = new Marker({ element: el, draggable: true, anchor: 'center' })
-					.setLngLat([cp.lng, cp.lat])
-					.addTo(activeMap);
-				marker.on('dragend', async () => {
-					const pos = marker.getLngLat();
-					snapError = '';
-					snapping = true;
-					try {
-						const snapped = await snapToNearestRoad(pos.lat, pos.lng);
-						if (!snapped) {
-							marker.setLngLat([cp.lng, cp.lat]);
-							snapError = 'Could not snap that point to a road.';
-							return;
-						}
-						const next = [...controlPoints];
-						next[i] = { lat: snapped.lat, lng: snapped.lng };
-						controlPoints = next;
-						await rebuildAlignment();
-					} finally {
-						snapping = false;
-					}
-				});
-				return marker;
-			});
-		}
-
-		void renderMarkers();
-		return () => {
-			cancelled = true;
-			clearControlMarkers();
-		};
-	});
-
-	async function saveRoute() {
-		if (!onRouteSave) return;
-		saving = true;
-		try {
-			await onRouteSave(waypoints);
-		} catch (err) {
-			console.error('Failed to save route:', err);
-		} finally {
-			saving = false;
-		}
-	}
-
-	onDestroy(() => {
-		clearControlMarkers();
-		mapInstance = null;
-	});
 </script>
 
 {#if !hasMapContext}
@@ -396,7 +248,6 @@
 			bounds={mapBounds}
 			zoom={countyOnly ? 9 : 15}
 			{height}
-			onready={handleMapReady}
 		>
 			{#snippet layers()}
 				{#if countyBoundaryGeojson && countyBoundaryFeature}
@@ -442,41 +293,16 @@
 					{/each}
 				{/if}
 
-				{#if waypoints.length >= 2}
-					<MapPolyline
-						id="route-alignment"
-						coordinates={routePoints}
-						color="#f2c037"
-						width={3}
-					/>
-					{#if bufferCoords.length > 0}
-						<MapPolygon
-							id="route-buffer"
-							coordinates={bufferCoords}
-							fillColor="rgba(242, 192, 55, 0.15)"
-							strokeColor="rgba(242, 192, 55, 0.5)"
-							strokeWidth={1}
-						/>
-					{/if}
-					{#if firstWaypoint}
-						<MapMarker
-							lat={firstWaypoint.lat}
-							lng={firstWaypoint.lng}
-							color="#f2c037"
-							label="S"
-							popupHtml="<b>Route start edge</b><br>Set project start/end below for the actual project limits."
-						/>
-					{/if}
-					{#if lastWaypoint}
-						<MapMarker
-							lat={lastWaypoint.lat}
-							lng={lastWaypoint.lng}
-							color="#f2c037"
-							label="E"
-							popupHtml="<b>Route end edge</b><br>Set project start/end below for the actual project limits."
-						/>
-					{/if}
-				{/if}
+				<RouteEditController
+					initialWaypoints={initialWaypoints}
+					active={true}
+					{numLanes}
+					{laneWidthFt}
+					{isMobile}
+					{onRouteSave}
+					onChange={onRouteChange}
+					bind:api={routeApi}
+				/>
 
 				<RoadwayLogLayer
 					{waypoints}
@@ -587,7 +413,7 @@
 				</button>
 			{/if}
 
-			{#if drawMode && controlPoints.length > 0}
+			{#if drawMode && controlPointCount > 0}
 				<button type="button" class="map-btn" onclick={undoLastPoint} title="Undo last point" disabled={snapping}>
 					<svg
 						width="18"
@@ -606,7 +432,7 @@
 				</button>
 			{/if}
 
-			{#if waypoints.length > 0 || controlPoints.length > 0}
+			{#if waypoints.length > 0 || controlPointCount > 0}
 				{#if waypoints.length >= 2}
 					<button type="button" class="map-btn" onclick={flipRoute} title="Reverse route direction">
 						<svg
@@ -689,10 +515,10 @@
 					<span class="stat-label">Length</span>
 					<span class="stat-value">{totalLengthFt.toFixed(0)} ft</span>
 				</div>
-				{#if controlPoints.length > 0}
+				{#if controlPointCount > 0}
 					<div class="stat">
 						<span class="stat-label">Control points</span>
-						<span class="stat-value">{controlPoints.length}</span>
+						<span class="stat-value">{controlPointCount}</span>
 					</div>
 				{/if}
 			</div>
@@ -948,22 +774,6 @@
 
 	.snap-pill--error {
 		background: rgba(239, 68, 68, 0.92);
-	}
-
-	:global(.route-control-point) {
-		width: 30px;
-		height: 30px;
-		border-radius: 999px;
-		border: 2px solid #111827;
-		background: #f2c037;
-		color: #111827;
-		font-weight: 800;
-		cursor: grab;
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-	}
-
-	:global(.route-control-point:active) {
-		cursor: grabbing;
 	}
 
 	@media (max-width: 640px) {

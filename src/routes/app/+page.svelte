@@ -15,6 +15,8 @@
 	import CalcHistoryLog from '$lib/components/CalcHistoryLog.svelte';
 	import { recentTools } from '$lib/stores/recentTools.svelte';
 	import { job } from '$lib/stores/job.svelte';
+	import Breadcrumbs from '$lib/components/ui/Breadcrumbs.svelte';
+	import type { Crumb } from '$lib/components/ui/Breadcrumbs.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -39,6 +41,14 @@
 	const isHome = $derived(activeTool == null);
 	const ActiveComponent = $derived(activeTool?.component);
 	const activeToolGroup = $derived(toolGroups.find(g => g.tools.some(t => t.id === activeTool?.id)) ?? null);
+
+	const breadcrumbs = $derived.by<Crumb[]>(() => {
+		const homeHref = projectContext ? '/app?tool=production-check' : '/app';
+		const crumbs: Crumb[] = [{ label: 'Quick Calculator', href: homeHref }];
+		if (activeToolGroup) crumbs.push({ label: activeToolGroup.label });
+		crumbs.push({ label: activeTool?.label ?? '' });
+		return crumbs;
+	});
 
 	function selectTool(id: string) {
 		recentTools.addTool(id);
@@ -395,15 +405,9 @@
 				{/if}
 				<header class="stage-head">
 					<!-- Desktop/tablet breadcrumb -->
-					<nav class="breadcrumb" aria-label="Breadcrumb">
-						<button type="button" class="breadcrumb-link" onclick={selectHome}>Quick Calculator</button>
-						<span class="breadcrumb-sep">/</span>
-						{#if activeToolGroup}
-							<span class="breadcrumb-group">{activeToolGroup.label}</span>
-							<span class="breadcrumb-sep">/</span>
-						{/if}
-						<span class="breadcrumb-current">{activeTool?.label ?? ''}</span>
-					</nav>
+					<div class="breadcrumb">
+						<Breadcrumbs crumbs={breadcrumbs} />
+					</div>
 
 					<!-- Mobile back button -->
 					<button type="button" class="back-btn" onclick={selectHome} aria-label="Back to quick calculator">
@@ -696,35 +700,6 @@
 		color: var(--text-muted);
 		margin-bottom: var(--sp-3);
 		line-height: 1.4;
-	}
-
-	.breadcrumb-link {
-		background: none;
-		border: none;
-		padding: 0;
-		color: var(--text-muted);
-		cursor: pointer;
-		font-size: inherit;
-		text-decoration: none;
-		transition: color 0.15s ease;
-	}
-
-	.breadcrumb-link:hover {
-		color: var(--text);
-		text-decoration: underline;
-	}
-
-	.breadcrumb-sep {
-		margin: 0 var(--sp-2);
-		color: var(--text-muted);
-	}
-
-	.breadcrumb-group {
-		color: var(--text-muted);
-	}
-
-	.breadcrumb-current {
-		color: var(--text);
 	}
 
 	/* Mobile back button */

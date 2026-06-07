@@ -40,6 +40,36 @@ export interface DbJobSite {
 	updated_at: number;
 }
 
+/**
+ * The shape returned per site by the list endpoint `GET /api/job-sites`.
+ * A projection of {@link DbJobSite} carrying the list-relevant identity,
+ * status, financial, customer, and date columns (all already stored — no
+ * schema change). Consumed by the Projects index (`/dashboard/projects`) and
+ * the trimmed Home overview (`/dashboard`).
+ *
+ * NOTE: `total_contract_value` is a CONFIG field (on `DbJobSiteConfig`, not
+ * `DbJobSite`) and is intentionally NOT part of this shape — the UI sources it
+ * via the existing config enrichment and treats it as optional.
+ */
+export interface ProjectSummary {
+	id: string;
+	org_id: string;
+	name: string;
+	location_description: string | null;
+	latitude: number | null;
+	longitude: number | null;
+	status: DbJobSite['status'];
+	contract_amount: number | null;
+	est_start_date: string | null;
+	completion_date: string | null;
+	customer_name: string | null;
+	job_number: string | null;
+	project_number: string | null;
+	work_type: string | null;
+	created_at: number;
+	updated_at: number;
+}
+
 export type JobSiteContractMeta = Partial<
 	Pick<
 		DbJobSite,
