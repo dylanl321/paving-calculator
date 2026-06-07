@@ -29,8 +29,11 @@
 	}
 
 	.chip {
-		min-height: 48px;
+		min-height: var(--chip-h);
 		padding: 0 16px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: 12px;

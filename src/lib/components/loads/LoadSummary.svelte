@@ -394,7 +394,7 @@
 	}
 
 	.completion-pct.completion-done {
-		color: #22c55e;
+		color: var(--good);
 	}
 
 	.completion-bar-track {
@@ -414,7 +414,7 @@
 	}
 
 	.completion-bar-fill--done {
-		background: #22c55e;
+		background: var(--good);
 	}
 
 	.completion-sub {
@@ -427,7 +427,7 @@
 	}
 
 	.completion-remaining--done {
-		color: #22c55e;
+		color: var(--good);
 		opacity: 1;
 	}
 

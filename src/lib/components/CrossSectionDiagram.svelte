@@ -8,7 +8,9 @@
 
 	// SVG dimensions and scaling
 	const viewHeight = 200;
-	const viewWidth = 300;
+	// Widened past 300 so the right-side dimension labels (anchored at x=305)
+	// stay inside the viewBox instead of clipping over the card border.
+	const viewWidth = 400;
 	const maxHeight = 160; // max visual height for material
 	const baseY = 170; // baseline for road
 

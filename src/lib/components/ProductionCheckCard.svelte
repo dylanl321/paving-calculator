@@ -283,6 +283,7 @@
 		display: grid;
 		gap: 3px;
 		align-content: start;
+		justify-items: start;
 	}
 
 	.job-fact span,

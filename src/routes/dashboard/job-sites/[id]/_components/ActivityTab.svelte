@@ -293,8 +293,8 @@
 		flex-direction: column;
 		gap: 10px;
 		padding: 12px 16px;
-		background: rgba(255, 255, 255, 0.03);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+		background: color-mix(in srgb, var(--text) 3%, transparent);
+		border-bottom: 1px solid var(--border);
 	}
 
 	.type-filters {
@@ -307,33 +307,33 @@
 		padding: 6px 12px;
 		min-height: 36px;
 		border-radius: 18px;
-		border: 1px solid rgba(255, 255, 255, 0.15);
+		border: 1px solid var(--border);
 		background: transparent;
-		color: rgba(255, 255, 255, 0.6);
+		color: var(--text-muted);
 		font-size: 13px;
 		cursor: pointer;
 		transition: all 0.15s;
 	}
 
 	.filter-pill:hover {
-		border-color: rgba(242, 192, 55, 0.4);
-		color: rgba(255, 255, 255, 0.85);
+		border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+		color: var(--text);
 	}
 
 	.filter-pill.active {
-		background: #f2c037;
-		border-color: #f2c037;
-		color: #1a2530;
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--accent-text);
 		font-weight: 600;
 	}
 
 	.user-filter {
 		height: 36px;
 		padding: 0 10px;
-		background: rgba(255, 255, 255, 0.05);
-		border: 1px solid rgba(255, 255, 255, 0.15);
+		background: var(--surface);
+		border: 1px solid var(--border);
 		border-radius: 8px;
-		color: rgba(255, 255, 255, 0.8);
+		color: var(--text);
 		font-size: 13px;
 		cursor: pointer;
 		max-width: 200px;
@@ -346,12 +346,12 @@
 		justify-content: center;
 		gap: 8px;
 		padding: 48px 24px;
-		color: rgba(255, 255, 255, 0.5);
+		color: var(--text-muted);
 		font-size: 14px;
 	}
 
 	.state-box.error {
-		color: #f87171;
+		color: var(--bad);
 	}
 
 	.state-box.empty {
@@ -372,8 +372,8 @@
 		margin-top: 8px;
 		padding: 8px 16px;
 		min-height: 36px;
-		background: rgba(255, 255, 255, 0.08);
-		border: 1px solid rgba(255, 255, 255, 0.15);
+		background: var(--surface);
+		border: 1px solid var(--border);
 		border-radius: 8px;
 		color: inherit;
 		cursor: pointer;
@@ -390,13 +390,13 @@
 		display: flex;
 		gap: 12px;
 		padding: 12px 16px;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+		border-bottom: 1px solid var(--border);
 		align-items: flex-start;
 		transition: background 0.1s;
 	}
 
 	.timeline-item:hover {
-		background: rgba(255, 255, 255, 0.02);
+		background: color-mix(in srgb, var(--text) 2%, transparent);
 	}
 
 	.avatar {
@@ -424,7 +424,7 @@
 	.item-main {
 		font-size: 14px;
 		line-height: 1.4;
-		color: rgba(255, 255, 255, 0.9);
+		color: var(--text);
 	}
 
 	.actor {
@@ -433,7 +433,7 @@
 	}
 
 	.action {
-		color: rgba(255, 255, 255, 0.7);
+		color: var(--text-muted);
 	}
 
 	.item-meta {
@@ -446,14 +446,14 @@
 		font-size: 11px;
 		padding: 2px 6px;
 		border-radius: 4px;
-		background: rgba(242, 192, 55, 0.15);
-		color: #f2c037;
+		background: color-mix(in srgb, var(--accent) 20%, transparent);
+		color: var(--accent);
 		font-weight: 500;
 	}
 
 	.timestamp {
 		font-size: 12px;
-		color: rgba(255, 255, 255, 0.35);
+		color: var(--text-muted);
 	}
 
 	.load-more-row {
@@ -469,8 +469,8 @@
 	.spinner {
 		width: 24px;
 		height: 24px;
-		border: 2px solid rgba(255, 255, 255, 0.1);
-		border-top-color: #f2c037;
+		border: 2px solid var(--border);
+		border-top-color: var(--accent);
 		border-radius: 50%;
 		animation: spin 0.7s linear infinite;
 	}

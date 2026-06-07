@@ -433,7 +433,7 @@
 	}
 
 	.notification-toggle:hover {
-		background: rgba(255, 255, 255, 0.03);
+		background: var(--surface-hover);
 	}
 
 	.notification-toggle input[type='checkbox'] {
@@ -571,12 +571,12 @@
 	}
 
 	.badge-on {
-		background: rgba(34, 197, 94, 0.15);
-		color: #22c55e;
+		background: color-mix(in srgb, var(--good) 15%, transparent);
+		color: var(--good);
 	}
 
 	.badge-off {
-		background: rgba(255, 255, 255, 0.05);
+		background: var(--surface-hover);
 		color: var(--text-muted);
 	}
 
@@ -711,8 +711,8 @@
 	}
 
 	.remove-btn:hover {
-		background: rgba(255, 255, 255, 0.05);
-		color: #ef4444;
+		background: var(--surface-hover);
+		color: var(--bad);
 	}
 
 	.empty-recipients {
@@ -770,7 +770,7 @@
 	}
 
 	.field-error {
-		color: #ef4444;
+		color: var(--bad);
 		font-size: 0.8rem;
 		margin: 6px 0 0;
 	}

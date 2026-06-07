@@ -503,19 +503,19 @@
 	.setup-steps strong,
 	.setup-steps small {
 		display: block;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		min-width: 0;
 	}
 
 	.setup-steps strong {
 		color: var(--text);
 		font-size: 0.82rem;
+		overflow-wrap: anywhere;
 	}
 
 	.setup-steps small {
 		color: var(--text-muted);
 		font-size: 0.74rem;
+		overflow-wrap: anywhere;
 	}
 
 	.route-meta {
@@ -561,6 +561,7 @@
 		grid-template-columns: 64px 120px minmax(0, 1fr) auto;
 		gap: 10px;
 		align-items: start;
+		min-width: 0;
 		padding: 9px 10px;
 		background: var(--surface-alt);
 		border: 1px solid var(--border);
@@ -585,6 +586,8 @@
 	.log-desc {
 		color: var(--text);
 		line-height: 1.3;
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 
 	.log-width {
@@ -597,6 +600,12 @@
 		margin: 8px 0 0;
 		color: var(--text-muted);
 		font-size: 0.85rem;
+	}
+
+	@media (max-width: 900px) {
+		.setup-steps {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
 	}
 
 	@media (max-width: 640px) {

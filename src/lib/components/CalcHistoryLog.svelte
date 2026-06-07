@@ -82,8 +82,8 @@
 
 <style>
 	.history-log {
-		background: var(--surface-2, #1a1a1a);
-		border: 1px solid var(--border-subtle, #2e2e2e);
+		background: var(--surface);
+		border: 1px solid var(--border);
 		border-radius: 10px;
 		overflow: hidden;
 	}
@@ -93,14 +93,14 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: 0.75rem 1rem;
-		border-bottom: 1px solid var(--border-subtle, #2e2e2e);
+		border-bottom: 1px solid var(--border);
 	}
 
 	.history-title {
 		margin: 0;
 		font-size: 0.875rem;
 		font-weight: 600;
-		color: var(--text, #f0f0f0);
+		color: var(--text);
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 	}
@@ -116,20 +116,20 @@
 		background: transparent;
 		border: none;
 		border-radius: 8px;
-		color: var(--text-muted, #888);
+		color: var(--text-muted);
 		cursor: pointer;
 		transition: color 0.15s, background 0.15s;
 	}
 	.clear-btn:hover {
-		color: #ef4444;
-		background: rgba(239, 68, 68, 0.1);
+		color: var(--bad);
+		background: color-mix(in srgb, var(--bad) 12%, transparent);
 	}
 
 	.empty-state {
 		margin: 0;
 		padding: 2rem 1rem;
 		text-align: center;
-		color: var(--text-muted, #888);
+		color: var(--text-muted);
 		font-size: 0.875rem;
 	}
 
@@ -142,14 +142,14 @@
 	.entry {
 		padding: 0.75rem 1rem;
 		border-left: 3px solid transparent;
-		border-bottom: 1px solid var(--border-subtle, #2e2e2e);
+		border-bottom: 1px solid var(--border);
 		transition: background 0.1s;
 	}
 	.entry:last-child {
 		border-bottom: none;
 	}
 	.entry:hover {
-		background: var(--surface-3, rgba(255, 255, 255, 0.04));
+		background: var(--surface-hover);
 	}
 
 	.entry-top {
@@ -164,24 +164,24 @@
 		font-weight: 700;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
-		color: var(--text-muted, #888);
+		color: var(--text-muted);
 	}
 
 	.time-ago {
 		font-size: 0.7rem;
-		color: var(--text-muted, #888);
+		color: var(--text-muted);
 	}
 
 	.entry-result {
 		font-size: 1.125rem;
 		font-weight: 700;
-		color: var(--accent, #f59e0b);
+		color: var(--accent);
 		line-height: 1.2;
 		margin-bottom: 0.15rem;
 	}
 
 	.entry-summary {
 		font-size: 0.75rem;
-		color: var(--text-muted, #888);
+		color: var(--text-muted);
 	}
 </style>

@@ -66,7 +66,15 @@
 			`--good:${themeTokens.good}`,
 			`--warn:${themeTokens.warn}`,
 			`--bad:${themeTokens.bad}`,
-			`--bad-rgb:${themeTokens.badRgb}`
+			`--bad-rgb:${themeTokens.badRgb}`,
+			// Theme-adaptive aliases for legacy variable names still used across
+			// components. Mapping them to defined tokens makes them switch with
+			// the active theme instead of falling back to hardcoded dark literals.
+			`--brand:${accent}`,
+			`--surface-1:${themeTokens.bg}`,
+			`--surface-2:${themeTokens.surfaceAlt}`,
+			`--surface-3:${themeTokens.surfaceHover}`,
+			`--border-subtle:${themeTokens.border}`
 		].join(';')
 	);
 

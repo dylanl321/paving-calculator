@@ -496,8 +496,8 @@
 	}
 
 	.badge-created {
-		background: var(--good);
-		color: var(--accent-text);
+		background: color-mix(in srgb, var(--good) 20%, transparent);
+		color: var(--good);
 	}
 
 	.badge-updated {
@@ -506,13 +506,13 @@
 	}
 
 	.badge-deleted {
-		background: var(--bad);
-		color: var(--accent-text);
+		background: color-mix(in srgb, var(--bad) 20%, transparent);
+		color: var(--bad);
 	}
 
 	.badge-other {
-		background: var(--text-muted);
-		color: var(--bg);
+		background: color-mix(in srgb, var(--text-muted) 18%, transparent);
+		color: var(--text-muted);
 	}
 
 	.activity-resource {

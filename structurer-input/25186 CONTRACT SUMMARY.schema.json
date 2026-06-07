@@ -1,0 +1,255 @@
+{
+  "type": "object",
+  "properties": {
+    "route": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "designation": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "number": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "county": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fips": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "midpoint": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "easting": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "northing": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "zone_label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "gross_length_mi": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "segments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "mainline",
+              "ramp",
+              "divided",
+              "local_street",
+              null
+            ]
+          },
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "treatment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "length_mi": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "begin_terminus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "end_terminus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "measure_axis": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "project_mile",
+              "none",
+              null
+            ]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "project_start",
+                    "project_end",
+                    "side_road",
+                    "width_change",
+                    "operation_change",
+                    "reference",
+                    null
+                  ]
+                },
+                "measure": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "width_ft": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "side_roads": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "side": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                }
+              },
+              "required": [
+                "type",
+                "measure",
+                "text",
+                "width_ft",
+                "side_roads"
+              ]
+            }
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "group",
+          "treatment",
+          "length_mi",
+          "begin_terminus",
+          "end_terminus",
+          "measure_axis",
+          "events"
+        ]
+      }
+    },
+    "bid_items": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "production_mixes": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "route",
+    "county",
+    "midpoint",
+    "gross_length_mi",
+    "segments",
+    "bid_items",
+    "production_mixes",
+    "warnings"
+  ]
+}

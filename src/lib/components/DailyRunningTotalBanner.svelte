@@ -68,7 +68,7 @@
 		position: sticky;
 		top: 0;
 		z-index: 40;
-		background: var(--surface-2);
+		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		overflow: hidden;
@@ -100,7 +100,7 @@
 	.stat-value {
 		font-size: var(--fs-lg);
 		font-weight: var(--fw-bold);
-		color: var(--text-1);
+		color: var(--text);
 		white-space: nowrap;
 		line-height: 1.2;
 	}

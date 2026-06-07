@@ -20,6 +20,12 @@ import {
 	type SegmentPavementRow
 } from '$lib/server/import-segments';
 import {
+	insertRoadSection,
+	insertPavementStructure,
+	collectPavementRows,
+	representativeOf
+} from '$lib/server/import-road-sections';
+import {
 	calibrationToRouteMeasure,
 	measureRangeToLine,
 	measureToPoint,
@@ -272,167 +278,6 @@ function buildRoadSectionsFromLogSegments(
 }
 
 /**
- * Insert one road_sections row, including the multi-segment columns added in
- * migration 0078 (segment_group/treatment/measure_axis/termini/geometry_confidence)
- * and the denormalized pavement defaults added in migration 0079
- * (target_thickness_in/target_spread_rate/mill_depth_in/width_ft).
- * Mirrors the upsertJobSiteConfig core/optional split: if the optional columns
- * don't exist yet on the shared remote D1 (migration not applied), retry with
- * only the core columns so the import still succeeds.
- */
-async function insertRoadSection(
-	db: D1Database,
-	row: {
-		id: string;
-		job_site_id: string;
-		name: string;
-		lane: string;
-		station_start: number | null;
-		station_end: number | null;
-		status: string;
-		geometry_geojson: string | null;
-		planned_length_ft: number | null;
-		production_mix_id: string | null;
-		segment_group: string | null;
-		treatment: string | null;
-		measure_axis: string | null;
-		begin_terminus: string | null;
-		end_terminus: string | null;
-		geometry_confidence: string | null;
-		target_thickness_in: number | null;
-		target_spread_rate: number | null;
-		mill_depth_in: number | null;
-		width_ft: number | null;
-		notes: string | null;
-		sort_order: number;
-		created_at: number;
-		updated_at: number;
-	}
-): Promise<void> {
-	try {
-		await db
-			.prepare(
-				`INSERT INTO road_sections
-				(id, job_site_id, name, lane, station_start, station_end, status, geometry_geojson,
-				 planned_length_ft, production_mix_id, segment_group, treatment, measure_axis,
-				 begin_terminus, end_terminus, geometry_confidence,
-				 target_thickness_in, target_spread_rate, mill_depth_in, width_ft,
-				 notes, sort_order, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			)
-			.bind(
-				row.id,
-				row.job_site_id,
-				row.name,
-				row.lane,
-				row.station_start,
-				row.station_end,
-				row.status,
-				row.geometry_geojson,
-				row.planned_length_ft,
-				row.production_mix_id,
-				row.segment_group,
-				row.treatment,
-				row.measure_axis,
-				row.begin_terminus,
-				row.end_terminus,
-				row.geometry_confidence,
-				row.target_thickness_in,
-				row.target_spread_rate,
-				row.mill_depth_in,
-				row.width_ft,
-				row.notes,
-				row.sort_order,
-				row.created_at,
-				row.updated_at
-			)
-			.run();
-	} catch (err) {
-		// Optional columns may not exist yet on a lagging DB; retry core-only.
-		if (!/no such column/i.test(String(err))) throw err;
-		await db
-			.prepare(
-				`INSERT INTO road_sections
-				(id, job_site_id, name, lane, station_start, station_end, status, geometry_geojson,
-				 notes, sort_order, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-			)
-			.bind(
-				row.id,
-				row.job_site_id,
-				row.name,
-				row.lane,
-				row.station_start,
-				row.station_end,
-				row.status,
-				row.geometry_geojson,
-				row.notes,
-				row.sort_order,
-				row.created_at,
-				row.updated_at
-			)
-			.run();
-	}
-}
-
-/**
- * Insert the pavement_structure child rows for one road_sections row. This child
- * table is the single source of truth for per-mile-range specs. Wrapped in a
- * try/catch so a lagging remote D1 (migration 0080 not yet applied) can't 500
- * the import: a missing table/column degrades to "no child rows persisted" while
- * the denormalized road_sections defaults (written above) still carry the
- * representative spec. Returns the number of child rows written.
- */
-async function insertPavementStructure(
-	db: D1Database,
-	roadSectionId: string,
-	pavement: SegmentPavementRow[],
-	now: number
-): Promise<number> {
-	if (!pavement.length) return 0;
-	let written = 0;
-	for (const p of pavement) {
-		const id = 'pav_' + crypto.randomUUID().replace(/-/g, '').slice(0, 10);
-		try {
-			await db
-				.prepare(
-					`INSERT INTO pavement_structure
-					(id, road_section_id, applies_from_mi, applies_to_mi, lift_thickness_in,
-					 mill_depth_in, spread_rate_lbs_sy, width_ft_min, width_ft_max, mix,
-					 source_page, confidence, sort_order, created_at, updated_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-				)
-				.bind(
-					id,
-					roadSectionId,
-					p.applies_from_mi,
-					p.applies_to_mi,
-					p.lift_thickness_in,
-					p.mill_depth_in,
-					p.spread_rate_lbs_sy,
-					p.width_ft_min,
-					p.width_ft_max,
-					p.mix,
-					p.source_page,
-					p.confidence,
-					p.sort_order,
-					now,
-					now
-				)
-				.run();
-			written++;
-		} catch (err) {
-			// Table/column may not exist yet on a lagging remote D1; the
-			// denormalized road_sections defaults still carry the representative
-			// spec, so skip child persistence rather than fail the whole import.
-			if (!/no such (table|column)/i.test(String(err))) throw err;
-			break;
-		}
-	}
-	return written;
-}
-
-/**
  * Persist N disconnected import segments as road_sections rows. Each segment
  * uses its OWN geometry and its own station axis (local streets each start at
  * station 0 - they share no route). Returns the number of rows written.
@@ -677,17 +522,34 @@ export async function POST(event: RequestEvent) {
 		// segment is persisted as its own road_sections row with its own geometry
 		// and station axis. These projects have no single route, so we skip the
 		// single-route resolution/slicing below and use the segments directly.
+		//
+		// CRITICAL: only segments that carry real geometry take over the route
+		// path. The import review screen also sends pavement-only segments (the
+		// per-mile-range typical-section specs surfaced for review, WITHOUT any
+		// geometry) — those must NOT short-circuit the single-route resolution
+		// that draws the route, slices stationed sections, and anchors the
+		// roadway-log markers. Pavement-only segments are applied additively to
+		// the route-derived sections below (see `pavementOnlySpecs`), never as a
+		// geometry-less section that hijacks the map.
 		const importSegments = Array.isArray(body.segments) ? body.segments : [];
-		if (importSegments.length > 0) {
+		const geometrySegments = importSegments.filter(
+			(s) => s.geometry && Array.isArray(s.geometry.coordinates) && s.geometry.coordinates.length >= 2
+		);
+		// Representative pavement spec from pavement-only segments (no geometry),
+		// applied to the single-route sections so the typical-section specs the
+		// user reviewed still land on the created project.
+		const pavementOnlySpecs: SegmentPavementRow[] =
+			geometrySegments.length === 0 ? collectPavementRows(importSegments) : [];
+		if (geometrySegments.length > 0) {
 			try {
 				sectionCount = await persistImportSegments(
 					event.platform!.env.DB,
 					jobSite.id,
-					importSegments
+					geometrySegments
 				);
 				// Pin the job site at the first segment's centroid when we have no
 				// coordinate from the parsed fields, so the map opens near the work.
-				const firstGeom = importSegments.find(
+				const firstGeom = geometrySegments.find(
 					(s) => s.geometry && Array.isArray(s.geometry.coordinates) && s.geometry.coordinates.length >= 2
 				)?.geometry;
 				const centroid = firstGeom ? segmentLineCentroid(firstGeom) : null;
@@ -873,29 +735,46 @@ export async function POST(event: RequestEvent) {
 							)
 						: buildRoadSectionsFromRoute(line, scopeLabel);
 				const now = Math.floor(Date.now() / 1000);
+				// Representative pavement spec (from pavement-only segments) to
+				// denormalize onto each route-derived section. The per-mile-range
+				// child rows are persisted on the first section so they aren't lost.
+				const repPavement = representativeOf(pavementOnlySpecs);
 				for (let s = 0; s < sections.length; s++) {
 					const sec = sections[s];
 					const id = 'sec_' + crypto.randomUUID().replace(/-/g, '').slice(0, 8);
-					await event.platform!.env.DB.prepare(
-						`INSERT INTO road_sections
-						(id, job_site_id, name, lane, station_start, station_end, status, geometry_geojson, notes, sort_order, created_at, updated_at)
-						VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-					)
-						.bind(
-							id,
-							jobSite.id,
-							sec.name,
-							'1',
-							sec.station_start,
-							sec.station_end,
-							'active',
-							geoJsonToD1(sec.geometry),
-							null,
-							s,
-							now,
-							now
-						)
-						.run();
+					await insertRoadSection(event.platform!.env.DB, {
+						id,
+						job_site_id: jobSite.id,
+						name: sec.name,
+						lane: '1',
+						station_start: sec.station_start,
+						station_end: sec.station_end,
+						status: 'active',
+						geometry_geojson: geoJsonToD1(sec.geometry),
+						planned_length_ft: lineLengthFt(sec.geometry),
+						production_mix_id: null,
+						segment_group: null,
+						treatment: scopes[0] ?? null,
+						measure_axis: null,
+						begin_terminus: null,
+						end_terminus: null,
+						geometry_confidence: null,
+						target_thickness_in: repPavement?.lift_thickness_in ?? null,
+						target_spread_rate: repPavement?.spread_rate_lbs_sy ?? null,
+						mill_depth_in: repPavement?.mill_depth_in ?? null,
+						width_ft: repPavement?.width_ft_min ?? repPavement?.width_ft_max ?? null,
+						notes: null,
+						sort_order: s,
+						created_at: now,
+						updated_at: now
+					});
+					// Persist the full per-mile-range pavement child rows once (on the
+					// first section) — best-effort; a lagging remote D1 degrades to no
+					// child rows while the denormalized defaults above still carry the
+					// representative spec.
+					if (s === 0 && pavementOnlySpecs.length) {
+						await insertPavementStructure(event.platform!.env.DB, id, pavementOnlySpecs, now);
+					}
 					sectionCount++;
 				}
 			}

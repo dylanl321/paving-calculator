@@ -158,7 +158,7 @@
 		display: flex;
 		align-items: flex-start;
 		gap: 10px;
-		margin: 8px 12px 0;
+		margin: 8px 12px;
 		padding: 10px;
 		background: var(--surface-alt);
 		border: 1px solid var(--border);
@@ -344,7 +344,7 @@
 
 	@media (max-width: 899px) {
 		.weather-bar {
-			margin: 8px 12px 0;
+			margin: 8px 12px;
 		}
 	}
 </style>

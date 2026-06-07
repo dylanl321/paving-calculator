@@ -1,6 +1,8 @@
 :root {
 	/* Layout constants */
 	--touch: 48px;
+	/* Chip/pill height: tracks --touch on mobile, steps down on fine pointers */
+	--chip-h: var(--touch);
 	--maxw: 600px;
 	--sidebar-w: 240px;
 	--sidebar-rail-w: 72px;
@@ -416,10 +418,11 @@ input[type='time'] {
 
 /* Shared pill buttons */
 .chip {
-	min-height: var(--touch);
+	min-height: var(--chip-h);
 	padding: 0 var(--sp-4);
 	display: inline-flex;
 	align-items: center;
+	justify-content: center;
 	border-radius: var(--radius-pill);
 	border: 1px solid var(--border);
 	background: var(--bg);
@@ -850,6 +853,14 @@ textarea.input-field {
 
 /* ---- Responsive token overrides ---- */
 
+/* Fine-pointer (mouse/trackpad) devices can use smaller pill targets.
+   Scoped to --chip-h so primary buttons/inputs keep their 48/44px touch size. */
+@media (hover: hover) and (pointer: fine) {
+	:root {
+		--chip-h: 40px;
+	}
+}
+
 /* 640px: phablet / small tablet — slightly denser UI */
 @media (min-width: 640px) {
 	:root {
@@ -911,7 +922,7 @@ textarea.input-field {
 
 	/* Add subtle row dividers */
 	table tbody tr {
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+		border-bottom: 1px solid var(--border);
 	}
 
 	/* Reduce section gaps on desktop */

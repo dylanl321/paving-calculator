@@ -2260,9 +2260,9 @@
 	}
 
 	.error-banner {
-		background: rgba(239, 68, 68, 0.1);
-		border: 1px solid rgba(239, 68, 68, 0.3);
-		color: #ef4444;
+		background: color-mix(in srgb, var(--bad) 10%, transparent);
+		border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent);
+		color: var(--bad);
 		padding: 12px 16px;
 		border-radius: var(--radius);
 		margin-bottom: 16px;
@@ -2274,8 +2274,8 @@
 		display: flex;
 		align-items: flex-start;
 		gap: 10px;
-		background: rgba(239, 68, 68, 0.07);
-		border: 1px solid rgba(239, 68, 68, 0.3);
+		background: color-mix(in srgb, var(--bad) 7%, transparent);
+		border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent);
 		border-left-width: 4px;
 		border-radius: var(--radius);
 		padding: 12px 16px;
@@ -2286,7 +2286,7 @@
 
 	.conf-alert svg {
 		flex-shrink: 0;
-		color: #ef4444;
+		color: var(--bad);
 		margin-top: 1px;
 	}
 
@@ -2294,13 +2294,13 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		background: rgba(34, 197, 94, 0.07);
-		border: 1px solid rgba(34, 197, 94, 0.3);
+		background: color-mix(in srgb, var(--good) 7%, transparent);
+		border: 1px solid color-mix(in srgb, var(--good) 30%, transparent);
 		border-radius: var(--radius);
 		padding: 10px 14px;
 		margin-bottom: 16px;
 		font-size: 0.85rem;
-		color: #22c55e;
+		color: var(--good);
 	}
 
 	/* Inline badge in text */
@@ -2335,7 +2335,7 @@
 	}
 
 	.corrected-count {
-		color: #22c55e;
+		color: var(--good);
 		font-weight: 600;
 	}
 
@@ -2349,13 +2349,13 @@
 	}
 
 	.conf-dot.conf-high {
-		background: #22c55e;
-		box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+		background: var(--good);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--good) 20%, transparent);
 	}
 
 	.conf-dot.conf-medium {
-		background: #eab308;
-		box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.2);
+		background: var(--warn);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn) 20%, transparent);
 	}
 
 	.conf-badge,
@@ -2367,7 +2367,7 @@
 		width: 16px;
 		height: 16px;
 		border-radius: 50%;
-		background: #ef4444;
+		background: var(--bad);
 		color: #fff;
 		font-size: 0.65rem;
 		font-weight: 800;
@@ -2378,8 +2378,8 @@
 	/* Verify badge — filled but unconfirmed (amber, not red) */
 	.conf-badge.conf-verify,
 	.inline-badge.conf-verify {
-		background: #eab308;
-		color: #1a1a1a;
+		background: var(--warn);
+		color: var(--accent-text);
 	}
 
 	/* Per-field confirm ("looks right") button shown for verify-state fields */
@@ -2391,9 +2391,9 @@
 		height: 22px;
 		margin-left: auto;
 		padding: 0 6px;
-		border: 1px solid rgba(234, 179, 8, 0.5);
+		border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent);
 		border-radius: 6px;
-		background: rgba(234, 179, 8, 0.12);
+		background: color-mix(in srgb, var(--warn) 12%, transparent);
 		color: var(--text);
 		font-size: 0.75rem;
 		font-weight: 700;
@@ -2402,8 +2402,8 @@
 	}
 
 	.confirm-field-btn:hover {
-		background: rgba(34, 197, 94, 0.18);
-		border-color: rgba(34, 197, 94, 0.5);
+		background: color-mix(in srgb, var(--good) 18%, transparent);
+		border-color: color-mix(in srgb, var(--good) 50%, transparent);
 	}
 
 	.confirm-all-btn {
@@ -2430,37 +2430,37 @@
 
 	/* Low-confidence field highlight */
 	.review-field.field-low {
-		background: rgba(239, 68, 68, 0.05);
-		border: 1px solid rgba(239, 68, 68, 0.25);
+		background: color-mix(in srgb, var(--bad) 5%, transparent);
+		border: 1px solid color-mix(in srgb, var(--bad) 25%, transparent);
 		border-radius: var(--radius);
 		padding: 8px 10px;
 	}
 
 	/* Corrected field highlight */
 	.review-field.field-corrected {
-		background: rgba(34, 197, 94, 0.04);
-		border: 1px solid rgba(34, 197, 94, 0.2);
+		background: color-mix(in srgb, var(--good) 4%, transparent);
+		border: 1px solid color-mix(in srgb, var(--good) 20%, transparent);
 		border-radius: var(--radius);
 		padding: 8px 10px;
 	}
 
 	/* Verify field highlight — filled but unconfirmed (amber) */
 	.review-field.field-verify {
-		background: rgba(234, 179, 8, 0.05);
-		border: 1px solid rgba(234, 179, 8, 0.28);
+		background: color-mix(in srgb, var(--warn) 5%, transparent);
+		border: 1px solid color-mix(in srgb, var(--warn) 28%, transparent);
 		border-radius: var(--radius);
 		padding: 8px 10px;
 	}
 
 	/* Input with low-confidence border */
 	.review-field input.input-low {
-		border-color: rgba(239, 68, 68, 0.5);
+		border-color: color-mix(in srgb, var(--bad) 50%, transparent);
 	}
 
 	.review-field input.input-low:focus {
-		border-color: #ef4444;
+		border-color: var(--bad);
 		outline: none;
-		box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--bad) 15%, transparent);
 	}
 
 	/* Drop zone */
@@ -2546,7 +2546,7 @@
 	}
 
 	.file-remove:hover {
-		color: #ef4444;
+		color: var(--bad);
 	}
 
 	.parse-btn {
@@ -2822,9 +2822,9 @@
 	}
 
 	.classification-badge.low-conf {
-		background: rgba(245, 158, 11, 0.1);
-		border-color: rgba(245, 158, 11, 0.3);
-		color: #fcd34d;
+		background: color-mix(in srgb, var(--warn) 10%, transparent);
+		border-color: color-mix(in srgb, var(--warn) 30%, transparent);
+		color: var(--warn);
 	}
 
 	.classification-badge .badge-icon {
@@ -2874,8 +2874,8 @@
 		flex-direction: column;
 		gap: 6px;
 		align-items: flex-start;
-		background: rgba(234, 179, 8, 0.08);
-		border: 1px solid rgba(234, 179, 8, 0.35);
+		background: color-mix(in srgb, var(--warn) 8%, transparent);
+		border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
 		border-left-width: 4px;
 		border-radius: var(--radius);
 		padding: 14px 16px;
@@ -2913,9 +2913,9 @@
 	}
 
 	.evidence-warn {
-		color: #f59e0b;
-		background: rgba(245, 158, 11, 0.1);
-		border: 1px solid rgba(245, 158, 11, 0.35);
+		color: var(--warn);
+		background: color-mix(in srgb, var(--warn) 10%, transparent);
+		border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
 	}
 
 	.evidence-chips,
@@ -3070,7 +3070,7 @@
 	}
 
 	.route-warnings span {
-		color: #f59e0b;
+		color: var(--warn);
 		font-size: 0.78rem;
 		font-weight: 700;
 	}
@@ -3131,8 +3131,8 @@
 	}
 
 	.warning-item {
-		background: rgba(234, 179, 8, 0.1);
-		border: 1px solid rgba(234, 179, 8, 0.3);
+		background: color-mix(in srgb, var(--warn) 10%, transparent);
+		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
 		color: var(--accent);
 		padding: 10px 14px;
 		border-radius: var(--radius);
@@ -3431,9 +3431,9 @@
 		color: var(--text);
 	}
 
-	.stat-high { color: #22c55e; }
-	.stat-medium { color: #eab308; }
-	.stat-low { color: #ef4444; }
+	.stat-high { color: var(--good); }
+	.stat-medium { color: var(--warn); }
+	.stat-low { color: var(--bad); }
 
 	@media (max-width: 640px) {
 		.review-grid {
@@ -3501,7 +3501,7 @@
 	}
 
 	.multi-doc-conf {
-		color: #22c55e;
+		color: var(--good);
 		font-weight: 700;
 		font-size: 0.75rem;
 	}
@@ -3518,7 +3518,7 @@
 		display: inline-block;
 		margin-left: 8px;
 		padding: 2px 8px;
-		background: #f59e0b;
+		background: var(--warn);
 		color: #fff;
 		border-radius: 999px;
 		font-size: 0.65rem;
@@ -3550,7 +3550,7 @@
 
 	.road-type-grid.setup-empty {
 		padding: 6px;
-		border: 1px solid #f59e0b;
+		border: 1px solid var(--warn);
 		border-radius: var(--radius);
 	}
 
@@ -3600,7 +3600,7 @@
 	}
 
 	.paving-setup-field input.input-low {
-		border-color: #f59e0b;
+		border-color: var(--warn);
 	}
 
 	.paving-setup-field input.input-low:focus {
@@ -3662,8 +3662,8 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		background: rgba(234, 179, 8, 0.07);
-		border: 1px solid rgba(234, 179, 8, 0.35);
+		background: color-mix(in srgb, var(--warn) 7%, transparent);
+		border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
 		border-left-width: 4px;
 		border-radius: var(--radius);
 		padding: 12px 16px;
@@ -3680,7 +3680,7 @@
 
 	.conflicts-head svg {
 		flex-shrink: 0;
-		color: #eab308;
+		color: var(--warn);
 		margin-top: 1px;
 	}
 
@@ -3691,7 +3691,7 @@
 		gap: 12px;
 		padding: 10px 12px;
 		background: var(--bg);
-		border: 1px solid rgba(234, 179, 8, 0.3);
+		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
 		border-radius: 8px;
 		color: var(--text);
 	}
@@ -3832,7 +3832,7 @@
 
 	/* Low-confidence dot for pavement review (amber, not the red needs-input badge) */
 	.conf-dot.conf-low-dot {
-		background: #eab308;
-		box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.2);
+		background: var(--warn);
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn) 20%, transparent);
 	}
 </style>

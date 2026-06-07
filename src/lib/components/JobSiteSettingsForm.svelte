@@ -586,6 +586,9 @@
 	.chip {
 		min-height: 40px;
 		padding: 0 var(--sp-3);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 		border: 1px solid var(--border);
 		border-radius: var(--radius-pill);
 		background: var(--surface);

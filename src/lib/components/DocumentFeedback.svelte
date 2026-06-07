@@ -174,15 +174,15 @@
 
 <style>
 	.doc-feedback {
-		background: #1e2530;
-		border: 1px solid #2e3847;
+		background: var(--surface);
+		border: 1px solid var(--border);
 		border-radius: 10px;
 		overflow: hidden;
 		margin-top: 12px;
 	}
 
 	.doc-feedback.unsupported {
-		border-color: #d97706;
+		border-color: var(--warn);
 	}
 
 	.feedback-header {
@@ -194,23 +194,23 @@
 		background: transparent;
 		border: none;
 		cursor: pointer;
-		color: #c9d1dc;
+		color: var(--text);
 		font-size: 14px;
 		text-align: left;
 		min-height: 48px;
 	}
 
 	.feedback-header:hover {
-		background: #252d3a;
+		background: var(--surface-hover);
 	}
 
 	.feedback-icon {
 		flex-shrink: 0;
-		color: #22c55e;
+		color: var(--good);
 	}
 
 	.unsupported .feedback-icon {
-		color: #f59e0b;
+		color: var(--warn);
 	}
 
 	.feedback-title {
@@ -220,7 +220,7 @@
 
 	.feedback-chevron {
 		flex-shrink: 0;
-		color: #6b7280;
+		color: var(--text-muted);
 		transition: transform 0.2s;
 	}
 
@@ -253,11 +253,11 @@
 	}
 
 	.field-group-label.extracted {
-		color: #22c55e;
+		color: var(--good);
 	}
 
 	.field-group-label.missing {
-		color: #f59e0b;
+		color: var(--warn);
 	}
 
 	.field-chips {
@@ -275,15 +275,15 @@
 	}
 
 	.chip-ok {
-		background: rgba(34, 197, 94, 0.12);
-		color: #22c55e;
-		border: 1px solid rgba(34, 197, 94, 0.2);
+		background: color-mix(in srgb, var(--good) 20%, transparent);
+		color: var(--good);
+		border: 1px solid color-mix(in srgb, var(--good) 30%, transparent);
 	}
 
 	.chip-missing {
-		background: rgba(245, 158, 11, 0.1);
-		color: #f59e0b;
-		border: 1px solid rgba(245, 158, 11, 0.2);
+		background: color-mix(in srgb, var(--warn) 20%, transparent);
+		color: var(--warn);
+		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
 	}
 
 	.suggestions {
@@ -298,7 +298,7 @@
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
-		color: #8b93a0;
+		color: var(--text-muted);
 	}
 
 	.suggestions-list {
@@ -311,7 +311,7 @@
 
 	.suggestions-list li {
 		font-size: 13px;
-		color: #a8b4c0;
+		color: var(--text-muted);
 		line-height: 1.5;
 	}
 
@@ -320,14 +320,14 @@
 		flex-direction: column;
 		gap: 8px;
 		padding-top: 4px;
-		border-top: 1px solid #2e3847;
+		border-top: 1px solid var(--border);
 	}
 
 	.user-feedback-label {
 		margin: 0;
 		font-size: 13px;
 		font-weight: 500;
-		color: #c9d1dc;
+		color: var(--text);
 	}
 
 	.user-feedback-row {
@@ -339,26 +339,26 @@
 		flex: 1;
 		height: 48px;
 		padding: 0 12px;
-		background: #111827;
-		border: 1px solid #374151;
+		background: var(--bg);
+		border: 1px solid var(--border);
 		border-radius: 8px;
-		color: #e5e7eb;
+		color: var(--text);
 		font-size: 14px;
 		cursor: pointer;
 	}
 
 	.type-select:focus {
 		outline: none;
-		border-color: #3b82f6;
+		border-color: var(--accent);
 	}
 
 	.btn-submit-feedback {
 		height: 48px;
 		padding: 0 18px;
-		background: #3b82f6;
+		background: var(--accent);
 		border: none;
 		border-radius: 8px;
-		color: #fff;
+		color: var(--accent-text);
 		font-size: 14px;
 		font-weight: 600;
 		cursor: pointer;
@@ -367,7 +367,7 @@
 	}
 
 	.btn-submit-feedback:hover:not(:disabled) {
-		background: #2563eb;
+		filter: brightness(1.05);
 	}
 
 	.btn-submit-feedback:disabled {
@@ -378,7 +378,7 @@
 	.user-feedback-hint {
 		margin: 0;
 		font-size: 11px;
-		color: #6b7280;
+		color: var(--text-muted);
 	}
 
 	.feedback-thanks {
@@ -387,7 +387,7 @@
 		gap: 8px;
 		padding: 10px 0;
 		font-size: 13px;
-		color: #22c55e;
-		border-top: 1px solid #2e3847;
+		color: var(--good);
+		border-top: 1px solid var(--border);
 	}
 </style>

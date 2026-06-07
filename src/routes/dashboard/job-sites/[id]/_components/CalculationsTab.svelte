@@ -201,21 +201,21 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
+		min-width: 0;
+		flex-wrap: wrap;
 		font-size: 0.9rem;
 	}
 
 	.context-label {
 		color: var(--text-muted);
-		min-width: 120px;
 	}
 
 	.context-value {
 		font-weight: 600;
 		color: var(--text);
-		min-width: 80px;
 	}
 
-	@media (min-width: 640px) {
+	@media (min-width: 900px) {
 		.context-values {
 			flex-direction: row;
 			justify-content: space-between;

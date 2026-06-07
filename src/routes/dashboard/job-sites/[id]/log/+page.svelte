@@ -1745,11 +1745,11 @@
 	}
 
 	.entry-type-red {
-		border-left-color: #ef4444;
+		border-left-color: var(--bad);
 	}
 
 	.entry-type-yellow {
-		border-left-color: #eab308;
+		border-left-color: var(--warn);
 	}
 
 	.entry-time {
@@ -1810,21 +1810,21 @@
 	}
 
 	.spread-rate-good {
-		background: rgba(34, 197, 94, 0.18);
-		color: #22c55e;
-		border: 1px solid rgba(34, 197, 94, 0.35);
+		background: color-mix(in srgb, var(--good) 18%, transparent);
+		color: var(--good);
+		border: 1px solid color-mix(in srgb, var(--good) 35%, transparent);
 	}
 
 	.spread-rate-warn {
-		background: rgba(234, 179, 8, 0.18);
-		color: #eab308;
-		border: 1px solid rgba(234, 179, 8, 0.35);
+		background: color-mix(in srgb, var(--warn) 18%, transparent);
+		color: var(--warn);
+		border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
 	}
 
 	.spread-rate-bad {
-		background: rgba(239, 68, 68, 0.18);
-		color: #ef4444;
-		border: 1px solid rgba(239, 68, 68, 0.35);
+		background: color-mix(in srgb, var(--bad) 18%, transparent);
+		color: var(--bad);
+		border: 1px solid color-mix(in srgb, var(--bad) 35%, transparent);
 	}
 
 	.spread-rate-neutral {
@@ -2050,9 +2050,9 @@
 	}
 
 	.history-banner {
-		background: rgba(245, 158, 11, 0.12);
-		color: #f59e0b;
-		border: 1px solid rgba(245, 158, 11, 0.3);
+		background: color-mix(in srgb, var(--warn) 12%, transparent);
+		color: var(--warn);
+		border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
 		border-radius: var(--radius);
 		padding: 12px 16px;
 		margin-bottom: 16px;
@@ -2061,8 +2061,8 @@
 	}
 
 	.closed-banner {
-		background: rgba(16, 185, 129, 0.12);
-		border: 1px solid rgba(16, 185, 129, 0.3);
+		background: color-mix(in srgb, var(--good) 12%, transparent);
+		border: 1px solid color-mix(in srgb, var(--good) 30%, transparent);
 		border-radius: var(--radius);
 		padding: 16px;
 		margin-bottom: 16px;
@@ -2076,12 +2076,12 @@
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		color: var(--good, #10b981);
+		color: var(--good);
 	}
 
 	.btn-unlock {
-		background: var(--warning, #f59e0b);
-		color: var(--bg-dark, #0f172a);
+		background: var(--warn);
+		color: var(--accent-text);
 		border: none;
 		border-radius: var(--radius);
 		padding: 8px 16px;
@@ -2094,7 +2094,7 @@
 	}
 
 	.btn-unlock:hover:not(:disabled) {
-		background: var(--warning-hover, #d97706);
+		background: color-mix(in srgb, var(--warn) 85%, black);
 		transform: scale(1.02);
 	}
 

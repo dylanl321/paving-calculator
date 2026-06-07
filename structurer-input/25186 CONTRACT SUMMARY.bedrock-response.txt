@@ -1,0 +1,428 @@
+{
+  "route": {
+    "designation": "SR",
+    "kind": "state_route",
+    "number": "7 ALT"
+  },
+  "county": {
+    "name": "Lowndes",
+    "fips": "185"
+  },
+  "midpoint": {
+    "easting": 2572138.063,
+    "northing": 311698.517,
+    "zone_label": "WEST ZONE"
+  },
+  "gross_length_mi": 2.920,
+  "segments": [
+    {
+      "name": "SR 7 ALT",
+      "kind": "mainline",
+      "group": null,
+      "treatment": "resurfacing",
+      "length_mi": 2.860,
+      "begin_terminus": "12 FT +/- NORTH OF CENTERLINE OF EAST MAGNOLIA ST",
+      "end_terminus": "END SR 7 ALT PROJECT AT SMITHBRIAR DR RADIUS RETURN",
+      "measure_axis": "project_mile",
+      "events": [
+        {
+          "type": "project_start",
+          "measure": 0.000,
+          "text": "BEGIN PROJECT 12 FT +/- NORTH OF CENTERLINE OF EAST MAGNOLIA ST",
+          "width_ft": 48,
+          "side_roads": []
+        },
+        {
+          "type": "side_road",
+          "measure": 0.085,
+          "text": "ROGERS ST, LT & RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "ROGERS ST", "side": "LT"},
+            {"name": "ROGERS ST", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 0.160,
+          "text": "WEBSTER ST, RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "WEBSTER ST", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 0.255,
+          "text": "NORTH ST, LT & RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "NORTH ST", "side": "LT"},
+            {"name": "NORTH ST", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 0.320,
+          "text": "ADAIR ST, LT & RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "ADAIR ST", "side": "LT"},
+            {"name": "ADAIR ST", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 0.386,
+          "text": "GORDON ST, LT & RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "GORDON ST", "side": "LT"},
+            {"name": "GORDON ST", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 0.481,
+          "text": "FORCE ST, LT & RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "FORCE ST", "side": "LT"},
+            {"name": "FORCE ST", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 0.581,
+          "text": "MARY ST, LT & RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "MARY ST", "side": "LT"},
+            {"name": "MARY ST", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 0.676,
+          "text": "ANN ST, LT & RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "ANN ST", "side": "LT"},
+            {"name": "ANN ST", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 0.779,
+          "text": "JANE ST, LT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "JANE ST", "side": "LT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 0.871,
+          "text": "BROOKWOOD DR, LT & RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "BROOKWOOD DR", "side": "LT"},
+            {"name": "BROOKWOOD DR", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 1.196,
+          "text": "EAST COLLEGE ST, RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "EAST COLLEGE ST", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 1.271,
+          "text": "GEORGIA AVE. LT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "GEORGIA AVE", "side": "LT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 1.342,
+          "text": "MOORE ST, LT & RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "MOORE ST", "side": "LT"},
+            {"name": "MOORE ST", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 1.407,
+          "text": "HIGH ST, LT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "HIGH ST", "side": "LT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 1.476,
+          "text": "ALDEN AVE. LT & RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "ALDEN AVE", "side": "LT"},
+            {"name": "ALDEN AVE", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 1.543,
+          "text": "CRANFORD AVE. LT & RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "CRANFORD AVE", "side": "LT"},
+            {"name": "CRANFORD AVE", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 1.627,
+          "text": "PARK AVE. LT & RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "PARK AVE", "side": "LT"},
+            {"name": "PARK AVE", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 1.717,
+          "text": "WAYNE AVE. LT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "WAYNE AVE", "side": "LT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 1.847,
+          "text": "WOODROW WILSON DR, LT, PAVED GORNTO RD. RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "WOODROW WILSON DR", "side": "LT"},
+            {"name": "GORNTO RD", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 1.937,
+          "text": "COWART AVE. RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "COWART AVE", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 2.047,
+          "text": "PENDLETON AVE. RT, PAVED",
+          "width_ft": 48,
+          "side_roads": [
+            {"name": "PENDLETON AVE", "side": "RT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 2.082,
+          "text": "ROSSEVELT DR, LT, PAVED",
+          "width_ft": 48,
+          "side_roads": [
+            {"name": "ROSSEVELT DR", "side": "LT"}
+          ]
+        },
+        {
+          "type": "side_road",
+          "measure": 2.232,
+          "text": "BURTON ST, LT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "BURTON ST", "side": "LT"}
+          ]
+        },
+        {
+          "type": "width_change",
+          "measure": 2.463,
+          "text": "BEGIN RT TURN LANE TAPER RT END TWO WAY CENTER TURN LANE BEGIN LT TURN LANE",
+          "width_ft": 48,
+          "side_roads": []
+        },
+        {
+          "type": "width_change",
+          "measure": 2.483,
+          "text": "END RT TURN LANE TAPER RT BEGIN RT TURN LANE",
+          "width_ft": 60,
+          "side_roads": []
+        },
+        {
+          "type": "side_road",
+          "measure": 2.518,
+          "text": "NORTHSIDE DR, LT, PAVED GORNTO RD. RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "NORTHSIDE DR", "side": "LT"},
+            {"name": "GORNTO RD", "side": "RT"}
+          ]
+        },
+        {
+          "type": "width_change",
+          "measure": 2.528,
+          "text": "BEGIN LANE DROP TAPER RT",
+          "width_ft": 60,
+          "side_roads": []
+        },
+        {
+          "type": "width_change",
+          "measure": 2.568,
+          "text": "END LANE DROP TAPER RT",
+          "width_ft": 48,
+          "side_roads": []
+        },
+        {
+          "type": "side_road",
+          "measure": 2.843,
+          "text": "SMITHBRIAR DR, LT & RT, PAVED",
+          "width_ft": null,
+          "side_roads": [
+            {"name": "SMITHBRIAR DR", "side": "LT"},
+            {"name": "SMITHBRIAR DR", "side": "RT"}
+          ]
+        },
+        {
+          "type": "project_end",
+          "measure": 2.860,
+          "text": "END SR 7 ALT PROJECT AT SMITHBRIAR DR RADIUS RETURN",
+          "width_ft": 48,
+          "side_roads": []
+        }
+      ]
+    },
+    {
+      "name": "SOUTHBOUND SR 7 ALTERNATE RAMP FROM SR 7",
+      "kind": "ramp",
+      "group": null,
+      "treatment": "resurfacing",
+      "length_mi": 0.060,
+      "begin_terminus": "BEGIN SOUTHBOUND SR 7 ALTERNATE RAMP FROM SR 7 AT PAVEMENT JOINT AT SR 7/SR 7 ALT PHYSICAL GORE",
+      "end_terminus": "END SOUTHBOUND SR 7 ALT RAMP AT SMITHBRIAR DR/SR 7 COMMON SECTION",
+      "measure_axis": "project_mile",
+      "events": [
+        {
+          "type": "project_start",
+          "measure": 0.000,
+          "text": "BEGIN SOUTHBOUND SR 7 ALTERNATE RAMP FROM SR 7 AT PAVEMENT JOINT AT SR 7/SR 7 ALT PHYSICAL GORE",
+          "width_ft": 38,
+          "side_roads": []
+        },
+        {
+          "type": "width_change",
+          "measure": 0.010,
+          "text": "END PAVED SHOULDER TAPER LT CONTINUE RT TURN LANE TAPER",
+          "width_ft": 34,
+          "side_roads": []
+        },
+        {
+          "type": "width_change",
+          "measure": 0.017,
+          "text": "END RT TURN LANE TAPER RT BEGIN RT TURN LANE",
+          "width_ft": 34,
+          "side_roads": []
+        },
+        {
+          "type": "width_change",
+          "measure": 0.043,
+          "text": "BEGIN RT TURN LANE TAPER RT",
+          "width_ft": 34,
+          "side_roads": []
+        },
+        {
+          "type": "project_end",
+          "measure": 0.060,
+          "text": "END SOUTHBOUND SR 7 ALT RAMP AT SMITHBRIAR DR/SR 7 COMMON SECTION",
+          "width_ft": 58,
+          "side_roads": []
+        }
+      ]
+    }
+  ],
+  "bid_items": [
+    {
+      "item_number": "150-1000",
+      "description": "TRAFFIC CONTROL - M006412",
+      "unit": "LS",
+      "quantity": 1.000,
+      "unit_price": 221990.00,
+      "extension": 221990.00
+    },
+    {
+      "item_number": "402-1802",
+      "description": "RECYCLED ASPH CONC PATCHING, INCL BITUM MATL & H LIME",
+      "unit": "TN",
+      "quantity": 100.000,
+      "unit_price": 160.00,
+      "extension": 16000.00
+    },
+    {
+      "item_number": "402-4510",
+      "description": "RECYCLED ASPH CONC 12.5 MM SUPERPAVE, GP 2 ONLY, INCL POLYMER-MODIFIED BITUM MATL & H LIME",
+      "unit": "TN",
+      "quantity": 7987.000,
+      "unit_price": 101.00,
+      "extension": 806687.00
+    },
+    {
+      "item_number": "413-0750",
+      "description": "TACK COAT",
+      "unit": "GL",
+      "quantity": 6171.000,
+      "unit_price": 1.00,
+      "extension": 6171.00
+    },
+    {
+      "item_number": "432-5010",
+      "description": "MILL ASPH CONC PVMT, VARIABLE DEPTH",
+      "unit": "SY",
+      "quantity": 95164.000,
+      "unit_price": 1.00,
+      "extension": 95164.00
+    },
+    {
+      "item_number": "611-8050",
+      "description": "ADJUST MANHOLE TO GRADE",
+      "unit": "EA",
+      "quantity": 34.000,
+      "unit_price": 2940.00,
+      "extension": 99960.00
+    },
+    {
+      "item_number": "611-8140",
+      "description": "ADJUST WATER VALVE BOX TO GRADE",
+      "unit": "EA",
+      "quantity": 58.000,
+      "unit_price": 2780.00,
+      "extension": 161240.00
+    },
+    {
+      "item_number": "647-6300",
+      "description": "LOOP DETECTOR, 6 FT X 40 FT, QUADRUPOLE",
+      "unit": "EA",
+      "quantity": 61.000,
+      "unit_price": 3090.00,
+      "extension": 188490.00
+    }
+  ],
+  "production_mixes": [],
+  "warnings": []
+}

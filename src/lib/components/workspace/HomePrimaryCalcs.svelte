@@ -302,7 +302,7 @@
 	.chip-unit {
 		font-size: var(--fs-xs);
 		color: var(--text-muted);
-		font-weight: var(--fw-regular);
+		font-weight: var(--fw-normal);
 		margin-left: 2px;
 	}
 
