@@ -1,12 +1,12 @@
-# Paverate Phone App — Build Prompt
+# Field Paving Calculator — Phone App Prompt
 
 ## One-line prompt
 
-Build a simple phone app that runs the same asphalt paving calculators as the Paverate web app. It takes job measurements the crew types in (depths, lengths, widths, tons) and optional automatic data (like local weather/temperature), then returns clear field answers with no account required.
+Build a simple, standalone phone app for asphalt paving crews. The app takes in job data either automatically (like local weather/temperature) or manually as job items (depths, lengths, widths, tons, loads). It runs paving field calculators on-device and returns clear answers fast — no account, no backend, no connection to any other app.
 
 ## What this app is
 
-**Paverate** is a field calculator for asphalt paving crews. Today it exists as a mobile-first web PWA. The phone app should carry over **all of that calculation logic** into a simpler native-style phone experience — fewer screens, bigger numbers, faster taps.
+An independent field calculator for asphalt paving crews. It lives only on the phone. It does not sync with, depend on, or share data with any website or other product.
 
 Crews use it on the job site: outdoors, often with gloves, sometimes with no signal. Speed and clarity matter more than polish.
 
@@ -26,14 +26,12 @@ Two kinds of inputs:
 
 2. **Automatic (when available)** — pull without typing when the phone can provide it:
    - Local air temperature / weather (for placement and tack temperature limits)
-   - Remembered last-used job settings (width, mix, machine, truck size)
+   - Remembered last-used job settings on this device (width, mix, machine, truck size)
    - Optional GPS/location only if it helps weather lookup; never required to calculate
 
-Rule: the user should only type real-world measurements. Everything else is remembered, picked from big buttons, or filled automatically.
+Rule: the user should only type real-world measurements. Everything else is remembered on-device, picked from big buttons, or filled automatically.
 
-## What the app calculates (same logic as the web app)
-
-Port these calculators and formulas as-is from the web app config (`paverate.yaml` + `formulas.ts`):
+## What the app calculates
 
 | Calculator | Question it answers |
 |---|---|
@@ -48,13 +46,14 @@ Show units next to every number. When a result can be checked against a target o
 
 ## Product principles
 
+- **Fully independent** — own codebase, own config, own install; no link to another app or service for core use
 - **Offline-first** — all math runs on device; weather is optional enrichment, never a blocker
 - **No login required** to calculate
-- **One job setup** (width, thickness, machine, truck size) shared across every calculator
+- **One job setup** (width, thickness, machine, truck size) shared across every calculator on this device
 - **Big results**, large touch targets, high contrast for outdoor use
 - **Show the work** optionally — formula + source so the number is not a black box
-- **Config-driven** — constants, rates, and labels live in one editable config (same idea as the web YAML), not hardcoded magic numbers
+- **Config-driven** — constants, rates, and labels live in one editable config on this app, not hardcoded magic numbers
 
 ## Goal
 
-Take all the paving math and field workflow from the Paverate web app and deliver it as a simple phone app: enter job data (or let weather/settings fill what they can), get the answer in as few taps as possible.
+A simple phone app that gathers job inputs (typed or automatic), runs paving field math locally, and gives the crew an answer in as few taps as possible — standing completely on its own.
