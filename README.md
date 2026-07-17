@@ -106,6 +106,7 @@ branding/           # Paverate logo assets
 
 ## Documentation
 
+- [Phone app build prompt](docs/PHONE_APP_PROMPT.md) — short brief for porting this logic to a native phone app
 - [Requirements (UI/UX, config, accounts & orgs)](docs/REQUIREMENTS.md)
 - [Formulas & Specifications](docs/FORMULAS.md)
 - [GDOT Reference Tables](docs/GDOT_TABLES.md)
