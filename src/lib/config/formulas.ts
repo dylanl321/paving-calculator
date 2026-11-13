@@ -95,7 +95,7 @@ export function tonnageToOrder(opts: {
 	return base * (1 + (opts.wastePct ?? 0) / 100);
 }
 
-/** CALC.STICK -- loose height behind the screed = compacted x 1.2. */
+/** CALC.STICK -- loose height = compacted × CONST.STICK_FACTOR (field estimate, 1.25). */
 export function stickCheck(thicknessIn: number): number {
 	return thicknessIn * constant('CONST.STICK_FACTOR');
 }

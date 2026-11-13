@@ -95,6 +95,7 @@ export default defineConfig({
 					alias: {
 						'$app/navigation': new URL('./src/lib/components/__tests__/mocks/app-navigation.ts', import.meta.url).pathname,
 						'$app/stores': new URL('./src/lib/components/__tests__/mocks/app-stores.ts', import.meta.url).pathname,
+						'$app/environment': new URL('./tests/mocks/app-environment.ts', import.meta.url).pathname,
 						'$lib': new URL('./src/lib', import.meta.url).pathname
 					},
 					conditions: ['browser']

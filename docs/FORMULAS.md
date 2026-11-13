@@ -147,10 +147,14 @@ Tonnage = [Length (ft) × Width (ft) ÷ 9 × Spread Rate (lbs/SY)] ÷ 2,000
 Converts desired compacted thickness to loose (pre-compaction) material height for checking behind the screed.
 
 ```
-Stick Check Height = Desired Thickness × 1.2
+Stick Check Height = Desired Thickness × 1.25
 ```
 
-**Example:** Target 1.5" compacted → check for 1.8" loose behind screed
+GDOT does not publish this multiplier. It is the field estimate
+`CONST.STICK_FACTOR` in `src/lib/config/paverate.yaml` (loose height behind the
+screed). An older field card used 1.2; the calculator uses 1.25.
+
+**Example:** Target 1.5" compacted → check for 1.875" loose behind screed
 
 ---
 
@@ -276,7 +280,7 @@ Starting values; users can override and store their own per material.
 | Shuttle Buggy retained material | 24 tons |
 | Paver hopper retained material | 14 tons |
 | Thickness-to-spread-rate multiplier | 110 lbs/SY per inch |
-| Stick check compaction factor | 1.2× |
+| Stick check compaction factor | 1.25× (field estimate, `CONST.STICK_FACTOR`) |
 | Cubic feet per cubic yard | 27 |
 | Portland cement bag weight | 94 lbs |
 | Weight of water | 8.34 lbs/gallon |

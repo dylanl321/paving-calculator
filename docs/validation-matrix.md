@@ -25,7 +25,7 @@ source hierarchy, and status definitions.
 | `CONST.SHUTTLE_RETAIN` | 24 tons | 5 | Field card | 🟡 | — | Machine retention estimate |
 | `CONST.PAVER_RETAIN` | 14 tons | 5 | Field card | 🟡 | — | Machine retention estimate |
 | `CONST.THICK_MULT` | 110 lbs/SY per in | 5 | Field card | 🟡 | — | HMA unit-weight rule-of-thumb |
-| `CONST.STICK_FACTOR` | 1.2× | 5 | Field card | 🟡 | — | Loose-vs-compacted estimate |
+| `CONST.STICK_FACTOR` | 1.25× | 5 | Field estimate (`paverate.yaml`) | 🟡 | — | GDOT does not publish this factor. Older field card used 1.2× |
 | `CONST.COMPACTION_TARGET` | 95–100% max dry density | 1/3 | Std Spec 300-series + Constr. Manual | 🟠 | — | Project-specific; confirm |
 
 ---
@@ -41,7 +41,7 @@ source hierarchy, and status definitions.
 | `CALC.FEET_TODAY` | (Ordered−Placed)×2000×9 ÷ (W×Rate) | — | geometry | ⚪ N/A | Math-verified |
 | `CALC.TACK_GALLONS` | SY × ShotRate | — | geometry | ⚪ N/A | Rate value is the spec part → see TACK.* |
 | `CALC.TONNAGE` | SY × Rate ÷ 2000 | — | geometry | ⚪ N/A | Math-verified |
-| `CALC.STICK` | thickness × 1.2 | 5 | Field card | 🟡 | Field estimate |
+| `CALC.STICK` | thickness × 1.25 | 5 | Field estimate | 🟡 | Matches `CONST.STICK_FACTOR` |
 | `CALC.SOIL_TONNAGE` | L×W×(D/12)×pcf ÷ 2000 | — | geometry | ⚪ N/A | Density value → see DENSITY.* |
 | `CALC.SOIL_LBS_SY` | D × pcf × 0.75 | — | geometry | ⚪ N/A | Math-verified |
 | `CALC.CEMENT_RATE` | SY × CementRate ÷ 2000 | — | geometry | ⚪ N/A | Cement % → see CEMENT.* |

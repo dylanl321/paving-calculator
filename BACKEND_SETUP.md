@@ -1,5 +1,10 @@
 # PaveRate Backend Setup Guide
 
+> **Stale schema overview.** The lists below stop at the first migrations and
+> the original owner/admin/member roles. The live schema is `migrations/` through
+> `0080`, and current setup is [STATUS.md](STATUS.md). This file is kept for the
+> early route map only.
+
 This document describes the backend data layer built on feat/auth-and-data branch.
 
 ## Architecture

@@ -25,6 +25,9 @@
 	let { data }: { data: PageData } = $props();
 
 	let activeTab = $state('command');
+	// One-shot flag: the header Calculators action sets this so ProductionTab
+	// opens the in-project calculator panel, then clears it.
+	let openCalculators = $state(false);
 	// Intentional one-time snapshots of loaded data into editable form state;
 	// these should NOT re-derive from `data` on every change.
 	// svelte-ignore state_referenced_locally
@@ -106,6 +109,7 @@
 
 	function handleNewCalculation() {
 		activeTab = 'production';
+		openCalculators = true;
 	}
 
 	async function updateProjectStatus(status: 'active' | 'completed' | 'archived') {
@@ -359,6 +363,8 @@
 				<ProductionTab
 					jobSiteId={jobSiteState.id}
 					calculations={data.calculations}
+					{openCalculators}
+					onCalculatorsOpened={() => (openCalculators = false)}
 				/>
 			{:else if activeTab === 'resources'}
 				<ResourcesTab

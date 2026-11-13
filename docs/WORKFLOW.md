@@ -116,9 +116,9 @@ The app shows the gallons for the **min, mid, and max** of the spec range so the
 ### 4.5 Stick Check — "What should I see behind the screed?"
 
 > "Target compacted thickness?" → `1.5"`
-> **Answer: Set your stick to 1.8"**
+> **Answer: Set your stick to 1.875"**
 
-Pure `× 1.2`. One input, instant answer. This one can even live on the home screen as a slider.
+`× 1.25` (`CONST.STICK_FACTOR`). GDOT does not publish this factor; an older field card used 1.2. One input, instant answer.
 
 ### 4.6 Soil / Cement & Aggregate — "How much material, cement, and water?"
 
@@ -271,9 +271,9 @@ Every formula was checked against the original field card (`docs/reference-image
 
 6. **Tonnage to Order — ✅ correct.** `Tons = (Length × Width ÷ 9 × SpreadRate) ÷ 2000`. Exact inverse of spread rate. ✓
 
-7. **Stick Check — ✅ correct.** `Loose = Compacted × 1.2`. 1.5 → 1.8. ✓
+7. **Stick Check — field estimate.** `Loose = Compacted × 1.25` (`CONST.STICK_FACTOR`). 1.5 → 1.875. GDOT does not publish this multiplier.
 
-8. **Constants — ✅ all verified** against the field card and GDOT: 9 SF/SY, 2000 lb/ton, 18.5 t/truck, 24 t Shuttle Buggy / 14 t Paver retention, 110 lbs/SY/in, 1.2× compaction.
+8. **Constants — ✅ verified** against the field card and GDOT where GDOT states them: 9 SF/SY, 2000 lb/ton, 18.5 t/truck, 24 t Shuttle Buggy / 14 t Paver retention, 110 lbs/SY/in. Stick factor is the configured field estimate 1.25×, not a spec value.
 
 9. **Feet Left Today — ✅ correct.** Both modes reduce to `Feet = Tons × 2000 × 9 ÷ (Width × Rate)`, the same engine as Remaining Distance. Loads-left mode sets `Tons = Loads × 18.5`; whole-day mode sets `Tons = Ordered − Placed`. Sanity check: 180 t left, 12 ft, 165 lbs/SY → 360,000 lbs ÷ 220 = 1,636 ft. ✓
 

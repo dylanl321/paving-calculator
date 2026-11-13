@@ -4,7 +4,7 @@
 	import ShowWork from './ShowWork.svelte';
 	import SourceBadge from './SourceBadge.svelte';
 	import SpecAlert from './SpecAlert.svelte';
-	import { placementCheck, weatherConfig, temperature } from '$lib/config';
+	import { ogfcPemTempCheck, placementCheck, temperature } from '$lib/config';
 	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import { weather } from '$lib/stores/weather.svelte';
 	import { logDraft } from '$lib/stores/logDraft.svelte';
@@ -21,19 +21,7 @@
 		return placementCheck(temp, thickness);
 	});
 
-	const ogfcCheck = $derived.by(() => {
-		const temp = weather.effectiveTempF;
-		const courseType = courseTypeCtx;
-		if (temp == null || (courseType !== 'ogfc' && courseType !== 'pem')) return null;
-		const minTemp = weatherConfig.ogfcMinAirTempF;
-		if (temp >= minTemp) {
-			return { status: 'pass' as const, message: `Air temp OK for ${courseType.toUpperCase()} (min ${minTemp}°F)` };
-		}
-		if (temp >= minTemp - weatherConfig.tempWarnMarginF) {
-			return { status: 'warn' as const, message: `Borderline for ${courseType.toUpperCase()} — ${temp}°F is near ${minTemp}°F minimum` };
-		}
-		return { status: 'fail' as const, message: `Too cold for ${courseType.toUpperCase()} — ${temp}°F is below ${minTemp}°F minimum` };
-	});
+	const ogfcCheck = $derived(ogfcPemTempCheck(weather.effectiveTempF, courseTypeCtx));
 
 	const badge = $derived.by(() => {
 		if (thicknessIn <= 0) return null;
@@ -107,7 +95,7 @@
 
 		{#if ogfcCheck != null}
 			<div class="ogfc-check" class:pass={ogfcCheck.status === 'pass'} class:warn={ogfcCheck.status === 'warn'} class:fail={ogfcCheck.status === 'fail'}>
-				<strong>{courseTypeCtx.toUpperCase()} check:</strong> {ogfcCheck.message}
+				<strong>{ogfcCheck.course} check:</strong> {ogfcCheck.message}
 			</div>
 		{/if}
 	{/if}
