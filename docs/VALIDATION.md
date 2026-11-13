@@ -33,7 +33,7 @@ When two sources disagree, the **higher** source wins.
 | 5 | **Field reference card** | Convenience math / rules-of-thumb only | `docs/reference-images/field-formula-card.jpeg` |
 
 > **Rule:** Tier 5 (field card) may be used for *quick-estimate* formulas (e.g.
-> `thickness × 110`, stick-check `× 1.2`, truck-load `18.5 t`) but those must be
+> `thickness × 110`, stick-check `× 1.25`, truck-load `18.5 t`) but those must be
 > **labeled in the app as field estimates**, not spec values. Anything that maps
 > to a compliance decision (tack rates, layer thickness, temperature, density
 > acceptance) must trace to Tier 1–3.
@@ -189,7 +189,7 @@ quote forever, and the matrix points at both the PDF (authority) and the excerpt
     errors in `GDOT_TABLES.md`.
   - 🟠 Soil-cement (Section 301), GAB (Section 310), density acceptance — still
     transcribed-only / rules-of-thumb; next to verify with the same procedure.
-- **Field-card formulas (×110, ×1.2, 18.5 t, machine retention):** 🟡
+- **Field-card formulas (×110, stick ×1.25, 18.5 t, machine retention):** 🟡
   `FIELD_ESTIMATE` — correct as rules-of-thumb, labeled as such, not spec.
 
 This gives a clear, honest picture and a defined path to full verification

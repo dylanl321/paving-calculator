@@ -290,6 +290,23 @@ export function tackFieldById(id: string): RangeEntry | undefined {
 export const weatherConfig: WeatherConfig = config.weather;
 export const jobSite = config.jobSite;
 
+/**
+ * Course ids that carry the §400.3.05.E OGFC/PEM 60°F floor.
+ * Job setup stores Table 12 ids (`TOLERANCE.OGFC`, `TOLERANCE.PEM`), not `ogfc`/`pem`.
+ */
+const OGFC_PEM_COURSE_IDS: Record<string, 'OGFC' | 'PEM'> = {
+	'TOLERANCE.OGFC': 'OGFC',
+	OGFC: 'OGFC',
+	'TOLERANCE.PEM': 'PEM',
+	PEM: 'PEM'
+};
+
+/** Short course label when this id is OGFC or PEM; otherwise null. */
+export function ogfcPemCourseLabel(courseType: string | null | undefined): 'OGFC' | 'PEM' | null {
+	if (!courseType) return null;
+	return OGFC_PEM_COURSE_IDS[courseType.trim().toUpperCase()] ?? null;
+}
+
 /** GDOT Table 4 minimum air temp for a given lift thickness. */
 export function minAirTempForThickness(thicknessIn: number): TempEntry {
 	const sorted = [...config.temperature].sort((a, b) => a.maxThicknessIn - b.maxThicknessIn);
@@ -427,6 +444,64 @@ export function placementCheck(airTempF: number | null, thicknessIn: number): Pl
 	};
 }
 
+export interface OgfcPemTempCheck {
+	status: PlacementStatus;
+	course: 'OGFC' | 'PEM';
+	minTempF: number;
+	message: string;
+	clause: string;
+	clauseTitle: string;
+	guidance?: string;
+}
+
+/**
+ * §400.3.05.E: do not place OGFC or PEM below 60°F.
+ * 60°F and above passes. The warn band is the shared field margin *below* that
+ * floor (not the 55°F MTV exception, which needs an MTV and Engineer approval).
+ */
+export function ogfcPemTempCheck(
+	airTempF: number | null,
+	courseType: string | null | undefined
+): OgfcPemTempCheck | null {
+	const course = ogfcPemCourseLabel(courseType);
+	if (airTempF == null || course == null) return null;
+	const minTemp = weatherConfig.ogfcMinAirTempF;
+	const margin = weatherConfig.tempWarnMarginF;
+	const clause = '§400.3.05.E';
+	const clauseTitle = 'OGFC / PEM Minimum Air Temperature';
+	if (airTempF >= minTemp) {
+		return {
+			status: 'pass',
+			course,
+			minTempF: minTemp,
+			message: `Air temp OK for ${course} (min ${minTemp}°F)`,
+			clause,
+			clauseTitle
+		};
+	}
+	if (airTempF >= minTemp - margin) {
+		return {
+			status: 'warn',
+			course,
+			minTempF: minTemp,
+			message: `Borderline for ${course} — ${airTempF}°F is near ${minTemp}°F minimum`,
+			clause,
+			clauseTitle,
+			guidance:
+				'GDOT prohibits OGFC and PEM below 60°F. 55°F is allowed only with an MTV and Engineer approval.'
+		};
+	}
+	return {
+		status: 'fail',
+		course,
+		minTempF: minTemp,
+		message: `Too cold for ${course} — ${airTempF}°F is below ${minTemp}°F minimum`,
+		clause,
+		clauseTitle,
+		guidance: 'Do not place OGFC or PEM below 60°F air temperature (§400.3.05.E).'
+	};
+}
+
 export interface RainCheck {
 	status: PlacementStatus;
 	totalIn: number;
@@ -448,6 +523,7 @@ export interface TackTempCheck {
 export function tackTempCheck(airTempF: number | null): TackTempCheck | null {
 	if (airTempF == null) return null;
 	const minTemp = weatherConfig.tackMinAirTempF;
+	const margin = weatherConfig.tempWarnMarginF;
 	if (airTempF < minTemp) {
 		return {
 			status: 'fail',
@@ -457,7 +533,7 @@ export function tackTempCheck(airTempF: number | null): TackTempCheck | null {
 			guidance: 'Do not apply tack coat until air temperature reaches the required minimum.'
 		};
 	}
-	if (airTempF < minTemp + 5) {
+	if (airTempF < minTemp + margin) {
 		return {
 			status: 'warn',
 			message: `Borderline for tack — air temp is near ${minTemp}°F minimum`,

@@ -1,4 +1,8 @@
 <script lang="ts">
+  import { constant } from '$lib/config';
+
+  const stickFactor = constant('CONST.STICK_FACTOR');
+
   function printPage() {
     window.print();
   }
@@ -77,14 +81,14 @@
     <div class="formula-card">
       <div class="card-label">Stick Check (Screed Reading)</div>
       <div class="formula-box">
-        Loose Height = Compacted Thickness &times; 1.20
+        Loose Height = Compacted Thickness &times; {stickFactor}
       </div>
       <ul class="vars">
         <li><strong>Loose Height</strong> — what the screed reads (inches)</li>
         <li><strong>Compacted Thickness</strong> — target after rolling (inches)</li>
-        <li><strong>1.20</strong> — compaction factor (20% oversize)</li>
+        <li><strong>{stickFactor}</strong> — field compaction factor (`CONST.STICK_FACTOR`). GDOT does not publish this multiplier.</li>
       </ul>
-      <div class="example">Ex: 2 in. compacted &rarr; 2 &times; 1.20 = <strong>2.4 in.</strong> screed reading</div>
+      <div class="example">Ex: 2 in. compacted &rarr; 2 &times; {stickFactor} = <strong>{(2 * stickFactor).toFixed(2)} in.</strong> screed reading</div>
     </div>
 
     <!-- Tack Coat Gallons -->
@@ -166,7 +170,7 @@
       <div class="const-item">
         <span class="const-label">Stick factor</span>
         <span class="const-eq">=</span>
-        <span class="const-val">1.20&times; (screed reads 20% high)</span>
+        <span class="const-val">{stickFactor}&times; (field estimate)</span>
       </div>
       <div class="const-item">
         <span class="const-label">Tack — New AC to New AC</span>

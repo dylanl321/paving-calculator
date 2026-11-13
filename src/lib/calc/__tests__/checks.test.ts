@@ -4,12 +4,23 @@
  *
  * All threshold values come from GDOT spec / paverate.yaml:
  *   Table 4 (TEMP.*):  ≤1in=55F, 1.1-2in=45F, 2.1-3in=40F, 3.1-4in=35F, 4.1-8in=32F
- *   Tack min temp: 40F (TEMP.TACK_MIN / weatherConfig.tackMinAirTempF)
- *   Rain warn: 0.10in, Rain block: 0.25in (weatherConfig.rainWarnIn/rainBlockIn)
+ *   At or above the Table 4 minimum is pass. Warn is only below that floor,
+ *   within tempWarnMarginF (5°F).
+ *   Tack min temp: 40F (§413.3.05.A). Below 40F fails. From 40F up to
+ *   40F + tempWarnMarginF warns (legal, but at the floor).
+ *   OGFC/PEM floor: 60F (§400.3.05.E) on course ids TOLERANCE.OGFC / TOLERANCE.PEM.
+ *   Rain warn: 0.01in, Rain block: 0.10in (weather.rainWarnIn / rainBlockIn).
+ *   These inch cutoffs are field heuristics. GDOT only says do not pave a wet surface.
  *   Spread tolerance varies by course type
  */
 import { describe, it, expect } from 'vitest';
-import { placementCheck, spreadSpecCheck, tackTempCheck, rainCheck } from '../index';
+import {
+	ogfcPemTempCheck,
+	placementCheck,
+	rainCheck,
+	spreadSpecCheck,
+	tackTempCheck
+} from '../index';
 
 // ─── placementCheck ───────────────────────────────────────────────────────────
 describe('placementCheck', () => {
@@ -91,13 +102,13 @@ describe('placementCheck', () => {
 		expect(result!.status).toBe('fail');
 	});
 
-	// warn zone: within tempWarnMarginF (5F) of min
-	it('warn: 48F air temp, 2in lift (min 45F, margin 5F)', () => {
+	// 48°F is above the 45°F Table 4 floor for a 2 in lift, so it passes.
+	// The warn band is only below that floor (40–45°F).
+	it('pass: 48F air temp, 2in lift (above the 45F Table 4 floor)', () => {
 		const result = placementCheck(48, 2);
-		// 48 < 45 + 5 = 50 -> borderline warn ... but 48 >= 45 so actually pass
-		// Actually 48 >= 45 means pass. Let's test 46F which is >= 45 so pass.
-		// Test 43F which is < 45 but >= 45-5=40 => warn
 		expect(result).not.toBeNull();
+		expect(result!.status).toBe('pass');
+		expect(result!.minTempF).toBe(45);
 	});
 
 	it('warn: 43F air temp, 2in lift (min 45F, warn margin 5F)', () => {
@@ -179,9 +190,10 @@ describe('tackTempCheck', () => {
 		expect(result!.status).toBe('warn');
 	});
 
-	it('pass: exactly at minimum (40F)', () => {
+	it('warn: exactly at the 40F minimum (legal, inside the caution band)', () => {
+		// §413.3.05.A allows emulsified asphalt at 40°F and above.
+		// The app still warns until tempWarnMarginF (5°F) above that floor.
 		const result = tackTempCheck(40);
-		// 40 >= 40 => not fail. 40 < 40+5=45 => warn
 		expect(result!.status).toBe('warn');
 	});
 
@@ -231,5 +243,36 @@ describe('rainCheck', () => {
 	it('clause references §400.3.05.E', () => {
 		const result = rainCheck(0.5);
 		expect(result!.clause).toBe('§400.3.05.E');
+	});
+});
+
+describe('ogfcPemTempCheck', () => {
+	it('ignores courses that are not OGFC or PEM', () => {
+		expect(ogfcPemTempCheck(50, 'TOLERANCE.INTERMEDIATE_WEARING')).toBeNull();
+		expect(ogfcPemTempCheck(50, null)).toBeNull();
+	});
+
+	it('applies the 60F floor to the Table 12 course ids job setup stores', () => {
+		const ogfc = ogfcPemTempCheck(50, 'TOLERANCE.OGFC');
+		const pem = ogfcPemTempCheck(50, 'TOLERANCE.PEM');
+		expect(ogfc).not.toBeNull();
+		expect(pem).not.toBeNull();
+		expect(ogfc!.course).toBe('OGFC');
+		expect(pem!.course).toBe('PEM');
+		expect(ogfc!.minTempF).toBe(60);
+		// 50°F is below the 60°F floor and outside the 5°F caution band.
+		expect(ogfc!.status).toBe('fail');
+		expect(pem!.status).toBe('fail');
+	});
+
+	it('also accepts the short ids', () => {
+		expect(ogfcPemTempCheck(70, 'ogfc')!.status).toBe('pass');
+		expect(ogfcPemTempCheck(70, 'pem')!.course).toBe('PEM');
+	});
+
+	it('pass at 60F, warn at 55F, fail below the margin', () => {
+		expect(ogfcPemTempCheck(60, 'TOLERANCE.OGFC')!.status).toBe('pass');
+		expect(ogfcPemTempCheck(55, 'TOLERANCE.PEM')!.status).toBe('warn');
+		expect(ogfcPemTempCheck(54, 'TOLERANCE.OGFC')!.status).toBe('fail');
 	});
 });

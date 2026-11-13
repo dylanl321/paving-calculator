@@ -128,7 +128,7 @@
 
 		<div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
 			<div class="src-row">Compaction factor: <SourceBadge status={factorMeta.status} tier={factorMeta.tier} /></div>
-			<p>Stick check uses GDOT §400.3.05.C (spreading & finishing). STICK_FACTOR 1.25 is the loose-to-compacted ratio applied to target depth to get the screed setting.</p>
+			<p>STICK_FACTOR {factorMeta.value} is a field estimate for loose height behind the screed. GDOT does not publish this multiplier. The check is made while spreading and finishing (§400.3.05.C).</p>
 			<DotTable tableId="table-4" />
 		</div>
 	</ShowWork>

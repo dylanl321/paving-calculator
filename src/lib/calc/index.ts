@@ -32,7 +32,14 @@ export {
 } from '../config/formulas';
 
 // Re-export check functions from config
-export { placementCheck, spreadSpecCheck, tackTempCheck, rainCheck } from '../config/index';
+export {
+	placementCheck,
+	spreadSpecCheck,
+	tackTempCheck,
+	rainCheck,
+	ogfcPemTempCheck,
+	ogfcPemCourseLabel
+} from '../config/index';
 
 // Pure ETA calculation functions
 
