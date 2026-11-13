@@ -13,13 +13,19 @@
 	import { calcContext } from '$lib/stores/calcContext.svelte';
 	import SourceTag from '$lib/components/SourceTag.svelte';
 
-	// Only the project-relevant Asphalt calculators live in-project; the rest stay
-	// in standalone Quick Calc.
-	const asphaltTools = $derived(toolGroups.find((g) => g.id === 'asphalt')?.tools ?? []);
+	// Every calculator group the app already ships. Tack stays its own tool
+	// inside Asphalt. Base stone is Soil & Subgrade. There is no separate
+	// milling card in the calculator set.
+	const PROJECT_GROUPS = ['asphalt', 'soil', 'concrete', 'grading', 'specialty'];
+	const groups = $derived(toolGroups.filter((group) => PROJECT_GROUPS.includes(group.id)));
+
+	let groupId = $state('asphalt');
+	const activeGroup = $derived(groups.find((group) => group.id === groupId) ?? groups[0]);
+	const tools = $derived(activeGroup?.tools ?? []);
 
 	let activeToolId = $state<string>('production-check');
 	const activeTool = $derived<Tool | null>(
-		asphaltTools.find((t) => t.id === activeToolId) ?? asphaltTools[0] ?? null
+		tools.find((t) => t.id === activeToolId) ?? tools[0] ?? null
 	);
 	const ActiveComponent = $derived(activeTool?.component);
 
@@ -57,8 +63,25 @@
 		</div>
 	</div>
 
+	<nav class="tool-picker" aria-label="Calculator groups">
+		{#each groups as group (group.id)}
+			<button
+				type="button"
+				class="tool-chip"
+				class:active={group.id === activeGroup?.id}
+				aria-current={group.id === activeGroup?.id ? 'true' : undefined}
+				onclick={() => {
+					groupId = group.id;
+					activeToolId = group.tools[0]?.id ?? activeToolId;
+				}}
+			>
+				<span class="tool-chip-label">{group.label}</span>
+			</button>
+		{/each}
+	</nav>
+
 	<nav class="tool-picker" aria-label="Calculators">
-		{#each asphaltTools as tool (tool.id)}
+		{#each tools as tool (tool.id)}
 			<button
 				type="button"
 				class="tool-chip"

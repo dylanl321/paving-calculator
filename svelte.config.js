@@ -13,7 +13,15 @@ const config = {
 		if (noisy.some((code) => warning.code?.startsWith(code))) return;
 		handler(warning);
 	},
-	kit: { adapter: adapter() }
+	kit: {
+		adapter: adapter({
+			// Local `vite dev` must not open a remote Wrangler session for the AI
+			// binding. Production still uses the binding declared in wrangler.jsonc.
+			platformProxy: {
+				remoteBindings: false
+			}
+		})
+	}
 };
 
 export default config;

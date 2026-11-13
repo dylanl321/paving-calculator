@@ -206,16 +206,18 @@ export function getUnrecognizedMessage(classification: DocumentClassification): 
 	}
 
 	const messages: Partial<Record<DocumentClassType, string>> = {
-		weight_ticket: 'This appears to be a Weight Ticket. Weight ticket import is coming soon.',
+		weight_ticket:
+			'This appears to be a Weight Ticket. Open the project, then use Records → Field documents to review tons, mix, and truck before saving the load.',
 		material_certification:
-			'This appears to be a Material Certification. Material cert import is coming soon.',
+			'This appears to be a Material Certification. Open the project, then use Records → Field documents to review and attach it to the material library.',
 		plan_sheet:
 			'This appears to be a Plan Sheet. We can extract project details if a contract summary is also uploaded.',
 		inspection_report:
 			'This appears to be a Daily Inspection Report. Inspection report data has been extracted — review it in the parsed results.',
 		change_order:
 			'This appears to be a Change Order. Change order data has been extracted — review it in the parsed results.',
-		daily_report: 'This appears to be a Daily Report. Daily report import is not yet supported.',
+		daily_report:
+			'This appears to be a Daily Report. Open the project, then use Records → Field documents to review it before it becomes a daily log.',
 		gdot_roadway_log:
 			'This appears to be a GDOT Roadway Log. Please upload it alongside a contract summary for best results.'
 	};

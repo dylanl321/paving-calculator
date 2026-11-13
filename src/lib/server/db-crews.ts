@@ -178,6 +178,20 @@ export class DbCrewHelper {
 			.run();
 	}
 
+	/** True when this person is on a crew that is assigned to the project. */
+	async userAssignedToJobSite(userId: string, jobSiteId: string, orgId: string): Promise<boolean> {
+		const row = await this.db
+			.prepare(
+				`SELECT 1 AS ok FROM crew_job_sites cjs
+				JOIN crew_members cm ON cm.crew_id = cjs.crew_id AND cm.user_id = ?
+				WHERE cjs.job_site_id = ? AND cjs.org_id = ?
+				LIMIT 1`
+			)
+			.bind(userId, jobSiteId, orgId)
+			.first<{ ok: number }>();
+		return row != null;
+	}
+
 	async getJobSitesByForeman(userId: string, orgId: string): Promise<DbJobSite[]> {
 		return await this.db
 			.prepare(

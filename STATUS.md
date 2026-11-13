@@ -156,24 +156,44 @@ Fixed on `cursor/project-management-fixes-15a9`:
   settings. The invite-code box that did nothing is gone. Dead
   `/dashboard/job-sites` links point at `/dashboard/projects`.
 
+## Access, orgs, and field documents (same day, follow-up)
+
+- Field roles (`foreman`, `laborer`, `operator`, `screed_man`) can open a
+  project by id only when their crew is assigned to it. The check runs in
+  the request hook for every `/api/job-sites/:id/*` route and in the project
+  page server load (the page, today's log, and log history). Owner, admin,
+  member, office, and inspector still see the whole organization.
+- `getOrgByUserId` prefers `users.active_org_id` (migration `0081`), then the
+  most recently accepted membership. A switcher appears in the sidebar when
+  a person belongs to more than one org.
+- Records → Field documents reviews a weight ticket, material certification,
+  or daily report and saves only after confirm. Tickets become loads. Certs
+  become an org material plus a project document row. Daily reports become
+  that day's log and a paving entry.
+- The in-project calculator panel now includes the soil, concrete, grading,
+  and specialty calculators that already exist. Tack is still its own tool
+  in the asphalt group. There is no milling calculator component to mount.
+- Projects can download a CSV of loads and daily log entries.
+- Local `vite dev` sets `platformProxy.remoteBindings` to false so the AI
+  binding does not open a remote Wrangler session. Apply `0081` locally
+  before using the org switcher (`npx wrangler d1 migrations apply paverate-db --local`).
+
 ## Still open
 
 - Duplicate migration prefixes `0071` and `0074` still fail `deploy.yml`.
   Do not rename a file that remote D1 has already applied. See the promote
   checklist above.
-- In-project calculators are still asphalt-only. Soil, concrete, and grading
-  stay on `/app`.
-- A foreman or laborer’s project *list* is crew-scoped. Opening a project by
-  id still only checks organization membership, so a known id in the same org
-  is readable. Tightening that is a product decision: inspectors and office
-  staff also open projects they are not crewed on.
-- `getOrgByUserId` uses `LIMIT 1` with no order. The app assumes one org per
-  user. A person in two orgs would see an arbitrary one.
-- Weight-ticket, material-cert, and daily-report import still stop at
-  classification. There is no editor for them.
+- Migration `0081_active_org.sql` is new. It has not been applied to remote
+  D1 from this environment. The promote checklist still applies: list remote
+  migrations before any push to `main`.
 - `job_site_assignments` (foreman / operator / inspector rows) still have an
   API. The project page shows them when they exist and does not create new
   ones. Crew membership is the roster that controls who sees the job.
+- Field-document extraction is label-based (Net Tons, Mix, Date, and so on).
+  A scanned ticket with no text still needs the existing ticket OCR path;
+  this review form does not call Workers AI.
+- There is still no milling calculator component. Milling stays a daily-log
+  entry type.
 - `BACKEND_SETUP.md` still describes the first migration and three roles.
   Trust `migrations/` and the route tree instead.
 - Playwright’s 60 second `vite dev` startup is still the E2E gap in CI.
