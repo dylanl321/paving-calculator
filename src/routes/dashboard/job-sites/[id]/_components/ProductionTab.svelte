@@ -10,6 +10,7 @@
 	Records.
 -->
 <script lang="ts">
+	import { tick } from 'svelte';
 	import type { Calculation } from '../+page';
 	import SectionHeader from '$lib/components/ui/SectionHeader.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
@@ -20,13 +21,31 @@
 
 	let {
 		jobSiteId,
-		calculations
+		calculations,
+		openCalculators = false,
+		onCalculatorsOpened
 	}: {
 		jobSiteId: string;
 		calculations: Calculation[];
+		/** One-shot from the project header. Parent clears it via onCalculatorsOpened. */
+		openCalculators?: boolean;
+		onCalculatorsOpened?: () => void;
 	} = $props();
 
 	let showCalculator = $state(false);
+	let calculatorSection = $state<HTMLElement | null>(null);
+
+	$effect(() => {
+		if (!openCalculators) return;
+		showCalculator = true;
+		// Clear the one-shot after this flush so a later visit to the tab does
+		// not reopen the panel, and so this effect does not write parent state
+		// while it is still running.
+		queueMicrotask(() => onCalculatorsOpened?.());
+		void tick().then(() => {
+			calculatorSection?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+		});
+	});
 </script>
 
 <div class="production-tab">
@@ -64,7 +83,7 @@
 		</Card>
 	</section>
 
-	<section class="production-tab__group">
+	<section class="production-tab__group" id="project-calculators" bind:this={calculatorSection}>
 		<SectionHeader
 			title="Calculators"
 			subtitle="Run project calculators pre-filled from this job."

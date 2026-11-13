@@ -1,0 +1,146 @@
+# PaveRate status
+
+**As of November 13, 2026.** This replaces the June 1–2 backlog, kanban, and
+site-review notes. Those files are stubs on purpose. Git history still has them.
+
+## Where the product is
+
+| | |
+|---|---|
+| Product branch | `feat/auth-and-data` (about 860 commits ahead of `main`) |
+| `main` | June 1, 2026 calculator (`075b578`). GitHub default branch. |
+| Production site | [paverate.com](https://paverate.com) still serves that calculator. Probed November 13, 2026: title “Paverate”, tagline “In-field asphalt paving calculators”, `/login` returns 404. |
+| Preview site | [dev.paverate.com](https://dev.paverate.com) serves the project app. Same probe: title “Paverate — Run paving projects from the field”, `/login` is a sign-in page. Which git branch that preview tracks was not read from the Cloudflare API. |
+| Deploy workflow | `.github/workflows/deploy.yml` runs on **push to `main` only**. It applies remote D1 migrations, builds, and `wrangler pages deploy` to project `paverate`. |
+
+Do not merge `feat/auth-and-data` into `main`, and do not change the Pages
+production branch, until the checklist below is done on purpose. A merge to
+`main` deploys paverate.com and migrates the one shared D1 database.
+
+## What the app is now
+
+Signed-out field calculators still work (`/app`), including offline PWA use.
+Signed-in use adds orgs and roles, the project workspace, in-project calculators
+on the Production tab, daily logs, per-load tickets, equipment, mix and materials
+libraries, roads-only MapLibre maps, GDOT/contract PDF import (Bedrock primary,
+Workers AI fallback), and the `/admin` console.
+
+Auth, orgs, and the dashboard are implemented. Older docs that call them
+“planned” are wrong.
+
+## Health check (this pass)
+
+Node v22.23.4, clean `npm ci`.
+
+- `npx wrangler types` then `svelte-check`: 0 errors, 0 warnings. Before types
+  are generated, tsc warns that gitignored `worker-configuration.d.ts` is
+  missing. CI generates it before the check. That warning is not a product bug.
+- Vitest unit, integration, and component projects: 51 files, 1435 tests, all
+  passing. That includes the new Production-tab calculator open test. The same
+  three projects on `72a7a64` before this branch were 50 files / 1433 tests,
+  also passing.
+- `npm run build` (`wrangler types && vite build`, no `--check`) completed.
+  Workbox logged that `prerendered/**` matches nothing. Expected: this app does
+  not prerender `/`, and `navigateFallback` stays null for that reason.
+- `npx wrangler d1 migrations apply paverate-db --local` applied every file
+  through `0080`, including both `0071_*` files and both `0074_*` files.
+  Wrangler accepts the duplicate numbers. The GitHub deploy workflow does not
+  (see below).
+- A browser pass of the project page was not completed here. `vite dev` sends
+  the first request through Wrangler's remote AI session ("Establishing remote
+  connection...") and this environment has no `CLOUDFLARE_API_TOKEN`, so
+  `/api/auth/dev-login` never returned. The Calculators open/close behavior is
+  covered by `ProjectCalculatorsOpen.test.ts` instead. Playwright's existing
+  suite was not run; it starts the same `vite dev` and has a 60 second timeout
+  that already fails in CI for that startup, not for a single assertion.
+
+## Unmerged June branches
+
+24 remote branches are not contained in `feat/auth-and-data`. None were deleted.
+
+Their unique commits were compared file-by-file with the current tree. The
+tests, mix library, materials API, route-geometry fallback, audit logging, and
+role routing they added are already on `feat/auth-and-data`, usually in a later
+form. Cherry-picking those commits would roll newer files backward.
+
+Examples already present, so skipped:
+
+- Org, daily-log, loads, calculations, rate-limit, normalise, LoadTracker, and NumberField tests (`t_2afae13e`, `t_73f8529a`, `t_d1b5105b`, `t_72ef75f3`, `t_ef311d15`, `t_9fafb87d`, `t_96aa3a5a`, `t_ca679941`)
+- E2E job-site spec (`t_23257bd5`) — identical
+- Materials API (`t_07713658`) and mix library UI (`t_bd218350`) — current files are newer
+- GDOT → OSRM → Overpass geometry (`t_1789a13f`) — current `gdot-geometry.ts` is the longer chain
+- Admin audit log on login (`t_7c81ff1d`) — `logAuditEvent` already records IP and user agent
+- Role routing (`t_9ae7f1d0`, `t_db2254ad`) — `src/lib/server/role-views.ts` is the later version. The branch-only `src/lib/utils/role-routing.ts` still sent field users to `/app` because `/app/field` did not exist yet
+- `db-auth` split, calc engine extract, histogram rename, field load view, dashboard redesign (`t_26ba243c`, `t_4e2f33b9`, `t_2bbdde0b`, `t_aaae9707`, `t_2aa1e976`, `t_2a8561f5`) — superseded by later refactors
+- PDF and email design docs (`t_e7f84f13`, `t_ec99ca49`) — identical to the copies already in `docs/`
+- Offline banner — already mounted in the root layout
+
+Ported: `ErrorBoundary`. It was added, then deleted on June 4 as unused
+(`f68eaf4`) before `feat/errorboundary-apirequest-t_eb439703` could land. That
+branch never wrapped the boundary either; it switched pages to `apiRequest`
+(already the pattern) and added the offline banner. The component is restored
+and wraps the page tree. Toasts stay outside it so an error does not remove them.
+
+Draft PR [#11](https://github.com/dylanl321/paving-calculator/pull/11) (phone
+app prompt, branch `cursor/phone-app-prompt-d9bd`) targets `main`. Left open and
+unmerged. Retarget it after `main` is current, or close it. Merging it first
+only edits the old calculator README.
+
+## Promoting `feat/auth-and-data` to `main`
+
+This environment could not call the Cloudflare API (`CLOUDFLARE_API_TOKEN` is
+unset), so remote migration state was **not** re-listed. Check it before merging.
+
+1. **See what D1 already has.** One database, `paverate-db`
+   (`database_id` `aead16ae-73b7-4508-8423-4c7c290cfcf5` in `wrangler.jsonc`).
+   Preview and production share it. There is no second “dev D1”.
+   ```bash
+   npx wrangler d1 migrations list paverate-db --remote
+   ```
+   `deploy.yml` will run `npx wrangler d1 migrations apply paverate-db --remote`
+   on the push to `main`. If dev.paverate.com has been using this database,
+   most of `migrations/0001`–`0080` may already be applied. Confirm; do not
+   assume.
+
+2. **Fix the duplicate-number gate before that push.** The deploy workflow
+   exits 1 when two files share a numeric prefix. These pairs fail it today:
+   - `0071_document_feedback.sql` and `0071_preferred_units.sql`
+   - `0074_gdot_construction_projects.sql` and `0074_org_materials_tack.sql`
+
+   `0065` is missing (warning only). Do not rename a file that is already in
+   remote `d1_migrations`; wrangler would treat the new name as unapplied.
+   Safer options: teach the duplicate check to allow these four historical
+   names, or rename only the file the remote list says was never applied.
+
+3. **Pages secrets, production and preview.** Vars already in `wrangler.jsonc`
+   (`SUPER_ADMIN_EMAILS`, `BEDROCK_REGION`, `BEDROCK_MODEL`, `BEDROCK_MAX_TOKENS`)
+   ship with the worker. Secrets do not. Set them with
+   `npx wrangler pages secret put …` and redeploy afterward:
+   - `AWS_BEARER_TOKEN_BEDROCK` — long-term Bedrock key (alias `BEDROCK_API_KEY`). Short-term keys need SigV4, which this worker does not do. Without it, PDF import uses Workers AI only.
+   - `RESEND_API_KEY` — invites, password reset, report mail. Missing key skips send.
+   - `CRON_SECRET` — `/api/cron/*` accepts unauthenticated calls when this is unset.
+   - GitHub Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (the deploy job).
+
+   Bindings the Pages project needs: D1 `DB`, R2 `ASSETS_BUCKET`
+   (`paverate-org-assets`), Workers AI `AI`. Node 22. Build command stays
+   `npm run build` (`wrangler types && vite build`, no `--check`). Output
+   directory `.svelte-kit/cloudflare`. Project name in the workflow is `paverate`.
+
+4. **Merge `feat/auth-and-data` into `main` only after 1–3.** That push is the
+   production deploy. Smoke-test paverate.com login, a project page, and a
+   calculator after it. Keep `dev.paverate.com` in mind: it shares the database,
+   so a migration applied at production time is live for both hostnames.
+
+5. **Close or retarget PR #11** so it cannot land on the old README.
+
+## Sensible next product work
+
+Not started here:
+
+- The in-project calculator panel is asphalt-only. Soil, concrete, and grading
+  stay on `/app`.
+- `upsertJobSiteConfig` still does not persist `total_tonnage`, `cost_per_ton`,
+  or `total_contract_value` (known gap).
+- `BACKEND_SETUP.md` still describes the first migration and three roles. Trust
+  `migrations/` and the route tree instead.
+- Playwright’s 60 second `vite dev` startup is still the E2E gap in CI.

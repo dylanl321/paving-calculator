@@ -1,148 +1,94 @@
-# Paverate
+# PaveRate
 
-[![Unit Coverage](https://img.shields.io/badge/unit%20coverage-80%25%20threshold-brightgreen)](coverage/index.html)
-[![Integration Coverage](https://img.shields.io/badge/integration%20coverage-60%25%20threshold-yellow)](coverage/index.html)
-[![Component Coverage](https://img.shields.io/badge/component%20coverage-50%25%20threshold-orange)](coverage/index.html)
+PaveRate is a mobile-first paving operations app. Crews can run asphalt
+calculators with no account, and a signed-in company can manage projects, route
+geometry, GDOT document import, daily logs, loads, mixes, equipment, and crews.
 
-**Paverate** is a mobile-first PWA for in-field asphalt paving calculations.
-It is built for paving crews to get answers fast on the job site — spread rate,
-feet left today, tack coat gallons, tonnage to order, and stick-check height —
-all from a single scrolling dashboard that works **offline** and **without an
-account**.
+The product branch is **`feat/auth-and-data`**. `main` last moved on June 1, 2026
+and is still the early calculator. On November 13, 2026, [paverate.com](https://paverate.com)
+was still that calculator (`/login` 404), while [dev.paverate.com](https://dev.paverate.com)
+was serving the project app (sign-in and projects). Deploy settings were not
+changed. See [STATUS.md](STATUS.md) before promoting this branch to `main`.
 
-## Highlights
+## What you can do
 
-- **Single-scroll dashboard** — every calculator is visible at once. No drilling
-  into pages or hiding inputs behind buttons.
-- **Shared job setup** — width, lift thickness, machine, and truck size are set
-  once in the sticky **Job** bar and flow into every calculator.
-- **Show your work** — each card has a "How this is figured" panel with the
-  formula and a source badge, so the number is never a black box.
-- **Offline-first** — all math runs client-side; the app installs as a PWA and
-  works with no signal.
-- **One file to change everything** — values, formulas, spec rates, constants,
-  color tokens, and labels live in a single editable config (see below).
+**Without an account** (`/app`, also installed as a PWA): spread rate, production
+check, feet left, distance planner, tonnage, tack, stick check, paving window,
+plus soil, concrete, grading, and specialty calculators. Math runs in the
+browser from `src/lib/config/paverate.yaml` and `src/lib/config/formulas.ts`.
 
-## Calculators
+**With an account:** organizations and roles, a project workspace (command,
+plan, production, resources, records), in-project calculators prefilled from
+the job, daily logs and per-load tickets, equipment and mix libraries, a
+roads-only MapLibre map, GDOT / contract PDF import, and a global admin console.
 
-- **Spread Rate** — lbs/SY from placed tons, distance, and width
-- **Feet Left Today** — how much more road today's remaining loads will cover
-- **Tack Rate** — gallons of tack for the area at the chosen application rate
-- **Tonnage** — how much mix to order for a run
-- **Stick Check** — desired compacted height converted to loose stick height
-- **Reference** — GDOT spec tables (placeholder, expanding)
+## Stack
 
-## Single source of configuration
+- SvelteKit 5 (runes) and `@sveltejs/adapter-cloudflare`
+- Cloudflare Pages, with D1 (`DB` / `paverate-db`) and R2 (`ASSETS_BUCKET` / `paverate-org-assets`)
+- Workers AI binding `AI`, plus AWS Bedrock (Claude) as the primary PDF structurer
+- MapLibre GL for maps. PWA via `@vite-pwa/sveltekit`
+- Node.js 22 or newer (`npm ci` fails on older Node)
 
-All tunable values, formulas, spec rates, constants, color tokens, and labels
-live in **one easily editable place**:
-
-- `src/lib/config/paverate.yaml` — theme tokens, constants, machines, tack
-  rates, mix/thickness specs, soil densities, and calculator metadata. Every
-  entry carries a validation status and tier.
-- `src/lib/config/formulas.ts` — pure calculation functions that read constants
-  from the YAML (no magic numbers in code).
-- `src/lib/config/index.ts` — typed accessors that expose values **with their
-  source metadata** so the UI can show where a number comes from.
-
-Change a rate, color, or label in the YAML and it updates everywhere. Values are
-tracked against the [Validation Matrix](docs/validation-matrix.md) and
-[VALIDATION.md](docs/VALIDATION.md) so each one is traceable to a GDOT spec or
-flagged as a field estimate until verified.
-
-## Accounts & organizations (planned framework)
-
-The calculators work fully **signed-out and offline**. An optional cloud layer —
-login, organizations (companies), job sites with saved calculations, an org
-admin panel, and a global admin panel — is designed for but **not yet
-implemented**, and will never gate the core field experience.
-
-## Tech stack
-
-- **SvelteKit** (Svelte 5 runes) — small bundle, fast on mobile
-- **Vite** + **@vite-pwa/sveltekit** — PWA / service worker generation
-- **@rollup/plugin-yaml** — import the config YAML directly
-- **@sveltejs/adapter-cloudflare** — deploys to Cloudflare Pages
-- **Wrangler** — local preview and Cloudflare types
-
-## Getting started
+## Local setup
 
 ```bash
-npm install      # install dependencies
-npm run dev      # start the dev server (http://localhost:5173)
+npm ci
+npx wrangler d1 migrations apply paverate-db --local
+npm run dev          # http://localhost:5173
 ```
 
-### Useful scripts
+On Windows the same database step is `npm run db:local` (`scripts/db-local.ps1`).
+`npm run db:local:reset` wipes and replays migrations.
+
+`vite dev` talks to local D1 and R2 through the adapter's platform proxy
+(`wrangler.jsonc`). Open `/login` and use **Dev login (local only)** to seed
+`dev@paverate.local`. That button exists only when SvelteKit's `dev` flag is on.
+
+Pages secrets are not injected from the shell. For Bedrock import locally, put
+`AWS_BEARER_TOKEN_BEDROCK` in a gitignored `.dev.vars` file and restart the dev
+server yourself. Workers AI is often unavailable under `vite dev`; the import
+path falls through when the `AI` binding is missing.
 
 ```bash
-npm run check    # wrangler types + svelte-check
-npm run build    # production build (Cloudflare Pages output + PWA)
-npm run preview  # preview the production build via wrangler pages dev
-npm run dev:cloudflare # build + run local Cloudflare Pages with Workers AI
-npm run gen      # regenerate Cloudflare worker types
+npm run check     # wrangler types --check, svelte-kit sync, svelte-check
+npm run test      # vitest (unit, integration, component projects)
+npm run test:e2e  # Playwright; starts vite dev (60s webServer timeout)
+npm run build     # wrangler types && vite build  — do not add --check
+npm run preview   # wrangler pages dev on the built output
 ```
 
-### Local Cloudflare / Workers AI testing
+`--check` on the build script fails Cloudflare Pages because
+`worker-configuration.d.ts` does not exist yet. Leave the build script as it is.
 
-Use the Cloudflare Pages local runtime when testing server routes that need
-Cloudflare bindings, including PDF import and Workers AI.
+## Configuration
 
-```powershell
-npm run db:local
-npm run dev:cloudflare
-```
+Rates, constants, theme tokens, and labels live in
+`src/lib/config/paverate.yaml`. Formulas live in `src/lib/config/formulas.ts`.
+Spec traceability is in [docs/validation-matrix.md](docs/validation-matrix.md)
+and [docs/VALIDATION.md](docs/VALIDATION.md).
 
-Open `http://localhost:4173`. The command runs `vite build --watch` and
-`wrangler pages dev --live-reload` together, so source changes rebuild the
-Cloudflare output and Wrangler reloads the browser. `wrangler pages dev` uses
-the local D1/R2 bindings from `wrangler.jsonc` and a remote Workers AI binding
-(`--ai AI`), so AI calls execute against Cloudflare and log in the local
-terminal.
-
-For local authenticated testing, open `http://localhost:4173/login` and use the
-`Dev login (local only)` button. It seeds `dev@paverate.local` into the local D1
-database if needed.
-
-Runtime logs can also be tailed from the local log file:
-
-```powershell
-Get-Content .wrangler-local\pages-dev.out.log -Wait
-```
-
-## Deployment (Cloudflare Pages)
-
-The app builds to a static Cloudflare Pages bundle.
-
-1. Push this repo to GitHub.
-2. In the Cloudflare dashboard, create a **Pages** project and connect the repo.
-3. Use the **SvelteKit** preset (build command `npm run build`, output directory
-   `.svelte-kit/cloudflare`).
-
-`wrangler.jsonc` already sets the project name and build output directory, so
-Pages picks them up automatically.
-
-## Project layout
+## Layout
 
 ```
-src/
-  lib/
-    config/        # paverate.yaml + formulas.ts + index.ts (single source of truth)
-    components/     # dashboard cards + shared UI (NumberField, ShowWork, …)
-    stores/         # persisted shared job store (localStorage)
-  routes/           # +layout, dashboard (+page), reference
-static/             # favicon + generated PWA icons
-tools/              # icon generation + spec search helpers
-docs/               # formulas, GDOT tables, requirements, validation
-branding/           # Paverate logo assets
+src/routes/            landing, /app calculators, /dashboard, /admin, API
+src/lib/components/    UI, map-v2, calculator cards
+src/lib/server/        auth, D1 access, PDF extraction, GDOT geometry
+src/lib/config/        paverate.yaml + formulas
+migrations/            D1 migrations (0001 through 0080)
+docs/                  specs, validation, design notes
 ```
 
-## Documentation
+## Tests
 
-- [Requirements (UI/UX, config, accounts & orgs)](docs/REQUIREMENTS.md)
-- [Formulas & Specifications](docs/FORMULAS.md)
-- [GDOT Reference Tables](docs/GDOT_TABLES.md)
-- [Validation Matrix](docs/validation-matrix.md) · [Validation process](docs/VALIDATION.md)
+GitHub Actions (`.github/workflows/test.yml`) runs on pushes to
+`feat/auth-and-data` and on pull requests into `main`. Jobs: svelte-check,
+unit, integration, component, and Playwright. Coverage floors in that workflow
+are the levels the suite actually meets. They are not an 80% gate.
 
-## License
+## More
 
-MIT
+- [Current status and how to ship](STATUS.md)
+- [Validation matrix](docs/validation-matrix.md)
+- [Formulas](docs/FORMULAS.md)
+- [GDOT tables](docs/GDOT_TABLES.md)
