@@ -16,16 +16,17 @@
 	import Card from '$lib/components/ui/Card.svelte';
 	import DailyLogTab from './DailyLogTab.svelte';
 	import CalculationsTab from './CalculationsTab.svelte';
+	import ProjectCalculatorPanel from './ProjectCalculatorPanel.svelte';
 
 	let {
 		jobSiteId,
-		calculations,
-		onNewCalculation
+		calculations
 	}: {
 		jobSiteId: string;
 		calculations: Calculation[];
-		onNewCalculation: () => void;
 	} = $props();
+
+	let showCalculator = $state(false);
 </script>
 
 <div class="production-tab">
@@ -65,15 +66,28 @@
 
 	<section class="production-tab__group">
 		<SectionHeader
-			title="Calculations"
-			subtitle="Saved field calculations for this project."
+			title="Calculators"
+			subtitle="Run project calculators pre-filled from this job."
 			as="h3"
 		>
 			{#snippet actions()}
-				<Button size="sm" onclick={onNewCalculation}>New calculation</Button>
+				<Button size="sm" variant={showCalculator ? 'ghost' : 'primary'} onclick={() => (showCalculator = !showCalculator)}>
+					{showCalculator ? 'Hide calculators' : 'Open calculators'}
+				</Button>
 			{/snippet}
 		</SectionHeader>
-		<CalculationsTab {calculations} {onNewCalculation} />
+		{#if showCalculator}
+			<ProjectCalculatorPanel />
+		{/if}
+	</section>
+
+	<section class="production-tab__group">
+		<SectionHeader
+			title="Saved calculations"
+			subtitle="Saved field calculations for this project."
+			as="h3"
+		/>
+		<CalculationsTab {calculations} onNewCalculation={() => (showCalculator = true)} />
 	</section>
 </div>
 

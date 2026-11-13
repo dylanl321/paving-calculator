@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { formatDate } from './shared';
 	import type { Calculation } from '../+page';
-	import { calcContext } from '$lib/stores/calcContext.svelte';
-	import SourceTag from '$lib/components/SourceTag.svelte';
 
 	let {
 		calculations,
@@ -42,70 +40,6 @@
 </script>
 
 <section class="section">
-	<div class="section-header">
-		<h3>Saved Calculations</h3>
-		<button class="btn-primary" onclick={onNewCalculation}>
-			<svg
-				width="18"
-				height="18"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="2"
-				stroke-linecap="round"
-				stroke-linejoin="round"
-			>
-				<line x1="12" y1="5" x2="12" y2="19"></line>
-				<line x1="5" y1="12" x2="19" y2="12"></line>
-			</svg>
-			New Calculation
-		</button>
-	</div>
-	<p class="section-intro">
-		The project's living numbers — area, tonnage, spread, and cost — are calculated
-		automatically on the Overview tab. Use these calculators for one-off and what-if checks.
-	</p>
-
-	<div class="context-banner">
-		<div class="context-header">
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-				<circle cx="12" cy="12" r="10"></circle>
-				<line x1="12" y1="16" x2="12" y2="12"></line>
-				<line x1="12" y1="8" x2="12.01" y2="8"></line>
-			</svg>
-			<span>Calculator Context</span>
-		</div>
-		<div class="context-values">
-			<div class="context-item">
-				<span class="context-label">Road Width:</span>
-				<span class="context-value">{calcContext.road_width.value} ft</span>
-				<SourceTag
-					source={calcContext.road_width.source}
-					updatedAt={calcContext.road_width.updatedAt}
-					label="Road Width"
-				/>
-			</div>
-			<div class="context-item">
-				<span class="context-label">Lift Thickness:</span>
-				<span class="context-value">{calcContext.lift_thickness.value} in</span>
-				<SourceTag
-					source={calcContext.lift_thickness.source}
-					updatedAt={calcContext.lift_thickness.updatedAt}
-					label="Lift Thickness"
-				/>
-			</div>
-			<div class="context-item">
-				<span class="context-label">Course Type:</span>
-				<span class="context-value">{calcContext.course_type.value}</span>
-				<SourceTag
-					source={calcContext.course_type.source}
-					updatedAt={calcContext.course_type.updatedAt}
-					label="Course Type"
-				/>
-			</div>
-		</div>
-	</div>
-
 	{#if calculations.length === 0}
 		<div class="empty-state">
 			<svg
@@ -122,10 +56,10 @@
 					d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
 				></path>
 			</svg>
-			<h4>No calculations yet</h4>
-			<p>This project's core numbers are already calculated on the Overview. Run a calculator here for a quick one-off or what-if check.</p>
+			<h4>No saved calculations yet</h4>
+			<p>This project's core numbers are calculated automatically on the Command tab. Open the calculators above for a quick one-off or what-if check.</p>
 			<button class="btn-primary" style="margin-top: 16px;" onclick={onNewCalculation}>
-				Open Calculator
+				Open calculators
 			</button>
 		</div>
 	{:else}
@@ -167,65 +101,6 @@
 </section>
 
 <style>
-	.context-banner {
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius);
-		padding: 16px;
-		margin-bottom: 20px;
-	}
-
-	.context-header {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 12px;
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: var(--text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-	}
-
-	.context-header svg {
-		color: var(--accent);
-	}
-
-	.context-values {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
-
-	.context-item {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		min-width: 0;
-		flex-wrap: wrap;
-		font-size: 0.9rem;
-	}
-
-	.context-label {
-		color: var(--text-muted);
-	}
-
-	.context-value {
-		font-weight: 600;
-		color: var(--text);
-	}
-
-	@media (min-width: 900px) {
-		.context-values {
-			flex-direction: row;
-			justify-content: space-between;
-		}
-
-		.context-item {
-			flex: 1;
-		}
-	}
-
 	.calc-list {
 		display: flex;
 		flex-direction: column;

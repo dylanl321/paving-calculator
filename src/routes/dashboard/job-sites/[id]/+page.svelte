@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { config } from '$lib/config';
 	import { orgSettingsStore } from '$lib/stores/orgSettings.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
@@ -106,7 +105,7 @@
 	}
 
 	function handleNewCalculation() {
-		goto(`/app?job_site_id=${jobSiteState.id}&tool=production-check`);
+		activeTab = 'production';
 	}
 
 	async function updateProjectStatus(status: 'active' | 'completed' | 'archived') {
@@ -296,7 +295,7 @@
 						<line x1="8" y1="6" x2="16" y2="6"></line>
 						<line x1="8" y1="10" x2="16" y2="10"></line>
 					</svg>
-					Open Calculator
+					Calculators
 				</Button>
 			</div>
 		{/snippet}
@@ -360,7 +359,6 @@
 				<ProductionTab
 					jobSiteId={jobSiteState.id}
 					calculations={data.calculations}
-					onNewCalculation={handleNewCalculation}
 				/>
 			{:else if activeTab === 'resources'}
 				<ResourcesTab
@@ -439,7 +437,7 @@
 							<line x1="8" y1="6" x2="16" y2="6"></line>
 							<line x1="8" y1="10" x2="16" y2="10"></line>
 						</svg>
-						Open Calculator
+						Calculators
 					</Button>
 				</div>
 			</Card>
