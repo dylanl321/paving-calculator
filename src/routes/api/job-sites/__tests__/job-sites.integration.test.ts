@@ -647,6 +647,134 @@ describe('Cross-org isolation — end-to-end', () => {
 		expect(res.status).toBe(403);
 	});
 
+	it('persists tonnage, lifts, and contract costs and keeps them on a later partial write', async () => {
+		const { sessionId, orgId, userId, email, name } = await seedUserWithOrg(db);
+		const site = await createTestJobSite(db, orgId);
+
+		const first = authedEvent(db, sessionId, {
+			method: 'PUT',
+			params: { id: site.id },
+			body: {
+				road_type: 'state_route',
+				num_lanes: 2,
+				num_lifts: 2,
+				total_tonnage: 1250.5,
+				cost_per_ton: 87.25,
+				cost_per_sy: 4.5,
+				cost_per_mile: 250000,
+				total_contract_value: 980000
+			},
+			localsUser: { id: userId, email, name }
+		});
+		const saved = await callConfig(putConfig, first);
+		expect(saved.status).toBe(200);
+		const savedBody = await saved.json();
+		expect(savedBody.config.num_lifts).toBe(2);
+		expect(savedBody.config.total_tonnage).toBe(1250.5);
+		expect(savedBody.config.cost_per_ton).toBe(87.25);
+		expect(savedBody.config.cost_per_sy).toBe(4.5);
+		expect(savedBody.config.cost_per_mile).toBe(250000);
+		expect(savedBody.config.total_contract_value).toBe(980000);
+
+		const second = authedEvent(db, sessionId, {
+			method: 'PUT',
+			params: { id: site.id },
+			body: { road_type: 'county_road' },
+			localsUser: { id: userId, email, name }
+		});
+		const updated = await callConfig(putConfig, second);
+		expect(updated.status).toBe(200);
+		const updatedBody = await updated.json();
+		expect(updatedBody.config.road_type).toBe('county_road');
+		expect(updatedBody.config.total_tonnage).toBe(1250.5);
+		expect(updatedBody.config.total_contract_value).toBe(980000);
+		expect(updatedBody.config.num_lifts).toBe(2);
+	});
+
+	it('returns 400 for an unknown road type', async () => {
+		const { sessionId, orgId, userId, email, name } = await seedUserWithOrg(db);
+		const site = await createTestJobSite(db, orgId);
+		const event = authedEvent(db, sessionId, {
+			method: 'PUT',
+			params: { id: site.id },
+			body: { road_type: 'driveway' },
+			localsUser: { id: userId, email, name }
+		});
+		const res = await callConfig(putConfig, event);
+		expect(res.status).toBe(400);
+	});
+
+	it('returns 403 when a laborer tries to change project configuration', async () => {
+		const { sessionId, orgId, userId, email, name } = await seedUserWithOrg(db, {
+			role: 'laborer',
+			email: 'laborer-config@example.com'
+		});
+		const site = await createTestJobSite(db, orgId);
+		const event = authedEvent(db, sessionId, {
+			method: 'PUT',
+			params: { id: site.id },
+			body: { total_tonnage: 10 },
+			localsUser: { id: userId, email, name }
+		});
+		const res = await callConfig(putConfig, event);
+		expect(res.status).toBe(403);
+	});
+
+	it('saves customer, dates, and contract amount on the project', async () => {
+		const { sessionId, orgId } = await seedUserWithOrg(db, { email: 'details@example.com' });
+		const site = await createTestJobSite(db, orgId, { name: 'SR 20' });
+
+		const event = authedEvent(db, sessionId, {
+			method: 'PATCH',
+			params: { id: site.id },
+			body: {
+				customer_name: 'GDOT',
+				project_manager: 'A. Foreman',
+				job_number: '0001234',
+				est_start_date: '2026-06-01',
+				completion_date: '2026-08-15',
+				contract_amount: 1250000
+			}
+		});
+		const res = await updateJobSite(event as any);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as any;
+		expect(body.customer_name).toBe('GDOT');
+		expect(body.project_manager).toBe('A. Foreman');
+		expect(body.job_number).toBe('0001234');
+		expect(body.est_start_date).toBe('2026-06-01');
+		expect(body.completion_date).toBe('2026-08-15');
+		expect(body.contract_amount).toBe(1250000);
+		expect(body.name).toBe('SR 20');
+	});
+
+	it('returns 400 for a start date that is not a calendar day', async () => {
+		const { sessionId, orgId } = await seedUserWithOrg(db, { email: 'baddate@example.com' });
+		const site = await createTestJobSite(db, orgId);
+		const event = authedEvent(db, sessionId, {
+			method: 'PATCH',
+			params: { id: site.id },
+			body: { est_start_date: '2026-02-31' }
+		});
+		const res = await updateJobSite(event as any);
+		expect(res.status).toBe(400);
+	});
+
+	it('returns 403 when a laborer tries to change project details', async () => {
+		const { sessionId, orgId } = await seedUserWithOrg(db, {
+			role: 'laborer',
+			email: 'laborer-patch@example.com'
+		});
+		const site = await createTestJobSite(db, orgId);
+		const event = authedEvent(db, sessionId, {
+			method: 'PATCH',
+			params: { id: site.id },
+			body: { customer_name: 'Should not stick' }
+		});
+		const res = await updateJobSite(event as any);
+		expect(res.status).toBe(403);
+	});
+
 	it('user A cannot write config on user B site', async () => {
 		const { sessionId: sessionA, userId: userAId, email: emailA, name: nameA } =
 			await seedUserWithOrg(db, { email: 'cfga@example.com' });

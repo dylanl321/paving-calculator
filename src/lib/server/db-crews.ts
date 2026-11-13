@@ -134,8 +134,28 @@ export class DbCrewHelper {
 			.first<DbCrew>();
 	}
 
-	async deleteCrew(crewId: string): Promise<void> {
-		await this.db.prepare('DELETE FROM crews WHERE id = ?').bind(crewId).run();
+	async deleteCrew(crewId: string, orgId: string): Promise<void> {
+		await this.db
+			.prepare('DELETE FROM crews WHERE id = ? AND org_id = ?')
+			.bind(crewId, orgId)
+			.run();
+	}
+
+	async listCrewsForJobSite(
+		jobSiteId: string,
+		orgId: string
+	): Promise<Array<{ id: string; name: string; color: string }>> {
+		return await this.db
+			.prepare(
+				`SELECT c.id, c.name, c.color
+				FROM crews c
+				JOIN crew_job_sites cjs ON cjs.crew_id = c.id
+				WHERE cjs.job_site_id = ? AND c.org_id = ?
+				ORDER BY c.name ASC`
+			)
+			.bind(jobSiteId, orgId)
+			.all<{ id: string; name: string; color: string }>()
+			.then((r) => r.results);
 	}
 
 	async setCrewMember(crewId: string, userId: string, orgId: string): Promise<void> {

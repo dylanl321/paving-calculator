@@ -19,6 +19,11 @@ import {
 	POST as postCrewJobSite
 } from '../crews/[crewId]/job-sites/+server.js';
 import { PATCH as patchMemberCrew } from '../members/[userId]/crew/+server.js';
+import {
+	GET as getProjectCrews,
+	POST as postProjectCrew,
+	DELETE as deleteProjectCrew
+} from '../../job-sites/[id]/crews/+server.js';
 import type { D1DatabaseCompat } from '../../../../../tests/helpers/db.js';
 import type { MockRequestEvent } from '../../../../../tests/helpers/request.js';
 
@@ -829,5 +834,134 @@ describe('PATCH /api/org/members/[userId]/crew', () => {
 		});
 		const res = await patchMemberCrew(event as any);
 		expect(res.status).toBe(403);
+	});
+
+	it('does not assign a member onto a crew from another organization', async () => {
+		const { sessionId, orgId } = await setup({ db: db.d1, role: 'owner', email: 'crew-a@example.com' });
+		const other = await setup({ db: db.d1, role: 'owner', email: 'crew-b@example.com', name: 'Other Owner' });
+		const foreignCrewId = await createCrew(other.orgId, other.userId);
+		const memberId = await addMember(orgId, 'foreman');
+
+		const event = makeEvent(db.d1, sessionId, {
+			method: 'PATCH',
+			body: { crew_id: foreignCrewId },
+			params: { userId: memberId }
+		});
+		const res = await patchMemberCrew(event as any);
+		expect(res.status).toBe(404);
+
+		const row = await db.d1
+			.prepare('SELECT * FROM crew_members WHERE user_id = ?')
+			.bind(memberId)
+			.first();
+		expect(row).toBeNull();
+	});
+});
+
+describe('project crew assignment stays inside the organization', () => {
+	let db: ReturnType<typeof createTestDb>;
+
+	beforeEach(() => {
+		db = createTestDb();
+	});
+
+	async function createCrew(orgId: string, createdBy: string): Promise<string> {
+		const crewId = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+		await db.d1
+			.prepare('INSERT INTO crews (id, org_id, name, color, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+			.bind(crewId, orgId, 'Field Crew', 'green', createdBy, now)
+			.run();
+		return crewId;
+	}
+
+	async function createJobSite(orgId: string): Promise<string> {
+		const id = crypto.randomUUID();
+		const now = Math.floor(Date.now() / 1000);
+		await db.d1
+			.prepare('INSERT INTO job_sites (id, org_id, name, status, created_at) VALUES (?, ?, ?, ?, ?)')
+			.bind(id, orgId, 'Overlay', 'active', now)
+			.run();
+		return id;
+	}
+
+	it('refuses to list job sites for a crew in another organization', async () => {
+		const owner = await setup({ db: db.d1, role: 'owner', email: 'list-a@example.com' });
+		const other = await setup({ db: db.d1, role: 'owner', email: 'list-b@example.com', name: 'Other' });
+		const foreignCrewId = await createCrew(other.orgId, other.userId);
+		const event = makeEvent(db.d1, owner.sessionId, { params: { crewId: foreignCrewId } });
+		const res = await getCrewJobSites(event as any);
+		expect(res.status).toBe(404);
+	});
+
+	it('refuses to delete a crew that belongs to another organization', async () => {
+		const owner = await setup({ db: db.d1, role: 'owner', email: 'del-a@example.com' });
+		const other = await setup({ db: db.d1, role: 'owner', email: 'del-b@example.com', name: 'Other' });
+		const foreignCrewId = await createCrew(other.orgId, other.userId);
+		const event = makeEvent(db.d1, owner.sessionId, {
+			method: 'DELETE',
+			params: { crewId: foreignCrewId }
+		});
+		const res = await deleteCrew(event as any);
+		expect(res.status).toBe(404);
+		const row = await db.d1.prepare('SELECT id FROM crews WHERE id = ?').bind(foreignCrewId).first();
+		expect(row).not.toBeNull();
+	});
+
+	it('assigns and removes a crew on a project in the same organization', async () => {
+		const owner = await setup({ db: db.d1, role: 'owner', email: 'proj-crew@example.com' });
+		const crewId = await createCrew(owner.orgId, owner.userId);
+		const jobSiteId = await createJobSite(owner.orgId);
+
+		const assign = makeEvent(db.d1, owner.sessionId, {
+			method: 'POST',
+			params: { id: jobSiteId },
+			body: { crew_id: crewId }
+		});
+		const assigned = await postProjectCrew(assign as any);
+		expect(assigned!.status).toBe(201);
+
+		const listed = await getProjectCrews(
+			makeEvent(db.d1, owner.sessionId, { params: { id: jobSiteId } }) as any
+		);
+		expect(listed!.status).toBe(200);
+		const body = (await listed!.json()) as { crews: Array<{ id: string }> };
+		expect(body.crews.map((crew) => crew.id)).toContain(crewId);
+
+		const removed = await deleteProjectCrew(
+			mockRequestEvent({
+				db: db.d1,
+				method: 'DELETE',
+				params: { id: jobSiteId },
+				searchParams: { crew_id: crewId },
+				cookies: { paverate_session: owner.sessionId }
+			}) as any
+		);
+		expect(removed!.status).toBe(200);
+
+		const after = await db.d1
+			.prepare('SELECT * FROM crew_job_sites WHERE crew_id = ? AND job_site_id = ?')
+			.bind(crewId, jobSiteId)
+			.first();
+		expect(after).toBeNull();
+	});
+
+	it('does not assign another organization crew onto a project', async () => {
+		const owner = await setup({ db: db.d1, role: 'owner', email: 'cross-proj-a@example.com' });
+		const other = await setup({
+			db: db.d1,
+			role: 'owner',
+			email: 'cross-proj-b@example.com',
+			name: 'Other'
+		});
+		const foreignCrewId = await createCrew(other.orgId, other.userId);
+		const jobSiteId = await createJobSite(owner.orgId);
+		const event = makeEvent(db.d1, owner.sessionId, {
+			method: 'POST',
+			params: { id: jobSiteId },
+			body: { crew_id: foreignCrewId }
+		});
+		const res = await postProjectCrew(event as any);
+		expect(res!.status).toBe(404);
 	});
 });

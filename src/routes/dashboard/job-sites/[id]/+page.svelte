@@ -225,6 +225,11 @@
 		return { score, missing };
 	});
 
+	const canEditProject = $derived(
+		['owner', 'admin', 'member', 'office', 'foreman'].includes(data.org?.role ?? '')
+	);
+	const canManageCrews = $derived(['owner', 'admin'].includes(data.org?.role ?? ''));
+
 	const tabs = $derived([
 		{ id: 'command', label: 'Command' },
 		{ id: 'plan', label: 'Plan' },
@@ -274,14 +279,14 @@
 		{/snippet}
 		{#snippet actions()}
 			<div class="header-actions">
-				{#if jobSiteState.status === 'active'}
+				{#if canEditProject && jobSiteState.status === 'active'}
 					<Button variant="ghost" size="sm" onclick={() => updateProjectStatus('completed')} disabled={statusSaving}>
 						Mark Complete
 					</Button>
 					<Button variant="ghost" size="sm" onclick={() => updateProjectStatus('archived')} disabled={statusSaving}>
 						Archive
 					</Button>
-				{:else}
+				{:else if canEditProject}
 					<Button variant="ghost" size="sm" onclick={() => updateProjectStatus('active')} disabled={statusSaving}>
 						Reactivate
 					</Button>
@@ -347,10 +352,14 @@
 					bind:configForm
 					bind:milestones
 					{estTonnage}
-					totalTonnage={data.config?.total_tonnage ?? null}
+					totalTonnage={configForm.total_tonnage}
 					estStartDate={jobSiteState.est_start_date ?? null}
 					setupScore={setupCompleteness.score}
 					missingFields={setupCompleteness.missing}
+					{canEditProject}
+					onProjectSaved={(site) => {
+						jobSiteState = { ...jobSiteState, ...site };
+					}}
 					onLengthManualEdit={handleLengthManualEdit}
 					onLocationSaved={(coords) => {
 						jobSiteState = { ...jobSiteState, ...coords };
@@ -372,6 +381,7 @@
 					jobSiteName={jobSiteState.name}
 					bind:equipmentList
 					assignments={data.assignments}
+					{canManageCrews}
 				/>
 			{:else if activeTab === 'records'}
 				<RecordsTab
@@ -418,14 +428,14 @@
 
 			<Card padding="sm">
 				<div class="sidebar-actions">
-					{#if jobSiteState.status === 'active'}
+					{#if canEditProject && jobSiteState.status === 'active'}
 						<Button variant="ghost" block onclick={() => updateProjectStatus('completed')} disabled={statusSaving}>
 							Mark Complete
 						</Button>
 						<Button variant="ghost" block onclick={() => updateProjectStatus('archived')} disabled={statusSaving}>
 							Archive Project
 						</Button>
-					{:else}
+					{:else if canEditProject}
 						<Button variant="ghost" block onclick={() => updateProjectStatus('active')} disabled={statusSaving}>
 							Reactivate Project
 						</Button>

@@ -4,6 +4,7 @@
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { getInitials } from '$lib/utils/format';
 	import { confirmStore } from '$lib/stores/confirm.svelte';
+	import CrewsPanel from './CrewsPanel.svelte';
 
 	type Member = {
 		user_id: string;
@@ -473,6 +474,11 @@
 				</div>
 			{/if}
 		</section>
+
+		<CrewsPanel
+			{members}
+			canManage={currentUserRole === 'owner' || currentUserRole === 'admin'}
+		/>
 
 		{#if invitations.length > 0}
 			<section class="invitations-section">

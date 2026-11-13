@@ -22,14 +22,22 @@ export async function PATCH(event: RequestEvent) {
 
 		const { userId } = event.params;
 		if (!userId) return json({ error: 'User ID is required' }, { status: 400 });
+
+		const targetRole = await db.getUserRole(userId, org.id);
+		if (!targetRole) {
+			return json({ error: 'User not in organization' }, { status: 404 });
+		}
+
 		const body = (await event.request.json()) as { crew_id?: string | null };
 		const { crew_id } = body;
 
 		if (crew_id === null || crew_id === undefined || crew_id === '') {
-			// Remove member from crew
 			await crewDb.removeCrewMember(userId, org.id);
 		} else {
-			// Assign member to crew
+			const crew = await crewDb.getCrew(crew_id, org.id);
+			if (!crew) {
+				return json({ error: 'Crew not found' }, { status: 404 });
+			}
 			await crewDb.setCrewMember(crew_id, userId, org.id);
 		}
 

@@ -133,14 +133,50 @@ unset), so remote migration state was **not** re-listed. Check it before merging
 
 5. **Close or retarget PR #11** so it cannot land on the old README.
 
-## Sensible next product work
+## Project workspace pass (November 13, 2026)
 
-Not started here:
+Fixed on `cursor/project-management-fixes-15a9`:
 
-- The in-project calculator panel is asphalt-only. Soil, concrete, and grading
+- Saving a project configuration now writes `num_lifts`, `total_tonnage`,
+  `cost_per_ton`, `cost_per_sy`, `cost_per_mile`, and `total_contract_value`.
+  A later partial save does not clear them. PDF import was already sending
+  those values; they were dropped on the way into D1. A read-time mix overlay
+  no longer replaces a saved tonnage before the next save.
+- Plan → Project details edits name, customer, job number, project manager,
+  work type, contract amount, and start/completion dates. Those dates are what
+  milestone suggestions use. Schedule dates are calendar dates, not UTC-shifted.
+- Owners and admins can create crews and add people on Team, then assign a
+  crew on the project Resources tab. Foremen and laborers only see projects
+  their crew is on, so this was a blocked field workflow.
+- Crew reads, deletes, member assignment, and project assignment now require
+  the crew to belong to the caller’s organization.
+- Laborers, operators, inspectors, and screed operators can no longer change
+  project identity or paving configuration. They can still log production.
+- Onboarding stores road length on the project config and org defaults in
+  settings. The invite-code box that did nothing is gone. Dead
+  `/dashboard/job-sites` links point at `/dashboard/projects`.
+
+## Still open
+
+- Duplicate migration prefixes `0071` and `0074` still fail `deploy.yml`.
+  Do not rename a file that remote D1 has already applied. See the promote
+  checklist above.
+- In-project calculators are still asphalt-only. Soil, concrete, and grading
   stay on `/app`.
-- `upsertJobSiteConfig` still does not persist `total_tonnage`, `cost_per_ton`,
-  or `total_contract_value` (known gap).
-- `BACKEND_SETUP.md` still describes the first migration and three roles. Trust
-  `migrations/` and the route tree instead.
+- A foreman or laborer’s project *list* is crew-scoped. Opening a project by
+  id still only checks organization membership, so a known id in the same org
+  is readable. Tightening that is a product decision: inspectors and office
+  staff also open projects they are not crewed on.
+- `getOrgByUserId` uses `LIMIT 1` with no order. The app assumes one org per
+  user. A person in two orgs would see an arbitrary one.
+- Weight-ticket, material-cert, and daily-report import still stop at
+  classification. There is no editor for them.
+- `job_site_assignments` (foreman / operator / inspector rows) still have an
+  API. The project page shows them when they exist and does not create new
+  ones. Crew membership is the roster that controls who sees the job.
+- `BACKEND_SETUP.md` still describes the first migration and three roles.
+  Trust `migrations/` and the route tree instead.
 - Playwright’s 60 second `vite dev` startup is still the E2E gap in CI.
+  This environment has no `CLOUDFLARE_API_TOKEN`, so a browser pass of the
+  signed-in project page was not completed here. The API behavior above is
+  covered by Vitest.

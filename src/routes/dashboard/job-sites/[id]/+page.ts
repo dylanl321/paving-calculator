@@ -32,7 +32,14 @@ export interface JobSite {
 	location_description: string | null;
 	gdot_county?: string | null;
 	gdot_district?: string | null;
+	job_number?: string | null;
+	project_number?: string | null;
+	customer_name?: string | null;
+	project_manager?: string | null;
+	work_type?: string | null;
+	contract_amount?: number | null;
 	est_start_date?: string | null;
+	completion_date?: string | null;
 }
 
 export interface JobSiteConfig {
@@ -246,9 +253,7 @@ export const load: PageLoad = async ({ params, fetch }) => {
 				target_thickness_in: activeMix.target_thickness_in ?? config.target_thickness_in,
 				target_spread_rate: activeMix.target_spread_rate ?? config.target_spread_rate,
 				tack_type: (activeMix.tack_type as JobSiteConfig['tack_type']) ?? config.tack_type,
-				target_tack_rate: activeMix.target_tack_rate ?? config.target_tack_rate,
-				total_tonnage:
-					mixes.reduce((sum, m) => sum + (m.takeoff_tonnage ?? 0), 0) || config.total_tonnage
+				target_tack_rate: activeMix.target_tack_rate ?? config.target_tack_rate
 			};
 		}
 

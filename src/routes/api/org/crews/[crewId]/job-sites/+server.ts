@@ -17,6 +17,10 @@ export async function GET(event: RequestEvent) {
 
 		const { crewId } = event.params;
 		if (!crewId) return json({ error: 'Crew ID is required' }, { status: 400 });
+		const crew = await crewDb.getCrew(crewId, org.id);
+		if (!crew) {
+			return json({ error: 'Crew not found' }, { status: 404 });
+		}
 		const jobSites = await crewDb.getCrewJobSites(crewId);
 
 		return json({ job_sites: jobSites });
@@ -47,6 +51,10 @@ export async function POST(event: RequestEvent) {
 
 		const { crewId } = event.params;
 		if (!crewId) return json({ error: 'Crew ID is required' }, { status: 400 });
+		const crew = await crewDb.getCrew(crewId, org.id);
+		if (!crew) {
+			return json({ error: 'Crew not found' }, { status: 404 });
+		}
 		const body = (await event.request.json()) as { job_site_id?: string };
 		const { job_site_id } = body;
 

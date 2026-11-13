@@ -199,6 +199,7 @@ export interface DbJobSiteConfig {
 	target_spread_rate: number | null;
 	tack_type: 'anionic' | 'cationic' | 'polymer_modified' | 'trackless' | null;
 	target_tack_rate: number | null;
+	num_lifts: number | null;
 	notes: string | null;
 	route_designation: string | null;
 	route_county: string | null;

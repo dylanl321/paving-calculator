@@ -138,7 +138,7 @@
 		{#if sites.length === 0}
 			<div class="empty-state">
 				<ClipboardCheck size={48} aria-hidden="true" />
-				<p>No job sites found. <a href="/dashboard/job-sites">Create a job site</a> to get started.</p>
+				<p>No job sites found. <a href="/dashboard/projects">Create a project</a> to get started.</p>
 			</div>
 		{:else}
 			<ul class="site-list" aria-label="Job site completeness">
