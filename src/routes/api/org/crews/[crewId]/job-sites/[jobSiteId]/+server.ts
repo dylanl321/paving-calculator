@@ -25,6 +25,14 @@ export async function DELETE(event: RequestEvent) {
 		if (!crewId || !jobSiteId) {
 			return json({ error: 'Crew ID and job site ID are required' }, { status: 400 });
 		}
+		const crew = await crewDb.getCrew(crewId, org.id);
+		if (!crew) {
+			return json({ error: 'Crew not found' }, { status: 404 });
+		}
+		const jobSite = await db.getJobSiteById(jobSiteId);
+		if (!jobSite || jobSite.org_id !== org.id) {
+			return json({ error: 'Job site not found' }, { status: 404 });
+		}
 		await crewDb.removeJobSiteFromCrew(crewId, jobSiteId);
 
 		return json({ success: true });

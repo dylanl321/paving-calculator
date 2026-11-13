@@ -3,6 +3,7 @@ import { DbHelper } from '$lib/server/db';
 import { DbCrewHelper } from '$lib/server/db-crews';
 import type { ProjectSummary } from '$lib/server/db-jobsites';
 import { requireAuth } from '$lib/server/auth';
+import { isFieldProjectRole } from '$lib/server/job-site-access';
 import { recordAudit } from '$lib/server/audit';
 import { deliverWebhook } from '$lib/server/webhooks';
 
@@ -19,11 +20,10 @@ export async function GET(event: RequestEvent) {
 
 		const role = await db.getUserRole(user.id, org.id);
 
-		// Foreman: only sees job sites assigned to their crew
-		// Laborer: only sees job sites assigned to their crew (same as foreman scope)
-		// Admin/Owner/others: sees all job sites
+		// Field roles only see projects assigned to their crew.
+		// Owner, admin, member, office, and inspector see the whole org.
 		let jobSites;
-		if (role === 'foreman' || role === 'laborer') {
+		if (isFieldProjectRole(role)) {
 			jobSites = await crewDb.getJobSitesByForeman(user.id, org.id);
 		} else {
 			jobSites = await db.getJobSitesByOrgId(org.id);

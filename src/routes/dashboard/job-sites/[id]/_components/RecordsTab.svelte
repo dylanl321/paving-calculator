@@ -11,6 +11,7 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import ActivityTab from './ActivityTab.svelte';
 	import VerificationTab from './VerificationTab.svelte';
+	import FieldDocumentImport from './FieldDocumentImport.svelte';
 
 	let {
 		jobSiteId,
@@ -31,6 +32,21 @@
 			as="h3"
 		/>
 		<VerificationTab {jobSiteId} {configForm} {onGoToTab} />
+	</section>
+
+	<section class="records-tab__group">
+		<SectionHeader
+			title="Field documents"
+			subtitle="Review a weight ticket, material certification, or daily report before it is saved."
+			as="h3"
+		>
+			{#snippet actions()}
+				<Button variant="ghost" size="sm" href="/api/job-sites/{jobSiteId}/export">
+					Export CSV
+				</Button>
+			{/snippet}
+		</SectionHeader>
+		<FieldDocumentImport {jobSiteId} />
 	</section>
 
 	<section class="records-tab__group">

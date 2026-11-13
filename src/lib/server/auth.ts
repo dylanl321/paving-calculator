@@ -196,6 +196,17 @@ export async function requireOrgRole(
 // Roles that can manage crews and job sites (admin level+)
 export const ADMIN_ROLES = ['owner', 'admin'] as const;
 
+/**
+ * Roles that may edit a project's identity, contract details, and paving
+ * configuration. Field roles (operator, inspector, laborer, screed_man) can
+ * log production and run calculators, and do not change the project record.
+ */
+export const PROJECT_EDIT_ROLES = ['owner', 'admin', 'member', 'office', 'foreman'] as const;
+
+export function canEditProject(role: string | null | undefined): boolean {
+	return !!role && (PROJECT_EDIT_ROLES as readonly string[]).includes(role);
+}
+
 // Roles that have field-level access (foreman and below)
 export const FIELD_ROLES = ['foreman', 'operator', 'inspector', 'office', 'laborer', 'screed_man', 'member'] as const;
 

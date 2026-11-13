@@ -255,7 +255,7 @@
 
 			{#if !totalTonnage || !estStartDate}
 				<div class="suggestions-warning">
-					Set total tonnage and start date in Configuration tab for date estimates
+					Set total tonnage and a start date in Plan for date estimates
 				</div>
 			{/if}
 

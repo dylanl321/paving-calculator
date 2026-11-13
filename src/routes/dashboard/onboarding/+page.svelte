@@ -30,7 +30,6 @@
 
 	// Step 2: Org setup
 	let orgName = $state('');
-	let inviteCode = $state('');
 	let loadingOrg = $state(true);
 
 	// Step 3: First job site
@@ -88,13 +87,16 @@
 		if (!siteName.trim()) return;
 		creatingJobSite = true;
 		try {
-			const locationDesc = roadLength ? `Road length: ${roadLength}ft` : '';
-			await api.post('/api/job-sites', {
+			const created = await api.post<{ id: string }>('/api/job-sites', {
 				name: siteName,
-				latitude: siteLatitude,
-				longitude: siteLongitude,
-				location_description: locationDesc
+				latitude: siteLatitude ?? undefined,
+				longitude: siteLongitude ?? undefined
 			});
+			if (roadLength && roadLength > 0 && created.id) {
+				await api.put(`/api/job-sites/${created.id}/config`, {
+					total_length_ft: roadLength
+				});
+			}
 			jobSiteCreated = true;
 			toastStore.success('Job site created');
 		} catch (e) {
@@ -108,18 +110,22 @@
 		nextStep();
 	}
 
-	function saveDefaults() {
-		if (browser) {
-			localStorage.setItem(
-				'onboarding_defaults',
-				JSON.stringify({
-					mixType,
-					liftThickness,
-					roadWidth
-				})
-			);
+	async function saveDefaults() {
+		try {
+			await api.put('/api/org/settings', {
+				overrides: {
+					defaults: {
+						mixType,
+						liftThicknessIn: liftThickness,
+						roadWidthFt: roadWidth
+					}
+				}
+			});
+			toastStore.success('Defaults saved');
+			nextStep();
+		} catch (e) {
+			console.error('Failed to save defaults:', e);
 		}
-		nextStep();
 	}
 
 	function skipDefaults() {
@@ -209,15 +215,8 @@
 					</div>
 
 					<div class="invite-section">
-						<label for="invite-code" class="invite-label">Have an invite code?</label>
-						<input
-							id="invite-code"
-							type="text"
-							class="invite-input"
-							placeholder="Enter invite code"
-							bind:value={inviteCode}
-						/>
-						<p class="coming-soon">Team invites coming soon</p>
+						<p class="invite-label">Invite the rest of the crew from the team page. Each person gets a role, and you can put them on a crew.</p>
+						<a class="ready-link" href="/dashboard/team">Open team</a>
 					</div>
 				{/if}
 			</div>
@@ -350,19 +349,20 @@
 
 				{#if selectedRole}
 					<div class="ready-role">
-						<span class="ready-role-label">Your Role:</span>
+						<span class="ready-role-label">You work as:</span>
 						<span class="ready-role-value">
 							{roles.find((r) => r.id === selectedRole)?.label || selectedRole}
 						</span>
 					</div>
+					<p class="subtitle">Account permissions are set on the team page. This choice does not change them.</p>
 				{/if}
 
 				<div class="ready-actions">
 					<button type="button" class="btn btn-primary btn-large" onclick={completeOnboarding}>
 						Go to Dashboard
 					</button>
-					<a href="/dashboard/job-sites" class="ready-link">View Job Sites</a>
-					<a href="/dashboard" class="ready-link">Open Calculator</a>
+					<a href="/dashboard/projects" class="ready-link">View Projects</a>
+					<a href="/app" class="ready-link">Open Calculators</a>
 				</div>
 			</div>
 		{/if}
@@ -597,29 +597,6 @@
 		font-size: var(--fs-sm);
 		color: var(--text-muted);
 		margin-bottom: var(--sp-2);
-	}
-
-	.invite-input {
-		width: 100%;
-		min-height: 48px;
-		padding: 0 var(--sp-3);
-		background: var(--bg);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		color: var(--text);
-		font-size: var(--fs-md);
-		font-family: inherit;
-	}
-
-	.invite-input:focus {
-		outline: 2px solid var(--accent);
-		outline-offset: 1px;
-	}
-
-	.coming-soon {
-		font-size: var(--fs-xs);
-		color: var(--text-muted);
-		margin: var(--sp-2) 0 0;
 	}
 
 	/* Job Site Form */

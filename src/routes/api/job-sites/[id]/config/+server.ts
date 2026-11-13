@@ -1,9 +1,9 @@
 import { json, error } from '@sveltejs/kit';
-import { DbHelper, type DbJobSiteConfig } from '$lib/server/db';
+import { DbHelper } from '$lib/server/db';
+import { canEditProject } from '$lib/server/auth';
 import { recordAudit } from '$lib/server/audit';
+import { sanitizeJobSiteConfigInput } from '$lib/server/jobsite-config-input';
 import type { RequestHandler } from './$types';
-
-type ConfigRequestBody = Partial<Omit<DbJobSiteConfig, 'job_site_id' | 'created_at' | 'updated_at'>>;
 
 export const GET: RequestHandler = async ({ params, locals, platform }) => {
 	if (!locals.user) {
@@ -44,7 +44,22 @@ export const PUT: RequestHandler = async ({ params, locals, platform, request })
 		throw error(403, 'Access denied');
 	}
 
-	const body = (await request.json()) as ConfigRequestBody;
+	const role = await db.getUserRole(locals.user.id, org.id);
+	if (!canEditProject(role)) {
+		throw error(403, 'Insufficient permissions');
+	}
+
+	let parsed: unknown;
+	try {
+		parsed = await request.json();
+	} catch {
+		throw error(400, 'Configuration body must be JSON');
+	}
+	const sanitized = sanitizeJobSiteConfigInput(parsed);
+	if (!sanitized.ok) {
+		throw error(400, sanitized.error);
+	}
+	const body = sanitized.value;
 
 	// Fetch old config for audit
 	const oldConfig = await db.getJobSiteConfig(params.id);

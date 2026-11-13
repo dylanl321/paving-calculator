@@ -96,15 +96,52 @@ export class DbOrgHelper {
 	}
 
 	async getOrgByUserId(userId: string): Promise<DbOrganization | null> {
-		return await this.db
-			.prepare(
-				`SELECT o.* FROM organizations o
+		// Prefer the user's explicit active org. Otherwise the most recently
+		// accepted membership, with org id as a stable tie-break.
+		const preferred = `SELECT o.* FROM organizations o
 				JOIN org_members om ON om.org_id = o.id
 				WHERE om.user_id = ?
-				LIMIT 1`
+				ORDER BY
+					CASE WHEN o.id = (SELECT active_org_id FROM users WHERE id = ?) THEN 0 ELSE 1 END,
+					COALESCE(om.accepted_at, om.invited_at) DESC,
+					o.id ASC
+				LIMIT 1`;
+		const byRecency = `SELECT o.* FROM organizations o
+				JOIN org_members om ON om.org_id = o.id
+				WHERE om.user_id = ?
+				ORDER BY COALESCE(om.accepted_at, om.invited_at) DESC, o.id ASC
+				LIMIT 1`;
+		try {
+			return await this.db.prepare(preferred).bind(userId, userId).first<DbOrganization>();
+		} catch (err) {
+			if (err instanceof Error && /no such column/i.test(err.message)) {
+				return await this.db.prepare(byRecency).bind(userId).first<DbOrganization>();
+			}
+			throw err;
+		}
+	}
+
+	async listUserOrgs(
+		userId: string
+	): Promise<Array<{ id: string; name: string; role: string; joined_at: number }>> {
+		return await this.db
+			.prepare(
+				`SELECT o.id, o.name, om.role, COALESCE(om.accepted_at, om.invited_at) AS joined_at
+				FROM org_members om
+				JOIN organizations o ON o.id = om.org_id
+				WHERE om.user_id = ?
+				ORDER BY joined_at DESC, o.name ASC`
 			)
 			.bind(userId)
-			.first<DbOrganization>();
+			.all<{ id: string; name: string; role: string; joined_at: number }>()
+			.then((r) => r.results);
+	}
+
+	async setActiveOrg(userId: string, orgId: string): Promise<void> {
+		await this.db
+			.prepare('UPDATE users SET active_org_id = ?, updated_at = unixepoch() WHERE id = ?')
+			.bind(orgId, userId)
+			.run();
 	}
 
 	async getAllOrganizations(): Promise<Array<DbOrganization & { member_count: number }>> {

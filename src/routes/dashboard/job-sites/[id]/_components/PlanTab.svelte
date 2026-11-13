@@ -14,6 +14,7 @@
 	import LocationRoutePanel from './LocationRoutePanel.svelte';
 	import ScheduleTab from './ScheduleTab.svelte';
 	import ConfigurationTab from './ConfigurationTab.svelte';
+	import ProjectDetailsForm from './ProjectDetailsForm.svelte';
 
 	interface CountyBoundary {
 		county: string;
@@ -40,7 +41,9 @@
 		missingFields = [],
 		onLengthManualEdit,
 		onLocationSaved,
-		onRouteSaved
+		onRouteSaved,
+		canEditProject = false,
+		onProjectSaved
 	}: {
 		jobSite: JobSite;
 		jobSiteId: string;
@@ -62,6 +65,8 @@
 			location_precision?: string | null;
 		}) => void;
 		onRouteSaved?: (waypoints: RouteWaypoint[]) => void;
+		canEditProject?: boolean;
+		onProjectSaved?: (site: JobSite) => void;
 	} = $props();
 
 	const setupTone = $derived(
@@ -92,6 +97,19 @@
 			</div>
 		</section>
 	{/if}
+
+	<section class="plan-tab__group">
+		<SectionHeader
+			title="Project details"
+			subtitle="Name, customer, contract, and the dates the schedule uses."
+			as="h3"
+		/>
+		<ProjectDetailsForm
+			{jobSite}
+			canEdit={canEditProject}
+			onSaved={(site) => onProjectSaved?.(site)}
+		/>
+	</section>
 
 	<section class="plan-tab__group">
 		<LocationRoutePanel

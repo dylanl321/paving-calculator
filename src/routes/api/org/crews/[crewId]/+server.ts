@@ -24,6 +24,11 @@ export async function PATCH(event: RequestEvent) {
 		const { crewId } = event.params;
 		if (!crewId) return json({ error: 'Crew ID is required' }, { status: 400 });
 
+		const existing = await crewDb.getCrew(crewId, org.id);
+		if (!existing) {
+			return json({ error: 'Crew not found' }, { status: 404 });
+		}
+
 		const body = (await event.request.json()) as { name?: string; color?: string };
 
 		if (!body.name && !body.color) {
@@ -93,13 +98,12 @@ export async function DELETE(event: RequestEvent) {
 		const { crewId } = event.params;
 		if (!crewId) return json({ error: 'Crew ID is required' }, { status: 400 });
 
-		// Fetch crew info before deletion for audit
-		const crew = await event.platform!.env.DB
-			.prepare('SELECT id, name, color FROM crews WHERE id = ?')
-			.bind(crewId)
-			.first<{ id: string; name: string; color: string }>();
+		const crew = await crewDb.getCrew(crewId, org.id);
+		if (!crew) {
+			return json({ error: 'Crew not found' }, { status: 404 });
+		}
 
-		await crewDb.deleteCrew(crewId);
+		await crewDb.deleteCrew(crewId, org.id);
 
 		// Record audit log
 		recordAudit(event.platform!.env.DB, {

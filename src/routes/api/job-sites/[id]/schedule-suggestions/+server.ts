@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
+import { addDaysToIsoDate } from '$lib/schedule-dates';
 import type { RequestHandler } from './$types';
 
 interface Suggestion {
@@ -87,9 +88,7 @@ export const GET: RequestHandler = async (event) => {
 
 		if (totalTonnage && estStartDate && avgDailyTons > 0) {
 			const daysToMilestone = Math.ceil(targetTons / avgDailyTons);
-			const startDate = new Date(estStartDate);
-			startDate.setDate(startDate.getDate() + daysToMilestone);
-			estDate = startDate.toISOString().split('T')[0];
+			estDate = addDaysToIsoDate(estStartDate, daysToMilestone);
 		}
 
 		return {

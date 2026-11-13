@@ -1,5 +1,6 @@
 import type { Handle } from '@sveltejs/kit';
 import { getAuthUser } from '$lib/server/auth';
+import { enforceJobSiteAccess, jobSiteIdFromApiPath } from '$lib/server/job-site-access';
 
 // Paths that should never be logged (static assets, internal SvelteKit chunks).
 const SKIP_LOG_PREFIXES = ['/_app/', '/icons/', '/fonts/', '/favicon'];
@@ -69,6 +70,14 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	const path = new URL(event.request.url).pathname;
+
+	// Field roles may open a project by id only when their crew is assigned to it.
+	// This covers every /api/job-sites/:id/* handler, including ones added later.
+	const jobSiteId = jobSiteIdFromApiPath(path);
+	if (jobSiteId && event.locals.user && event.platform?.env?.DB) {
+		const denied = await enforceJobSiteAccess(event, jobSiteId);
+		if (denied) return denied;
+	}
 
 	// Skip logging for static assets.
 	if (!event.platform?.env?.DB || shouldSkipLog(path)) {

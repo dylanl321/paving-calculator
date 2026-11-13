@@ -1,6 +1,20 @@
 import type { D1Database } from '../../cloudflare';
 import type { DbJobSiteConfig, DbJobSiteRoute } from './db-jobsites';
 
+/** Persist 0. Drop anything that is not a real number, including a missing field. */
+function finiteOrNull(value: number | null | undefined): number | null {
+	return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Like finiteOrNull, but a missing field stays missing so a partial update
+ * does not clear tonnage or cost that was saved earlier.
+ */
+function finiteOrSkip(value: number | null | undefined): number | null | undefined {
+	if (value === undefined) return undefined;
+	return finiteOrNull(value);
+}
+
 export class DbJobSiteConfigHelper {
 	constructor(private db: D1Database) {}
 
@@ -25,11 +39,20 @@ export class DbJobSiteConfigHelper {
 		// "no such column"; we detect that and retry without them so the import
 		// still succeeds rather than 500ing. The data is simply persisted once the
 		// migration lands.
+		// Tonnage, lifts, and cost columns landed in 0015/0017. They stay optional
+		// so a database that has not applied those migrations yet still accepts
+		// the rest of the config instead of failing the whole write.
 		const OPTIONAL_COLUMNS = new Set([
 			'begin_terminus',
 			'end_terminus',
 			'begin_station',
-			'end_station'
+			'end_station',
+			'num_lifts',
+			'total_tonnage',
+			'cost_per_ton',
+			'cost_per_sy',
+			'cost_per_mile',
+			'total_contract_value'
 		]);
 		const isMissingColumnError = (err: unknown): boolean =>
 			err instanceof Error && /no such column|has no column named/i.test(err.message);
@@ -47,6 +70,12 @@ export class DbJobSiteConfigHelper {
 				['target_spread_rate', config.target_spread_rate || null],
 				['tack_type', config.tack_type || null],
 				['target_tack_rate', config.target_tack_rate || null],
+				['num_lifts', finiteOrNull(config.num_lifts)],
+				['total_tonnage', finiteOrNull(config.total_tonnage)],
+				['cost_per_ton', finiteOrNull(config.cost_per_ton)],
+				['cost_per_sy', finiteOrNull(config.cost_per_sy)],
+				['cost_per_mile', finiteOrNull(config.cost_per_mile)],
+				['total_contract_value', finiteOrNull(config.total_contract_value)],
 				['notes', config.notes || null],
 				['route_designation', config.route_designation || null],
 				['route_county', config.route_county || null],
@@ -111,6 +140,12 @@ export class DbJobSiteConfigHelper {
 		push('target_spread_rate', config.target_spread_rate);
 		push('tack_type', config.tack_type);
 		push('target_tack_rate', config.target_tack_rate);
+		push('num_lifts', finiteOrSkip(config.num_lifts));
+		push('total_tonnage', finiteOrSkip(config.total_tonnage));
+		push('cost_per_ton', finiteOrSkip(config.cost_per_ton));
+		push('cost_per_sy', finiteOrSkip(config.cost_per_sy));
+		push('cost_per_mile', finiteOrSkip(config.cost_per_mile));
+		push('total_contract_value', finiteOrSkip(config.total_contract_value));
 		push('notes', config.notes);
 		push('route_designation', config.route_designation);
 		push('route_county', config.route_county);

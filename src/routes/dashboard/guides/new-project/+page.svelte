@@ -18,7 +18,7 @@
 			description: 'Enter the job site name, address, contract number, and contact info for the owner and general contractor. This creates the record where all your project data lives.',
 			whyText: 'All load tickets, photos, and daily reports are tied to the job site. Without it, nothing gets logged to the right contract.',
 			actionLabel: 'Create Job Site',
-			actionHref: '/dashboard/job-sites',
+			actionHref: '/dashboard/projects',
 			icon: 'building'
 		},
 		{

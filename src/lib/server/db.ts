@@ -85,6 +85,8 @@ export class DbHelper {
 
 	// org sub-helper proxies
 	getOrgByUserId(...args: Parameters<DbOrgHelper['getOrgByUserId']>) { return this.org.getOrgByUserId(...args); }
+	listUserOrgs(...args: Parameters<DbOrgHelper['listUserOrgs']>) { return this.org.listUserOrgs(...args); }
+	setActiveOrg(...args: Parameters<DbOrgHelper['setActiveOrg']>) { return this.org.setActiveOrg(...args); }
 	getOrgById(...args: Parameters<DbOrgHelper['getOrgById']>) { return this.org.getOrgById(...args); }
 	getOrgBySlug(...args: Parameters<DbOrgHelper['getOrgBySlug']>) { return this.org.getOrgBySlug(...args); }
 	getOrganizationById(...args: Parameters<DbOrgHelper['getOrganizationById']>) { return this.org.getOrganizationById(...args); }

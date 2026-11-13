@@ -5,6 +5,7 @@
 	import { navCollapsedStore } from '$lib/stores/navCollapsed.svelte';
 	import { triggerOnboarding } from '$lib/stores/onboarding';
 	import { config } from '$lib/config';
+	import OrgSwitcher from './OrgSwitcher.svelte';
 
 	let {
 		onOpenPalette,
@@ -20,6 +21,9 @@
 </script>
 
 <div class="sidebar-footer" class:nav-collapsed={isCollapsed}>
+	{#if isAuthenticated && !isCollapsed}
+		<OrgSwitcher />
+	{/if}
 	<div class="footer-actions">
 		<ThemeToggle />
 		<UserMenu direction="up" align="left" />
