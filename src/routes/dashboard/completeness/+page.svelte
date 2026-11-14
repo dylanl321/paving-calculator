@@ -266,7 +266,7 @@
 
 	.page-header-text h1 {
 		font-size: 1.4rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		margin: 0 0 2px;
 	}
 
@@ -303,7 +303,7 @@
 
 	.org-score-number {
 		font-size: 2rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 		line-height: 1;
 	}
 
@@ -342,7 +342,7 @@
 
 	.stat-count {
 		font-size: 1.5rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 		line-height: 1;
 		color: inherit;
 	}
@@ -436,7 +436,7 @@
 	.site-score-num {
 		flex-shrink: 0;
 		font-size: 0.875rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		min-width: 30px;
 		text-align: right;
 	}
@@ -479,7 +479,7 @@
 		letter-spacing: 0.5px;
 		color: var(--text-muted);
 		margin: 0 0 6px;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.missing-list {

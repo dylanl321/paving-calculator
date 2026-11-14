@@ -92,7 +92,7 @@
 	}
 
 	.label-pct {
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 		font-size: 0.85rem;
 	}
@@ -149,7 +149,7 @@
 			color: var(--accent-text);
 			border-radius: 6px;
 			font-size: 0.8rem;
-			font-weight: 700;
+			font-weight: var(--fw-bold);
 			white-space: nowrap;
 			transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 		}

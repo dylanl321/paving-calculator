@@ -409,9 +409,9 @@
 		width: 22px;
 		height: 22px;
 		border-radius: 50%;
-		border: 2px solid var(--text-muted);
+		border: var(--line-strong) solid var(--text-muted);
 		font-size: 0.75rem;
-		font-weight: 900;
+		font-weight: var(--fw-heavy);
 	}
 
 	.setup__item--done .setup__check {

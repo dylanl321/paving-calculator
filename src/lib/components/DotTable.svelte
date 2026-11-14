@@ -163,7 +163,7 @@
 
 	.table-title {
 		font-size: 0.85rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 		margin-bottom: 8px;
 	}
@@ -188,8 +188,8 @@
 	th {
 		text-align: left;
 		padding: 10px 12px;
-		font-weight: 700;
-		border-bottom: 2px solid var(--border);
+		font-weight: var(--fw-bold);
+		border-bottom: var(--line-strong) solid var(--border);
 		white-space: nowrap;
 		font-size: 0.75rem;
 	}

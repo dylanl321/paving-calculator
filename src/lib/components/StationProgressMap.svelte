@@ -362,7 +362,7 @@
 	}
 
 	.legend-paved {
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--good, #22c55e);
 	}
 
@@ -371,7 +371,7 @@
 	}
 
 	.legend-pct {
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 		background: color-mix(in srgb, var(--accent) 12%, transparent);
 		padding: 2px 8px;
@@ -465,7 +465,7 @@
 
 	.stat-val {
 		font-size: 0.95rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: #22c55e;
 		line-height: 1.1;
 	}

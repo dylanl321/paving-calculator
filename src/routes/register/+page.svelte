@@ -331,7 +331,7 @@
 	.auth-logo h1 {
 		margin: 0 0 8px;
 		font-size: 1.5rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 	}
 
@@ -451,7 +451,7 @@
 		border: none;
 		border-radius: var(--radius);
 		font-size: 1rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		cursor: pointer;
 		box-shadow: 0 6px 18px -6px color-mix(in srgb, var(--accent) 55%, transparent);
 		transition:

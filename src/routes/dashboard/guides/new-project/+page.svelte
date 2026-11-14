@@ -236,7 +236,7 @@
 		align-items: center;
 		justify-content: center;
 		font-size: 1.5rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 	}
 
 	.step-content {

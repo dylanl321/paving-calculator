@@ -168,7 +168,7 @@
 
 	.percentage {
 		font-size: 3rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 		line-height: 1;
 	}

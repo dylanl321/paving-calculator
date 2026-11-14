@@ -723,7 +723,7 @@
 	.mix-name-input {
 		flex: 1;
 		font-size: 1rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		padding: 8px 10px;
 		background: var(--bg);
 		border: 1px solid var(--border);
@@ -740,7 +740,7 @@
 
 	.active-badge {
 		font-size: 0.7rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		color: var(--accent-text);
@@ -876,7 +876,7 @@
 		color: white;
 		border-radius: 4px;
 		font-size: 0.65rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.3px;
 	}
@@ -909,7 +909,7 @@
 		display: inline-block;
 		width: 14px;
 		height: 14px;
-		border: 2px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-top-color: var(--accent);
 		border-radius: 50%;
 		animation: spin 0.7s linear infinite;
@@ -937,7 +937,7 @@
 
 	.suggestion-title {
 		margin: 0 0 4px;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 0.85rem;
 		color: var(--text);
 	}

@@ -397,7 +397,7 @@
 
 	.replay-date {
 		font-size: 0.85rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 	}
 
@@ -421,7 +421,7 @@
 
 	.stat-value {
 		font-size: 0.9rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 	}
 

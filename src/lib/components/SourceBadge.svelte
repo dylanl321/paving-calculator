@@ -18,7 +18,7 @@
 	.source {
 		display: inline-block;
 		font-size: 0.68rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.4px;
 		padding: 2px 8px;

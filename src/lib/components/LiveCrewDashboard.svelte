@@ -226,12 +226,12 @@
     gap: 8px;
     margin: 0;
     font-size: 1rem;
-    font-weight: 700;
+    font-weight: var(--fw-bold);
   }
 
   .live-badge {
     font-size: 0.65rem;
-    font-weight: 800;
+    font-weight: var(--fw-heavy);
     background: var(--good, #22c55e);
     color: #fff;
     padding: 2px 6px;
@@ -305,7 +305,7 @@
   .spinner {
     width: 20px;
     height: 20px;
-    border: 2px solid var(--border);
+    border: var(--line-strong) solid var(--border);
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
@@ -360,7 +360,7 @@
   }
 
   .crew-name {
-    font-weight: 700;
+    font-weight: var(--fw-bold);
     font-size: 0.95rem;
     white-space: nowrap;
     overflow: hidden;
@@ -372,7 +372,7 @@
     align-items: center;
     gap: 4px;
     font-size: 0.7rem;
-    font-weight: 700;
+    font-weight: var(--fw-bold);
     color: var(--good, #22c55e);
     text-transform: uppercase;
     letter-spacing: 0.4px;
@@ -423,7 +423,7 @@
 
   .stat-val {
     font-size: 1.1rem;
-    font-weight: 800;
+    font-weight: var(--fw-heavy);
     color: var(--accent);
     line-height: 1;
   }
@@ -501,7 +501,7 @@
 
   .unassigned-title {
     font-size: 0.8rem;
-    font-weight: 700;
+    font-weight: var(--fw-bold);
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;

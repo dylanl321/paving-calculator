@@ -222,7 +222,7 @@
 	th {
 		text-align: left;
 		padding: var(--sp-2);
-		border-bottom: 2px solid var(--border);
+		border-bottom: var(--line-strong) solid var(--border);
 		color: var(--text-muted);
 		font-weight: var(--fw-bold);
 		font-size: var(--fs-xs);

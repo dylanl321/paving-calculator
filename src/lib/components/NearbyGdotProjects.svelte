@@ -189,7 +189,7 @@
 	}
 
 	.project-num {
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 0.85rem;
 		color: var(--accent);
 	}

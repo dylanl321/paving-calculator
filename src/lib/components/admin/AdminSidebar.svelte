@@ -309,7 +309,7 @@
 		align-items: center;
 		gap: 8px;
 		flex: 1;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 1.05rem;
 		letter-spacing: 0.4px;
 	}
@@ -386,7 +386,7 @@
 	}
 
 	.brand-name {
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 1.15rem;
 		letter-spacing: 0.5px;
 	}
@@ -420,7 +420,7 @@
 	.group-label {
 		padding: 0 14px;
 		font-size: 0.7rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.6px;
 		color: var(--text-muted);

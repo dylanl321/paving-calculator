@@ -268,7 +268,7 @@
 		gap: 4px;
 		padding: 0;
 		background: var(--surface);
-		border: 2px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-radius: var(--radius);
 		overflow: hidden;
 		cursor: pointer;

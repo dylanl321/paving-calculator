@@ -43,7 +43,7 @@
 		const statusLabel = site.status.charAt(0).toUpperCase() + site.status.slice(1);
 		return `<div style="min-width:160px;font-family:system-ui,sans-serif">
 				<strong style="font-size:0.95rem">${site.name}</strong><br>
-				<span style="display:inline-block;margin:4px 0;padding:2px 8px;border-radius:999px;background:${color};color:#fff;font-size:0.7rem;font-weight:700;text-transform:uppercase">${statusLabel}</span>
+				<span style="display:inline-block;margin:4px 0;padding:2px 8px;border-radius:999px;background:${color};color:#fff;font-size:0.7rem;font-weight:var(--fw-bold);text-transform:uppercase">${statusLabel}</span>
 				${site.location_description ? `<br><span style="font-size:0.8rem;color:#666">${site.location_description}</span>` : ''}
 				<br><a href="/dashboard/job-sites/${site.id}" style="display:inline-block;margin-top:8px;font-size:0.82rem;color:#2563eb;text-decoration:underline">Open job site</a>
 			</div>`;

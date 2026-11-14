@@ -1617,7 +1617,7 @@
 
 	.stat-value {
 		font-size: 1.5rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 	}
 
@@ -2180,7 +2180,7 @@
 
 	.project-context-label {
 		font-size: 0.7rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		color: var(--text-muted);

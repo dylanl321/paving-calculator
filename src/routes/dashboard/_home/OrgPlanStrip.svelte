@@ -90,9 +90,9 @@
 		min-height: 48px;
 	}
 
-	a { color: var(--text); font-weight: 700; }
+	a { color: var(--text); font-weight: var(--fw-bold); }
 
-	.pace { font-size: var(--fs-sm); font-weight: 700; }
+	.pace { font-size: var(--fs-sm); font-weight: var(--fw-bold); }
 	.pace-behind { color: var(--bad); }
 	.pace-ahead { color: var(--good); }
 	.pace-on_track, .pace-no_plan { color: var(--text-muted); }

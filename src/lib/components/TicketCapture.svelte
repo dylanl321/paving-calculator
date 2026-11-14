@@ -666,7 +666,7 @@
 
 	.form-title {
 		font-size: 1rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 		margin: 0 0 4px;
 	}
@@ -762,7 +762,7 @@
 		min-height: 52px;
 		border-radius: 8px;
 		font-size: 0.9375rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		cursor: pointer;
 		border: none;
 		transition:

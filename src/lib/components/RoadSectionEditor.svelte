@@ -460,7 +460,7 @@
 
 	.length-value {
 		font-size: 15px;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text, #fff);
 		font-family: 'SF Mono', 'Consolas', monospace;
 	}
@@ -522,7 +522,7 @@
 		font-size: 11px;
 		text-transform: uppercase;
 		color: var(--text-muted, #999);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.planned-form input {
@@ -764,7 +764,7 @@
 	.modal-content h3 {
 		margin: 0 0 8px 0;
 		font-size: 20px;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text, #fff);
 	}
 

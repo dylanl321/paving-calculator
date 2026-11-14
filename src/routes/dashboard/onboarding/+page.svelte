@@ -520,7 +520,7 @@
 		min-height: 120px;
 		padding: var(--sp-4);
 		background: var(--bg);
-		border: 2px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-radius: var(--radius-md);
 		cursor: pointer;
 		transition: all 0.15s ease;

@@ -211,7 +211,7 @@
 		align-items: center;
 		gap: 10px;
 		color: var(--text);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 1.05rem;
 		letter-spacing: 0.2px;
 		text-decoration: none;
@@ -284,7 +284,7 @@
 	.auth-logo h1 {
 		margin: 0 0 8px;
 		font-size: 1.85rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 		letter-spacing: 0.2px;
 		color: var(--text);
 	}
@@ -354,7 +354,7 @@
 		border: none;
 		border-radius: var(--radius);
 		font-size: 1.05rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		cursor: pointer;
 		box-shadow: 0 8px 20px -8px color-mix(in srgb, var(--accent) 60%, transparent);
 		transition:

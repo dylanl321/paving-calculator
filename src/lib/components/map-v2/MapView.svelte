@@ -249,7 +249,7 @@
     display: block;
     width: 32px;
     height: 32px;
-    border: 3px solid var(--border, rgba(255, 255, 255, 0.15));
+    border: var(--line-strong) solid var(--border, rgba(255, 255, 255, 0.15));
     border-top-color: var(--accent, #f2c037);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;

@@ -267,7 +267,7 @@
 		display: inline-block;
 		width: 20px;
 		height: 20px;
-		border: 2px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-top-color: var(--accent);
 		border-radius: 50%;
 		animation: spin 0.7s linear infinite;
@@ -415,7 +415,7 @@
 	.log-form-panel h4 {
 		margin: 0 0 8px;
 		font-size: 1.1rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.log-form-panel p {

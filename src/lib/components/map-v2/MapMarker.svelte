@@ -176,7 +176,7 @@
     align-items: center;
     justify-content: center;
     font-size: 10px;
-    font-weight: 700;
+    font-weight: var(--fw-bold);
     color: #000;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
     border: 2px solid rgba(255, 255, 255, 0.3);

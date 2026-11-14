@@ -617,7 +617,7 @@
 		background: transparent;
 		color: var(--warn);
 		font-size: 0.8rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		cursor: pointer;
 	}
 
@@ -705,7 +705,7 @@
 	.tabs {
 		display: flex;
 		gap: 4px;
-		border-bottom: 2px solid var(--border);
+		border-bottom: var(--line-strong) solid var(--border);
 		margin-bottom: 24px;
 		overflow-x: auto;
 		-webkit-overflow-scrolling: touch;
@@ -796,7 +796,7 @@
 		background: var(--surface-alt);
 		color: var(--text-muted);
 		font-size: 0.72rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		vertical-align: middle;
 	}
 

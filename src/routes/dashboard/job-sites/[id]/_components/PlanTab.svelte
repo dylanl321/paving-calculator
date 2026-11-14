@@ -182,7 +182,7 @@
 		height: 72px;
 		border-radius: var(--radius-md);
 		background: var(--surface-alt);
-		border: 2px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 	}
 
 	.plan-setup__score--good {

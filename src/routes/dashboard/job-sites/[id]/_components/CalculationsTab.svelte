@@ -157,7 +157,7 @@
 
 	.calc-result {
 		font-size: 1.1rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 		text-align: right;
 	}

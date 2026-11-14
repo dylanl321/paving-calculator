@@ -389,7 +389,7 @@
 
 	.completion-pct {
 		font-size: 1.125rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 	}
 

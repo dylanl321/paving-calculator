@@ -121,7 +121,7 @@
 		padding: 4px 10px;
 		border-radius: 999px;
 		font-size: 0.75rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		white-space: nowrap;

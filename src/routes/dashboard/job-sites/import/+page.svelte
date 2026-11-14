@@ -2344,7 +2344,7 @@
 		height: 16px;
 		border-radius: 50%;
 		font-size: 0.65rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 		line-height: 1;
 		vertical-align: middle;
 	}
@@ -2402,7 +2402,7 @@
 		background: var(--bad);
 		color: var(--accent-text);
 		font-size: 0.65rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 		line-height: 1;
 		flex-shrink: 0;
 	}
@@ -2428,7 +2428,7 @@
 		background: color-mix(in srgb, var(--warn) 12%, transparent);
 		color: var(--text);
 		font-size: 0.75rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		cursor: pointer;
 		line-height: 1;
 	}
@@ -2664,7 +2664,7 @@
 		margin: 0 0 6px;
 		color: var(--accent);
 		font-size: 0.78rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 	}
@@ -2690,7 +2690,7 @@
 		border-radius: 999px;
 		color: var(--text-muted);
 		font-size: 0.78rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.import-steps {
@@ -2718,7 +2718,7 @@
 
 	.import-step small {
 		font-size: 0.68rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		line-height: 1.1;
 		text-align: center;
 		overflow-wrap: anywhere;
@@ -2858,7 +2858,7 @@
 		padding: 4px 10px;
 		border-radius: 999px;
 		font-size: 0.78rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 	}
 
 	.evidence-ok {
@@ -2901,7 +2901,7 @@
 		border: 1px solid var(--border);
 		color: var(--text-muted);
 		font-size: 0.76rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.evidence-chips span.present {
@@ -3003,7 +3003,7 @@
 		border-radius: 999px;
 		color: var(--text-muted);
 		background: color-mix(in srgb, var(--accent) 8%, transparent);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.anchor-status.anchored {
@@ -3026,7 +3026,7 @@
 	.route-warnings span {
 		color: var(--warn);
 		font-size: 0.78rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.route-preview-empty {
@@ -3039,7 +3039,7 @@
 	.log-count {
 		color: var(--accent);
 		font-size: 0.82rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 	}
 
 	.roadway-log-table {
@@ -3065,7 +3065,7 @@
 
 	.log-mile {
 		color: var(--accent);
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 	}
 
 	.log-type {
@@ -3080,7 +3080,7 @@
 
 	.log-width {
 		color: var(--text-muted);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		white-space: nowrap;
 	}
 
@@ -3129,7 +3129,7 @@
 	.bid-total {
 		margin-left: auto;
 		font-size: 0.9rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 	}
 
@@ -3193,7 +3193,7 @@
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		color: var(--text-muted);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		white-space: nowrap;
 	}
 
@@ -3207,7 +3207,7 @@
 
 	.section-name {
 		font-size: 0.85rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text-muted);
 		margin: 0 0 8px;
 		text-transform: uppercase;
@@ -3276,7 +3276,7 @@
 	.spinner {
 		width: 32px;
 		height: 32px;
-		border: 3px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-top-color: var(--accent);
 		border-radius: 50%;
 		animation: spin 0.8s linear infinite;
@@ -3370,7 +3370,7 @@
 
 	.stat-value {
 		font-size: 1rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 	}
 
@@ -3406,7 +3406,7 @@
 	}
 
 	.multi-doc-filename {
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 0.9rem;
 		margin-bottom: 4px;
 	}
@@ -3435,7 +3435,7 @@
 	}
 
 	.multi-doc-type {
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 	}
 
@@ -3445,7 +3445,7 @@
 
 	.multi-doc-conf {
 		color: var(--good);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 0.75rem;
 	}
 
@@ -3465,7 +3465,7 @@
 		color: var(--accent-text);
 		border-radius: 999px;
 		font-size: 0.65rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.3px;
 		vertical-align: middle;
@@ -3565,7 +3565,7 @@
 	.reconcile-match::before {
 		content: '✓ ';
 		color: var(--accent);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.reconcile-diff {
@@ -3695,7 +3695,7 @@
 	.pavement-seg-len {
 		color: var(--accent);
 		font-size: 0.8rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.pavement-range {
@@ -3721,7 +3721,7 @@
 		border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
 		color: var(--accent);
 		font-size: 0.78rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.pavement-grid {
@@ -3770,7 +3770,7 @@
 
 	.pavement-width-sep {
 		color: var(--text-muted);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	/* Low-confidence dot for pavement review (amber, not the red needs-input badge) */

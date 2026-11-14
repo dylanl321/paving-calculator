@@ -104,7 +104,7 @@
 	.page-title {
 		margin: 0;
 		font-size: 1.75rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 	}
 

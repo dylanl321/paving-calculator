@@ -357,7 +357,7 @@
 		border: 2px solid #111827;
 		background: #f2c037;
 		color: #111827;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 		cursor: grab;
 		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 	}

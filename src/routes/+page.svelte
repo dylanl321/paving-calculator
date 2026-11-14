@@ -271,7 +271,7 @@
 		align-items: center;
 		gap: 0.625rem;
 		color: var(--text, #f4f6f7);
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 		text-decoration: none;
 		min-height: 48px;
 	}
@@ -377,7 +377,7 @@
 	}
 	.hero-heading {
 		font-size: 2.15rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 		line-height: 1.15;
 		color: var(--text, #f4f6f7);
 		margin: 0 0 1.1rem;
@@ -407,7 +407,7 @@
 	}
 	.hero-note a {
 		color: var(--accent, #f2c037);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-decoration: none;
 	}
 	.hero-note a:hover {
@@ -467,7 +467,7 @@
 	}
 	.mockup-value {
 		font-size: 1.75rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text, #f4f6f7);
 		line-height: 1;
 	}
@@ -504,7 +504,7 @@
 	}
 	.mockup-project-name {
 		font-size: 1.125rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text, #f4f6f7);
 		line-height: 1.2;
 	}
@@ -554,7 +554,7 @@
 	}
 	.section-heading {
 		font-size: 1.85rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text, #f4f6f7);
 		text-align: center;
 		margin: 0 0 2.75rem;
@@ -634,7 +634,7 @@
 		margin-bottom: 0.65rem;
 		color: var(--accent, #f2c037);
 		font-size: 0.75rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 		letter-spacing: 0;
 		text-transform: uppercase;
 	}
@@ -658,7 +658,7 @@
 	}
 	.path-link {
 		color: var(--accent, #f2c037);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-decoration: none;
 	}
 	.path-link:hover {
@@ -684,7 +684,7 @@
 	}
 	.stat-value {
 		font-size: 2rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 		color: var(--accent, #f2c037);
 		line-height: 1;
 		margin-bottom: 0.25rem;
@@ -730,7 +730,7 @@
 		background: color-mix(in srgb, var(--accent, #f2c037) 15%, transparent);
 		border: 1.5px solid var(--accent, #f2c037);
 		color: var(--accent, #f2c037);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 1.125rem;
 		display: flex;
 		align-items: center;
@@ -760,7 +760,7 @@
 	}
 	.cta-inner h2 {
 		font-size: 1.85rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text, #f4f6f7);
 		margin: 0 0 0.75rem;
 	}
@@ -797,7 +797,7 @@
 		gap: 0.625rem;
 	}
 	.footer-name {
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 1rem;
 		color: var(--text, #f4f6f7);
 	}

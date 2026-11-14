@@ -82,7 +82,7 @@
 
 	.score {
 		font-size: 0.75rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-variant-numeric: tabular-nums;
 		min-width: 32px;
 		text-align: right;

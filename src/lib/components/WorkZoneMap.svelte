@@ -642,7 +642,7 @@
 
 	.zone-status-badge {
 		font-size: 0.72rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--s-color, var(--text-muted));
 		background: color-mix(in srgb, var(--s-color, var(--text-muted)) 12%, transparent);
 		padding: 2px 7px;

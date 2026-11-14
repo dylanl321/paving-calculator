@@ -574,7 +574,7 @@
 
 	.truck-card {
 		background: var(--surface-alt);
-		border: 2px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-radius: var(--radius-md);
 		padding: var(--sp-4);
 		transition: all 0.15s ease;

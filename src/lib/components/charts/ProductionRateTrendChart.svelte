@@ -115,7 +115,7 @@
 
 	.pill-value {
 		font-size: 0.95rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 	}
 

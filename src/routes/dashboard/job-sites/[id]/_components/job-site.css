@@ -127,7 +127,7 @@
 
 .job-site-page .derived-value {
 	font-size: 1.25rem;
-	font-weight: 700;
+	font-weight: var(--fw-bold);
 	color: var(--accent);
 }
 
@@ -211,7 +211,7 @@
 .job-site-page .selector-card {
 	padding: 12px;
 	background: var(--surface);
-	border: 2px solid var(--border);
+	border: var(--line-strong) solid var(--border);
 	border-radius: var(--radius);
 	font-size: 0.85rem;
 	font-weight: 600;
@@ -310,7 +310,7 @@
 	padding: 6px 12px;
 	border-radius: 999px;
 	font-size: 0.7rem;
-	font-weight: 700;
+	font-weight: var(--fw-bold);
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
 	white-space: nowrap;

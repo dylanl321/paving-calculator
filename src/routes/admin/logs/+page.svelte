@@ -388,7 +388,7 @@
 
 	.title {
 		font-size: 1.5rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 		margin: 0;
 	}
@@ -543,7 +543,7 @@
 	.logs-table th {
 		padding: 12px 16px;
 		text-align: left;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text-muted);
 		text-transform: uppercase;
 		letter-spacing: 0.4px;
@@ -604,7 +604,7 @@
 		padding: 4px 10px;
 		border-radius: 6px;
 		font-size: 0.75rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.3px;
 	}
@@ -626,7 +626,7 @@
 
 	.status {
 		font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 0.85rem;
 	}
 

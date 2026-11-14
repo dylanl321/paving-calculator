@@ -602,7 +602,7 @@
 		flex-wrap: wrap;
 		gap: var(--sp-4);
 		margin-bottom: var(--sp-6);
-		border-bottom: 2px solid var(--border);
+		border-bottom: var(--line-strong) solid var(--border);
 		padding-bottom: var(--sp-4);
 	}
 

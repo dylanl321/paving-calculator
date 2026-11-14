@@ -193,7 +193,7 @@
 		gap: 6px;
 		padding: 0 12px;
 		background: var(--surface);
-		border: 2px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-radius: var(--radius);
 		color: var(--text-muted);
 		font-size: 0.9rem;
@@ -226,7 +226,7 @@
 	.toggle-value {
 		font-size: 0.75rem;
 		color: var(--accent);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		margin-left: 2px;
 	}
 

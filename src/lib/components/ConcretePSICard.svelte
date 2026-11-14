@@ -44,7 +44,7 @@
 	}
 	.psi-rating {
 		font-size: 1.1rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 		color: var(--accent);
 		margin-bottom: 4px;
 	}

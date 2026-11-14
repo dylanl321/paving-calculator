@@ -341,7 +341,7 @@
 
 	.sheet-title {
 		font-size: 1.1rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		margin: 0;
 		color: var(--text);
 	}
@@ -396,7 +396,7 @@
 	.spinner {
 		width: 28px;
 		height: 28px;
-		border: 3px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-top-color: var(--accent);
 		border-radius: 50%;
 		animation: spin 0.7s linear infinite;
@@ -442,7 +442,7 @@
 
 	.period-label {
 		font-size: 1.1rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		margin: 0;
 		color: var(--text);
 	}
@@ -459,7 +459,7 @@
 
 	.section-title {
 		font-size: 0.78rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		color: var(--text-muted);
@@ -498,7 +498,7 @@
 
 	.total-value {
 		font-size: 1.4rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 		line-height: 1.2;
 	}

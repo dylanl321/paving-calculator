@@ -515,7 +515,7 @@
 	}
 
 	.breakdown-table .breakdown-footer td {
-		border-top: 2px solid var(--border);
+		border-top: var(--line-strong) solid var(--border);
 		border-bottom: none;
 		padding-top: var(--sp-3);
 	}

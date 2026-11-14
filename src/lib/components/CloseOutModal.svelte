@@ -543,7 +543,7 @@
 
 	.summary-value {
 		font-size: 1.5rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent, #f59e0b);
 	}
 
@@ -593,7 +593,7 @@
 
 	.density-stat-value {
 		font-size: 1.25rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text-1, #fff);
 	}
 
@@ -643,7 +643,7 @@
 	}
 
 	.failure-pct {
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 1rem;
 	}
 
@@ -792,7 +792,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.success-message h4 {

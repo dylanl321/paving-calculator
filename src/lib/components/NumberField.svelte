@@ -177,7 +177,7 @@
 		text-align: left;
 		padding: 0 var(--sp-3, 12px);
 		font-size: 1.5rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	/* Focus ring on the container instead */

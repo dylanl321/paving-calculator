@@ -439,7 +439,7 @@
 
 	.page-title {
 		font-size: 1.75rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 		margin: 0 0 0.5rem;
 	}
@@ -486,8 +486,8 @@
 		justify-content: center;
 		border-radius: 50%;
 		background: var(--surface);
-		border: 2px solid var(--border);
-		font-weight: 700;
+		border: var(--line-strong) solid var(--border);
+		font-weight: var(--fw-bold);
 		font-size: 0.85rem;
 	}
 
@@ -512,7 +512,7 @@
 
 	.section-title {
 		font-size: 1.1rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 		margin: 0 0 1rem;
 	}
@@ -677,7 +677,7 @@
 
 	.help-title {
 		font-size: 1rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		margin: 0 0 0.75rem;
 		color: var(--text);
 	}
@@ -735,7 +735,7 @@
 
 	.preview-title {
 		font-size: 0.95rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 		margin: 1.5rem 0 0.75rem;
 	}
@@ -756,7 +756,7 @@
 		background: var(--surface-alt);
 		padding: 0.75rem;
 		text-align: left;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 		border-bottom: 1px solid var(--border);
 		white-space: nowrap;
@@ -795,7 +795,7 @@
 
 	.importing-text {
 		font-size: 1.1rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 		margin: 0 0 0.5rem;
 	}
@@ -825,7 +825,7 @@
 
 	.success-title {
 		font-size: 1.5rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 		margin: 0 0 0.75rem;
 	}
@@ -847,7 +847,7 @@
 
 	.warnings-title {
 		font-size: 0.95rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--warning, #f59e0b);
 		margin: 0 0 0.75rem;
 	}

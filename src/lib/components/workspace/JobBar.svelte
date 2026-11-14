@@ -395,7 +395,7 @@
 		background: transparent;
 		color: var(--text);
 		font-size: 1.05rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		padding: 0 var(--sp-3);
 		text-align: right;
 	}

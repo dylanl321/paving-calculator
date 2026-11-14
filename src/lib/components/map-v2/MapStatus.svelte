@@ -142,7 +142,7 @@
 	.map-status__spinner {
 		width: 32px;
 		height: 32px;
-		border: 3px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-top-color: var(--accent);
 		border-radius: 50%;
 		animation: map-status-spin 0.8s linear infinite;
