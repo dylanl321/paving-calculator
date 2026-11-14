@@ -19,21 +19,24 @@ export async function GET(event: RequestEvent) {
 			? await crewDb.getJobSitesByForeman(user.id, org.id)
 			: await db.getJobSitesByOrgId(org.id);
 		const active = sites.filter((site) => site.status === 'active');
-		const projects = [];
-		for (const site of active) {
-			const status = await loadPlanStatus(event.platform.env.DB, site.id);
-			if (!status) continue;
-			projects.push({
-				id: site.id,
-				name: site.name,
-				pace: status.pace,
-				tonsPct: status.tonsPct,
-				lengthPct: status.lengthPct,
-				tonsRemaining: status.tonsRemaining,
-				daysRemaining: status.daysRemaining,
-				weatherDays: status.weatherDays
-			});
-		}
+		const projects = (
+			await Promise.all(
+				active.map(async (site) => {
+					const status = await loadPlanStatus(event.platform!.env.DB, site.id);
+					if (!status) return null;
+					return {
+						id: site.id,
+						name: site.name,
+						pace: status.pace,
+						tonsPct: status.tonsPct,
+						lengthPct: status.lengthPct,
+						tonsRemaining: status.tonsRemaining,
+						daysRemaining: status.daysRemaining,
+						weatherDays: status.weatherDays
+					};
+				})
+			)
+		).filter((row) => row != null);
 		const behind = projects.filter((p) => p.pace === 'behind').length;
 		const ahead = projects.filter((p) => p.pace === 'ahead').length;
 		return json({ projects, behind, ahead, active: projects.length });

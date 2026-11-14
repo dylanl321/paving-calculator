@@ -4,6 +4,7 @@
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { config } from '$lib/config';
+	import { localIsoDate } from '$lib/schedule-dates';
 	import ViewSwitcher from '$lib/components/ViewSwitcher.svelte';
 
 	interface JobSite {
@@ -25,7 +26,7 @@
 	let showDistanceForm = $state(false);
 
 	// Load form state
-	let tons = $state(18.5);
+	let tons = $state<number | null>(null);
 	let ticketNumber = $state('');
 	let submittingLoad = $state(false);
 
@@ -76,7 +77,7 @@
 
 		try {
 			// Fetch loads for today using date filter
-			const today = new Date().toISOString().split('T')[0];
+			const today = localIsoDate();
 			const loadsRes = await fetch(
 				`/api/job-sites/${selectedSite.id}/loads?start_date=${today}&end_date=${today}`,
 				{ credentials: 'include' }
@@ -118,6 +119,10 @@
 			toastStore.error('No job site selected');
 			return;
 		}
+		if (tons == null || !(tons > 0)) {
+			toastStore.error('Enter the tons on the ticket');
+			return;
+		}
 
 		submittingLoad = true;
 		try {
@@ -144,7 +149,7 @@
 			toastStore.success(`Added ${tons} tons`);
 
 			// Reset form
-			tons = 18.5;
+			tons = null;
 			ticketNumber = '';
 			showLoadForm = false;
 
@@ -261,7 +266,7 @@
 						<button
 							class="submit-button"
 							onclick={handleAddLoad}
-							disabled={submittingLoad}
+							disabled={submittingLoad || !(tons != null && tons > 0)}
 						>
 							{submittingLoad ? 'Submitting...' : 'Submit'}
 						</button>
@@ -269,7 +274,7 @@
 							class="cancel-button"
 							onclick={() => {
 								showLoadForm = false;
-								tons = 18.5;
+								tons = null;
 								ticketNumber = '';
 							}}
 							disabled={submittingLoad}
@@ -360,8 +365,8 @@
 		<ViewSwitcher currentView="field" />
 	{:else if sites.length === 0}
 		<div class="empty-state">
-			<p>No job sites available</p>
-			<a href="/app">Go to Full View</a>
+			<p>No projects are assigned to your crew yet.</p>
+			<p>An admin assigns a crew on the project, then it shows up here.</p>
 		</div>
 	{:else}
 		<div class="site-selector">
@@ -403,12 +408,6 @@
 		padding: 24px;
 		text-align: center;
 		color: var(--text-muted);
-	}
-
-	.empty-state a {
-		color: var(--accent);
-		text-decoration: none;
-		font-weight: 600;
 	}
 
 	.site-header {

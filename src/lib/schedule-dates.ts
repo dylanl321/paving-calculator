@@ -4,6 +4,14 @@
  * (`new Date('2026-06-01')` is midnight UTC, which is the previous evening
  * in US time zones).
  */
+/** Calendar date in the runtime's local timezone, YYYY-MM-DD. */
+export function localIsoDate(date = new Date()): string {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+}
+
 export function addDaysToIsoDate(isoDate: string, days: number): string | null {
 	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
 	if (!match || !Number.isFinite(days)) return null;

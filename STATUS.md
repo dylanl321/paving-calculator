@@ -206,6 +206,14 @@ Fixed on `cursor/project-management-fixes-15a9`:
 - Checked the main routes at 390px and 1280px locally (overflow, unlabeled
   controls, the new pace, schedule, report, and notification controls).
 
+## Field workflow pass
+
+- The field load form no longer starts at 18.5 tons. Submit stays disabled until a positive tonnage is entered, and "today" uses the local calendar date.
+- Calculations for a job follow the same crew rule as opening the project.
+- A daily log entry, edit, or delete whose log belongs to a different project than the URL is rejected. Negative tons are rejected before they hit the database.
+- The org pace list loads projects together instead of one after another.
+- The field empty state says the crew has no assigned project.
+
 ## Still open
 
 - Duplicate migration prefixes `0071` and `0074` still fail `deploy.yml`.
