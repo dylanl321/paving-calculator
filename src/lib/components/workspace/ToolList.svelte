@@ -154,6 +154,9 @@
 			-webkit-overflow-scrolling: touch;
 			padding-bottom: var(--sp-2);
 			scroll-snap-type: x proximity;
+			/* Fade the right edge so a cut-off chip reads as "more to the side". */
+			mask-image: linear-gradient(90deg, #000 85%, transparent);
+			-webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
 		}
 		.tool-list::-webkit-scrollbar {
 			height: 4px;

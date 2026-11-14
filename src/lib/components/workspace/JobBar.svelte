@@ -65,7 +65,7 @@
 	<button class="summary" type="button" onclick={() => (open = !open)} aria-expanded={open}>
 		<span class="summary-main">
 			<span class="summary-title">Quick Calculator Settings</span>
-			<span class="eyebrow">Saved on this device and reused across calculators</span>
+			<span class="summary-sub">Saved on this device. Every calculator uses it.</span>
 		</span>
 
 		<span class="facts">
@@ -246,6 +246,11 @@
 	.summary-title {
 		font-size: var(--fs-md);
 		font-weight: var(--fw-bold);
+	}
+
+	.summary-sub {
+		font-size: var(--fs-xs);
+		color: var(--text-muted);
 	}
 
 	.facts {
@@ -473,6 +478,13 @@
 		.summary {
 			align-items: flex-start;
 			flex-direction: column;
+		}
+		/* The facts line says what matters; the subtitle only adds a line. */
+		.summary-sub {
+			display: none;
+		}
+		.summary-main {
+			min-width: 0;
 		}
 		.wstat {
 			align-self: flex-start;

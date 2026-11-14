@@ -102,8 +102,13 @@
 {:else}
 	<!-- ── Hero stat band ───────────────────────────────────────────────── -->
 	<section class="band">
-		<CardGrid min="200px" gap="var(--sp-3)">
-			<StatTile label="Contract value" value={formatCurrencyCompact(portfolio.contract_value_total)} accent />
+		<!-- 150px keeps the four tiles in a 2×2 grid on a phone instead of a tall stack. -->
+		<CardGrid min="150px" gap="var(--sp-3)">
+			<StatTile
+				label="Contract value"
+				value={formatCurrencyCompact(portfolio.contract_value_total)}
+				accent={portfolio.contract_value_total > 0}
+			/>
 			<StatTile
 				label="Active projects"
 				value={counts.active_projects}
@@ -116,6 +121,45 @@
 	</section>
 
 	<CardGrid min="320px">
+		<!-- ── Needs attention ──────────────────────────────────────────────── -->
+		<Card title="Needs attention" subtitle="Setup gaps & jobs behind plan">
+			{#if !hasAttention}
+				<p class="muted">Nothing flagged. Setup is complete and active jobs are on pace.</p>
+			{:else}
+				{#if setupGaps.length > 0}
+					<h3 class="attn__head">Incomplete setup</h3>
+					<ul class="attn">
+						{#each setupGaps.slice(0, 6) as gap (gap.id)}
+							<li>
+								<a class="attn__row" href="/dashboard/job-sites/{gap.id}">
+									<span class="attn__name">{gap.name || 'Untitled project'}</span>
+									<span class="attn__meta">
+										Missing {gap.missing.length}: {gap.missing.slice(0, 3).map(gapLabel).join(', ')}{gap.missing.length > 3 ? '…' : ''}
+									</span>
+								</a>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+
+				{#if behindJobs.length > 0}
+					<h3 class="attn__head">Behind plan</h3>
+					<ul class="attn">
+						{#each behindJobs as job (job.id)}
+							<li>
+								<a class="attn__row" href="/dashboard/job-sites/{job.id}">
+									<span class="attn__name">{job.name}</span>
+									<span class="attn__meta">
+										{Math.round(job.progress_pct)}% placed{liveById.get(job.id)?.today_log_open === false ? ' · no log today' : ''}
+									</span>
+								</a>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			{/if}
+		</Card>
+
 		<!-- ── Production vs plan ───────────────────────────────────────────── -->
 		<Card title="Production vs plan" subtitle="Placed tonnage across the portfolio" span={2}>
 			<div class="pvp">
@@ -164,44 +208,6 @@
 			{/if}
 		</Card>
 
-		<!-- ── Needs attention ──────────────────────────────────────────────── -->
-		<Card title="Needs attention" subtitle="Setup gaps & jobs behind plan">
-			{#if !hasAttention}
-				<p class="muted">Nothing flagged. Setup is complete and active jobs are on pace.</p>
-			{:else}
-				{#if setupGaps.length > 0}
-					<h3 class="attn__head">Incomplete setup</h3>
-					<ul class="attn">
-						{#each setupGaps.slice(0, 6) as gap (gap.id)}
-							<li>
-								<a class="attn__row" href="/dashboard/job-sites/{gap.id}">
-									<span class="attn__name">{gap.name || 'Untitled project'}</span>
-									<span class="attn__meta">
-										Missing {gap.missing.length}: {gap.missing.slice(0, 3).map(gapLabel).join(', ')}{gap.missing.length > 3 ? '…' : ''}
-									</span>
-								</a>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-
-				{#if behindJobs.length > 0}
-					<h3 class="attn__head">Behind plan</h3>
-					<ul class="attn">
-						{#each behindJobs as job (job.id)}
-							<li>
-								<a class="attn__row" href="/dashboard/job-sites/{job.id}">
-									<span class="attn__name">{job.name}</span>
-									<span class="attn__meta">
-										{Math.round(job.progress_pct)}% placed{liveById.get(job.id)?.today_log_open === false ? ' · no log today' : ''}
-									</span>
-								</a>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-			{/if}
-		</Card>
 	</CardGrid>
 
 	{#if activeNoLogToday.length > 0 && setupGaps.length === 0 && behindJobs.length === 0}

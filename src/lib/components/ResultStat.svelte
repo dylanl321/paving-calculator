@@ -16,7 +16,7 @@
 
 <div class="result" class:empty={value == null}>
 	{#if value == null}
-		<div class="placeholder">Enter values above to see the result</div>
+		<div class="placeholder">Fill in the numbers to see the answer</div>
 	{:else}
 		{#key value}
 			<div class="value" in:fade={{ duration: 160 }}>{value}</div>

@@ -2,7 +2,8 @@
 	CommandTab — the "Command" hub: the state of the project now plus the single
 	clearest next action. Rebuilt on CardGrid so the cards are equal height
 	(fixing the old Overview's mismatched panels). Cards: a next-action banner, a
-	map preview, key stats (StatTile), contract summary, and production-vs-plan.
+	map preview, key stats (StatTile) and the contract summary. Until setup is done and a
+	load is placed it shows a setup checklist instead of empty production cards.
 	Light data (contract + progress) is fetched here; derived stats are passed in
 	from the page so this hub stays a thin, scannable summary rather than a second
 	copy of the full detail.
@@ -28,6 +29,7 @@
 		equipmentCount,
 		setupScore,
 		missingFields = [],
+		setupFields = [],
 		onGoToTab
 	}: {
 		data: PageData;
@@ -39,6 +41,7 @@
 		equipmentCount: number;
 		setupScore: number | null;
 		missingFields?: string[];
+		setupFields?: { key: string; label: string; done: boolean }[];
 		onGoToTab: (tab: string) => void;
 	} = $props();
 
@@ -88,13 +91,26 @@
 	const placedTons = $derived(
 		progressData?.logEntries?.reduce((sum, e) => sum + (e.tons_placed ?? 0), 0) ?? 0
 	);
-	const plannedTons = $derived(configForm.total_tonnage ?? estTonnage ?? null);
-	const placedPct = $derived(
-		plannedTons && plannedTons > 0 ? Math.min(100, Math.round((placedTons / plannedTons) * 100)) : null
-	);
 
 	const contractValue = $derived(
 		configForm.total_contract_value ?? contract?.contract_amount ?? costSummary?.value ?? null
+	);
+
+	// Until the project is set up and has a first load, Command is a checklist:
+	// production cards would only show dashes.
+	const setupMode = $derived(
+		placedTons === 0 && (!hasLocation || (setupScore != null && setupScore < 90))
+	);
+	const checklist = $derived([
+		{ key: 'location', label: 'Location and road line', done: hasLocation },
+		...setupFields
+	]);
+	const checklistLeft = $derived(checklist.filter((f) => !f.done).length);
+	const hasContract = $derived(
+		contractValue != null ||
+			!!contract?.customer_name ||
+			!!contract?.project_number ||
+			!!contract?.completion_date
 	);
 
 	// The single clearest next action, derived from project state.
@@ -127,7 +143,73 @@
 	});
 </script>
 
+{#if setupMode}
+	<div class="setup-stack">
+		<Card padding="md">
+			<div class="setup">
+				<div class="setup__head">
+					<div>
+						<span class="next-action__kicker">Setup</span>
+						<strong class="setup__title">Finish setup to start tracking production</strong>
+						<p class="setup__body">
+							Production vs plan, yield and the schedule show up here once the project has a
+							target and its first load.
+						</p>
+					</div>
+					<span class="setup__left">{checklistLeft} left</span>
+				</div>
+				<ul class="setup__list">
+					{#each checklist as item (item.key)}
+						<li class="setup__item" class:setup__item--done={item.done}>
+							<span class="setup__check" aria-hidden="true">{item.done ? '✓' : ''}</span>
+							<span class="setup__label">
+								{item.label}
+								<span class="visually-hidden">{item.done ? '(done)' : '(missing)'}</span>
+							</span>
+							{#if !item.done}
+								<button type="button" class="cmd-link" onclick={() => onGoToTab('plan')}>
+									Set
+								</button>
+							{/if}
+						</li>
+					{/each}
+				</ul>
+				<div class="setup__cta">
+					<Button onclick={() => onGoToTab('plan')}>Open Plan</Button>
+				</div>
+			</div>
+		</Card>
+		{#if hasLocation}
+			<div class="setup-map">
+			<Card title="Location" padding="sm">
+				<div class="cmd-map">
+					{#if browser}
+						{#await import('$lib/components/JobSiteMap.svelte')}
+							<div class="cmd-map__loading">Loading map…</div>
+						{:then { default: JobSiteMap }}
+							<JobSiteMap
+								sites={[
+									{
+										id: jobSite.id,
+										name: jobSite.name,
+										status: jobSite.status as 'active' | 'completed' | 'archived',
+										latitude: jobSite.latitude,
+										longitude: jobSite.longitude,
+										location_description: jobSite.location_description
+									}
+								]}
+								height="200px"
+							/>
+						{/await}
+					{/if}
+				</div>
+			</Card>
+			</div>
+		{/if}
+	</div>
+{:else}
 <PlanPace jobSiteId={jobSite.id} />
+
 <CardGrid>
 	<Card span="full" padding="md">
 		<div class="next-action">
@@ -185,6 +267,7 @@
 		</div>
 	</Card>
 
+	{#if hasContract}
 	<Card title="Contract" padding="sm">
 		<dl class="cmd-list">
 			<div class="cmd-row">
@@ -205,24 +288,10 @@
 			</div>
 		</dl>
 	</Card>
+	{/if}
 
-	<Card title="Production vs Plan" padding="sm">
-		<div class="cmd-prod">
-			<div class="cmd-prod__nums">
-				<StatTile label="Placed" value={placedTons > 0 ? fmt(placedTons, 1) : '—'} unit={placedTons > 0 ? 't' : undefined} />
-				<StatTile label="Planned" value={plannedTons ? fmt(plannedTons, 1) : '—'} unit={plannedTons ? 't' : undefined} />
-			</div>
-			{#if placedPct != null}
-				<div class="cmd-prod__bar" role="img" aria-label="{placedPct}% of planned tonnage placed">
-					<div class="cmd-prod__fill" style="width: {placedPct}%"></div>
-				</div>
-				<span class="cmd-prod__pct">{placedPct}% of plan placed</span>
-			{:else}
-				<span class="cmd-prod__pct cmd-prod__pct--muted">Set planned tonnage to track progress</span>
-			{/if}
-		</div>
-	</Card>
 </CardGrid>
+{/if}
 
 <style>
 	.next-action {
@@ -260,6 +329,122 @@
 		color: var(--text-muted);
 		line-height: 1.4;
 		max-width: 60ch;
+	}
+
+	/* Setup cards size to their content (CardGrid would stretch them to match). */
+	.setup-stack {
+		display: grid;
+		gap: var(--sp-4);
+		align-items: start;
+	}
+
+	/* The page sidebar already shows the map on wide screens. */
+	@media (min-width: 1024px) {
+		.setup-map {
+			display: none;
+		}
+	}
+
+	.setup {
+		display: grid;
+		gap: var(--sp-4);
+	}
+
+	.setup__head {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: var(--sp-3);
+	}
+
+	.setup__title {
+		display: block;
+		font-size: var(--fs-lg);
+		color: var(--text);
+		margin-bottom: var(--sp-1);
+	}
+
+	.setup__body {
+		margin: 0;
+		font-size: var(--fs-sm);
+		color: var(--text-muted);
+		max-width: 60ch;
+	}
+
+	.setup__left {
+		flex-shrink: 0;
+		padding: 4px 10px;
+		border-radius: 999px;
+		border: 1px solid var(--warn);
+		color: var(--warn);
+		font-size: var(--fs-xs, 0.8rem);
+		font-weight: var(--fw-bold);
+	}
+
+	.setup__list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		overflow: hidden;
+	}
+
+	.setup__item {
+		display: grid;
+		grid-template-columns: 28px 1fr auto;
+		align-items: center;
+		gap: var(--sp-3);
+		min-height: 48px;
+		padding: 0 var(--sp-3);
+	}
+
+	.setup__item + .setup__item {
+		border-top: 1px solid var(--border);
+	}
+
+	.setup__check {
+		display: grid;
+		place-items: center;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		border: 2px solid var(--text-muted);
+		font-size: 0.75rem;
+		font-weight: 900;
+	}
+
+	.setup__item--done .setup__check {
+		background: var(--good);
+		border-color: var(--good);
+		color: var(--bg);
+	}
+
+	.setup__item--done .setup__label {
+		color: var(--text-muted);
+	}
+
+	.setup__label {
+		font-weight: var(--fw-semibold);
+	}
+
+	.setup__item .cmd-link {
+		min-height: 44px;
+		padding: 0 var(--sp-2);
+	}
+
+	.setup__cta {
+		display: flex;
+		justify-content: flex-end;
+	}
+
+	.visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
 	}
 
 	.next-action__cta {
@@ -345,42 +530,5 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-	}
-
-	.cmd-prod {
-		display: flex;
-		flex-direction: column;
-		gap: var(--sp-3);
-	}
-
-	.cmd-prod__nums {
-		display: grid;
-		grid-template-columns: repeat(2, 1fr);
-		gap: var(--sp-3);
-	}
-
-	.cmd-prod__bar {
-		height: 8px;
-		background: var(--surface-alt);
-		border-radius: var(--radius-pill);
-		overflow: hidden;
-	}
-
-	.cmd-prod__fill {
-		height: 100%;
-		background: var(--accent);
-		border-radius: var(--radius-pill);
-		transition: width var(--dur) var(--ease);
-	}
-
-	.cmd-prod__pct {
-		font-size: var(--fs-sm);
-		font-weight: var(--fw-semibold);
-		color: var(--text);
-	}
-
-	.cmd-prod__pct--muted {
-		color: var(--text-muted);
-		font-weight: var(--fw-medium);
 	}
 </style>
