@@ -23,8 +23,11 @@
 		jobSiteId,
 		calculations,
 		openCalculators = false,
-		onCalculatorsOpened
+		onCalculatorsOpened,
+		section = 'progress'
 	}: {
+		/** Which job tab is showing: Progress (log, calculators) or Quality. */
+		section?: 'progress' | 'quality';
 		jobSiteId: string;
 		calculations: Calculation[];
 		/** One-shot from the project header. Parent clears it via onCalculatorsOpened. */
@@ -49,24 +52,10 @@
 </script>
 
 <div class="production-tab">
+{#if section === 'quality'}
 	<section class="production-tab__group">
 		<SectionHeader
-			title="Daily Log & Progress"
-			subtitle="Per-day production history, tonnage and station progress."
-			as="h3"
-		>
-			{#snippet actions()}
-				<Button variant="ghost" size="sm" href="/dashboard/job-sites/{jobSiteId}/log">
-					Today's Log
-				</Button>
-			{/snippet}
-		</SectionHeader>
-		<DailyLogTab {jobSiteId} />
-	</section>
-
-	<section class="production-tab__group">
-		<SectionHeader
-			title="Quality Control"
+			title="Quality"
 			subtitle="Spread-rate compliance and nuclear density are recorded per day."
 			as="h3"
 		/>
@@ -81,6 +70,22 @@
 				</Button>
 			</div>
 		</Card>
+	</section>
+
+{:else}
+	<section class="production-tab__group">
+		<SectionHeader
+			title="Daily log and progress"
+			subtitle="Per-day production history, tonnage and station progress."
+			as="h3"
+		>
+			{#snippet actions()}
+				<Button variant="ghost" size="sm" href="/dashboard/job-sites/{jobSiteId}/log">
+					Today's Log
+				</Button>
+			{/snippet}
+		</SectionHeader>
+		<DailyLogTab {jobSiteId} />
 	</section>
 
 	<section class="production-tab__group" id="project-calculators" bind:this={calculatorSection}>
@@ -108,6 +113,7 @@
 		/>
 		<CalculationsTab {calculations} onNewCalculation={() => (showCalculator = true)} />
 	</section>
+{/if}
 </div>
 
 <style>
