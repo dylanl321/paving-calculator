@@ -41,6 +41,9 @@
 			as="h3"
 		>
 			{#snippet actions()}
+				<Button variant="ghost" size="sm" href="/dashboard/job-sites/{jobSiteId}/report">
+					Printable report
+				</Button>
 				<Button variant="ghost" size="sm" href="/api/job-sites/{jobSiteId}/export">
 					Export CSV
 				</Button>

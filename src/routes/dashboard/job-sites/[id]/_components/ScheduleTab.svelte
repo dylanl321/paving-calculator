@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { Milestone } from '../+page';
 	import { toastStore } from '$lib/stores/toast.svelte';
 	import { api } from '$lib/utils/api-error';
+	import type { CrewConflict, CrewWindow } from '$lib/plan-status';
 
 	interface MilestoneResponse {
 		milestone: Milestone;
@@ -49,6 +51,42 @@
 	let suggestionsLoaded = $state(false);
 	let dismissedSuggestions = $state(new Set<number>());
 	let acceptingSuggestions = $state(false);
+	let crews = $state<CrewWindow[]>([]);
+	let conflicts = $state<CrewConflict[]>([]);
+	let weatherDays = $state<string[]>([]);
+	let windowStart = $state('');
+	let windowEnd = $state('');
+	let windowCrewId = $state('');
+
+	onMount(() => {
+		void loadSchedule();
+	});
+
+	async function loadSchedule() {
+		try {
+			const data = await api.get<{
+				crews?: CrewWindow[];
+				conflicts?: CrewConflict[];
+				weatherDays?: string[];
+			}>(`/api/job-sites/${jobSiteId}/schedule`, { silent: true });
+			crews = data.crews ?? [];
+			conflicts = data.conflicts ?? [];
+			weatherDays = data.weatherDays ?? [];
+			if (!windowCrewId && crews[0]) windowCrewId = crews[0].crewId;
+		} catch {
+			crews = [];
+		}
+	}
+
+	async function saveWindow() {
+		if (!windowCrewId) return;
+		await api.patch(`/api/org/crews/${windowCrewId}/job-sites/${jobSiteId}`, {
+			start_date: windowStart || null,
+			end_date: windowEnd || null
+		});
+		toastStore.success('Crew dates saved');
+		await loadSchedule();
+	}
 
 	async function createMilestone() {
 		if (!milestoneForm.name) return;
@@ -170,6 +208,39 @@
 		suggestionsResponse ? suggestionsResponse.suggestions.filter(s => !dismissedSuggestions.has(s.pct)) : []
 	);
 </script>
+
+<section class="section">
+	<h3>Crew dates and weather</h3>
+	{#if conflicts.length > 0}
+		<div class="suggestions-warning" role="alert">
+			{#each conflicts as conflict (conflict.crewId + conflict.a.jobSiteId + conflict.b.jobSiteId)}
+				<p>{conflict.crewName} is booked on {conflict.a.jobName} and {conflict.b.jobName} over the same dates.</p>
+			{/each}
+		</div>
+	{/if}
+	{#if weatherDays.length > 0}
+		<p>Weather days (not counted as missed production): {weatherDays.join(', ')}</p>
+	{:else}
+		<p>No rain days logged yet. A rainy daily log is left out of the pace comparison.</p>
+	{/if}
+	{#if crews.length > 0}
+		<form class="milestone-form" onsubmit={(event) => { event.preventDefault(); void saveWindow(); }}>
+			<label>
+				Crew
+				<select bind:value={windowCrewId}>
+					{#each crews as crew (crew.crewId)}
+						<option value={crew.crewId}>{crew.crewName}</option>
+					{/each}
+				</select>
+			</label>
+			<label>Start <input type="date" bind:value={windowStart} /></label>
+			<label>End <input type="date" bind:value={windowEnd} /></label>
+			<button type="submit" class="btn-secondary">Save crew dates</button>
+		</form>
+	{:else}
+		<p>Assign a crew on the Resources tab, then set the dates they will be on this project.</p>
+	{/if}
+</section>
 
 <section class="section">
 	<div class="section-header">

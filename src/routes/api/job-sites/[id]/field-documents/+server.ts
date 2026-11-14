@@ -1,8 +1,29 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireAuth } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
-import { commitFieldDocument, extractFieldDocument } from '$lib/server/field-documents';
+import { commitFieldDocument, extractFieldDocumentSmart, type TextCompleter } from '$lib/server/field-documents';
+import { notifyOrg, quietSender } from '$lib/server/notify';
 import { pdfToPositionedText } from '$lib/server/pdf/parse-gdot';
+
+function workersAiCompleter(ai: unknown): TextCompleter | undefined {
+	if (!ai || typeof ai !== 'object' || !('run' in ai) || typeof (ai as { run?: unknown }).run !== 'function') {
+		return undefined;
+	}
+	const run = (ai as { run: (model: string, input: Record<string, unknown>) => Promise<unknown> }).run.bind(ai);
+	return {
+		async complete(prompt: string) {
+			const result = await run('@cf/meta/llama-3.1-8b-instruct', {
+				messages: [{ role: 'user', content: prompt }],
+				max_tokens: 500
+			});
+			if (typeof result === 'string') return result;
+			if (result && typeof result === 'object' && 'response' in result) {
+				return String((result as { response: unknown }).response ?? '');
+			}
+			return JSON.stringify(result ?? '');
+		}
+	};
+}
 
 async function readText(request: Request): Promise<{ text: string; filename: string | null; action: string; kind?: string; fields?: unknown }> {
 	const contentType = request.headers.get('content-type') ?? '';
@@ -74,7 +95,8 @@ export async function POST(event: RequestEvent) {
 		if (!payload.text.trim()) {
 			return json({ error: 'Paste the document text or upload a file' }, { status: 400 });
 		}
-		const draft = extractFieldDocument(payload.text);
+		const completer = workersAiCompleter(event.platform.env.AI);
+		const draft = await extractFieldDocumentSmart(payload.text, completer);
 		if (!draft) {
 			return json(
 				{
@@ -83,6 +105,22 @@ export async function POST(event: RequestEvent) {
 				},
 				{ status: 422 }
 			);
+		}
+		const day = new Date().toISOString().slice(0, 10);
+		try {
+			await notifyOrg(
+				event.platform.env.DB,
+				{
+					orgId: org.id,
+					eventKey: `document_review:${jobSiteId}:${draft.kind}:${day}`,
+					eventType: 'document_review',
+					subject: `Document needs review: ${draft.kind.replaceAll('_', ' ')}`,
+					text: `${jobSite.name} has a ${draft.kind.replaceAll('_', ' ')} waiting for confirmation.`
+				},
+				quietSender
+			);
+		} catch (err) {
+			console.error('document review notice failed:', err);
 		}
 		return json({ draft, filename: payload.filename });
 	} catch (error) {

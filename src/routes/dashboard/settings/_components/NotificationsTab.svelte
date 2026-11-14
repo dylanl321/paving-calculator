@@ -227,6 +227,20 @@
 			</div>
 		</label>
 		<label class="notification-toggle">
+			<input type="checkbox" bind:checked={notificationPrefs.email_document_review} />
+			<div class="notification-info">
+				<span class="notification-label">Documents to review</span>
+				<span class="notification-desc">Email when a ticket, cert, or daily report is waiting for confirmation</span>
+			</div>
+		</label>
+		<label class="notification-toggle">
+			<input type="checkbox" bind:checked={notificationPrefs.email_crew_assigned} />
+			<div class="notification-info">
+				<span class="notification-label">Crew assignments</span>
+				<span class="notification-desc">Email when your crew is assigned to a project</span>
+			</div>
+		</label>
+		<label class="notification-toggle">
 			<input type="checkbox" bind:checked={notificationPrefs.email_job_updates} />
 			<div class="notification-info">
 				<span class="notification-label">Job Status Changes</span>

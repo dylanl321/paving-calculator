@@ -16,6 +16,7 @@
 	import Card from '$lib/components/ui/Card.svelte';
 	import StatTile from '$lib/components/ui/StatTile.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
+	import PlanPace from './PlanPace.svelte';
 
 	let {
 		data,
@@ -126,6 +127,7 @@
 	});
 </script>
 
+<PlanPace jobSiteId={jobSite.id} />
 <CardGrid>
 	<Card span="full" padding="md">
 		<div class="next-action">

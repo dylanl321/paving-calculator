@@ -2,6 +2,8 @@ import { json, error } from '@sveltejs/kit';
 import { DbHelper } from '$lib/server/db';
 import { DbLogHelper } from '$lib/server/db-logs';
 import { recordAudit } from '$lib/server/audit';
+import { notifyOrg, quietSender } from '$lib/server/notify';
+import { loadPlanStatus } from '$lib/server/plan-query';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ params, locals, platform, request }) => {
@@ -39,6 +41,40 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 	}
 
 	await logDb.closeDailyLog(params.logId, foremanName);
+
+	try {
+		await notifyOrg(
+			platform!.env.DB,
+			{
+				orgId: org.id,
+				eventKey: `daily_log:${log.id}`,
+				eventType: 'daily_log_submitted',
+				subject: `Daily log submitted: ${jobSite.name}`,
+				text: `${foremanName} submitted the ${log.log_date} log for ${jobSite.name}.`
+			},
+			quietSender
+		);
+		const plan = await loadPlanStatus(platform!.env.DB, params.id);
+		if (
+			plan?.plannedTons &&
+			plan.tonsRemaining != null &&
+			plan.tonsRemaining / plan.plannedTons <= 0.1
+		) {
+			await notifyOrg(
+				platform!.env.DB,
+				{
+					orgId: org.id,
+					eventKey: `low_tonnage:${params.id}`,
+					eventType: 'low_tonnage',
+					subject: `Low tonnage remaining: ${jobSite.name}`,
+					text: `${plan.tonsRemaining} tons remain of ${plan.plannedTons} planned on ${jobSite.name}.`
+				},
+				quietSender
+			);
+		}
+	} catch (err) {
+		console.error('log close notice failed:', err);
+	}
 
 	await recordAudit(platform!.env.DB, {
 		actorUserId: locals.user.id,

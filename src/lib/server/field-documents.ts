@@ -160,6 +160,59 @@ export function extractFieldDocument(text: string): FieldDocumentDraft | null {
 	return null;
 }
 
+export interface TextCompleter {
+	complete(prompt: string): Promise<string>;
+}
+
+function draftIsUsable(draft: FieldDocumentDraft): boolean {
+	if (draft.kind === 'weight_ticket') return (draft.fields.tons ?? 0) > 0;
+	if (draft.kind === 'material_certification') return !!draft.fields.material;
+	return !!draft.fields.date;
+}
+
+function parseModelDraft(raw: string): FieldDocumentDraft | null {
+	const start = raw.indexOf('{');
+	const end = raw.lastIndexOf('}');
+	if (start < 0 || end <= start) return null;
+	try {
+		const parsed = JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>;
+		const kind = parsed.kind;
+		if (kind !== 'weight_ticket' && kind !== 'material_certification' && kind !== 'daily_report') {
+			return null;
+		}
+		return { kind, fields: parsed.fields } as FieldDocumentDraft;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Labeled text is read first. When that misses the fields a person would
+ * confirm, an optional completer (Workers AI or Bedrock) may fill them.
+ * Any model error keeps the labeled result, including null.
+ */
+export async function extractFieldDocumentSmart(
+	text: string,
+	completer?: TextCompleter
+): Promise<FieldDocumentDraft | null> {
+	const labeled = extractFieldDocument(text);
+	if (labeled && draftIsUsable(labeled)) return labeled;
+	if (!completer) return labeled;
+	try {
+		const raw = await completer.complete(
+			'Extract a paving field document as JSON with kind weight_ticket | material_certification | daily_report and a fields object. ' +
+				'weight_ticket fields: tons, mix, truck, ticket_number, time, date. ' +
+				'material_certification fields: material, spec, supplier, category. ' +
+				'daily_report fields: date, tons, weather, temp_f, notes, crew_count. ' +
+				'Use null when unknown. Document:\n' +
+				text.slice(0, 6000)
+		);
+		return parseModelDraft(raw) ?? labeled;
+	} catch {
+		return labeled;
+	}
+}
+
 export interface CommitResult {
 	kind: FieldDocumentKind;
 	id: string;
