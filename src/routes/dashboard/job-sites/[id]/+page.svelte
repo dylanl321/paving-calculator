@@ -23,7 +23,20 @@
 
 	let { data }: { data: PageData } = $props();
 
-	let activeTab = $state('command');
+	let activeTab = $state('today');
+	// Old tab ids (Command, Plan, Production, Resources, Records) still arrive from
+	// child components and links; map them onto the goal-based tabs.
+	const LEGACY_TAB: Record<string, string> = {
+		command: 'today',
+		plan: 'setup',
+		configuration: 'setup',
+		resources: 'setup',
+		production: 'progress',
+		records: 'docs'
+	};
+	function goToTab(tab: string) {
+		activeTab = LEGACY_TAB[tab] ?? tab;
+	}
 	// One-shot flag: the header Calculators action sets this so ProductionTab
 	// opens the in-project calculator panel, then clears it.
 	let openCalculators = $state(false);
@@ -107,7 +120,7 @@
 	}
 
 	function handleNewCalculation() {
-		activeTab = 'production';
+		activeTab = 'progress';
 		openCalculators = true;
 	}
 
@@ -258,11 +271,11 @@
 	const canManageCrews = $derived(['owner', 'admin'].includes(data.org?.role ?? ''));
 
 	const tabs = $derived([
-		{ id: 'command', label: 'Command' },
-		{ id: 'plan', label: 'Plan' },
-		{ id: 'production', label: 'Production' },
-		{ id: 'resources', label: 'Resources', count: equipmentList.length || null },
-		{ id: 'records', label: 'Records' }
+		{ id: 'today', label: 'Today' },
+		{ id: 'progress', label: 'Progress' },
+		{ id: 'quality', label: 'Quality' },
+		{ id: 'setup', label: 'Setup', count: setupCompleteness.missing.length || null },
+		{ id: 'docs', label: 'Documents' }
 	]);
 </script>
 
@@ -276,7 +289,7 @@
 	<div class="breadcrumb">
 		<Breadcrumbs
 			crumbs={[
-				{ label: 'Projects', href: '/dashboard/projects' },
+				{ label: 'Jobs', href: '/dashboard/projects' },
 				{ label: jobSiteState.name }
 			]}
 		/>
@@ -288,7 +301,7 @@
 			<div class="page-meta">
 				<StatusBadge status={jobSiteState.status} />
 				{#if setupCompleteness.score < 100}
-					<button type="button" class="setup-chip" onclick={() => (activeTab = 'command')}>
+					<button type="button" class="setup-chip" onclick={() => (activeTab = 'setup')}>
 						Setup {setupCompleteness.score}%
 					</button>
 				{/if}
@@ -408,7 +421,7 @@
 				{/each}
 			</nav>
 
-			{#if activeTab === 'command'}
+			{#if activeTab === 'today'}
 				<CommandTab
 					data={{
 						...data,
@@ -425,9 +438,9 @@
 					setupScore={setupCompleteness.score}
 					missingFields={setupCompleteness.missing}
 					setupFields={setupCompleteness.fields}
-					onGoToTab={(tab) => (activeTab = tab)}
+					onGoToTab={goToTab}
 				/>
-			{:else if activeTab === 'plan'}
+			{:else if activeTab === 'setup'}
 				<PlanTab
 					jobSite={jobSiteState}
 					jobSiteId={jobSiteState.id}
@@ -453,14 +466,7 @@
 						routeWaypointsState = [...waypoints];
 					}}
 				/>
-			{:else if activeTab === 'production'}
-				<ProductionTab
-					jobSiteId={jobSiteState.id}
-					calculations={data.calculations}
-					{openCalculators}
-					onCalculatorsOpened={() => (openCalculators = false)}
-				/>
-			{:else if activeTab === 'resources'}
+				<div class="setup-resources">
 				<ResourcesTab
 					jobSiteId={jobSiteState.id}
 					jobSiteName={jobSiteState.name}
@@ -468,11 +474,20 @@
 					assignments={data.assignments}
 					{canManageCrews}
 				/>
-			{:else if activeTab === 'records'}
+				</div>
+			{:else if activeTab === 'progress' || activeTab === 'quality'}
+				<ProductionTab
+					section={activeTab === 'quality' ? 'quality' : 'progress'}
+					jobSiteId={jobSiteState.id}
+					calculations={data.calculations}
+					{openCalculators}
+					onCalculatorsOpened={() => (openCalculators = false)}
+				/>
+			{:else if activeTab === 'docs'}
 				<RecordsTab
 					jobSiteId={jobSiteState.id}
 					{configForm}
-					onGoToTab={(tab) => (activeTab = tab)}
+					onGoToTab={goToTab}
 				/>
 			{/if}
 		</div>
@@ -830,5 +845,8 @@
 		.project-menu {
 			flex: none;
 		}
+	}
+	.setup-resources {
+		margin-top: var(--sp-8, 40px);
 	}
 </style>

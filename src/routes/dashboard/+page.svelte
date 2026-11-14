@@ -42,6 +42,26 @@
 					: 'Field'
 	);
 
+	// The page title is the answer to the role's first question, not a greeting.
+	// The foreman's answer is computed live inside ForemanToday, which renders
+	// its own heading, so the header there is just the org name.
+	const activeCount = $derived(projects.filter((p) => p.status?.toLowerCase() === 'active').length);
+	const homeTitle = $derived.by(() => {
+		if (uxRole === 'owner') {
+			const tons = Math.round(portfolio.counts.tons_today).toLocaleString();
+			const logging = portfolio.counts.logging_today;
+			if (logging === 0) return activeCount > 0 ? `No job is paving yet today` : 'No active jobs';
+			return `${tons} t placed today on ${logging} job${logging === 1 ? '' : 's'}`;
+		}
+		if (uxRole === 'admin_office') {
+			const gaps = portfolio.setup_gaps.length;
+			return gaps === 0
+				? 'Every active job is ready to pave'
+				: `${gaps} job${gaps === 1 ? ' is' : 's are'} not ready to pave`;
+		}
+		return 'Today';
+	});
+
 	// ── Email-verify strip (demoted from a full banner) ────────────────────
 	// svelte-ignore state_referenced_locally
 	let emailVerified = $state((data.user as DashboardUser)?.email_verified ?? true);
@@ -115,11 +135,13 @@
 		</div>
 	{/if}
 
-	<PageHeader title="Welcome back" subtitle={org?.name} eyebrow={roleTitle}>
-		{#snippet actions()}
-			<Button variant="ghost" href="/dashboard/projects">View projects</Button>
-		{/snippet}
-	</PageHeader>
+	{#if uxRole !== 'foreman'}
+		<PageHeader title={homeTitle} subtitle={org?.name} eyebrow={roleTitle}>
+			{#snippet actions()}
+				<Button variant="ghost" href="/dashboard/projects">All jobs</Button>
+			{/snippet}
+		</PageHeader>
+	{/if}
 
 	{#if uxRole === 'owner' || uxRole === 'admin_office'}
 		<OrgPlanStrip />

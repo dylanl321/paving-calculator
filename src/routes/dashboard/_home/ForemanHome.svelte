@@ -16,6 +16,7 @@
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import ProgressBar from './ProgressBar.svelte';
+	import ForemanToday from './ForemanToday.svelte';
 	import { formatTonsWhole, type Portfolio } from './types';
 	import type { EnrichedProject } from '$lib/loaders/project-summaries';
 
@@ -43,6 +44,10 @@
 	function handleChooserKey(e: KeyboardEvent) {
 		if (e.key === 'Escape') showChooser = false;
 	}
+
+	// The job the Today answer is about: the one logging now, else the only
+	// active job. With several active jobs and none logging, the chooser stays.
+	const focusJob = $derived(activeJobs.find((s) => s.today_log_open) ?? (activeJobs.length === 1 ? activeJobs[0] : null));
 
 	// Does the quick-start job already have an open log today? Drives Start vs Continue.
 	const quickStartContinue = $derived(quickStartJob?.today_log_open === true);
@@ -79,6 +84,12 @@
 		</div>
 	</Card>
 {:else}
+	{#if focusJob}
+		<ForemanToday job={focusJob} />
+	{:else}
+	<h1 class="headline">
+		{activeJobs.length > 1 ? `${activeJobs.length} jobs are active. Pick today's.` : 'No active job today'}
+	</h1>
 	<!-- ── BIG primary CTA: start/continue today's log in one tap ──────────── -->
 	<section class="cta">
 		{#if quickStartJob && activeJobs.length <= 1}
@@ -140,6 +151,7 @@
 			<StatTile label="Crews ready" value={withCrew} unit={`of ${activeJobs.length}`} />
 		</CardGrid>
 	</section>
+	{/if}
 
 	<CardGrid min="320px">
 		<!-- ── Assigned / active jobs ───────────────────────────────────────── -->
@@ -213,6 +225,12 @@
 {/if}
 
 <style>
+	.headline {
+		margin: 0 0 var(--sp-4);
+		font-size: clamp(1.75rem, 4vw, 2.25rem);
+		font-weight: var(--fw-semibold);
+		letter-spacing: -0.02em;
+	}
 	.band {
 		margin-bottom: var(--sp-4);
 	}

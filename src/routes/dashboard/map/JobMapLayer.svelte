@@ -45,17 +45,20 @@
 	let {
 		site,
 		focused = false,
+		color = null,
 		onSelect
 	}: {
 		site: MapJobSite;
 		focused?: boolean;
+		/** Lens color for the line; falls back to accent (focused) or neutral. */
+		color?: string | null;
 		onSelect?: (id: string) => void;
 	} = $props();
 
 	const ACCENT = '#f2c037';
 	const NEUTRAL = '#94a3b8';
 
-	const lineColor = $derived(focused ? ACCENT : NEUTRAL);
+	const lineColor = $derived(color ?? (focused ? ACCENT : NEUTRAL));
 	const lineWidth = $derived(focused ? 5 : 3);
 	const lineOpacity = $derived(focused ? 0.95 : 0.6);
 

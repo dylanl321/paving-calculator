@@ -11,6 +11,17 @@
 	import type { Map as MapLibreMap } from 'maplibre-gl';
 	import type { RoadwayLogEventMarker } from '$lib/components/map-v2/RoadwayLogLayer.svelte';
 	import JobMapLayer from './JobMapLayer.svelte';
+	import AddLoadSheet from '$lib/components/AddLoadSheet.svelte';
+	import {
+		MAP_LENSES,
+		defaultLensForRole,
+		parseLens,
+		sitesForLens,
+		lensColor,
+		lensSummary,
+		type MapLens,
+		type LensLive
+	} from '$lib/map-lens';
 
 	interface RouteWaypoint {
 		lat: number;
@@ -66,7 +77,46 @@
 	// continue to work and override it.
 	const uxRole = $derived<UxRole>(getUxRole(authStore.org?.role ?? ''));
 	let roleDefaultApplied = $state(false);
-	let roleBannerDismissed = $state(false);
+
+	// ── lenses: what the map is showing ─────────────────────────────────────────
+	let lens = $state<MapLens>('today');
+	// Live "who is paving now" status. Owner/admin only on the server; for other
+	// roles this stays empty and the Today lens falls back to active crews.
+	let live = $state<Map<string, LensLive>>(new Map());
+	let addLoadOpen = $state(false);
+	const canEditGeometry = $derived(uxRole === 'owner' || uxRole === 'admin_office' || uxRole === 'foreman');
+
+	async function fetchLive() {
+		try {
+			const res = await fetch('/api/org/map-sites', { credentials: 'include' });
+			if (!res.ok) return;
+			const body = (await res.json()) as { sites: Array<{ id: string } & LensLive> };
+			live = new Map(body.sites.map((s) => [s.id, s]));
+		} catch {
+			// Live status is a nice-to-have; the lenses still work without it.
+		}
+	}
+
+	/** Switch lens: show that lens's jobs, fit to them, remember it in the URL. */
+	function setLens(next: MapLens) {
+		lens = next;
+		const shown = sitesForLens(sites, next, live);
+		overlayIds = new Set(shown.map((s) => s.id));
+		if (shown.length && (!focusedId || !shown.some((s) => s.id === focusedId))) {
+			focusedId = shown.find((s) => s.has_geometry)?.id ?? shown[0].id;
+		}
+		const url = new URL($page.url);
+		url.searchParams.set('lens', next);
+		if (focusedId) url.searchParams.set('job', focusedId);
+		void goto(`${url.pathname}${url.search}`, { replaceState: true, keepFocus: true, noScroll: true });
+		const withGeo = shown.filter((s) => siteLatLngs(s).length > 0);
+		if (withGeo.length) fitToSites(withGeo);
+	}
+
+	const lensLine = $derived(lensSummary(sites, lens, live));
+	const focusedLive = $derived(focusedId ? (live.get(focusedId) ?? null) : null);
+
+	const EDIT_LABELS: Record<string, string> = { route: 'road line', sections: 'sections', termini: 'start and end' };
 
 	/** Jobs a foreman/field crew would consider "today's / assigned" work. */
 	function isAssignedActive(site: MapJobSite): boolean {
@@ -77,20 +127,6 @@
 		return !site.has_geometry;
 	}
 
-	const roleBannerText = $derived.by<string | null>(() => {
-		switch (uxRole) {
-			case 'foreman':
-				return "Showing today's routes — active jobs assigned to a crew.";
-			case 'admin_office':
-				return 'Showing jobs missing geometry or setup.';
-			case 'owner':
-				return 'Portfolio status — all jobs across the org.';
-			case 'field_crew':
-				return 'Showing your assigned routes.';
-			default:
-				return null;
-		}
-	});
 
 	// ── editing on the full-screen surface ──────────────────────────────────────
 	// The full-screen page reuses the SAME 4a controllers (via ProjectMapWorkspace)
@@ -234,7 +270,11 @@
 						(s.location_description ?? '').toLowerCase().includes(q)
 				)
 			: sites;
-		return [...list].sort((a, b) => a.name.localeCompare(b.name));
+		// Jobs the current lens is about come first, then the rest by name.
+		const inLens = new Set(sitesForLens(sites, lens, live).map((s) => s.id));
+		return [...list].sort(
+			(a, b) => Number(inLens.has(b.id)) - Number(inLens.has(a.id)) || a.name.localeCompare(b.name)
+		);
 	});
 
 	const pinnedCount = $derived(sites.filter((s) => s.latitude != null && s.longitude != null).length);
@@ -384,8 +424,9 @@
 	function applyRoleDefault() {
 		if (roleDefaultApplied) return;
 		roleDefaultApplied = true;
-
-		const relevant = uxRole === 'owner' ? sites : roleRelevantSites;
+		lens = parseLens($page.url.searchParams.get('lens')) ?? defaultLensForRole(uxRole);
+		const lensSites = sitesForLens(sites, lens, live);
+		const relevant = lensSites.length > 0 ? lensSites : uxRole === 'owner' ? sites : roleRelevantSites;
 		const next = new Set<string>();
 		for (const s of relevant) next.add(s.id);
 		overlayIds = next;
@@ -461,7 +502,8 @@
 		}
 		// Wait for the role default to settle before fitting the overview.
 		if (!roleDefaultApplied) return;
-		const overview = (uxRole === 'owner' ? sites : roleRelevantSites).filter(
+		const lensSites = sitesForLens(sites, lens, live);
+		const overview = (lensSites.length > 0 ? lensSites : uxRole === 'owner' ? sites : roleRelevantSites).filter(
 			(s) => siteLatLngs(s).length > 0
 		);
 		if (overview.length > 0) {
@@ -487,7 +529,7 @@
 	}
 
 	onMount(() => {
-		if (browser) void fetchSites();
+		if (browser) void Promise.all([fetchLive(), fetchSites()]);
 	});
 </script>
 
@@ -499,7 +541,7 @@
 	<aside class="panel" class:open={panelOpen}>
 		<div class="panel-head">
 			<div>
-				<h2>Jobs Map</h2>
+				<h2>Map</h2>
 				<p class="panel-sub">
 					{geometryCount} with routes · {pinnedCount} pinned · {sites.length} total
 				</p>
@@ -521,18 +563,10 @@
 			</div>
 		</div>
 
-		{#if roleBannerText && !roleBannerDismissed && !loading}
-			<div class="role-banner">
-				<span class="role-banner-text">{roleBannerText}</span>
-				<button
-					type="button"
-					class="role-banner-dismiss"
-					onclick={() => (roleBannerDismissed = true)}
-					aria-label="Dismiss"
-				>
-					×
-				</button>
-			</div>
+		{#if !loading}
+			<p class="role-banner" role="status">
+				<span class="role-banner-text">{lensLine}</span>
+			</p>
 		{/if}
 
 		<div class="jobs-list">
@@ -551,7 +585,7 @@
 				{#each filteredSites as site (site.id)}
 					{@const isFocused = site.id === focusedId}
 					{@const isOn = isFocused || overlayIds.has(site.id)}
-					{@const needsSetup = emphasizeSetupGaps && needsGeometrySetup(site)}
+					{@const needsSetup = (emphasizeSetupGaps || lens === 'setup') && needsGeometrySetup(site)}
 					<div class="job-row" class:focused={isFocused} class:needs-setup={needsSetup}>
 						<button
 							type="button"
@@ -564,7 +598,7 @@
 								<span class="job-name">{site.name}</span>
 								<span class="job-meta">
 									{site.route_designation ?? site.location_description ?? site.status}
-									{#if !site.has_geometry}<span class="no-geo"> · pin only</span>{/if}
+									{#if !site.has_geometry}<span class="no-geo"> · no road line</span>{/if}
 								</span>
 							</span>
 							{#if needsSetup}<span class="setup-badge">Needs setup</span>{/if}
@@ -605,47 +639,75 @@
 			</button>
 		</div>
 
-		{#if focusedSite}
-			<div class="focus-banner">
-				<span class="focus-dot"></span>
-				<strong>{focusedSite.name}</strong>
-				{#if focusedSite.route_designation}<span class="focus-route">{focusedSite.route_designation}</span>{/if}
-				<a href="/dashboard/job-sites/{focusedSite.id}" class="focus-open">Open</a>
+		{#if editMode === 'view'}
+			<div class="lens-row" role="tablist" aria-label="What the map shows">
+				{#each MAP_LENSES as l (l.id)}
+					<button
+						type="button"
+						role="tab"
+						class="lens-chip"
+						class:active={lens === l.id}
+						aria-selected={lens === l.id}
+						onclick={() => setLens(l.id)}
+					>
+						{l.label}
+					</button>
+				{/each}
 			</div>
 
-			<div class="edit-switcher" role="tablist" aria-label="Edit mode">
-				<button
-					type="button"
-					class="edit-btn"
-					class:active={editMode === 'view'}
-					onclick={() => setEditMode('view')}
-				>
-					View
-				</button>
-				<button
-					type="button"
-					class="edit-btn"
-					class:active={editMode === 'route'}
-					onclick={() => setEditMode('route')}
-				>
-					Route
-				</button>
-				<button
-					type="button"
-					class="edit-btn"
-					class:active={editMode === 'sections'}
-					onclick={() => setEditMode('sections')}
-				>
-					Sections
-				</button>
-				<button
-					type="button"
-					class="edit-btn"
-					class:active={editMode === 'termini'}
-					onclick={() => setEditMode('termini')}
-				>
-					Termini
-				</button>
+			{#if focusedSite}
+				<div class="answer-card" aria-live="polite">
+					<div class="answer-head">
+						<span class="focus-dot"></span>
+						<strong>{focusedSite.name}</strong>
+						{#if focusedSite.route_designation}<span class="focus-route">{focusedSite.route_designation}</span>{/if}
+					</div>
+					<p class="answer-line">
+						{#if lens === 'today'}
+							{#if focusedLive?.today_log_open}
+								Paving now · {Math.round(focusedLive.today_tons).toLocaleString()} t in {focusedLive.today_loads} load{focusedLive.today_loads === 1 ? '' : 's'}
+							{:else if focusedSite.crew_name}
+								{focusedSite.crew_name} · not logging yet today
+							{:else}
+								No crew assigned
+							{/if}
+						{:else if lens === 'setup'}
+							{#if focusedSite.has_geometry}
+								Road line drawn · {focusedSite.sections.length} section{focusedSite.sections.length === 1 ? '' : 's'}
+							{:else}
+								No road line yet. Draw it so the crew sees lengths and stations.
+							{/if}
+						{:else}
+							{focusedSite.status === 'completed' ? 'Done' : focusedSite.status === 'active' ? 'Active' : focusedSite.status}
+							{#if focusedSite.sections.length} · {focusedSite.sections.filter((x) => x.status === 'completed').length} of {focusedSite.sections.length} sections done{/if}
+						{/if}
+					</p>
+					<div class="answer-actions">
+						{#if lens === 'today' && focusedSite.status === 'active'}
+							<button type="button" class="answer-btn primary" onclick={() => (addLoadOpen = true)}>Add load</button>
+						{/if}
+						{#if lens === 'setup' && canEditGeometry}
+							<button type="button" class="answer-btn primary" onclick={() => setEditMode('route')}>
+								{focusedSite.has_geometry ? 'Edit road line' : 'Draw road line'}
+							</button>
+							<button type="button" class="answer-btn" onclick={() => setEditMode('sections')}>Sections</button>
+							<button type="button" class="answer-btn" onclick={() => setEditMode('termini')}>Start and end</button>
+						{:else if canEditGeometry}
+							<button type="button" class="answer-btn" onclick={() => setEditMode('route')}>Edit road line</button>
+						{/if}
+						<a href="/dashboard/job-sites/{focusedSite.id}" class="answer-btn">Open job</a>
+					</div>
+				</div>
+			{/if}
+		{:else if focusedSite}
+			<div class="edit-bar" role="toolbar" aria-label="Editing">
+				<strong class="edit-title">Editing {EDIT_LABELS[editMode]} on {focusedSite.name}</strong>
+				<div class="edit-switcher" role="tablist" aria-label="What to edit">
+					<button type="button" class="edit-btn" class:active={editMode === 'route'} onclick={() => setEditMode('route')}>Road line</button>
+					<button type="button" class="edit-btn" class:active={editMode === 'sections'} onclick={() => setEditMode('sections')}>Sections</button>
+					<button type="button" class="edit-btn" class:active={editMode === 'termini'} onclick={() => setEditMode('termini')}>Start and end</button>
+				</div>
+				<button type="button" class="edit-done" onclick={() => setEditMode('view')}>Done</button>
 			</div>
 		{/if}
 
@@ -679,6 +741,7 @@
 							<JobMapLayer
 								{site}
 								focused={site.id === focusedId}
+								color={lensColor(site, lens, site.id === focusedId, live)}
 								onSelect={(id) => selectJob(id, { fly: false })}
 							/>
 						{/each}
@@ -688,6 +751,10 @@
 		{/if}
 	</div>
 </div>
+
+{#if focusedSite}
+	<AddLoadSheet bind:open={addLoadOpen} jobSiteId={focusedSite.id} jobName={focusedSite.name} nextLoadNumber={(focusedLive?.today_loads ?? 0) + 1} onsaved={fetchLive} />
+{/if}
 
 <style>
 	.map-page {
@@ -795,35 +862,17 @@
 		gap: 8px;
 		margin: 0 16px 12px;
 		padding: 8px 12px;
-		background: color-mix(in srgb, var(--accent, #f2c037) 10%, var(--surface));
-		border: 1px solid color-mix(in srgb, var(--accent, #f2c037) 35%, var(--border));
+		background: var(--surface-alt);
+		border: 1px solid var(--border);
 		border-radius: 8px;
 	}
 	.role-banner-text {
 		flex: 1;
-		font-size: 0.78rem;
+		font-size: 0.85rem;
 		line-height: 1.35;
+		font-weight: 500;
 		color: var(--text);
 	}
-	.role-banner-dismiss {
-		flex: 0 0 auto;
-		display: grid;
-		place-items: center;
-		width: 24px;
-		height: 24px;
-		background: none;
-		border: none;
-		border-radius: 6px;
-		color: var(--text-muted);
-		font-size: 1.1rem;
-		line-height: 1;
-		cursor: pointer;
-	}
-	.role-banner-dismiss:hover {
-		color: var(--text);
-		background: var(--surface-hover, rgba(255, 255, 255, 0.06));
-	}
-
 	.jobs-list {
 		flex: 1;
 		overflow-y: auto;
@@ -1045,61 +1094,142 @@
 		border-color: var(--accent, #f2c037);
 	}
 
-	.focus-banner {
+	/* Lens chips sit at the top of the map; the answer card at the bottom. */
+	.lens-row {
 		position: absolute;
 		top: 12px;
 		left: 50%;
 		transform: translateX(-50%);
 		z-index: 600;
 		display: flex;
-		align-items: center;
-		gap: 8px;
-		max-width: min(90%, 480px);
-		padding: 8px 14px;
-		background: var(--surface);
-		border: 1px solid color-mix(in srgb, var(--accent, #f2c037) 40%, var(--border));
-		border-radius: 999px;
-		box-shadow: var(--shadow-sm);
-		font-size: 0.85rem;
-		overflow: hidden;
-	}
-	.focus-dot {
-		flex: 0 0 auto;
-		width: 9px;
-		height: 9px;
-		border-radius: 50%;
-		background: var(--accent, #f2c037);
-	}
-	.focus-banner strong {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.focus-route {
-		color: var(--text-muted);
-		font-size: 0.78rem;
-		white-space: nowrap;
-	}
-	.focus-open {
-		margin-left: 4px;
-		color: var(--accent, #f2c037);
-		font-weight: 600;
-		white-space: nowrap;
-	}
-
-	.edit-switcher {
-		position: absolute;
-		top: 56px;
-		left: 50%;
-		transform: translateX(-50%);
-		z-index: 600;
-		display: flex;
-		gap: 4px;
+		gap: 6px;
 		padding: 4px;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: 999px;
-		box-shadow: var(--shadow-sm, 0 2px 8px rgba(0, 0, 0, 0.25));
+		box-shadow: var(--shadow-sm);
+	}
+	.lens-chip {
+		min-height: 44px;
+		padding: 0 16px;
+		border: none;
+		border-radius: 999px;
+		background: transparent;
+		color: var(--text-muted);
+		font: inherit;
+		font-size: 0.9rem;
+		font-weight: 500;
+		cursor: pointer;
+	}
+	.lens-chip:hover {
+		color: var(--text);
+	}
+	.lens-chip.active {
+		background: var(--text);
+		color: var(--bg);
+	}
+
+	.answer-card {
+		position: absolute;
+		left: 50%;
+		bottom: 16px;
+		transform: translateX(-50%);
+		z-index: 600;
+		width: min(92%, 520px);
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 14px 16px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: 16px;
+		box-shadow: var(--shadow-md);
+	}
+	.answer-head {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+	.answer-head strong {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 1rem;
+	}
+	.focus-dot {
+		flex: 0 0 auto;
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		background: var(--accent, #f2c037);
+	}
+	.focus-route {
+		color: var(--text-muted);
+		font-size: 0.8rem;
+		white-space: nowrap;
+	}
+	.answer-line {
+		margin: 0;
+		font-size: 1rem;
+		line-height: 1.4;
+	}
+	.answer-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+	.answer-btn {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+		padding: 0 14px;
+		border-radius: 10px;
+		border: 1px solid var(--border);
+		background: var(--surface);
+		color: var(--text);
+		font: inherit;
+		font-size: 0.9rem;
+		font-weight: 500;
+		text-decoration: none;
+		cursor: pointer;
+	}
+	.answer-btn:hover {
+		background: var(--surface-alt);
+	}
+	.answer-btn.primary {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--accent-text);
+		font-weight: 600;
+	}
+
+	/* Editing is a mode: one bar across the top with Done. */
+	.edit-bar {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		z-index: 650;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 12px;
+		background: var(--text);
+		color: var(--bg);
+	}
+	.edit-title {
+		flex: 1 1 200px;
+		min-width: 0;
+		font-size: 0.95rem;
+	}
+	.edit-switcher {
+		display: flex;
+		gap: 4px;
+		padding: 3px;
+		background: var(--surface);
+		border-radius: 999px;
 	}
 	.edit-btn {
 		min-height: 40px;
@@ -1120,11 +1250,22 @@
 		background: var(--accent);
 		color: var(--accent-text);
 	}
+	.edit-done {
+		min-height: 44px;
+		padding: 0 18px;
+		border: none;
+		border-radius: 10px;
+		background: var(--accent);
+		color: var(--accent-text);
+		font: inherit;
+		font-weight: 600;
+		cursor: pointer;
+	}
 
 	.edit-surface {
 		position: absolute;
 		inset: 0;
-		padding: 104px 12px 12px;
+		padding: 120px 12px 12px;
 		overflow-y: auto;
 		background: var(--background);
 	}
@@ -1161,8 +1302,8 @@
 		.panel.open {
 			transform: translateY(0);
 		}
-		.focus-banner {
-			max-width: 78%;
+		.lens-row {
+			top: 56px;
 		}
 	}
 </style>
