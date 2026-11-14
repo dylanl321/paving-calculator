@@ -36,6 +36,9 @@
 			}))
 	);
 
+	const primaryItems = $derived(visibleItems.filter((item) => item.section !== 'more'));
+	const moreItems = $derived(visibleItems.filter((item) => item.section === 'more'));
+
 	const currentPath = $derived($page.url.pathname);
 
 	function ownedPaths(item: NavItem): string[] {
@@ -162,12 +165,37 @@
 		</div>
 	{/if}
 
-	<NavList items={visibleItems} {activeHref} {expanded} onToggleExpanded={toggleExpanded} />
+	<NavList items={primaryItems} {activeHref} {expanded} onToggleExpanded={toggleExpanded} />
+	{#if moreItems.length > 0}
+		<div class="nav-more">
+			<span class="nav-more-label">More</span>
+			<NavList items={moreItems} {activeHref} {expanded} onToggleExpanded={toggleExpanded} />
+		</div>
+	{/if}
 	<WeatherBar />
 	<NavSidebarFooter {onOpenPalette} isAuthenticated={authStore.isAuthenticated} isCollapsed={navCollapsedStore.collapsed} orgName={orgSettingsStore.orgName} />
 </nav>
 
 <style>
+	.nav-more {
+		border-top: 1px solid var(--border);
+		margin-top: 4px;
+		padding-top: 4px;
+	}
+	.nav-more-label {
+		display: block;
+		padding: 8px 20px 0;
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		font-weight: var(--fw-medium, 500);
+	}
+	@media (min-width: 900px) and (max-width: 1099px) {
+		.nav-more-label { display: none; }
+	}
+	@media (min-width: 1100px) {
+		.sidebar.nav-collapsed .nav-more-label { display: none; }
+	}
+
 	.scrim {
 		position: fixed;
 		inset: 0;

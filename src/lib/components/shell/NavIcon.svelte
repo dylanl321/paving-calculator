@@ -12,13 +12,19 @@
 		ShieldCheck,
 		FolderKanban,
 		Building2,
-		GraduationCap
+		GraduationCap,
+		Sun,
+		FileText
 	} from 'lucide-svelte';
 
 	let { icon }: { icon: string } = $props();
 </script>
 
-{#if icon === 'calc'}
+{#if icon === 'today'}
+	<Sun size={22} />
+{:else if icon === 'report'}
+	<FileText size={22} />
+{:else if icon === 'calc'}
 	<Calculator size={22} />
 {:else if icon === 'book'}
 	<BookOpen size={22} />
