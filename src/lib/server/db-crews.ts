@@ -83,6 +83,23 @@ export class DbCrewHelper {
 			.run();
 	}
 
+	async setCrewJobWindow(
+		crewId: string,
+		jobSiteId: string,
+		orgId: string,
+		start: string | null,
+		end: string | null
+	): Promise<void> {
+		await this.db
+			.prepare(
+				`UPDATE crew_job_sites
+				 SET start_date = ?, end_date = ?
+				 WHERE crew_id = ? AND job_site_id = ? AND org_id = ?`
+			)
+			.bind(start, end, crewId, jobSiteId, orgId)
+			.run();
+	}
+
 	async removeJobSiteFromCrew(crewId: string, jobSiteId: string): Promise<void> {
 		await this.db
 			.prepare('DELETE FROM crew_job_sites WHERE crew_id = ? AND job_site_id = ?')

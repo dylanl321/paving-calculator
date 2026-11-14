@@ -178,14 +178,45 @@ Fixed on `cursor/project-management-fixes-15a9`:
   binding does not open a remote Wrangler session. Apply `0081` locally
   before using the org switcher (`npx wrangler d1 migrations apply paverate-db --local`).
 
+## Production, schedule, reports, notices (stacked follow-up)
+
+- Each project Command tab shows tons placed vs planned, miles paved vs total,
+  yield vs target spread rate, and days remaining. Pace is ahead, on schedule,
+  or behind when the gap is at least 5 points. Rain days are removed from the
+  elapsed schedule so a weather day is not a missed production day.
+- The dashboard shows the same pace across active projects for owners and
+  office. Operators and screed operators now get the crew-scoped portfolio,
+  matching project access.
+- Plan → Schedule lists crew date windows, overlap conflicts, and logged rain
+  days. Owners and admins can set a crew's start and end on the project
+  (migration `0082`). Assignments with no dates are not treated as conflicts.
+  A field role only sees the other project's name and dates when their crew
+  can open that project. Otherwise the conflict says "Another project".
+- `/dashboard/job-sites/[id]/report` is a printable project summary (browser
+  Print / Save as PDF) plus the latest daily log. CSV export is unchanged.
+- Notification routing covers daily log submitted, low tonnage remaining
+  (10% or less, once per project), a field document waiting for review (once
+  per kind per day), and crew assigned (crew members only). Missing
+  preferences count as on. Delivery does not call Resend; `quietSender` is
+  the handler default and tests pass a mock sender. Dispatches are stored in
+  `notification_dispatches` so they are not repeated.
+- Scanned field documents that the label parser cannot use may be completed
+  by Workers AI when the `AI` binding is present. A model error keeps the
+  labeled result. Tests mock the completer and do not call the network.
+- Checked the main routes at 390px and 1280px locally (overflow, unlabeled
+  controls, the new pace, schedule, report, and notification controls).
+
 ## Still open
 
 - Duplicate migration prefixes `0071` and `0074` still fail `deploy.yml`.
   Do not rename a file that remote D1 has already applied. See the promote
   checklist above.
-- Migration `0081_active_org.sql` is new. It has not been applied to remote
-  D1 from this environment. The promote checklist still applies: list remote
-  migrations before any push to `main`.
+- Migrations `0081_active_org.sql` and `0082_schedule_and_notices.sql` are new.
+  They were applied only to local D1 here. List remote migrations before any
+  push to `main`.
+- Operational notices are recorded and routed, and they are not emailed.
+  Turning on Resend for those four events is a delivery choice, separate from
+  the existing end-of-day cron, which still sends when `RESEND_API_KEY` is set.
 - `job_site_assignments` (foreman / operator / inspector rows) still have an
   API. The project page shows them when they exist and does not create new
   ones. Crew membership is the roster that controls who sees the job.

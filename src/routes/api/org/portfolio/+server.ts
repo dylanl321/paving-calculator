@@ -4,6 +4,7 @@ import { DbHelper } from '$lib/server/db';
 import { DbCrewHelper } from '$lib/server/db-crews';
 import type { DbJobSite } from '$lib/server/db-jobsites';
 import { scoreJobSite, type JobSiteCompletenessRow } from '$lib/server/completeness';
+import { isFieldProjectRole } from '$lib/server/job-site-access';
 
 /**
  * GET /api/org/portfolio
@@ -74,7 +75,7 @@ export async function GET(event: RequestEvent) {
 		// Role scoping mirrors GET /api/job-sites: foreman/laborer see only
 		// their crew's jobs; everyone else sees all org jobs.
 		let sites: DbJobSite[];
-		if (role === 'foreman' || role === 'laborer') {
+		if (isFieldProjectRole(role)) {
 			sites = await crewDb.getJobSitesByForeman(user.id, org.id);
 		} else {
 			sites = await db.getJobSitesByOrgId(org.id);

@@ -14,6 +14,7 @@
 	import OwnerHome from './_home/OwnerHome.svelte';
 	import AdminOfficeHome from './_home/AdminOfficeHome.svelte';
 	import ForemanHome from './_home/ForemanHome.svelte';
+	import OrgPlanStrip from './_home/OrgPlanStrip.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -119,6 +120,10 @@
 			<Button variant="ghost" href="/dashboard/projects">View projects</Button>
 		{/snippet}
 	</PageHeader>
+
+	{#if uxRole === 'owner' || uxRole === 'admin_office'}
+		<OrgPlanStrip />
+	{/if}
 
 	{#if uxRole === 'owner'}
 		<OwnerHome {portfolio} {projects} />
