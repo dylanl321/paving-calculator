@@ -49,6 +49,9 @@ export const PATCH: RequestHandler = async ({ params, locals, platform, request 
 	if (!org || org.id !== jobSite.org_id) {
 		throw error(403, 'Access denied');
 	}
+	if (params.id && log.job_site_id !== params.id) {
+		throw error(404, 'Daily log not found');
+	}
 
 	// Check if log is locked
 	if (log.closed_at) {
@@ -130,6 +133,9 @@ export const DELETE: RequestHandler = async ({ params, locals, platform }) => {
 	const org = await db.getOrgByUserId(locals.user.id);
 	if (!org || org.id !== jobSite.org_id) {
 		throw error(403, 'Access denied');
+	}
+	if (params.id && log.job_site_id !== params.id) {
+		throw error(404, 'Daily log not found');
 	}
 
 	// Check if log is locked

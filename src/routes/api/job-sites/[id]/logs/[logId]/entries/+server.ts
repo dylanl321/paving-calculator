@@ -20,6 +20,8 @@ interface LogEntryCreateBody {
 	notes?: string | null;
 }
 
+const ENTRY_TYPES = new Set(['paving', 'milling', 'tack', 'break', 'delay', 'note']);
+
 export const POST: RequestHandler = async ({ params, locals, platform, request }) => {
 	if (!locals.user) {
 		throw error(401, 'Unauthorized');
@@ -42,6 +44,9 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 	if (!org || org.id !== jobSite.org_id) {
 		throw error(403, 'Access denied');
 	}
+	if (params.id && log.job_site_id !== params.id) {
+		throw error(404, 'Daily log not found');
+	}
 
 	// Check if log is locked
 	if (log.closed_at) {
@@ -53,6 +58,12 @@ export const POST: RequestHandler = async ({ params, locals, platform, request }
 	}
 
 	const body = (await request.json()) as LogEntryCreateBody;
+	if (!ENTRY_TYPES.has(body.entry_type)) {
+		throw error(400, 'Invalid entry type');
+	}
+	if (body.tons_placed != null && (typeof body.tons_placed !== 'number' || body.tons_placed < 0)) {
+		throw error(400, 'Tons placed must be zero or more');
+	}
 
 	const entry = await logDb.createLogEntry(params.logId, body);
 

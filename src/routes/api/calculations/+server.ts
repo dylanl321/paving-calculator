@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { DbHelper, type DbCalculation } from '$lib/server/db';
 import { requireAuth } from '$lib/server/auth';
+import { jobSiteAccessDecision } from '$lib/server/job-site-access';
 
 export async function GET(event: RequestEvent) {
 	try {
@@ -25,6 +26,10 @@ export async function GET(event: RequestEvent) {
 			}
 			if (jobSite.org_id !== org.id) {
 				return json({ error: 'Unauthorized' }, { status: 403 });
+			}
+			const access = await jobSiteAccessDecision(event.platform!.env.DB, user.id, jobSiteId);
+			if (!access.ok) {
+				return json({ error: access.error }, { status: access.status });
 			}
 
 			calculations = await db.getCalculations({ jobSiteId, limit });
@@ -99,6 +104,10 @@ export async function POST(event: RequestEvent) {
 
 		if (jobSite.org_id !== org.id) {
 			return json({ error: 'Unauthorized' }, { status: 403 });
+		}
+		const access = await jobSiteAccessDecision(event.platform!.env.DB, user.id, body.job_site_id);
+		if (!access.ok) {
+			return json({ error: access.error }, { status: access.status });
 		}
 
 		const calculation = await db.createCalculation(
