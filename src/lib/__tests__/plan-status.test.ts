@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assessPlan, crewConflicts, type CrewWindow } from '../plan-status';
+import { assessPlan, crewConflicts, redactCrewWindow, type CrewWindow } from '../plan-status';
 
 describe('assessPlan', () => {
 	it('marks a job behind when tonnage lags the calendar, ignoring rain days', () => {
@@ -92,6 +92,18 @@ describe('crewConflicts', () => {
 		]);
 		expect(conflicts).toHaveLength(1);
 		expect(conflicts[0].crewName).toBe('Day');
+	});
+
+	it('hides the other project from someone who cannot open it', () => {
+		const hidden = redactCrewWindow(
+			base({ jobSiteId: 'secret', jobName: 'SR 400', start: '2026-06-08', end: '2026-06-12' }),
+			new Set(['a'])
+		);
+		expect(hidden.jobName).toBe('Another project');
+		expect(hidden.jobSiteId).toBe('');
+		expect(hidden.start).toBeNull();
+		expect(hidden.end).toBeNull();
+		expect(redactCrewWindow(base({}), null).jobName).toBe('A');
 	});
 
 	it('ignores crews that have no dates yet', () => {

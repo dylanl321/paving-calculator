@@ -190,6 +190,8 @@ Fixed on `cursor/project-management-fixes-15a9`:
 - Plan → Schedule lists crew date windows, overlap conflicts, and logged rain
   days. Owners and admins can set a crew's start and end on the project
   (migration `0082`). Assignments with no dates are not treated as conflicts.
+  A field role only sees the other project's name and dates when their crew
+  can open that project. Otherwise the conflict says "Another project".
 - `/dashboard/job-sites/[id]/report` is a printable project summary (browser
   Print / Save as PDF) plus the latest daily log. CSV export is unchanged.
 - Notification routing covers daily log submitted, low tonnage remaining

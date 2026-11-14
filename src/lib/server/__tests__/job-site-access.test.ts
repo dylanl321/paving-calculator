@@ -11,6 +11,7 @@ import {
 	jobSiteIdFromApiPath
 } from '../job-site-access.js';
 import { GET as listJobSites } from '../../../routes/api/job-sites/+server.js';
+import { GET as getSchedule } from '../../../routes/api/job-sites/[id]/schedule/+server.js';
 
 async function assign(db: TestDb, orgId: string, userId: string, jobSiteId: string) {
 	const crewId = crypto.randomUUID();
@@ -138,5 +139,74 @@ describe('active organization', () => {
 
 		const orgs = await helper.listUserOrgs(user.id);
 		expect(orgs.map((org) => org.id)).toEqual([newer.id, older.id]);
+	});
+});
+
+describe('schedule conflicts stay inside the caller’s projects', () => {
+	let db: TestDb;
+
+	beforeEach(() => {
+		db = createTestDb();
+	});
+	afterEach(() => db.close());
+
+	it('does not name the other project for a laborer who cannot open it', async () => {
+		const user = await createTestUser(db, { email: 'sched-labor@example.com', name: 'Labor' });
+		const owner = await createTestUser(db, { email: 'sched-owner@example.com', name: 'Owner' });
+		const org = await createTestOrg(db, { slug: 'sched-org' });
+		await createTestMembership(db, user.id, org.id, { role: 'laborer' });
+		await createTestMembership(db, owner.id, org.id, { role: 'owner' });
+		const mine = await createTestJobSite(db, org.id, { name: 'My Overlay' });
+		const secret = await createTestJobSite(db, org.id, { name: 'Secret Widening' });
+		const now = Math.floor(Date.now() / 1000);
+		const myCrew = crypto.randomUUID();
+		const otherCrew = crypto.randomUUID();
+		await db.d1
+			.prepare('INSERT INTO crews (id, org_id, name, color, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+			.bind(myCrew, org.id, 'Day crew', 'slate', owner.id, now)
+			.run();
+		await db.d1
+			.prepare('INSERT INTO crews (id, org_id, name, color, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+			.bind(otherCrew, org.id, 'Night crew', 'blue', owner.id, now)
+			.run();
+		await db.d1
+			.prepare('INSERT INTO crew_members (crew_id, user_id, org_id, assigned_at) VALUES (?, ?, ?, ?)')
+			.bind(myCrew, user.id, org.id, now)
+			.run();
+		await db.d1
+			.prepare(
+				`INSERT INTO crew_job_sites (crew_id, job_site_id, org_id, assigned_at, assigned_by, start_date, end_date)
+				 VALUES (?, ?, ?, ?, ?, ?, ?)`
+			)
+			.bind(myCrew, mine.id, org.id, now, owner.id, '2026-06-01', '2026-06-10')
+			.run();
+		for (const site of [mine, secret]) {
+			await db.d1
+				.prepare(
+					`INSERT INTO crew_job_sites (crew_id, job_site_id, org_id, assigned_at, assigned_by, start_date, end_date)
+					 VALUES (?, ?, ?, ?, ?, ?, ?)`
+				)
+				.bind(otherCrew, site.id, org.id, now, owner.id, '2026-06-01', '2026-06-10')
+				.run();
+		}
+		const sessionId = crypto.randomUUID();
+		await db.d1
+			.prepare('INSERT INTO sessions (id, user_id, expires_at, created_at) VALUES (?, ?, ?, ?)')
+			.bind(sessionId, user.id, now + 3600, now)
+			.run();
+		const event = mockRequestEvent({
+			db: db.d1,
+			params: { id: mine.id },
+			cookies: { paverate_session: sessionId }
+		});
+		const res = await getSchedule(event as any);
+		expect(res.status).toBe(200);
+		const raw = await res.text();
+		expect(raw).not.toContain('Secret Widening');
+		expect(raw).not.toContain(secret.id);
+		const body = JSON.parse(raw) as { conflicts: Array<{ a: { jobName: string }; b: { jobName: string } }> };
+		expect(body.conflicts.length).toBe(1);
+		const names = [body.conflicts[0].a.jobName, body.conflicts[0].b.jobName].sort();
+		expect(names).toEqual(['Another project', 'My Overlay']);
 	});
 });

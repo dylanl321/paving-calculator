@@ -1,7 +1,9 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { requireAuth } from '$lib/server/auth';
 import { DbHelper } from '$lib/server/db';
-import { crewConflicts, type CrewWindow } from '$lib/plan-status';
+import { DbCrewHelper } from '$lib/server/db-crews';
+import { isFieldProjectRole } from '$lib/server/job-site-access';
+import { crewConflicts, redactCrewWindow, type CrewWindow } from '$lib/plan-status';
 
 interface WindowRow {
 	crew_id: string;
@@ -80,9 +82,17 @@ export async function GET(event: RequestEvent) {
 			weatherDays = days.map((day) => day.log_date);
 		}
 
-		const conflicts = crewConflicts(windows).filter(
-			(conflict) => conflict.a.jobSiteId === id || conflict.b.jobSiteId === id
-		);
+		const role = await db.getUserRole(user.id, org.id);
+		const visibleSiteIds = isFieldProjectRole(role)
+			? new Set((await new DbCrewHelper(event.platform.env.DB).getJobSitesByForeman(user.id, org.id)).map((job) => job.id))
+			: null;
+		const conflicts = crewConflicts(windows)
+			.filter((conflict) => conflict.a.jobSiteId === id || conflict.b.jobSiteId === id)
+			.map((conflict) => ({
+				...conflict,
+				a: redactCrewWindow(conflict.a, visibleSiteIds),
+				b: redactCrewWindow(conflict.b, visibleSiteIds)
+			}));
 		return json({
 			milestones,
 			crews: windows.filter((window) => window.jobSiteId === id),

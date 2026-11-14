@@ -146,6 +146,22 @@ function windowEnd(window: CrewWindow): string | null {
 	return window.end ?? window.start;
 }
 
+/**
+ * Hide another project's identity from someone who cannot open it.
+ * Pass null when the caller can see the whole organization.
+ */
+export function redactCrewWindow(window: CrewWindow, visibleSiteIds: Set<string> | null): CrewWindow {
+	if (visibleSiteIds == null || visibleSiteIds.has(window.jobSiteId)) return window;
+	return {
+		crewId: window.crewId,
+		crewName: window.crewName,
+		jobSiteId: '',
+		jobName: 'Another project',
+		start: null,
+		end: null
+	};
+}
+
 /** Inclusive date overlap. Windows without a start date are unscheduled and do not conflict. */
 export function crewConflicts(windows: CrewWindow[]): CrewConflict[] {
 	const conflicts: CrewConflict[] = [];
