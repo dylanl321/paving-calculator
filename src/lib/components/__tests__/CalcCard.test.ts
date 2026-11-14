@@ -130,12 +130,12 @@ describe('CalcCard', () => {
 describe('ResultStat', () => {
 	it('shows placeholder text when value is null', () => {
 		render(ResultStat, { props: { value: null, unit: 'tons' } });
-		expect(screen.getByText('Enter values above to see the result')).toBeDefined();
+		expect(screen.getByText('Fill in the numbers to see the answer')).toBeDefined();
 	});
 
 	it('does not show placeholder when value is provided', () => {
 		render(ResultStat, { props: { value: '42.5', unit: 'tons' } });
-		expect(screen.queryByText('Enter values above to see the result')).toBeNull();
+		expect(screen.queryByText('Fill in the numbers to see the answer')).toBeNull();
 	});
 
 	it('renders a string value', () => {

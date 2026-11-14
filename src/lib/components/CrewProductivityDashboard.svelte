@@ -331,7 +331,7 @@
   .dashboard-title {
     margin: 0;
     font-size: 1.4rem;
-    font-weight: 700;
+    font-weight: var(--fw-bold);
   }
 
   .refresh-btn {
@@ -491,7 +491,7 @@
   .spinner {
     width: 24px;
     height: 24px;
-    border: 3px solid var(--border);
+    border: var(--line-strong) solid var(--border);
     border-top-color: var(--accent);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
@@ -537,7 +537,7 @@
     align-items: center;
     gap: 4px;
     font-size: 1rem;
-    font-weight: 800;
+    font-weight: var(--fw-heavy);
     color: var(--text-muted);
     min-width: 40px;
   }
@@ -554,7 +554,7 @@
   }
 
   .crew-name {
-    font-weight: 700;
+    font-weight: var(--fw-bold);
     font-size: 1.05rem;
   }
 
@@ -568,7 +568,7 @@
 
   .total-tons {
     font-size: 1.3rem;
-    font-weight: 800;
+    font-weight: var(--fw-heavy);
     color: var(--accent);
   }
 
@@ -610,7 +610,7 @@
 
   .metric-val {
     font-size: 1rem;
-    font-weight: 800;
+    font-weight: var(--fw-heavy);
     color: var(--text);
     line-height: 1;
   }
@@ -625,7 +625,7 @@
 
   .summary-row {
     background: var(--bg);
-    border: 2px solid var(--border);
+    border: var(--line-strong) solid var(--border);
     border-radius: var(--radius);
     padding: 16px;
     display: flex;
@@ -637,7 +637,7 @@
 
   .summary-label {
     font-size: 1rem;
-    font-weight: 700;
+    font-weight: var(--fw-bold);
     color: var(--text);
   }
 
@@ -656,7 +656,7 @@
 
   .summary-val {
     font-size: 1.2rem;
-    font-weight: 800;
+    font-weight: var(--fw-heavy);
     color: var(--accent);
     line-height: 1;
   }

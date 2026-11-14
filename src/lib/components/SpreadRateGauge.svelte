@@ -178,7 +178,7 @@
 	}
 
 	.readout-value {
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 1.1rem;
 	}
 

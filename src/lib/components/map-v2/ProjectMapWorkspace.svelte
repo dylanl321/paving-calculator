@@ -651,7 +651,7 @@
 
 	.stat-value {
 		font-size: 0.95rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 	}
 
@@ -739,7 +739,7 @@
 
 	.length-value {
 		font-size: 0.95rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 	}
 
@@ -765,7 +765,7 @@
 		font-size: 0.7rem;
 		text-transform: uppercase;
 		color: var(--text-muted);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.planned-form input {

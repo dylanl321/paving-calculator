@@ -141,7 +141,7 @@
 	.dim-label-small {
 		fill: var(--accent);
 		font-size: 11px;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.dim-label-small {
@@ -151,7 +151,7 @@
 	.dim-label-large {
 		fill: var(--text);
 		font-size: 10px;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.material-label,

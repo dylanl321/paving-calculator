@@ -349,7 +349,7 @@
 		font-size: 1.25rem;
 		font-weight: 600;
 		background: var(--bg);
-		border: 2px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-radius: var(--radius);
 		color: var(--text);
 		transition: border-color 0.2s;
@@ -363,7 +363,7 @@
 	.distance-preview {
 		text-align: center;
 		font-size: 1.5rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 		margin-bottom: 16px;
 		padding: 8px;
@@ -419,7 +419,7 @@
 		border: none;
 		border-radius: var(--radius);
 		font-size: 1rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 1px;
 		cursor: pointer;

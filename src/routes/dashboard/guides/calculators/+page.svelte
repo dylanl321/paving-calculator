@@ -647,7 +647,7 @@
 		align-items: center;
 		justify-content: center;
 		font-size: 1.5rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 	}
 
 	.calc-title {
@@ -696,7 +696,7 @@
 
 	.formula-label {
 		font-size: 0.75rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		color: var(--text-muted);
@@ -740,7 +740,7 @@
 
 	.example-label {
 		font-size: 0.75rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		color: var(--text-muted);
@@ -769,7 +769,7 @@
 
 	.consequence-label {
 		font-size: 0.75rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		color: var(--text-muted);
@@ -815,7 +815,7 @@
 
 	.consequence strong {
 		color: var(--text);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.calc-spec {
@@ -827,7 +827,7 @@
 
 	.calc-spec strong {
 		color: var(--text);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.calc-spec a {

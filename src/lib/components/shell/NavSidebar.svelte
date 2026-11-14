@@ -202,7 +202,7 @@
 	}
 	.brand img { width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0; }
 	.brand-text { display: flex; flex-direction: column; min-width: 0; }
-	.brand-name { font-weight: 700; font-size: 1.15rem; letter-spacing: 0.5px; }
+	.brand-name { font-weight: var(--fw-bold); font-size: 1.15rem; letter-spacing: 0.5px; }
 	.brand-tag { font-size: 0.72rem; color: var(--text-muted); line-height: 1.3; }
 
 	.signin-cta {
@@ -220,7 +220,7 @@
 		background: var(--accent);
 		border-radius: 10px;
 		color: var(--accent-text);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 0.9375rem;
 		transition: opacity var(--dur-normal) var(--ease);
 	}

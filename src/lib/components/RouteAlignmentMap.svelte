@@ -165,7 +165,7 @@
 		const statusLabel = site.status.charAt(0).toUpperCase() + site.status.slice(1);
 		return `<div style="min-width:160px;font-family:system-ui,sans-serif">
 				<strong style="font-size:0.95rem">${site.name}</strong><br>
-				<span style="display:inline-block;margin:4px 0;padding:2px 8px;border-radius:999px;background:${color};color:#fff;font-size:0.7rem;font-weight:700;text-transform:uppercase">${statusLabel}</span>
+				<span style="display:inline-block;margin:4px 0;padding:2px 8px;border-radius:999px;background:${color};color:#fff;font-size:0.7rem;font-weight:var(--fw-bold);text-transform:uppercase">${statusLabel}</span>
 				${site.location_description ? `<br><span style="font-size:0.8rem;color:#94a3b8">${site.location_description}</span>` : ''}
 			</div>`;
 	});
@@ -697,7 +697,7 @@
 
 	.stat-value {
 		font-size: 0.95rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 	}
 
@@ -721,7 +721,7 @@
 	}
 
 	.seg-legend-title {
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.4px;
 		color: var(--text-muted);

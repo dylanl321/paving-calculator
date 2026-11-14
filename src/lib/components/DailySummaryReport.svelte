@@ -558,7 +558,7 @@
 
 	.sheet-title {
 		font-size: 1.1rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		margin: 0 0 2px;
 		color: var(--text);
 	}
@@ -596,7 +596,7 @@
 	.spinner {
 		width: 28px;
 		height: 28px;
-		border: 3px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-top-color: var(--accent);
 		border-radius: 50%;
 		animation: spin 0.7s linear infinite;
@@ -645,7 +645,7 @@
 		color: #22c55e;
 		border: 1px solid #22c55e40;
 		font-size: 0.7rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		padding: 2px 8px;
 		border-radius: 100px;
 		text-transform: uppercase;
@@ -690,7 +690,7 @@
 
 	.section-title {
 		font-size: 0.78rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		color: var(--text-muted);
@@ -729,7 +729,7 @@
 
 	.total-value {
 		font-size: 1.4rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 		line-height: 1.2;
 	}
@@ -804,7 +804,7 @@
 
 	.entry-type-badge {
 		font-size: 0.72rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		padding: 2px 8px;
 		border-radius: 100px;
 		text-transform: uppercase;
@@ -855,7 +855,7 @@
 	.loads-header-row {
 		background: var(--surface-alt);
 		color: var(--text-muted);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 0.72rem;
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
@@ -871,9 +871,9 @@
 	}
 
 	.loads-total-row {
-		border-top: 2px solid var(--border);
+		border-top: var(--line-strong) solid var(--border);
 		background: var(--surface-alt);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 	}
 
@@ -906,7 +906,7 @@
 	.density-header-row {
 		background: var(--surface-alt);
 		color: var(--text-muted);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 0.72rem;
 		text-transform: uppercase;
 		letter-spacing: 0.04em;

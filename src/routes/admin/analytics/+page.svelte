@@ -378,7 +378,7 @@
 
 	.stat-value {
 		font-size: 2.25rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 		line-height: 1;
 	}
@@ -444,7 +444,7 @@
 
 	.chart-label {
 		font-size: 1.5rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.chart-sublabel {

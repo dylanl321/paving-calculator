@@ -140,7 +140,7 @@
   }
 
   .tpo-title {
-    font-weight: 700;
+    font-weight: var(--fw-bold);
     font-size: 0.78rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -149,7 +149,7 @@
 
   .tpo-pct {
     font-size: 1.2rem;
-    font-weight: 800;
+    font-weight: var(--fw-heavy);
     line-height: 1;
     transition: color 0.4s;
   }
@@ -188,7 +188,7 @@
   }
 
   .tpo-stat-value {
-    font-weight: 700;
+    font-weight: var(--fw-bold);
     font-size: 0.82rem;
     font-variant-numeric: tabular-nums;
   }

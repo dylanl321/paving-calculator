@@ -424,7 +424,7 @@
 
 	.site-name {
 		font-size: 1.25rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 	}
 
@@ -577,7 +577,7 @@
 	.totals-section h2 {
 		margin: 0 0 16px;
 		font-size: 1.125rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 	}
 
@@ -599,7 +599,7 @@
 
 	.total-value {
 		font-size: 1.5rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 	}
 
@@ -614,7 +614,7 @@
 	.site-selector h2 {
 		margin: 0;
 		font-size: 1.25rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 	}
 

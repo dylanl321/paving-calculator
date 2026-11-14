@@ -83,7 +83,7 @@
 		color: var(--accent-text);
 		border: none;
 		border-radius: 12px;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 0.9rem;
 		cursor: pointer;
 		transition:
@@ -112,7 +112,7 @@
 		border: none;
 		border-radius: 12px;
 		color: var(--accent-text);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 0.9rem;
 		transition:
 			opacity var(--dur-normal) var(--ease),

@@ -63,7 +63,7 @@
 		border: 0;
 		border-radius: 26px;
 		font-size: 0.95rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		cursor: pointer;
 		box-shadow:
 			0 4px 12px rgba(0, 0, 0, 0.2),

@@ -408,7 +408,7 @@
 		align-items: center;
 		justify-content: center;
 		font-size: 12px;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: #fff;
 		margin-top: 2px;
 	}
@@ -469,7 +469,7 @@
 	.spinner {
 		width: 24px;
 		height: 24px;
-		border: 2px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-top-color: var(--accent);
 		border-radius: 50%;
 		animation: spin 0.7s linear infinite;

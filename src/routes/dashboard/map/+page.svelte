@@ -731,7 +731,7 @@
 	.panel-head h2 {
 		margin: 0;
 		font-size: 1.15rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 	.panel-sub {
 		margin: 4px 0 0;
@@ -911,7 +911,7 @@
 		background: color-mix(in srgb, var(--warn, #f59e0b) 18%, transparent);
 		color: var(--warn, #f59e0b);
 		font-size: 0.62rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.02em;
 		white-space: nowrap;
@@ -1003,7 +1003,7 @@
 	.spinner {
 		width: 28px;
 		height: 28px;
-		border: 3px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-top-color: var(--accent, #f2c037);
 		border-radius: 50%;
 		animation: spin 0.8s linear infinite;

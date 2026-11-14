@@ -642,7 +642,7 @@
 		flex-wrap: wrap;
 		gap: 1rem;
 		margin-bottom: 1.5rem;
-		border-bottom: 2px solid var(--border);
+		border-bottom: var(--line-strong) solid var(--border);
 		padding-bottom: 1rem;
 	}
 
@@ -684,7 +684,7 @@
 		display: flex;
 		gap: 0.5rem;
 		margin-bottom: 1.5rem;
-		border-bottom: 2px solid var(--border);
+		border-bottom: var(--line-strong) solid var(--border);
 		padding-bottom: 0;
 		overflow-x: auto;
 	}
@@ -873,7 +873,7 @@
 		padding: 1rem;
 		font-weight: 600;
 		color: var(--text);
-		border-bottom: 2px solid var(--border);
+		border-bottom: var(--line-strong) solid var(--border);
 	}
 
 	.data-table td {

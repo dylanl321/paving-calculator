@@ -60,7 +60,7 @@
 
 	.screed-title {
 		font-size: 1.25rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 		margin: 0;
 		flex: 1;

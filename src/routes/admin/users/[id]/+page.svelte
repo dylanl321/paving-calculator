@@ -327,7 +327,7 @@
 
 	header {
 		margin-bottom: 1.5rem;
-		border-bottom: 2px solid var(--border);
+		border-bottom: var(--line-strong) solid var(--border);
 		padding-bottom: 1rem;
 	}
 

@@ -658,7 +658,7 @@
 		background: var(--bg);
 		border-bottom: 1px solid var(--border);
 		font-size: 0.78rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		color: var(--text-muted);
@@ -717,7 +717,7 @@
 	.source-badge {
 		display: inline-block;
 		font-size: 0.7rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.3px;
 		padding: 3px 8px;

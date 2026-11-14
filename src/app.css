@@ -58,16 +58,21 @@
 	--fs-2xl: 1.75rem; /* 28px — hero */
 	--fs-result: 2.5rem; /* big result number */
 
+	/* Light and dark read best with medium weights and thin lines. "Bold"
+	   tops out at semibold here; the sunlight theme turns it back up. */
 	--fw-normal: 400;
 	--fw-medium: 500;
 	--fw-semibold: 600;
-	--fw-bold: 700;
-	--fw-heavy: 800;
+	--fw-bold: 600;
+	--fw-heavy: 650;
+
+	/* Neutral divider width. 1px everywhere except sunlight. */
+	--line-strong: 1px;
 
 	/* Elevation */
-	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
-	--shadow-md: 0 4px 16px rgba(0, 0, 0, 0.22);
-	--shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.3);
+	--shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.12);
+	--shadow-md: 0 4px 16px rgba(0, 0, 0, 0.16);
+	--shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.24);
 
 	/* Motion */
 	--ease: cubic-bezier(0.2, 0, 0, 1);
@@ -91,9 +96,9 @@
 /* Eyebrow label: small uppercase section heading */
 .eyebrow {
 	font-size: var(--fs-xs);
-	font-weight: var(--fw-bold);
+	font-weight: var(--fw-medium);
 	text-transform: uppercase;
-	letter-spacing: 0.7px;
+	letter-spacing: 0.6px;
 	color: var(--text-muted);
 }
 
@@ -181,13 +186,17 @@
 
 :root[data-theme='light'] {
 	color-scheme: light;
-	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-	--shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
-	--shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.16);
+	--shadow-sm: 0 1px 2px rgba(36, 40, 45, 0.05);
+	--shadow-md: 0 4px 16px rgba(36, 40, 45, 0.08);
+	--shadow-lg: 0 12px 32px rgba(36, 40, 45, 0.12);
 }
 
+/* Sunlight is the max-contrast mode for direct sun: heavy type, thick lines. */
 :root[data-theme='sunlight'] {
 	color-scheme: light;
+	--fw-bold: 700;
+	--fw-heavy: 800;
+	--line-strong: 2px;
 	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
 	--shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
 	--shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.16);
@@ -1024,7 +1033,7 @@ textarea.input-field {
 
 .admin-page-title {
 	font-size: 1.75rem;
-	font-weight: 700;
+	font-weight: var(--fw-bold);
 	margin: 0 0 4px;
 	color: var(--text);
 }

@@ -153,7 +153,7 @@
 		display: block;
 		width: 100%;
 		background: #1a1a2e;
-		border: 2px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-radius: var(--radius);
 		touch-action: none;
 		cursor: crosshair;

@@ -158,7 +158,7 @@
 		padding: 0 var(--sp-3);
 		border-radius: 99px;
 		font-size: var(--fs-sm);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.pill-ahead { background: color-mix(in srgb, var(--good) 20%, var(--surface)); color: var(--good); }

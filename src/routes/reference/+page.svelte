@@ -345,8 +345,8 @@
 	th {
 		text-align: left;
 		padding: 12px 16px;
-		font-weight: 700;
-		border-bottom: 2px solid var(--border);
+		font-weight: var(--fw-bold);
+		border-bottom: var(--line-strong) solid var(--border);
 		white-space: nowrap;
 	}
 

@@ -161,7 +161,7 @@
 
 	.tool-label {
 		font-size: 0.7rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
 		color: var(--text-muted);
@@ -174,7 +174,7 @@
 
 	.entry-result {
 		font-size: 1.125rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent);
 		line-height: 1.2;
 		margin-bottom: 0.15rem;

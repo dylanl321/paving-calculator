@@ -363,7 +363,7 @@
 
 	.card-value {
 		font-size: 2rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 		margin-bottom: 0.25rem;
 	}
@@ -492,7 +492,7 @@
 		border: 1px solid rgba(239, 68, 68, 0.3);
 		border-radius: 9999px;
 		font-size: 0.75rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.error-time {

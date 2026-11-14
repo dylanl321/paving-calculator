@@ -313,7 +313,7 @@
 	.spinner {
 		width: 16px;
 		height: 16px;
-		border: 2px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-top-color: var(--accent);
 		border-radius: 50%;
 		animation: spin 0.7s linear infinite;

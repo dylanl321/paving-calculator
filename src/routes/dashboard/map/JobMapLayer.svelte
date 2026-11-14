@@ -138,7 +138,7 @@
 			: '';
 		return `<div style="min-width:170px;font-family:system-ui,sans-serif;line-height:1.4">
 			<strong style="font-size:0.95rem">${escapeHtml(site.name)}</strong>
-			<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:${statusColor};color:#000;font-size:0.66rem;font-weight:700;text-transform:uppercase">${escapeHtml(site.status)}</span>
+			<span style="display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:${statusColor};color:#000;font-size:0.66rem;font-weight:var(--fw-bold);text-transform:uppercase">${escapeHtml(site.status)}</span>
 			${route}${loc}
 			<a href="/dashboard/job-sites/${site.id}" style="display:inline-block;margin-top:8px;font-size:0.82rem;color:${ACCENT};text-decoration:underline">Open project &rarr;</a>
 		</div>`;

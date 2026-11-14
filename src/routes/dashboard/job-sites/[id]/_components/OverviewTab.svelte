@@ -1080,7 +1080,7 @@
 	}
 	.psb-value {
 		font-size: 1.05rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 	}
 	.psb-item :global(.status-badge) {
@@ -1129,7 +1129,7 @@
 
 	.link-tile-count {
 		font-size: 1.6rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 		line-height: 1;
 	}
@@ -1168,7 +1168,7 @@
 		background: var(--accent);
 		color: var(--accent-text);
 		border-radius: 50%;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 1.1rem;
 	}
 
@@ -1275,7 +1275,7 @@
 
 	.lr-value {
 		font-size: 0.95rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 	}
 
@@ -1487,7 +1487,7 @@
 		color: var(--accent);
 		border-radius: 999px;
 		font-size: 0.9rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		margin-bottom: 12px;
 	}
 
@@ -1581,7 +1581,7 @@
 		padding: 2px 8px;
 		border-radius: 999px;
 		font-size: 0.72rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--accent-text);
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
@@ -1678,7 +1678,7 @@
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
 		color: var(--text-muted);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		white-space: nowrap;
 	}
 
@@ -1810,7 +1810,7 @@
 		left: 50%;
 		transform: translate(-50%, -50%);
 		font-size: 1.4rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.setup-progress-info {

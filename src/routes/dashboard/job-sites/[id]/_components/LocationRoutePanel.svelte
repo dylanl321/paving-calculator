@@ -424,7 +424,7 @@
 	.setup-kicker {
 		color: var(--accent);
 		font-size: 0.72rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 	}
@@ -476,7 +476,7 @@
 		border-radius: 999px;
 		color: var(--text-muted);
 		font-size: 0.78rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 	}
 
 	.setup-steps div {
@@ -557,7 +557,7 @@
 
 	.log-mile {
 		color: var(--accent);
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 	}
 
 	.log-type {
@@ -574,7 +574,7 @@
 
 	.log-width {
 		color: var(--text-muted);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		white-space: nowrap;
 	}
 

@@ -276,7 +276,7 @@
 
   .card-label {
     font-size: 0.78rem;
-    font-weight: 700;
+    font-weight: var(--fw-bold);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--accent);
@@ -335,7 +335,7 @@
 
   .constants-title {
     font-size: 0.78rem;
-    font-weight: 700;
+    font-weight: var(--fw-bold);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--accent);

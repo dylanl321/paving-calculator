@@ -20,7 +20,6 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
 	import StatTile from '$lib/components/ui/StatTile.svelte';
-	import ProjectContextBar from '$lib/components/ProjectContextBar.svelte';
 
 	let { data }: { data: PageData } = $props();
 
@@ -211,9 +210,12 @@
 		};
 		const isEmpty = (v: unknown) => v === null || v === undefined || v === '' || v === 0;
 		const missing: string[] = [];
+		const fields: { key: string; label: string; done: boolean }[] = [];
 		let filled = 0;
 		for (const f of requiredConfig) {
-			if (isEmpty((configForm as unknown as Record<string, unknown>)[f])) missing.push(labels[f] ?? f);
+			const empty = isEmpty((configForm as unknown as Record<string, unknown>)[f]);
+			fields.push({ key: f, label: labels[f] ?? f, done: !empty });
+			if (empty) missing.push(labels[f] ?? f);
 			else filled++;
 		}
 		for (const f of requiredSite) {
@@ -222,8 +224,33 @@
 		}
 		const total = requiredConfig.length + requiredSite.length;
 		const score = Math.round((filled / total) * 100);
-		return { score, missing };
+		return { score, missing, fields };
 	});
+
+	// Complete / archive / reactivate live in the ⋯ menu. Archive asks once more
+	// inside the menu before it runs.
+	let menuOpen = $state(false);
+	let confirmArchive = $state(false);
+
+	function closeMenu() {
+		menuOpen = false;
+		confirmArchive = false;
+	}
+
+	function onWindowClick(event: MouseEvent) {
+		if (!menuOpen) return;
+		// composedPath is fixed at dispatch, so it still holds a menu button that
+		// re-rendered away during this click (e.g. Archive becoming its confirm).
+		const inMenu = event
+			.composedPath()
+			.some((el) => el instanceof HTMLElement && el.classList.contains('project-menu'));
+		if (inMenu) return;
+		closeMenu();
+	}
+
+	function onWindowKey(event: KeyboardEvent) {
+		if (event.key === 'Escape' && menuOpen) closeMenu();
+	}
 
 	const canEditProject = $derived(
 		['owner', 'admin', 'member', 'office', 'foreman'].includes(data.org?.role ?? '')
@@ -243,6 +270,8 @@
 	<title>{jobSiteState.name} — {config.app.name}</title>
 </svelte:head>
 
+<svelte:window onclick={onWindowClick} onkeydown={onWindowKey} />
+
 <div class="dashboard job-site-page">
 	<div class="breadcrumb">
 		<Breadcrumbs
@@ -253,19 +282,16 @@
 		/>
 	</div>
 
-	<ProjectContextBar
-		name={jobSiteState.name}
-		status={jobSiteState.status}
-		contractValue={configForm.total_contract_value}
-		routeDesignation={configForm.route_designation}
-		county={jobSiteState.gdot_county ?? configForm.route_county}
-		setupScore={setupCompleteness.score}
-	/>
 
 	<PageHeader title={jobSiteState.name} as="h2">
 		{#snippet children()}
 			<div class="page-meta">
 				<StatusBadge status={jobSiteState.status} />
+				{#if setupCompleteness.score < 100}
+					<button type="button" class="setup-chip" onclick={() => (activeTab = 'command')}>
+						Setup {setupCompleteness.score}%
+					</button>
+				{/if}
 				{#if jobSiteState.location_description}
 					<span class="meta-location">
 						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -279,33 +305,91 @@
 		{/snippet}
 		{#snippet actions()}
 			<div class="header-actions">
-				{#if canEditProject && jobSiteState.status === 'active'}
-					<Button variant="ghost" size="sm" onclick={() => updateProjectStatus('completed')} disabled={statusSaving}>
-						Mark Complete
-					</Button>
-					<Button variant="ghost" size="sm" onclick={() => updateProjectStatus('archived')} disabled={statusSaving}>
-						Archive
-					</Button>
-				{:else if canEditProject}
-					<Button variant="ghost" size="sm" onclick={() => updateProjectStatus('active')} disabled={statusSaving}>
-						Reactivate
-					</Button>
-				{/if}
-				<Button variant="ghost" size="sm" href="/dashboard/job-sites/{jobSiteState.id}/log">
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<Button href="/dashboard/job-sites/{jobSiteState.id}/log">
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 						<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
 						<polyline points="14 2 14 8 20 8"></polyline>
 					</svg>
 					Today's Log
 				</Button>
-				<Button size="sm" onclick={handleNewCalculation}>
-					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<Button variant="secondary" onclick={handleNewCalculation}>
+					<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 						<rect x="4" y="2" width="16" height="20" rx="2"></rect>
 						<line x1="8" y1="6" x2="16" y2="6"></line>
 						<line x1="8" y1="10" x2="16" y2="10"></line>
 					</svg>
 					Calculators
 				</Button>
+				{#if canEditProject}
+					<div class="project-menu">
+						<button
+							type="button"
+							class="menu-trigger"
+							aria-haspopup="menu"
+							aria-expanded={menuOpen}
+							aria-label="More project actions"
+							onclick={() => (menuOpen ? closeMenu() : (menuOpen = true))}
+						>
+							<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+								<circle cx="5" cy="12" r="2"></circle>
+								<circle cx="12" cy="12" r="2"></circle>
+								<circle cx="19" cy="12" r="2"></circle>
+							</svg>
+						</button>
+						{#if menuOpen}
+							<div class="menu-panel" role="menu">
+								{#if jobSiteState.status === 'active'}
+									<button
+										type="button"
+										role="menuitem"
+										disabled={statusSaving}
+										onclick={async () => {
+											closeMenu();
+											await updateProjectStatus('completed');
+										}}
+									>
+										Mark complete
+									</button>
+									{#if confirmArchive}
+										<div class="menu-confirm">
+											<span>Archive this project? It leaves the active list.</span>
+											<div class="menu-confirm__row">
+												<button
+													type="button"
+													class="danger"
+													disabled={statusSaving}
+													onclick={async () => {
+														closeMenu();
+														await updateProjectStatus('archived');
+													}}
+												>
+													Archive
+												</button>
+												<button type="button" onclick={() => (confirmArchive = false)}>Cancel</button>
+											</div>
+										</div>
+									{:else}
+										<button type="button" role="menuitem" class="danger" onclick={() => (confirmArchive = true)}>
+											Archive project…
+										</button>
+									{/if}
+								{:else}
+									<button
+										type="button"
+										role="menuitem"
+										disabled={statusSaving}
+										onclick={async () => {
+											closeMenu();
+											await updateProjectStatus('active');
+										}}
+									>
+										Reactivate project
+									</button>
+								{/if}
+							</div>
+						{/if}
+					</div>
+				{/if}
 			</div>
 		{/snippet}
 	</PageHeader>
@@ -340,6 +424,7 @@
 					equipmentCount={equipmentList.length}
 					setupScore={setupCompleteness.score}
 					missingFields={setupCompleteness.missing}
+					setupFields={setupCompleteness.fields}
 					onGoToTab={(tab) => (activeTab = tab)}
 				/>
 			{:else if activeTab === 'plan'}
@@ -415,48 +500,24 @@
 				</Card>
 			{/if}
 
-			<Card title="Key Stats">
-				<div class="sidebar-stats">
-					<StatTile label="Total Area" value={totalAreaSqYd ? fmt(totalAreaSqYd) : '—'} unit={totalAreaSqYd ? 'yd²' : undefined} />
-					<StatTile label="Est. Tonnage" value={estTonnage ? fmt(estTonnage, 1) : '—'} unit={estTonnage ? 't' : undefined} />
-					{#if costSummary}
-						<StatTile label={costSummary.method} value={`$${fmt(costSummary.value, 0)}`} accent />
-					{/if}
-					<StatTile label="Progress" value={milestonePct != null ? milestonePct : '—'} unit={milestonePct != null ? '%' : undefined} />
-				</div>
-			</Card>
-
-			<Card padding="sm">
-				<div class="sidebar-actions">
-					{#if canEditProject && jobSiteState.status === 'active'}
-						<Button variant="ghost" block onclick={() => updateProjectStatus('completed')} disabled={statusSaving}>
-							Mark Complete
-						</Button>
-						<Button variant="ghost" block onclick={() => updateProjectStatus('archived')} disabled={statusSaving}>
-							Archive Project
-						</Button>
-					{:else if canEditProject}
-						<Button variant="ghost" block onclick={() => updateProjectStatus('active')} disabled={statusSaving}>
-							Reactivate Project
-						</Button>
-					{/if}
-					<Button variant="ghost" block href="/dashboard/job-sites/{jobSiteState.id}/log">
-						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-							<polyline points="14 2 14 8 20 8"></polyline>
-						</svg>
-						Today's Log
-					</Button>
-					<Button block onclick={handleNewCalculation}>
-						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-							<rect x="4" y="2" width="16" height="20" rx="2"></rect>
-							<line x1="8" y1="6" x2="16" y2="6"></line>
-							<line x1="8" y1="10" x2="16" y2="10"></line>
-						</svg>
-						Calculators
-					</Button>
-				</div>
-			</Card>
+			{#if totalAreaSqYd || estTonnage || costSummary || milestonePct != null}
+				<Card title="Key Stats">
+					<div class="sidebar-stats">
+						{#if totalAreaSqYd}
+							<StatTile label="Total Area" value={fmt(totalAreaSqYd)} unit="yd²" />
+						{/if}
+						{#if estTonnage}
+							<StatTile label="Est. Tonnage" value={fmt(estTonnage, 1)} unit="t" />
+						{/if}
+						{#if costSummary}
+							<StatTile label={costSummary.method} value={`$${fmt(costSummary.value, 0)}`} accent />
+						{/if}
+						{#if milestonePct != null}
+							<StatTile label="Progress" value={milestonePct} unit="%" />
+						{/if}
+					</div>
+				</Card>
+			{/if}
 		</aside>
 	</div>
 </div>
@@ -519,11 +580,6 @@
 		margin: 0;
 	}
 
-	.sidebar-actions {
-		display: flex;
-		flex-direction: column;
-		gap: 10px;
-	}
 
 	.breadcrumb {
 		margin-bottom: 16px;
@@ -551,16 +607,105 @@
 		flex-wrap: wrap;
 	}
 
-	@media (min-width: 1024px) {
-		.header-actions {
-			display: none;
-		}
+	.setup-chip {
+		display: inline-flex;
+		align-items: center;
+		min-height: 32px;
+		padding: 0 12px;
+		border-radius: 999px;
+		border: 1px solid var(--warn);
+		background: transparent;
+		color: var(--warn);
+		font-size: 0.8rem;
+		font-weight: var(--fw-bold);
+		cursor: pointer;
+	}
+
+	.project-menu {
+		position: relative;
+	}
+
+	.menu-trigger {
+		display: inline-grid;
+		place-items: center;
+		width: 48px;
+		height: 48px;
+		border-radius: var(--radius);
+		border: 1px solid var(--border);
+		background: var(--surface);
+		color: var(--text);
+		cursor: pointer;
+	}
+
+	.menu-trigger:hover,
+	.menu-trigger[aria-expanded='true'] {
+		background: var(--surface-hover);
+	}
+
+	.menu-panel {
+		position: absolute;
+		right: 0;
+		top: calc(100% + 6px);
+		z-index: 30;
+		min-width: 240px;
+		display: grid;
+		padding: 6px;
+		border-radius: var(--radius);
+		border: 1px solid var(--border);
+		background: var(--surface);
+		box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+	}
+
+	.menu-panel button {
+		min-height: 44px;
+		padding: 0 12px;
+		border: none;
+		border-radius: calc(var(--radius) - 2px);
+		background: transparent;
+		color: var(--text);
+		font: inherit;
+		font-weight: 600;
+		text-align: left;
+		cursor: pointer;
+	}
+
+	.menu-panel button:hover:not(:disabled) {
+		background: var(--surface-hover);
+	}
+
+	.menu-panel .danger {
+		color: var(--bad);
+	}
+
+	.menu-confirm {
+		display: grid;
+		gap: 8px;
+		padding: 8px 6px;
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.menu-confirm__row {
+		display: flex;
+		gap: 6px;
+	}
+
+	.menu-confirm__row button {
+		flex: 1;
+		text-align: center;
+		border: 1px solid var(--border);
+	}
+
+	.menu-panel .menu-confirm__row .danger {
+		background: var(--bad);
+		border-color: var(--bad);
+		color: #fff;
 	}
 
 	.tabs {
 		display: flex;
 		gap: 4px;
-		border-bottom: 2px solid var(--border);
+		border-bottom: var(--line-strong) solid var(--border);
 		margin-bottom: 24px;
 		overflow-x: auto;
 		-webkit-overflow-scrolling: touch;
@@ -571,6 +716,14 @@
 
 	.tabs::-webkit-scrollbar {
 		display: none;
+	}
+
+	/* Fade the right edge on narrow screens so a cut-off tab reads as "more". */
+	@media (max-width: 899px) {
+		.tabs {
+			mask-image: linear-gradient(90deg, #000 85%, transparent);
+			-webkit-mask-image: linear-gradient(90deg, #000 85%, transparent);
+		}
 	}
 
 	/* On wider screens all 5 tabs fit comfortably on one row; never wrap. */
@@ -643,7 +796,7 @@
 		background: var(--surface-alt);
 		color: var(--text-muted);
 		font-size: 0.72rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		vertical-align: middle;
 	}
 
@@ -664,8 +817,18 @@
 			width: 100%;
 		}
 
-		.header-actions :global(.btn) {
+		/* Log, Calculators and ⋯ share one row on a phone. */
+		.header-actions {
+			flex-wrap: nowrap;
+		}
+
+		.header-actions > :global(.btn) {
 			flex: 1;
+			min-width: 0;
+		}
+
+		.project-menu {
+			flex: none;
 		}
 	}
 </style>

@@ -13,6 +13,9 @@
 	let { label, unit, value = $bindable(), step, min, max, hint, disabled = false, error }: Props = $props();
 	const id = `f-${Math.random().toString(36).slice(2, 8)}`;
 	const stepSize = $derived(step ?? 1);
+	// Ticket tons and feet are typed, not nudged by 1. The −/+ buttons only show
+	// when a caller passes a step it means (thickness in 0.25 in, lanes, etc.).
+	const showSteppers = $derived(step !== undefined);
 
 	// Derived: is the current value out of the min/max range?
 	const outOfRange = $derived(
@@ -52,14 +55,16 @@
 
 <div class="field" class:disabled>
 	<label for={id}>{label}</label>
-	<div class="with-unit">
-		<button
-			type="button"
-			class="stepper stepper-dec"
-			aria-label="Decrease {label}"
-			disabled={!canDecrement}
-			onclick={decrement}
-		>−</button>
+	<div class="with-unit" class:plain={!showSteppers}>
+		{#if showSteppers}
+			<button
+				type="button"
+				class="stepper stepper-dec"
+				aria-label="Decrease {label}"
+				disabled={!canDecrement}
+				onclick={decrement}
+			>−</button>
+		{/if}
 		<input
 			{id}
 			type="number"
@@ -72,13 +77,15 @@
 			bind:value
 			onfocus={handleFocus}
 		/>
-		<button
-			type="button"
-			class="stepper stepper-inc"
-			aria-label="Increase {label}"
-			disabled={!canIncrement}
-			onclick={increment}
-		>+</button>
+		{#if showSteppers}
+			<button
+				type="button"
+				class="stepper stepper-inc"
+				aria-label="Increase {label}"
+				disabled={!canIncrement}
+				onclick={increment}
+			>+</button>
+		{/if}
 		{#if unit}<span class="unit">{unit}</span>{/if}
 	</div>
 	{#if error}<p class="field-error">{error}</p>{/if}
@@ -159,6 +166,18 @@
 
 	input[type='number']:focus {
 		outline: none;
+	}
+
+	/* Without steppers the number reads left to right, like a ticket. */
+	.plain {
+		min-height: 56px;
+	}
+
+	.plain input[type='number'] {
+		text-align: left;
+		padding: 0 var(--sp-3, 12px);
+		font-size: 1.5rem;
+		font-weight: var(--fw-bold);
 	}
 
 	/* Focus ring on the container instead */

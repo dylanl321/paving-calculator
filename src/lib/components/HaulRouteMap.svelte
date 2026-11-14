@@ -223,7 +223,7 @@
 	.route-info-header h4 {
 		margin: 0;
 		font-size: 0.95rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		color: var(--text);
 	}
 

@@ -88,7 +88,7 @@
 		align-items: center;
 		gap: 10px;
 		flex: 1;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 1.1rem;
 		letter-spacing: 0.5px;
 	}
@@ -115,7 +115,7 @@
 		background: var(--accent);
 		border-radius: 10px;
 		color: var(--accent-text);
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 		font-size: 0.875rem;
 		white-space: nowrap;
 		transition:

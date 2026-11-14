@@ -111,7 +111,7 @@
 	.spinner {
 		width: 14px;
 		height: 14px;
-		border: 2px solid var(--border);
+		border: var(--line-strong) solid var(--border);
 		border-top-color: var(--text-muted);
 		border-radius: 50%;
 		animation: spin 0.7s linear infinite;

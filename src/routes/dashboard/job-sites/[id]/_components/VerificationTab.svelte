@@ -347,7 +347,7 @@
 	.group-title {
 		margin: 0;
 		font-size: 0.9rem;
-		font-weight: 700;
+		font-weight: var(--fw-bold);
 	}
 
 	.group-edit {
@@ -391,7 +391,7 @@
 		justify-content: center;
 		border-radius: 50%;
 		font-size: 0.72rem;
-		font-weight: 800;
+		font-weight: var(--fw-heavy);
 	}
 
 	.verify-row.present .row-status {
